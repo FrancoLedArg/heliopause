@@ -64,6 +64,11 @@ const DESCENT_HEIGHT = 300;
 /** How long a Spacecraft that ran dry while Landing takes to hit the ground (ms). */
 const CRASH_FALL_MS = 420;
 
+/** The pieces thrown up by a crash. */
+const DEBRIS_COUNT = 14;
+/** Where a Spacecraft that Fell Short in the Transfer drifts to, right of the report. */
+const DRIFT_REST = { x: 470, y: 160 } as const;
+
 const STREAK_COUNT = 34;
 /** Speed streaks run against the direction of travel: down and to the left. */
 const STREAK_ANGLE = Math.atan2(0.42, -1);
@@ -330,16 +335,89 @@ export class Flight extends Scene {
     EventBus.emit('hop-flight-moment', moment);
   }
 
-  /** Arrived goes on to the Landed view of the target, with the Fuel left; a failure ends the Run. */
+  /**
+   * Arrived goes on to the Landed view of the target, with the Fuel left and the report beside it. A
+   * failure ends the Run: the scene stays on its aftermath (drifting or crashed) behind the report.
+   */
   private finish(): void {
     if (this.finished) return;
     this.finished = true;
     if (this.flight.outcome.kind === 'arrived') {
-      const data: LandedData = { run: this.after };
+      const data: LandedData = {
+        run: this.after,
+        report: { before: this.before, flight: this.flight },
+      };
       this.scene.start(SceneKey.Landed, data);
     } else {
+      if (this.flight.outcome.kind === 'crashed') this.scatterDebris();
+      else this.drift();
       EventBus.emit('hop-failed', this.flight);
     }
+  }
+
+  /** A crash: a handful of small pieces thrown up from the wreck, falling back around it. Still under reduced motion. */
+  private scatterDebris(): void {
+    const rng = createRng(this.before.seed ^ 0xdeb5);
+    const originX = SHIP_PLACEMENT.x;
+    const originY = SHIP_PLACEMENT.baseY - 10;
+    const colours = ['wh1', 'gm4', 'am2', 'rd3'] as const;
+    for (let i = 0; i < DEBRIS_COUNT; i++) {
+      const size = rng.int(2, 4);
+      const piece = this.add.rectangle(
+        originX,
+        originY,
+        size,
+        size,
+        paletteNumber(colours[i % colours.length] ?? 'wh1'),
+      );
+      const landX = Math.round(originX + rng.int(-70, 70));
+      const landY = SHIP_PLACEMENT.baseY + rng.int(-2, 3);
+      if (this.pace === 'reduced') {
+        piece.setPosition(landX, landY);
+        continue;
+      }
+      const peak = originY - rng.int(24, 60);
+      this.tweens.add({
+        targets: piece,
+        x: landX,
+        duration: 620,
+        ease: 'Linear',
+      });
+      this.tweens.add({
+        targets: piece,
+        y: peak,
+        duration: 260,
+        ease: 'Quad.easeOut',
+        onComplete: () => {
+          this.tweens.add({ targets: piece, y: landY, duration: 360, ease: 'Quad.easeIn' });
+        },
+      });
+    }
+  }
+
+  /** Fell Short: the engine is dead and the Spacecraft drifts, turning slowly. Still under reduced motion. */
+  private drift(): void {
+    if (this.flight.outcome.kind === 'fell-short' && this.flight.outcome.burn === 'transfer') {
+      // In deep space, move clear of the report panel.
+      if (this.pace === 'reduced') this.ship.setPosition(DRIFT_REST.x, DRIFT_REST.y);
+      else
+        this.tweens.add({
+          targets: this.ship,
+          x: DRIFT_REST.x,
+          y: DRIFT_REST.y,
+          duration: 1400,
+          ease: 'Sine.easeOut',
+        });
+    }
+    if (this.pace === 'reduced') return;
+    this.tweens.add({
+      targets: this.ship,
+      angle: { from: -3, to: 5 },
+      duration: 2600,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+    });
   }
 
   private buildGround(run: Run): LandscapeLayers {

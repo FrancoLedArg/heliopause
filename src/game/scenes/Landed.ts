@@ -1,7 +1,7 @@
 import { Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
-import { launchHop, type Run } from '../sim/index.ts';
+import { launchHop, type HopFlight, type Run } from '../sim/index.ts';
 import { SHIP_PLACEMENT } from './landedView.ts';
 import { SceneKey } from './keys.ts';
 import type { FlightData } from './Flight.ts';
@@ -14,11 +14,14 @@ import { addSpacecraftArt } from './spacecraftArt.ts';
 export interface LandedData {
   /** The Run to show: the Spacecraft landed on its current Body. */
   readonly run: Run;
+  /** Set when the view follows an Arrived Hop: its report is shown beside the landscape. */
+  readonly report?: { readonly before: Run; readonly flight: HopFlight };
 }
 
 /** Landed view: the whole Spacecraft on the ground of the Body it stands on, under that Body's sky. */
 export class Landed extends Scene {
   private run!: Run;
+  private report: LandedData['report'];
   /** The layers, back to front: ambient motion (parallax drift) moves these. */
   layers!: Readonly<Record<'sky' | 'far' | 'mid' | 'near' | 'ship', GameObjects.Container>>;
   /** Whether the ambient life was left still; read once at create from `prefers-reduced-motion`. */
@@ -32,6 +35,7 @@ export class Landed extends Scene {
 
   init(data: LandedData): void {
     this.run = data.run;
+    this.report = data.report;
   }
 
   create(): void {
@@ -89,6 +93,7 @@ export class Landed extends Scene {
 
     onLeaveRun(this);
     EventBus.emit('run-started', this.run);
+    if (this.report) EventBus.emit('hop-arrived', this.report.before, this.report.flight);
     EventBus.emit('scene-ready', SceneKey.Landed);
   }
 

@@ -46,6 +46,11 @@ export interface GameEvents {
    * Arrived Hop goes on to the Landed view instead.
    */
   'hop-failed': [flight: HopFlight];
+  /**
+   * Phaser -> React: the Landed view on the new Body follows an Arrived Hop, so its report is shown beside
+   * it (sent after the Landed view's `run-started`, before its `scene-ready`). `before` is the Run at Launch.
+   */
+  'hop-arrived': [before: Run, flight: HopFlight];
   /** React -> Phaser: the player confirmed leaving the Run from the in-Run Menu; go back to the Title scene. */
   'leave-run-requested': [];
 }

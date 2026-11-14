@@ -6,13 +6,15 @@ const SEED_RANGE = 2 ** 32;
 /**
  * The seed a New Run starts from: the page URL's `?seed=<n>` when it holds a whole number in
  * [0, 2^32), so tests and bug reports can replay a Run exactly; otherwise a fresh random seed.
- * `random` returns a float in [0, 1), like `Math.random`.
+ * `random` returns a float in [0, 1), like `Math.random`. `after` is the seed of a Run just played in
+ * this page: a URL seed then moves on to the next one, so a New Run is a different Star System
+ * while a seeded session stays replayable.
  */
-export function chooseRunSeed(search: string, random: () => number): Seed {
+export function chooseRunSeed(search: string, random: () => number, after?: Seed): Seed {
   const fromUrl = new URLSearchParams(search).get('seed');
   if (fromUrl !== null && /^\d+$/.test(fromUrl)) {
     const seed = Number(fromUrl);
-    if (seed < SEED_RANGE) return seed;
+    if (seed < SEED_RANGE) return after === undefined ? seed : (after + 1) % SEED_RANGE;
   }
   return Math.floor(random() * SEED_RANGE);
 }

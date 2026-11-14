@@ -2,15 +2,13 @@
 
 .phase-strip,
 .flight-log,
-.fuel-gauge,
-.flight-outcome {
+.fuel-gauge {
   position: absolute;
 }
 
 .phase-strip > .kit-frame:first-child,
 .flight-log > .kit-frame:first-child,
-.fuel-gauge > .kit-frame:first-child,
-.flight-outcome > .kit-frame:first-child {
+.fuel-gauge > .kit-frame:first-child {
   position: absolute;
   inset: 0;
 }
@@ -183,49 +181,4 @@
 .fuel-gauge__bar > .fuel-gauge__fill {
   top: 2px;
   left: 2px;
-}
-
-.flight-outcome {
-  top: 52px;
-  left: 170px;
-  width: 300px;
-  height: 124px;
-  pointer-events: auto;
-}
-
-.flight-outcome__badge {
-  position: absolute;
-  top: 10px;
-  left: 12px;
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  font: 8px/12px var(--font-pixel);
-  text-transform: uppercase;
-  color: var(--rd3);
-}
-
-.game-ui .flight-outcome__title {
-  position: absolute;
-  top: 26px;
-  left: 12px;
-  margin: 0;
-  font: 16px/16px var(--font-pixel);
-  text-transform: uppercase;
-  color: var(--wh3);
-}
-
-.flight-outcome__why {
-  position: absolute;
-  top: 46px;
-  left: 12px;
-  width: 276px;
-  font: 14px/12px var(--font-pixel-body);
-  color: var(--gm6);
-}
-
-.flight-outcome__actions {
-  position: absolute;
-  right: 12px;
-  bottom: 10px;
 }
