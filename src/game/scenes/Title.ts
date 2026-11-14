@@ -1,10 +1,14 @@
 import { Scene } from 'phaser';
 import { EventBus } from '../EventBus.ts';
+import { formatBuildLabel } from '../lib/buildLabel.ts';
 import { createRng } from '../lib/rng.ts';
 import { SceneKey } from './keys.ts';
 
 const STAR_COUNT = 160;
 const STARFIELD_SEED = 1977; // Voyager launch year: same sky on every load.
+const BUILD_LABEL_MARGIN = 12;
+// Muted blue-grey; contrast against the #05060f title background is 5.66:1 (WCAG AA needs 4.5:1).
+const BUILD_LABEL_COLOR = '#7d86ad';
 
 export class Title extends Scene {
   constructor() {
@@ -42,6 +46,17 @@ export class Title extends Scene {
         color: '#9fb4ff',
       })
       .setOrigin(0.5);
+
+    const buildLabel = formatBuildLabel(BUILD_INFO);
+    this.add
+      .text(width - BUILD_LABEL_MARGIN, height - BUILD_LABEL_MARGIN, buildLabel, {
+        fontFamily: 'system-ui, sans-serif',
+        fontSize: 14,
+        color: BUILD_LABEL_COLOR,
+      })
+      .setOrigin(1, 1);
+    // Canvas text is invisible to the DOM; mirror it onto the canvas so e2e tests can read it.
+    this.game.canvas.dataset['buildLabel'] = buildLabel;
 
     EventBus.emit('scene-ready', SceneKey.Title);
   }

@@ -1,12 +1,14 @@
 import react from '@vitejs/plugin-react';
 import { playwright } from '@vitest/browser-playwright';
 import { defineConfig } from 'vitest/config';
+import { readBuildInfo } from './scripts/buildInfo.ts';
 
 // Two projects:
 //  - unit:    pure logic (simulation, rules, data) in Node. `*.test.ts`
 //  - browser: anything that needs a real DOM/canvas (Phaser scenes, React UI). `*.browser.test.ts(x)`
 export default defineConfig({
   plugins: [react()],
+  define: { BUILD_INFO: JSON.stringify(readBuildInfo(process.cwd())) },
   test: {
     projects: [
       {
