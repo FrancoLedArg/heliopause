@@ -12,10 +12,15 @@
   - Elements are absolutely positioned in native pixels (left/top/right in px).
   - data-frame="<atlas frame>" draws a UI kit frame from public/assets/ui/heliopause_ui.png;
     data-w / data-h stretch nine-slice frames (panels, buttons, bars, tooltips).
-  - .bd elements are stand-ins for sprites: --x/--y centre, --s size, data-key = sprite key.
-  - .mk elements are the numbered callouts; their text lives in the <ol class="callouts"> under each screen.
-  - The shared Star System map and top bar are <template> blocks reused by several screens.
-  The atlas is inlined as a data URI at the bottom so this file works on its own.
+  - <img class="sp" data-sprite="<key>"> draws a real game sprite centred on --x/--y,
+    scaled by --k and rotated by --r degrees.
+  - <canvas class="scene"> paints a backdrop: data-scene="space" or "surface" with
+    data-ground (rust, grey, icy), data-horizon, data-flat (x kept flat), data-dust, data-debris.
+    Surfaces are stand-ins for the surface_* art listed at the bottom of the page.
+  - .mk elements are numbered callouts (text in the <ol class="callouts"> under each screen);
+    .tag elements name the art each stand-in is waiting for. Both hide with the toggle.
+  - <template> blocks (top bar, landed view, flight HUD, report) are reused by several screens.
+  The UI atlas and the sprites are inlined as data URIs so this file works on its own.
 -->
 <style>
   /* Layout: one column of full-width screen plates, each followed by its numbered callouts. Single dark look taken from the UI kit palette. */
@@ -426,9 +431,90 @@
       }
     }
   }
+
+  /* v2: painted scenes, real sprites, chart panel. */
+  canvas.scene {
+    position: absolute;
+    inset: 0;
+    width: 640px;
+    height: 360px;
+    image-rendering: pixelated;
+  }
+  .screen img.sp {
+    position: absolute;
+    max-width: none;
+    image-rendering: pixelated;
+  }
+  .chart {
+    position: absolute;
+    overflow: hidden;
+    background: #060d16;
+    outline: 1px solid #0b3a4c;
+  }
+  .shadow {
+    position: absolute;
+    height: 3px;
+    background: rgba(7, 10, 18, 0.7);
+    border-radius: 50%;
+  }
+  .tag {
+    position: absolute;
+    font: 9px/9px var(--pixbody);
+    color: #8090a8;
+    background: rgba(7, 10, 18, 0.75);
+    padding: 1px 2px;
+    white-space: nowrap;
+    z-index: 4;
+  }
+  .no-marks .tag {
+    display: none;
+  }
+  .shift {
+    position: absolute;
+    inset: 0;
+    transform: translateX(98px);
+  }
+  .art {
+    width: 100%;
+    max-width: 1100px;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .art th,
+  .art td {
+    text-align: left;
+    vertical-align: top;
+    padding: 10px 14px 10px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .art th {
+    font: 500 12px/1.4 var(--mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .art td {
+    color: var(--muted);
+  }
+  .art td:first-child {
+    white-space: nowrap;
+  }
+  .table-wrap {
+    overflow-x: auto;
+  }
+  .note {
+    border-left: 2px solid var(--vi);
+    padding: 4px 0 4px 16px;
+    color: var(--muted);
+    max-width: 72ch;
+  }
+  .note strong {
+    color: var(--fg);
+    font-weight: 500;
+  }
 </style>
 
-<!-- Shared top bar: Fuel and Δv available. Values are filled per screen with data-fuel / data-dv on the placeholder. -->
+<!-- Shared top bar: Star System, Fuel and Δv available. Values are filled per screen with data-fuel / data-dv / data-hop. -->
 <template id="tpl-topbar">
   <div data-frame="panel_holo" data-w="624" data-h="40" style="left: 8px; top: 6px"></div>
   <div class="a t8 dim" style="left: 22px; top: 15px">STAR SYSTEM</div>
@@ -442,70 +528,134 @@
   <div class="a t11 cyan" style="left: 476px; top: 26px" data-slot="dv">5,050 m/s</div>
 </template>
 
-<!-- Shared Star System map. Bodies stay fixed in v1. Centre of the star: (40,200). -->
-<template id="tpl-map">
-  <div class="stars" data-seed="7"></div>
+<!-- The Spacecraft landed on Cinder, the Home Planet. Side view; horizon at y=268. -->
+<template id="tpl-landed">
+  <canvas
+    class="scene"
+    data-scene="surface"
+    data-ground="rust"
+    data-seed="3"
+    data-horizon="268"
+    data-flat="300"
+  ></canvas>
+  <img class="sp" data-sprite="body_star" style="--x: 520; --y: 124; --k: 1" alt="" />
+  <img class="sp" data-sprite="body_moon_0" style="--x: 168; --y: 100; --k: 2" alt="" />
+  <div class="shadow" style="left: 278px; top: 267px; width: 44px"></div>
+  <img class="sp" data-sprite="spacecraft" style="--x: 300; --y: 250; --k: 4; --r: -90" alt="" />
+</template>
+
+<!-- Flight HUD, filled per phase from HUDS in the script. -->
+<template id="tpl-hud">
+  <div data-frame="panel_holo" data-w="300" data-h="26" style="left: 150px; top: 52px"></div>
+  <div data-h="phases"></div>
+  <div class="a t8 faint" style="left: 246px; top: 61px">→</div>
+  <div class="a t8 faint" style="left: 338px; top: 61px">→</div>
+
+  <div data-frame="panel_holo" data-w="124" data-h="76" style="left: 504px; top: 52px"></div>
+  <div class="a t8 dim" style="left: 516px; top: 62px">ROUTE</div>
   <svg class="layer" viewBox="0 0 640 360" aria-hidden="true">
-    <g fill="none" stroke="#283246" stroke-width="1">
-      <circle cx="40" cy="200" r="70" />
-      <circle cx="40" cy="200" r="120" />
-      <circle cx="40" cy="200" r="190" />
-      <circle cx="40" cy="200" r="260" />
-      <circle cx="40" cy="200" r="330" />
-      <circle cx="40" cy="200" r="420" />
-    </g>
-    <circle
-      cx="40"
-      cy="200"
-      r="575"
+    <path
+      d="M522 108 Q566 66 612 86"
       fill="none"
-      stroke="#8150d0"
+      stroke="#3a465c"
       stroke-width="1"
-      stroke-dasharray="4 3"
+      stroke-dasharray="2 2"
     />
+    <path
+      data-h="flown"
+      d="M522 108 Q566 66 612 86"
+      fill="none"
+      stroke="#46dcec"
+      stroke-width="1"
+      pathLength="100"
+    />
+    <rect x="520" y="106" width="4" height="4" fill="#ffb43c" />
+    <rect x="610" y="84" width="4" height="4" fill="#46dcec" />
+    <rect data-h="dot" width="3" height="3" fill="#f4f8ff" />
   </svg>
-  <div class="a t8 violet" style="left: 528px; top: 212px">HELIOPAUSE</div>
-  <div class="a t10 faint" style="left: 528px; top: 222px">escape beyond here</div>
-  <div class="bd star" data-key="body_star" style="--x: 40; --y: 200; --s: 64; --c: #ffe696"></div>
-  <div class="bd" data-key="body_rocky_0" style="--x: 101; --y: 165; --s: 24; --c: #a2481a"></div>
-  <div class="a t10 amber" style="left: 84px; top: 188px">CINDER · HOME</div>
-  <div class="bd kr" data-key="body_moon_0" style="--x: 121; --y: 149; --s: 12; --c: #8090a8"></div>
-  <div class="bd" data-key="body_rocky_1" style="--x: 153; --y: 241; --s: 24; --c: #56647c"></div>
-  <div
-    class="bd gas"
-    data-key="body_gas_0"
-    style="--x: 223; --y: 151; --s: 48; --c: #e07a22; --c2: #a2481a"
-  ></div>
-  <div class="bd kr" data-key="body_moon_1" style="--x: 257; --y: 126; --s: 12; --c: #d2dce8"></div>
-  <div class="bd" data-key="body_moon_2" style="--x: 254; --y: 182; --s: 12; --c: #ffb43c"></div>
-  <div class="bd" data-key="body_rocky_2" style="--x: 276; --y: 306; --s: 24; --c: #aaf6ff"></div>
-  <div
-    class="bd gas ringed"
-    data-key="body_gas_1"
-    style="--x: 350; --y: 90; --s: 48; --c: #1ca4bc; --c2: #11667e"
-  ></div>
-  <div class="bd kr" data-key="body_moon_3" style="--x: 388; --y: 66; --s: 12; --c: #5a2410"></div>
-  <div class="bd" data-key="body_rocky_3" style="--x: 458; --y: 237; --s: 24; --c: #4e2a8c"></div>
+  <div class="a t10 amber" style="left: 514px; top: 113px">CINDER</div>
+  <div class="a t10 cyan" style="right: 18px; top: 94px">CINDER-A</div>
+
+  <div data-frame="panel_metal" data-w="252" data-h="46" style="left: 12px; top: 302px"></div>
+  <div data-frame="res_fuel" style="left: 20px; top: 309px"></div>
+  <div class="a t8 dim" style="left: 58px; top: 313px">FUEL</div>
+  <div class="a t11 amber" style="right: 388px; top: 312px" data-h="fuel"></div>
+  <div data-frame="bar_frame" data-w="190" data-h="10" style="left: 58px; top: 326px"></div>
+  <div data-h="fuelbar" style="left: 60px; top: 328px"></div>
+
+  <div data-frame="panel_holo" data-w="344" data-h="78" style="left: 284px; top: 272px"></div>
+  <div class="a t8 dim" style="left: 296px; top: 282px">FLIGHT LOG</div>
+  <div data-h="log"></div>
+  <div class="ai-label" style="bottom: auto; top: 54px">AI-GENERATED ART</div>
+</template>
+
+<!-- Report panel, filled per variant from REPORTS. Shifted right so the scene stays visible on the left. -->
+<template id="tpl-report">
+  <div class="shift">
+    <div data-frame="panel_metal" data-w="420" data-h="296" style="left: 110px; top: 50px"></div>
+    <div data-frame="titlebar" data-w="400" data-h="14" style="left: 120px; top: 60px"></div>
+    <div class="a t8 pale" style="left: 142px; top: 63px">HOP REPORT</div>
+    <div class="a t8 cyan" style="right: 142px; top: 63px" data-r="route"></div>
+    <div data-r="badge" style="left: 128px; top: 84px"></div>
+    <div class="a t16" style="left: 146px; top: 82px" data-r="title"></div>
+
+    <div class="a t8 dim" style="left: 128px; top: 108px">BURN</div>
+    <div class="a t8 dim" style="right: 300px; top: 108px">EST.</div>
+    <div class="a t8 dim" style="right: 212px; top: 108px">ACTUAL</div>
+    <div class="a t8 dim" style="right: 128px; top: 108px">DIFF</div>
+    <div data-r="rows"></div>
+    <div data-frame="divider" data-w="384" data-h="5" style="left: 128px; top: 166px"></div>
+    <div data-r="total"></div>
+
+    <div class="a t8 dim" style="left: 128px; top: 192px" data-r="marginLabel"></div>
+    <div class="a t11" style="right: 128px; top: 191px" data-r="margin"></div>
+
+    <div data-r="whybox" style="left: 124px; top: 208px"></div>
+    <div class="a t8" style="left: 132px; top: 215px" data-r="whyhead">WHY</div>
+    <div
+      class="a t11 pale wrap"
+      style="left: 132px; top: 226px; width: 376px; line-height: 12px"
+      data-r="why"
+    ></div>
+    <div
+      class="a t11 dim wrap"
+      style="left: 128px; top: 276px; width: 384px; line-height: 12px"
+      data-r="lesson"
+    ></div>
+
+    <div data-frame="btn_primary_normal" data-w="104" data-h="24" style="left: 408px; top: 312px">
+      <span class="btnlabel" data-r="button"></span>
+    </div>
+
+    <span class="mk" style="left: 128px; top: 80px">1</span>
+    <span class="mk" style="left: 120px; top: 130px">2</span>
+    <span class="mk" style="left: 120px; top: 194px">3</span>
+    <span class="mk" style="left: 516px; top: 210px">4</span>
+    <span class="mk" style="left: 120px; top: 280px">5</span>
+    <span class="mk" style="left: 516px; top: 312px">6</span>
+  </div>
+  <div class="ai-label">AI-GENERATED ART</div>
 </template>
 
 <div class="page">
   <header>
-    <div class="eyebrow">Heliopause · Spec A · Fly a Hop</div>
+    <div class="eyebrow">Heliopause · Spec A · Fly a Hop · wireframe v2</div>
     <h1>v1 Screens</h1>
     <p class="lede">
-      The four screens of the first playable slice, in the order a player meets them: look at the
-      <strong>Star System</strong>, plan a <strong>Hop</strong>, watch it fly, read the report.
-      Drawn at the game's native 640×360 with the real UI kit. Planets, Moons, the star and the
-      <strong>Spacecraft</strong> are stand-ins labelled with the sprite key that replaces them.
-      Every number is an example, not tuned gameplay.
+      The player is <strong>with the Spacecraft</strong>, not looking down at a map. The main screen
+      is the Spacecraft standing on the Body it landed on. Planning happens in a
+      <strong>nav chart</strong> panel that opens over that view. A <strong>Hop</strong> plays out
+      as the ship itself taking off, crossing space and landing.
     </p>
     <p class="lede">
-      To change a layout, edit <code>docs/design/v1-screens.html</code>: positions are native
-      pixels, and the comment at the top of the file explains the parts.
+      Drawn at the game's native 640×360 with the real UI kit and the
+      <strong>existing sprites</strong>, scaled up where a scene needs them big. Ground, ship size
+      and particles are stand-ins for new art, listed at the bottom. Every number is an example, not
+      tuned gameplay.
     </p>
     <div class="toolbar">
       <label for="toggle-marks"
-        ><input type="checkbox" id="toggle-marks" checked /> Show callouts</label
+        ><input type="checkbox" id="toggle-marks" checked /> Show callouts and art tags</label
       >
       <span class="legend-chip"
         ><span class="chip">1</span> numbered callouts match the notes under each screen</span
@@ -513,13 +663,13 @@
     </div>
   </header>
 
-  <!-- 1 · STAR SYSTEM MAP -->
+  <!-- 1 · LANDED -->
   <section aria-labelledby="s1">
     <div class="sec-head">
-      <h2 id="s1">1 · Star System map</h2>
+      <h2 id="s1">1 · Landed</h2>
       <p>
-        Where every Run starts. The player sees the whole Star System, picks a target and opens the
-        Hop plan.
+        Where every Run starts and where every successful Hop ends: the Spacecraft on the surface of
+        the Body it is on. The Home Planet here is Cinder.
       </p>
     </div>
     <div class="screen-wrap">
@@ -527,63 +677,59 @@
         <div
           class="screen"
           role="img"
-          aria-label="Star System map with the star at left, orbit rings, planets and Moons, the Spacecraft on the Home Planet and the Home Planet's Moon selected"
+          aria-label="Side view of the Spacecraft standing on the rust-coloured surface of Cinder, with the star and Cinder's Moon in the black sky, a location plate at bottom left and Nav Chart and Spacecraft buttons at bottom right"
         >
-          <div data-use="tpl-map"></div>
-          <svg class="layer" viewBox="0 0 640 360" aria-hidden="true">
-            <path
-              d="M107 156 Q112 140 117 146"
-              fill="none"
-              stroke="#46dcec"
-              stroke-width="1"
-              stroke-dasharray="2 2"
-            />
-            <line x1="150" y1="119" x2="125" y2="144" stroke="#46dcec" stroke-width="1" />
-          </svg>
-          <div class="sel" style="--x: 121; --y: 149"></div>
-          <div class="ship nokey" data-key="spacecraft" style="--x: 99; --y: 149; --r: -40"></div>
-          <div data-use="tpl-topbar"></div>
-
-          <div data-frame="tooltip" data-w="132" data-h="62" style="left: 136px; top: 56px"></div>
-          <div class="a t8 cyan" style="left: 143px; top: 63px">CINDER-A · MOON</div>
-          <div class="a t11 pale" style="left: 143px; top: 75px">Gravity 1.4 m/s²</div>
-          <div class="a t11 pale" style="left: 143px; top: 86px">0.31 AU from star</div>
-          <div data-frame="badge_ok" style="left: 142px; top: 99px"></div>
-          <div class="a t8 green" style="left: 158px; top: 101px">LANDABLE</div>
+          <div data-use="tpl-landed"></div>
+          <div data-use="tpl-topbar" data-hop="HOP 0 · LANDED"></div>
 
           <div
-            data-frame="tooltip_warn"
-            data-w="124"
-            data-h="52"
-            style="left: 274px; top: 142px"
+            data-frame="panel_holo"
+            data-w="200"
+            data-h="54"
+            style="left: 12px; top: 282px"
           ></div>
-          <div class="a t8 amber" style="left: 281px; top: 149px">MAELSTROM</div>
-          <div class="a t10 dim" style="left: 281px; top: 159px">Gas Giant · 1.1 AU</div>
-          <div data-frame="badge_warning" style="left: 280px; top: 173px"></div>
-          <div class="a t11 amber" style="left: 296px; top: 174px">No surface: can't land</div>
-          <div class="a t10 dim" style="left: 296px; top: 184px">Land on its 2 Moons</div>
+          <div class="a t16 amber" style="left: 24px; top: 292px">CINDER</div>
+          <div class="a t8 dim" style="left: 24px; top: 311px">HOME PLANET · ROCKY</div>
+          <div class="a t10 pale" style="left: 24px; top: 322px">
+            Gravity 6.1 m/s² · 0.31 AU from star
+          </div>
 
-          <div class="a t11 dim" style="left: 186px; top: 338px">Select a Body to plan a Hop</div>
+          <div class="a t11 dim" style="right: 8px; top: 304px">
+            Open the nav chart to plan a Hop
+          </div>
+          <div
+            data-frame="btn_default_disabled"
+            data-w="116"
+            data-h="24"
+            style="left: 392px; top: 322px"
+          >
+            <span class="btnlabel" style="color: #56647c">SPACECRAFT</span>
+          </div>
           <div
             data-frame="btn_primary_normal"
-            data-w="112"
+            data-w="116"
             data-h="24"
-            style="left: 516px; top: 326px"
+            style="left: 516px; top: 322px"
           >
-            <span class="btnlabel">PLAN HOP</span>
+            <span class="btnlabel">NAV CHART</span>
           </div>
           <div class="ai-label">AI-GENERATED ART</div>
 
+          <span class="tag" style="left: 330px; top: 226px"
+            >spacecraft ×4 → needs spacecraft_side</span
+          >
+          <span class="tag" style="left: 420px; top: 292px">stand-in → surface_rocky</span>
+          <span class="tag" style="left: 186px; top: 116px">body_moon_0 ×2</span>
+          <span class="tag" style="left: 488px; top: 160px">body_star</span>
+
           <span class="mk" style="left: 300px; top: 8px">1</span>
-          <span class="mk" style="left: 66px; top: 174px">2</span>
-          <span class="mk" style="left: 100px; top: 304px">3</span>
-          <span class="mk" style="left: 88px; top: 142px">4</span>
-          <span class="mk" style="left: 133px; top: 140px">5</span>
-          <span class="mk" style="left: 268px; top: 58px">6</span>
-          <span class="mk" style="left: 398px; top: 144px">7</span>
-          <span class="mk" style="left: 612px; top: 140px">8</span>
-          <span class="mk" style="left: 516px; top: 326px">9</span>
-          <span class="mk" style="left: 110px; top: 345px">10</span>
+          <span class="mk" style="left: 322px; top: 212px">2</span>
+          <span class="mk" style="left: 600px; top: 276px">3</span>
+          <span class="mk" style="left: 150px; top: 82px">4</span>
+          <span class="mk" style="left: 12px; top: 282px">5</span>
+          <span class="mk" style="left: 628px; top: 322px">6</span>
+          <span class="mk" style="left: 392px; top: 322px">7</span>
+          <span class="mk" style="left: 110px; top: 345px">8</span>
         </div>
       </div>
     </div>
@@ -591,68 +737,53 @@
       <li>
         <span class="chip">1</span
         ><span
-          ><b>Top bar.</b> Fuel on board in tonnes, and the Δv it buys right now. Δv shrinks when
-          the Spacecraft gets heavier.</span
+          ><b>Top bar.</b> Star System, Hops flown, Fuel on board and the Δv it buys right now. Same
+          on every screen.</span
         >
       </li>
       <li>
         <span class="chip">2</span
         ><span
-          ><b>The star</b> (<code>body_star</code>). The closer a Body sits to it, the deeper in its
-          gravity and the harder to climb away from.</span
+          ><b>The Spacecraft</b>, big and standing on the ground: the thing the player designs and
+          cares about. Drawn here as the 16 px <code>spacecraft</code> sprite at 4×. Needs a larger
+          side-view sprite with landing legs.</span
         >
       </li>
       <li>
         <span class="chip">3</span
         ><span
-          ><b>Orbit rings.</b> Bodies stay fixed on their rings in v1. No orbital motion or launch
-          windows yet.</span
+          ><b>The surface.</b> Each Body's ground shows what it is: rust or grey rock for a Rocky
+          Body, pale blue ice for an Icy Body (Spec B), grey dust for a Moon. The player can tell
+          where they are before reading anything.</span
         >
       </li>
       <li>
         <span class="chip">4</span
         ><span
-          ><b>Home Planet and Spacecraft.</b> A small rocky planet close to its star, with at least
-          one Moon. The marker (<code>spacecraft</code>) shows where the Spacecraft is.</span
+          ><b>The sky.</b> Real sprites for the star and the neighbouring Bodies, placed to match
+          the Star System. Cinder's Moon hangs overhead, the obvious first Hop.</span
         >
       </li>
       <li>
         <span class="chip">5</span
-        ><span
-          ><b>Selected target.</b> Cyan brackets and a dashed line show the Hop being considered.
-          The first obvious Hop is the Home Planet's Moon.</span
-        >
+        ><span><b>Where you are.</b> Body name, type, gravity and distance from the star.</span>
       </li>
       <li>
         <span class="chip">6</span
         ><span
-          ><b>Body info.</b> Gravity, distance from the star, and whether it can be landed on. Shown
-          for the selected Body.</span
+          ><b>Nav Chart.</b> The way into planning. Also opens with a key (proposed: M) so the game
+          stays keyboard-playable.</span
         >
       </li>
       <li>
         <span class="chip">7</span
         ><span
-          ><b>Gas Giant info.</b> Gas Giants have no surface, so they are never a Hop target, but
-          their Moons are.</span
+          ><b>Spacecraft.</b> Opens the Spacecraft panel from Spec B (Slots and Components). Shown
+          disabled here because Spec A has no panel yet.</span
         >
       </li>
       <li>
         <span class="chip">8</span
-        ><span
-          ><b>Heliopause.</b> The dashed outer edge. Crossing it is how a Star System is escaped
-          (Spec C).</span
-        >
-      </li>
-      <li>
-        <span class="chip">9</span
-        ><span
-          ><b>Plan Hop.</b> Opens the Hop plan for the selected Body. Disabled when the selection is
-          a Gas Giant or the current Body.</span
-        >
-      </li>
-      <li>
-        <span class="chip">10</span
         ><span
           ><b>AI-generated art label.</b> Always visible on every screen, as the Space Apps rules
           require.</span
@@ -661,13 +792,14 @@
     </ol>
   </section>
 
-  <!-- 2 · HOP PLAN -->
+  <!-- 2 · NAV CHART AND HOP PLAN -->
   <section aria-labelledby="s2">
     <div class="sec-head">
-      <h2 id="s2">2 · Hop plan</h2>
+      <h2 id="s2">2 · Nav chart and Hop plan</h2>
       <p>
-        The decision screen. The player compares what the Hop costs with what the Spacecraft has,
-        reads the Success Chance and decides whether to launch.
+        Planning is a panel, not the world. The nav chart shows the whole Star System so the player
+        can pick a target; the Hop plan beside it shows what that Hop costs. The landed view stays
+        dimmed behind, so the player never leaves the ship.
       </p>
     </div>
     <div class="screen-wrap">
@@ -675,159 +807,252 @@
         <div
           class="screen"
           role="img"
-          aria-label="Hop plan panel over the dimmed map, listing Takeoff, Transfer and Landing Δv, totals, margin, Fuel on board, an 87 percent Success Chance, and Launch and Cancel buttons"
+          aria-label="Nav chart panel showing the Star System with real planet sprites, Cinder's Moon selected as the target with a route line, a Gas Giant tooltip and the Heliopause ring; beside it the Hop plan with three Burns, totals, margin, an 87 percent Success Chance and Launch and Cancel buttons"
         >
-          <div class="dimmed"><div data-use="tpl-map"></div></div>
-          <div data-use="tpl-topbar"></div>
+          <div class="dimmed"><div data-use="tpl-landed"></div></div>
+          <div data-use="tpl-topbar" data-hop="HOP 0 · PLANNING"></div>
+
+          <div data-frame="panel_holo" data-w="432" data-h="284" style="left: 8px; top: 52px"></div>
+          <div data-frame="titlebar" data-w="416" data-h="14" style="left: 16px; top: 60px"></div>
+          <div class="a t8 pale" style="left: 38px; top: 63px">NAV CHART</div>
+          <div class="a t8 cyan" style="right: 230px; top: 63px">VELKA SYSTEM</div>
+
+          <div class="chart" style="left: 18px; top: 80px; width: 412px; height: 220px">
+            <svg
+              class="layer"
+              viewBox="0 0 412 220"
+              style="width: 412px; height: 220px"
+              aria-hidden="true"
+            >
+              <g fill="none" stroke="#102434" stroke-width="1">
+                <circle cx="6" cy="110" r="44" />
+                <circle cx="6" cy="110" r="74" />
+                <circle cx="6" cy="110" r="117" />
+                <circle cx="6" cy="110" r="160" />
+                <circle cx="6" cy="110" r="204" />
+                <circle cx="6" cy="110" r="260" />
+              </g>
+              <circle
+                cx="6"
+                cy="110"
+                r="356"
+                fill="none"
+                stroke="#8150d0"
+                stroke-width="1"
+                stroke-dasharray="4 3"
+              />
+              <path
+                d="M50 80 Q52 62 58 68"
+                fill="none"
+                stroke="#46dcec"
+                stroke-width="1"
+                stroke-dasharray="2 2"
+              />
+            </svg>
+            <img class="sp" data-sprite="body_star" style="--x: -10; --y: 110; --k: 1" alt="" />
+            <img class="sp" data-sprite="body_rocky_1" style="--x: 44; --y: 88; --k: 1" alt="" />
+            <img class="sp" data-sprite="body_moon_0" style="--x: 62; --y: 73; --k: 1" alt="" />
+            <img class="sp" data-sprite="body_rocky_0" style="--x: 76; --y: 135; --k: 1" alt="" />
+            <img class="sp" data-sprite="body_gas_0" style="--x: 119; --y: 80; --k: 1" alt="" />
+            <img class="sp" data-sprite="body_moon_1" style="--x: 152; --y: 59; --k: 1" alt="" />
+            <img class="sp" data-sprite="body_moon_2" style="--x: 150; --y: 105; --k: 1" alt="" />
+            <img class="sp" data-sprite="body_rocky_2" style="--x: 152; --y: 176; --k: 1" alt="" />
+            <img class="sp" data-sprite="body_gas_2" style="--x: 198; --y: 42; --k: 1" alt="" />
+            <img class="sp" data-sprite="body_moon_3" style="--x: 232; --y: 21; --k: 1" alt="" />
+            <img class="sp" data-sprite="body_rocky_3" style="--x: 265; --y: 133; --k: 1" alt="" />
+            <div class="sel" style="--x: 62; --y: 73"></div>
+            <div class="a t8 amber" style="left: 30px; top: 103px">CINDER · YOU</div>
+            <div class="a t8 cyan" style="left: 78px; top: 58px">CINDER-A</div>
+            <div class="a t10 faint" style="left: 62px; top: 150px">ASH</div>
+            <div class="a t10 faint" style="left: 140px; top: 191px">RIME</div>
+            <div class="a t10 faint" style="left: 252px; top: 148px">KILN</div>
+            <div class="a t10 faint" style="left: 218px; top: 44px">HALO</div>
+
+            <div
+              data-frame="tooltip_warn"
+              data-w="124"
+              data-h="40"
+              style="left: 168px; top: 70px"
+            ></div>
+            <div class="a t8 amber" style="left: 175px; top: 76px">MAELSTROM</div>
+            <div class="a t10 dim" style="left: 175px; top: 86px">Gas Giant · 1.1 AU</div>
+            <div class="a t10 amber" style="left: 175px; top: 96px">
+              No surface: land on its Moons
+            </div>
+
+            <div class="a t8 violet" style="left: 300px; top: 176px">HELIOPAUSE</div>
+            <div class="a t10 faint" style="left: 300px; top: 186px">escape here (Spec C)</div>
+          </div>
+          <div
+            class="a t10 dim wrap"
+            style="left: 24px; top: 305px; width: 404px; line-height: 11px"
+          >
+            Click a Body to set it as the target. Δv is how much the Spacecraft can change its
+            speed: every Burn spends some, and a heavier Spacecraft gets less from the same Fuel.
+          </div>
 
           <div
             data-frame="panel_metal"
-            data-w="340"
+            data-w="188"
             data-h="284"
-            style="left: 150px; top: 50px"
+            style="left: 444px; top: 52px"
           ></div>
-          <div data-frame="titlebar" data-w="320" data-h="14" style="left: 160px; top: 60px"></div>
-          <div class="a t8 pale" style="left: 182px; top: 63px">HOP PLAN</div>
-          <div class="a t8 cyan" style="right: 186px; top: 63px">CINDER → CINDER-A</div>
+          <div data-frame="titlebar" data-w="172" data-h="14" style="left: 452px; top: 60px"></div>
+          <div class="a t8 pale" style="left: 472px; top: 63px">HOP PLAN</div>
 
-          <div class="a t8 dim" style="left: 168px; top: 86px">BURN</div>
-          <div class="a t8 dim" style="left: 232px; top: 86px">WHY IT COSTS</div>
-          <div class="a t8 dim" style="right: 168px; top: 86px">EST. Δv</div>
+          <div class="a t8 dim" style="left: 456px; top: 82px">TARGET</div>
+          <div class="a t16 cyan" style="left: 456px; top: 92px">CINDER-A</div>
+          <div class="a t10 dim" style="left: 456px; top: 110px">Moon · Rocky · 1.4 m/s²</div>
+          <div data-frame="badge_ok" style="left: 456px; top: 122px"></div>
+          <div class="a t8 green" style="left: 472px; top: 124px">LANDABLE</div>
+          <div data-frame="divider" data-w="164" data-h="5" style="left: 456px; top: 138px"></div>
 
-          <div class="a t11 pale" style="left: 168px; top: 100px">Takeoff</div>
-          <div class="a t11 dim" style="left: 232px; top: 100px">
-            Leave Cinder, gravity 6.1 m/s²
-          </div>
-          <div class="a t11 pale" style="right: 168px; top: 100px">3,100 m/s</div>
-          <div class="a t11 pale" style="left: 168px; top: 115px">Transfer</div>
-          <div class="a t11 dim" style="left: 232px; top: 115px">Travel out to Cinder-A</div>
-          <div class="a t11 pale" style="right: 168px; top: 115px">680 m/s</div>
-          <div class="a t11 pale" style="left: 168px; top: 130px">Landing</div>
-          <div class="a t11 dim" style="left: 232px; top: 130px">
-            Slow down onto Cinder-A, 1.4 m/s²
-          </div>
-          <div class="a t11 pale" style="right: 168px; top: 130px">1,050 m/s</div>
+          <div class="a t8 dim" style="left: 456px; top: 147px">BURN</div>
+          <div class="a t8 dim" style="right: 20px; top: 147px">EST. Δv</div>
+          <div class="a t11 pale" style="left: 456px; top: 158px">Takeoff</div>
+          <div class="a t11 pale" style="right: 20px; top: 158px">3,100 m/s</div>
+          <div class="a t10 faint" style="left: 456px; top: 168px">climb off Cinder, 6.1 m/s²</div>
+          <div class="a t11 pale" style="left: 456px; top: 178px">Transfer</div>
+          <div class="a t11 pale" style="right: 20px; top: 178px">680 m/s</div>
+          <div class="a t10 faint" style="left: 456px; top: 188px">travel out to Cinder-A</div>
+          <div class="a t11 pale" style="left: 456px; top: 198px">Landing</div>
+          <div class="a t11 pale" style="right: 20px; top: 198px">1,050 m/s</div>
+          <div class="a t10 faint" style="left: 456px; top: 208px">slow down onto Cinder-A</div>
+          <div data-frame="divider" data-w="164" data-h="5" style="left: 456px; top: 220px"></div>
 
-          <div data-frame="divider" data-w="304" data-h="5" style="left: 168px; top: 146px"></div>
-
-          <div class="a t8 dim" style="left: 168px; top: 158px">Δv NEEDED</div>
-          <div class="a t11 pale" style="right: 168px; top: 157px">4,830 m/s</div>
-          <div class="a t8 dim" style="left: 168px; top: 171px">Δv AVAILABLE</div>
-          <div class="a t11 cyan" style="right: 168px; top: 170px">5,050 m/s</div>
-          <div class="a t8 dim" style="left: 168px; top: 184px">MARGIN</div>
-          <div class="a t11 amber" style="right: 168px; top: 183px">+220 m/s (+4.6%)</div>
-
+          <div class="a t8 dim" style="left: 456px; top: 231px">NEEDED</div>
+          <div class="a t11 pale" style="right: 20px; top: 230px">4,830 m/s</div>
+          <div class="a t8 dim" style="left: 456px; top: 243px">AVAILABLE</div>
+          <div class="a t11 cyan" style="right: 20px; top: 242px">5,050 m/s</div>
+          <div class="a t8 dim" style="left: 456px; top: 255px">MARGIN</div>
+          <div class="a t11 amber" style="right: 20px; top: 254px">+220 m/s (4.6%)</div>
           <div
             data-frame="bar_frame"
-            data-w="304"
+            data-w="164"
             data-h="10"
-            style="left: 168px; top: 197px"
+            style="left: 456px; top: 267px"
           ></div>
           <div
             data-frame="bar_fill_am"
-            data-w="286"
+            data-w="153"
             data-h="6"
-            style="left: 170px; top: 199px"
+            style="left: 458px; top: 269px"
           ></div>
-          <div class="a t10 faint" style="left: 168px; top: 209px">needed, out of available</div>
 
-          <div data-frame="res_fuel" style="left: 166px; top: 222px"></div>
-          <div class="a t8 dim" style="left: 202px; top: 228px">FUEL ON BOARD</div>
-          <div class="a t11 amber" style="left: 202px; top: 239px">12.0 t</div>
-
-          <div class="a t8 dim" style="left: 340px; top: 228px">SUCCESS CHANCE</div>
-          <div data-frame="badge_ok" style="left: 340px; top: 241px"></div>
-          <div class="a t22 green" style="left: 356px; top: 237px">87%</div>
-
-          <div
-            class="a t11 pale wrap"
-            style="left: 168px; top: 262px; width: 304px; line-height: 12px"
-          >
-            Δv is how much the Spacecraft can change its speed. Every burn spends some. A heavier
-            Spacecraft gets less Δv from the same Fuel.
-          </div>
+          <div class="a t8 dim" style="left: 456px; top: 285px">SUCCESS</div>
+          <div data-frame="badge_ok" style="left: 562px; top: 283px"></div>
+          <div class="a t22 green" style="left: 578px; top: 279px">87%</div>
 
           <div
             data-frame="btn_default_normal"
-            data-w="96"
+            data-w="76"
             data-h="24"
-            style="left: 168px; top: 302px"
+            style="left: 456px; top: 304px"
           >
             <span class="btnlabel">CANCEL</span>
           </div>
           <div
             data-frame="btn_primary_normal"
-            data-w="96"
+            data-w="80"
             data-h="24"
-            style="left: 376px; top: 302px"
+            style="left: 540px; top: 304px"
           >
             <span class="btnlabel">LAUNCH</span>
           </div>
           <div class="ai-label">AI-GENERATED ART</div>
 
-          <span class="mk" style="left: 484px; top: 60px">1</span>
-          <span class="mk" style="left: 160px; top: 115px">2</span>
-          <span class="mk" style="left: 484px; top: 171px">3</span>
-          <span class="mk" style="left: 166px; top: 222px">4</span>
-          <span class="mk" style="left: 334px; top: 224px">5</span>
-          <span class="mk" style="left: 160px; top: 268px">6</span>
-          <span class="mk" style="left: 478px; top: 302px">7</span>
-          <span class="mk" style="left: 60px; top: 120px">8</span>
+          <span class="mk" style="left: 16px; top: 60px">1</span>
+          <span class="mk" style="left: 30px; top: 132px">2</span>
+          <span class="mk" style="left: 92px; top: 140px">3</span>
+          <span class="mk" style="left: 314px; top: 152px">4</span>
+          <span class="mk" style="left: 362px; top: 252px">5</span>
+          <span class="mk" style="left: 626px; top: 84px">6</span>
+          <span class="mk" style="left: 448px; top: 178px">7</span>
+          <span class="mk" style="left: 448px; top: 255px">8</span>
+          <span class="mk" style="left: 626px; top: 286px">9</span>
+          <span class="mk" style="left: 626px; top: 316px">10</span>
+          <span class="mk" style="left: 18px; top: 312px">11</span>
+          <span class="mk" style="left: 436px; top: 44px">12</span>
         </div>
       </div>
     </div>
     <ol class="callouts">
       <li>
         <span class="chip">1</span
-        ><span><b>Route.</b> From the Body the Spacecraft is on to the selected target.</span>
+        ><span
+          ><b>Nav chart.</b> The whole Star System in a holo panel, drawn with the real sprites at
+          1×: the star, rocky planets, Gas Giants and Moons. A chart, not the game world.</span
+        >
       </li>
       <li>
         <span class="chip">2</span
-        ><span
-          ><b>Three burns.</b> Takeoff costs more on strong gravity, Transfer costs more with
-          distance, Landing costs more on strong gravity again. Each shows its estimated Δv and
-          why.</span
-        >
+        ><span><b>You are here.</b> The Body the Spacecraft is on, in amber.</span>
       </li>
       <li>
         <span class="chip">3</span
         ><span
-          ><b>Totals and margin.</b> Δv needed against Δv available, and the spare left over. The
-          bar shows the same comparison.</span
+          ><b>Target and route.</b> Cyan brackets on the selected Body and a dashed line from where
+          the Spacecraft is.</span
         >
       </li>
       <li>
         <span class="chip">4</span
         ><span
-          ><b>Fuel on board.</b> The resource being spent. The Δv numbers are how its cost
-          reads.</span
+          ><b>Hover info.</b> Any Body shows its type and distance. Gas Giants warn that they can't
+          be landed on, but their Moons can.</span
         >
       </li>
       <li>
         <span class="chip">5</span
         ><span
-          ><b>Success Chance.</b> Each burn's real cost lands up to 10% above or below its estimate.
-          This is the true chance that the Fuel covers it all. Icon, colour and number
-          together.</span
+          ><b>Heliopause.</b> The dashed outer ring. Becomes a target once a Jump Drive is installed
+          (Spec C).</span
         >
       </li>
       <li>
         <span class="chip">6</span
-        ><span
-          ><b>Δv in plain words.</b> One line, always visible, so a player who has never heard of Δv
-          can read the screen.</span
-        >
+        ><span><b>Target info.</b> Name, type, gravity, and whether it can be landed on.</span>
       </li>
       <li>
         <span class="chip">7</span
         ><span
-          ><b>Cancel or Launch.</b> Launch commits to the Hop. There is no verdict, so the player
-          decides whether 87% is good enough.</span
+          ><b>Three Burns.</b> Takeoff, Transfer, Landing, each with its estimated Δv and a short
+          reason. Strong gravity makes Takeoff and Landing cost more; distance makes the Transfer
+          cost more.</span
         >
       </li>
       <li>
         <span class="chip">8</span
-        ><span><b>Map behind.</b> Dimmed, so the route stays in context.</span>
+        ><span
+          ><b>Totals and margin.</b> Δv needed against Δv available, the spare left over, and a bar
+          showing the same comparison.</span
+        >
+      </li>
+      <li>
+        <span class="chip">9</span
+        ><span
+          ><b>Success Chance.</b> The true chance that the Fuel covers every Burn, with each Burn's
+          real cost landing up to 10% either side of its estimate. Icon, colour and number
+          together.</span
+        >
+      </li>
+      <li>
+        <span class="chip">10</span
+        ><span
+          ><b>Cancel or Launch.</b> Launch closes both panels and the Hop plays out. There is no
+          verdict: the player decides whether 87% is good enough.</span
+        >
+      </li>
+      <li>
+        <span class="chip">11</span
+        ><span
+          ><b>Δv in plain words.</b> Always visible while planning, for a player who has never heard
+          of Δv.</span
+        >
+      </li>
+      <li>
+        <span class="chip">12</span
+        ><span><b>Landed view behind.</b> Dimmed, so the player is still on the ship.</span>
       </li>
     </ol>
   </section>
@@ -837,150 +1062,229 @@
     <div class="sec-head">
       <h2 id="s3">3 · Hop playback</h2>
       <p>
-        After Launch the Hop plays out by itself, one burn at a time. The player watches and reads
-        the flight log.
+        After Launch the camera stays on the Spacecraft through all three Burns. The same HUD runs
+        across them: the phase strip, a small route inset, the Fuel bar and the flight log. The
+        Transfer is shown first because it is the longest part.
       </p>
     </div>
-    <div class="screen-wrap">
-      <div class="stage">
-        <div
-          class="screen"
-          role="img"
-          aria-label="Hop playback: the Spacecraft halfway along an arc from Cinder to Cinder-A, phase indicator on Transfer, Fuel bar at 41 percent, and a flight log"
-        >
-          <div class="stars" data-seed="21"></div>
-          <div
-            data-use="tpl-topbar"
-            data-fuel="4.9 t"
-            data-dv="1,850 m/s"
-            data-hop="HOP 1 · IN FLIGHT"
-          ></div>
 
-          <svg class="layer" viewBox="0 0 640 360" aria-hidden="true">
-            <path
-              d="M150 200 Q330 80 495 145"
-              fill="none"
-              stroke="#3a465c"
-              stroke-width="1"
-              stroke-dasharray="3 3"
+    <div class="variant">
+      <h3>Transfer</h3>
+      <div class="screen-wrap">
+        <div class="stage">
+          <div
+            class="screen"
+            role="img"
+            aria-label="Transfer: the Spacecraft large in the centre with its engine plume, streaking stars, Cinder large and receding at bottom left, Cinder-A ahead at right, a phase strip on Transfer, a route inset at top right, a Fuel bar and a flight log"
+          >
+            <canvas class="scene" data-scene="space" data-seed="21" data-streaks="1"></canvas>
+            <img class="sp" data-sprite="body_rocky_1" style="--x: 40; --y: 322; --k: 6" alt="" />
+            <img class="sp" data-sprite="body_moon_0" style="--x: 566; --y: 196; --k: 3" alt="" />
+            <img
+              class="sp"
+              data-sprite="spacecraft_flame"
+              style="--x: 326; --y: 182; --k: 4"
+              alt=""
             />
-            <path
-              d="M150 200 Q330 80 495 145"
-              fill="none"
-              stroke="#46dcec"
-              stroke-width="1"
-              pathLength="100"
-              stroke-dasharray="55 100"
-            />
-          </svg>
-          <div
-            class="bd"
-            data-key="body_rocky_0 (shown 4×)"
-            style="--x: 110; --y: 236; --s: 96; --c: #a2481a"
-          ></div>
-          <div class="a t10 amber" style="left: 164px; top: 262px">CINDER</div>
-          <div
-            class="bd"
-            data-key="body_moon_0 (shown 3×)"
-            style="--x: 520; --y: 150; --s: 36; --c: #8090a8"
-          ></div>
-          <div class="a t10 cyan" style="left: 500px; top: 190px">CINDER-A</div>
-          <div
-            class="ship flame nokey"
-            data-key="spacecraft_flame"
-            style="--x: 328; --y: 126; --r: -6"
-          ></div>
-          <div
-            class="ship"
-            data-key="spacecraft + spacecraft_flame"
-            style="--x: 343; --y: 124; --r: -6"
-          ></div>
+            <img class="sp" data-sprite="spacecraft" style="--x: 326; --y: 182; --k: 4" alt="" />
+            <div
+              data-use="tpl-topbar"
+              data-fuel="4.9 t"
+              data-dv="1,850 m/s"
+              data-hop="HOP 1 · IN FLIGHT"
+            ></div>
+            <div data-use="tpl-hud" data-hud="transfer"></div>
 
-          <div
-            data-frame="panel_holo"
-            data-w="300"
-            data-h="26"
-            style="left: 170px; top: 52px"
-          ></div>
-          <div data-frame="badge_ok" style="left: 182px; top: 59px"></div>
-          <div class="a t8 green" style="left: 197px; top: 61px">TAKEOFF</div>
-          <div class="a t8 faint" style="left: 248px; top: 61px">→</div>
-          <div class="a t8 cyan" style="left: 262px; top: 61px">
-            <span class="blink">●</span> TRANSFER
+            <span class="tag" style="left: 280px; top: 210px"
+              >spacecraft + flame ×4 → spacecraft_side</span
+            >
+            <span class="tag" style="left: 112px; top: 250px">body_rocky_1 ×6</span>
+            <span class="tag" style="left: 532px; top: 222px">body_moon_0 ×3</span>
+
+            <span class="mk" style="left: 150px; top: 52px">1</span>
+            <span class="mk" style="left: 326px; top: 160px">2</span>
+            <span class="mk" style="left: 100px; top: 236px">3</span>
+            <span class="mk" style="left: 566px; top: 170px">4</span>
+            <span class="mk" style="left: 628px; top: 52px">5</span>
+            <span class="mk" style="left: 12px; top: 302px">6</span>
+            <span class="mk" style="left: 284px; top: 272px">7</span>
+            <span class="mk" style="left: 150px; top: 150px">8</span>
           </div>
-          <div class="a t8 faint" style="left: 334px; top: 61px">→</div>
-          <div class="a t8 faint" style="left: 348px; top: 61px">LANDING</div>
-
-          <div
-            data-frame="panel_metal"
-            data-w="252"
-            data-h="46"
-            style="left: 12px; top: 302px"
-          ></div>
-          <div data-frame="res_fuel" style="left: 20px; top: 309px"></div>
-          <div class="a t8 dim" style="left: 58px; top: 313px">FUEL</div>
-          <div class="a t11 amber" style="right: 388px; top: 312px">4.9 t of 12.0 t</div>
-          <div data-frame="bar_frame" data-w="190" data-h="10" style="left: 58px; top: 326px"></div>
-          <div data-frame="bar_fill_am" data-w="76" data-h="6" style="left: 60px; top: 328px"></div>
-
-          <div
-            data-frame="panel_holo"
-            data-w="344"
-            data-h="78"
-            style="left: 284px; top: 272px"
-          ></div>
-          <div class="a t8 dim" style="left: 296px; top: 282px">FLIGHT LOG</div>
-          <div class="a t11 green" style="left: 296px; top: 295px">
-            TAKEOFF est 3,100 actual 3,160 m/s +2%
-          </div>
-          <div class="a t11 cyan" style="left: 296px; top: 308px">TRANSFER est 680 burning…</div>
-          <div class="a t11 faint" style="left: 296px; top: 321px">LANDING est 1,050</div>
-          <div class="a t10 dim" style="left: 296px; top: 334px">
-            Margin so far: 160 m/s of 220 planned
-          </div>
-          <div class="ai-label" style="bottom: auto; top: 84px">AI-GENERATED ART</div>
-
-          <span class="mk" style="left: 170px; top: 52px">1</span>
-          <span class="mk" style="left: 343px; top: 110px">2</span>
-          <span class="mk" style="left: 440px; top: 118px">3</span>
-          <span class="mk" style="left: 12px; top: 302px">4</span>
-          <span class="mk" style="left: 284px; top: 272px">5</span>
         </div>
       </div>
+      <ol class="callouts">
+        <li>
+          <span class="chip">1</span
+          ><span
+            ><b>Phase strip.</b> Takeoff → Transfer → Landing. A finished Burn shows a check, the
+            current one blinks, and the next is dimmed.</span
+          >
+        </li>
+        <li>
+          <span class="chip">2</span
+          ><span
+            ><b>The Spacecraft</b>, big and centred, with its engine plume showing only while a Burn
+            is running. The camera follows the ship, not a dot on a map.</span
+          >
+        </li>
+        <li>
+          <span class="chip">3</span
+          ><span
+            ><b>Where it came from.</b> The departure Body, large and slowly shrinking away.</span
+          >
+        </li>
+        <li>
+          <span class="chip">4</span
+          ><span><b>Where it's going.</b> The target grows as the Transfer goes on.</span>
+        </li>
+        <li>
+          <span class="chip">5</span
+          ><span
+            ><b>Route inset.</b> The nav chart's route in miniature, with a dot for how far along
+            the Hop is.</span
+          >
+        </li>
+        <li>
+          <span class="chip">6</span><span><b>Fuel bar.</b> Drains as each Burn spends Fuel.</span>
+        </li>
+        <li>
+          <span class="chip">7</span
+          ><span
+            ><b>Flight log.</b> Each Burn's actual Δv against its estimate as it finishes, and how
+            much margin is left. These lines become the report.</span
+          >
+        </li>
+        <li>
+          <span class="chip">8</span
+          ><span
+            ><b>Stars streak past</b> (parallax), so the ship reads as moving even when nothing else
+            on screen changes.</span
+          >
+        </li>
+      </ol>
     </div>
-    <ol class="callouts">
-      <li>
-        <span class="chip">1</span
-        ><span
-          ><b>Phase indicator.</b> Takeoff → Transfer → Landing. A finished burn shows a check, the
-          current one blinks, and the next is dimmed.</span
-        >
-      </li>
-      <li>
-        <span class="chip">2</span
-        ><span
-          ><b>Spacecraft in flight.</b> Moves along the arc. The engine plume
-          (<code>spacecraft_flame</code>) shows only while a burn is running.</span
-        >
-      </li>
-      <li>
-        <span class="chip">3</span
-        ><span
-          ><b>Path.</b> The solid part is flown and the dashed part is still ahead. The two Bodies
-          are shown large in this view.</span
-        >
-      </li>
-      <li>
-        <span class="chip">4</span><span><b>Fuel bar.</b> Drains as each burn spends Fuel.</span>
-      </li>
-      <li>
-        <span class="chip">5</span
-        ><span
-          ><b>Flight log.</b> Each burn's actual Δv against its estimate as it finishes, and how
-          much margin is left. These lines become the report.</span
-        >
-      </li>
-    </ol>
+
+    <div class="variant">
+      <h3>Takeoff</h3>
+      <div class="screen-wrap">
+        <div class="stage">
+          <div
+            class="screen"
+            role="img"
+            aria-label="Takeoff: the Spacecraft rising nose-up from Cinder's surface on its engine plume, dust kicked up at the ground, phase strip on Takeoff"
+          >
+            <canvas
+              class="scene"
+              data-scene="surface"
+              data-ground="rust"
+              data-seed="3"
+              data-horizon="290"
+              data-flat="180"
+              data-dust="180"
+            ></canvas>
+            <img class="sp" data-sprite="body_star" style="--x: 520; --y: 176; --k: 1" alt="" />
+            <img class="sp" data-sprite="body_moon_0" style="--x: 340; --y: 124; --k: 2" alt="" />
+            <img
+              class="sp"
+              data-sprite="spacecraft"
+              style="--x: 180; --y: 176; --k: 4; --r: -90"
+              alt=""
+            />
+            <img
+              class="sp"
+              data-sprite="spacecraft_flame"
+              style="--x: 180; --y: 176; --k: 4; --r: -90"
+              alt=""
+            />
+            <div
+              data-use="tpl-topbar"
+              data-fuel="10.4 t"
+              data-dv="4,380 m/s"
+              data-hop="HOP 1 · IN FLIGHT"
+            ></div>
+            <div data-use="tpl-hud" data-hud="takeoff"></div>
+            <span class="tag" style="left: 216px; top: 262px">stand-in → dust particles</span>
+            <span class="mk" style="left: 202px; top: 148px">1</span>
+            <span class="mk" style="left: 96px; top: 276px">2</span>
+          </div>
+        </div>
+      </div>
+      <ol class="callouts">
+        <li>
+          <span class="chip">1</span
+          ><span
+            ><b>Lifting off.</b> The ship rises nose-up on its plume while the camera follows it, so
+            the ground drops away. Strong gravity means a long, Fuel-hungry climb.</span
+          >
+        </li>
+        <li>
+          <span class="chip">2</span
+          ><span><b>Dust</b> kicked up at the pad sells the moment of leaving.</span>
+        </li>
+      </ol>
+    </div>
+
+    <div class="variant">
+      <h3>Landing</h3>
+      <div class="screen-wrap">
+        <div class="stage">
+          <div
+            class="screen"
+            role="img"
+            aria-label="Landing: the Spacecraft descending tail-first onto grey Cinder-A with its engine firing downward, Cinder large in the sky behind, phase strip on Landing"
+          >
+            <canvas
+              class="scene"
+              data-scene="surface"
+              data-ground="grey"
+              data-seed="9"
+              data-horizon="290"
+              data-flat="200"
+            ></canvas>
+            <img class="sp" data-sprite="body_rocky_1" style="--x: 420; --y: 170; --k: 4" alt="" />
+            <img class="sp" data-sprite="body_star" style="--x: 300; --y: 120; --k: 1" alt="" />
+            <img
+              class="sp"
+              data-sprite="spacecraft"
+              style="--x: 200; --y: 196; --k: 4; --r: -90"
+              alt=""
+            />
+            <img
+              class="sp"
+              data-sprite="spacecraft_flame"
+              style="--x: 200; --y: 196; --k: 4; --r: -90"
+              alt=""
+            />
+            <div
+              data-use="tpl-topbar"
+              data-fuel="1.6 t"
+              data-dv="610 m/s"
+              data-hop="HOP 1 · IN FLIGHT"
+            ></div>
+            <div data-use="tpl-hud" data-hud="landing"></div>
+            <span class="tag" style="left: 40px; top: 278px">stand-in → surface_moon</span>
+            <span class="mk" style="left: 222px; top: 168px">1</span>
+            <span class="mk" style="left: 380px; top: 124px">2</span>
+          </div>
+        </div>
+      </div>
+      <ol class="callouts">
+        <li>
+          <span class="chip">1</span
+          ><span
+            ><b>Coming down tail-first</b>, the engine firing against the fall. If the Fuel runs out
+            here, the Hop ends Crashed.</span
+          >
+        </li>
+        <li>
+          <span class="chip">2</span
+          ><span
+            ><b>The Body it left</b> hangs in the new sky, so the player sees how far they have
+            come.</span
+          >
+        </li>
+      </ol>
+    </div>
   </section>
 
   <!-- 4 · HOP REPORT -->
@@ -988,8 +1292,9 @@
     <div class="sec-head">
       <h2 id="s4">4 · Hop report</h2>
       <p>
-        Every Hop ends here. The report compares each burn's estimate with what really happened and
-        explains the outcome in plain words. Three variants: Arrived, Fell Short, Crashed.
+        Every Hop ends here. The report compares each Burn's estimate with what really happened and
+        explains the outcome in plain words. It sits to the right, so the scene on the left shows
+        what happened to the ship.
       </p>
     </div>
 
@@ -1000,10 +1305,24 @@
           <div
             class="screen"
             role="img"
-            aria-label="Hop report, Arrived: per-burn estimate versus actual, 145 m/s margin left, explanation, and Continue button"
+            aria-label="Arrived report beside the Spacecraft standing on Cinder-A"
           >
-            <div class="dimmed"><div data-use="tpl-map"></div></div>
-            <div data-use="tpl-topbar" data-fuel="0.3 t" data-dv="145 m/s" data-hop="HOP 1"></div>
+            <canvas
+              class="scene"
+              data-scene="surface"
+              data-ground="grey"
+              data-seed="9"
+              data-horizon="290"
+              data-flat="100"
+            ></canvas>
+            <img class="sp" data-sprite="body_rocky_1" style="--x: 80; --y: 96; --k: 3" alt="" />
+            <div class="shadow" style="left: 78px; top: 289px; width: 44px"></div>
+            <img
+              class="sp"
+              data-sprite="spacecraft"
+              style="--x: 100; --y: 260; --k: 4; --r: -90"
+              alt=""
+            />
             <div data-use="tpl-report" data-variant="arrived"></div>
           </div>
         </div>
@@ -1017,10 +1336,16 @@
           <div
             class="screen"
             role="img"
-            aria-label="Hop report, Fell Short: the Fuel ran out 90 m/s before the end of the Transfer, explanation, and New Run button"
+            aria-label="Fell Short report beside the Spacecraft drifting in space with its engine dark"
           >
-            <div class="dimmed"><div data-use="tpl-map"></div></div>
-            <div data-use="tpl-topbar" data-fuel="0.0 t" data-dv="0 m/s" data-hop="HOP 4"></div>
+            <canvas class="scene" data-scene="space" data-seed="5"></canvas>
+            <img
+              class="sp"
+              data-sprite="spacecraft"
+              style="--x: 100; --y: 190; --k: 4; --r: -30"
+              alt=""
+            />
+            <div class="a t10 faint" style="left: 64px; top: 228px">engine dark · drifting</div>
             <div data-use="tpl-report" data-variant="fellshort"></div>
           </div>
         </div>
@@ -1034,10 +1359,24 @@
           <div
             class="screen"
             role="img"
-            aria-label="Hop report, Crashed: the Landing needed 57 m/s more than was left, explanation, and New Run button"
+            aria-label="Crashed report beside the Spacecraft tipped over on Cinder-A with smoke and debris"
           >
-            <div class="dimmed"><div data-use="tpl-map"></div></div>
-            <div data-use="tpl-topbar" data-fuel="0.0 t" data-dv="0 m/s" data-hop="HOP 1"></div>
+            <canvas
+              class="scene"
+              data-scene="surface"
+              data-ground="grey"
+              data-seed="9"
+              data-horizon="290"
+              data-flat="100"
+              data-debris="100"
+            ></canvas>
+            <img class="sp" data-sprite="body_rocky_1" style="--x: 80; --y: 96; --k: 3" alt="" />
+            <img
+              class="sp"
+              data-sprite="spacecraft"
+              style="--x: 104; --y: 284; --k: 4; --r: 162"
+              alt=""
+            />
             <div data-use="tpl-report" data-variant="crashed"></div>
           </div>
         </div>
@@ -1048,97 +1387,113 @@
       <li>
         <span class="chip">1</span
         ><span
-          ><b>Outcome.</b> Arrived in green, Fell Short or Crashed in red. Always with an icon and
-          the word, never colour alone.</span
+          ><b>Outcome.</b> Arrived, Fell Short or Crashed, with an icon and colour, never colour
+          alone.</span
         >
       </li>
       <li>
         <span class="chip">2</span
-        ><span
-          ><b>Estimate against actual.</b> Every burn, with the difference in percent. A burn that
-          never happened says so.</span
-        >
+        ><span><b>Estimate against actual</b> for each Burn, and the difference.</span>
       </li>
       <li>
-        <span class="chip">3</span
-        ><span
-          ><b>Margin left, or shortfall.</b> How much spare Δv was left, or how much was
-          missing.</span
-        >
+        <span class="chip">3</span><span><b>Margin left</b>, or how much was missing.</span>
       </li>
       <li>
         <span class="chip">4</span
-        ><span
-          ><b>Why.</b> One or two plain sentences naming the burn that decided the outcome, with the
-          numbers.</span
-        >
+        ><span><b>Why</b>, in plain words that name the Burns that ran over.</span>
       </li>
       <li>
         <span class="chip">5</span
-        ><span><b>Lesson.</b> A short mission-design takeaway, such as why margins matter.</span>
+        ><span><b>The lesson</b>, tied back to the Success Chance shown before launch.</span>
       </li>
       <li>
         <span class="chip">6</span
         ><span
-          ><b>Next step.</b> Continue returns to the map on the new Body. New Run starts a fresh
-          Star System (Spec C replaces it with the full end-of-Run screen).</span
+          ><b>Continue</b> returns to the Landed view on the new Body. <b>New Run</b> starts over
+          (Spec C replaces this with the end-of-Run screen).</span
         >
       </li>
     </ol>
   </section>
 
+  <!-- 5 · LATER -->
+  <section aria-labelledby="s5">
+    <div class="sec-head">
+      <h2 id="s5">5 · Later: inside the Spacecraft</h2>
+    </div>
+    <p class="note">
+      <strong>Not in v1.</strong> In later stages the player will be aboard during a Hop, fixing
+      things as they go wrong. The flight view keeps the ship big and centred so a cut to the inside
+      has somewhere to come from. Logged in the design backlog (#11).
+    </p>
+  </section>
+
+  <!-- 6 · ART -->
+  <section aria-labelledby="s6">
+    <div class="sec-head">
+      <h2 id="s6">6 · New art these screens need</h2>
+      <p>
+        The existing sprites cover the Bodies and the star. These are the gaps; each becomes an
+        asset request once the spec is revised. Until then the game uses the stand-ins shown above.
+      </p>
+    </div>
+    <div class="table-wrap">
+      <table class="art">
+        <thead>
+          <tr>
+            <th>Proposed key</th>
+            <th>What it is</th>
+            <th>Rough size</th>
+            <th>Stand-in in this wireframe</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>spacecraft_side</code></td>
+            <td>
+              The Spacecraft in side view with landing legs, nose right. Rotated 90° to stand
+              upright on a surface.
+            </td>
+            <td>64×32</td>
+            <td><code>spacecraft</code> at 4×</td>
+          </tr>
+          <tr>
+            <td><code>spacecraft_side_flame</code></td>
+            <td>Engine plume for the large ship, a few animation frames.</td>
+            <td>32×16, 3 frames</td>
+            <td><code>spacecraft_flame</code> at 4×</td>
+          </tr>
+          <tr>
+            <td><code>surface_rocky</code>, <code>surface_icy</code>, <code>surface_moon</code></td>
+            <td>Tileable ground strip plus a far ridge layer for each kind of landable Body.</td>
+            <td>640×120 each</td>
+            <td>Painted in the page script</td>
+          </tr>
+          <tr>
+            <td><code>fx_dust</code>, <code>fx_smoke</code>, <code>fx_debris</code></td>
+            <td>Tiny particle textures for Takeoff dust and the Crashed scene.</td>
+            <td>2–4 px</td>
+            <td>Pixels in the page script</td>
+          </tr>
+          <tr>
+            <td>Large Bodies (open question)</td>
+            <td>
+              Skies and the Transfer show Bodies at 3–6×. Scaled-up sprites may be enough, or the
+              Bodies may need higher-detail large versions.
+            </td>
+            <td>96–144</td>
+            <td>Existing <code>body_*</code> sprites scaled up</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
   <footer>
-    Wireframe for Spec A. Art: Heliopause UI kit v1, AI-generated. Sprite stand-ins are replaced by
-    the sprites with matching keys. Example numbers follow the agreed rule that each burn's real
-    cost lands within 10% of its estimate.
+    Wireframe v2 for Spec A. Art: Heliopause UI kit v1 and the v1 sprites, AI-generated. Example
+    numbers follow the rule that each Burn's real cost lands within 10% of its estimate.
   </footer>
 </div>
-
-<!-- Report panel, filled per variant from REPORTS in the script below. -->
-<template id="tpl-report">
-  <div data-frame="panel_metal" data-w="420" data-h="296" style="left: 110px; top: 50px"></div>
-  <div data-frame="titlebar" data-w="400" data-h="14" style="left: 120px; top: 60px"></div>
-  <div class="a t8 pale" style="left: 142px; top: 63px">HOP REPORT</div>
-  <div class="a t8 cyan" style="right: 142px; top: 63px" data-r="route"></div>
-  <div data-r="badge" style="left: 128px; top: 84px"></div>
-  <div class="a t16" style="left: 146px; top: 82px" data-r="title"></div>
-
-  <div class="a t8 dim" style="left: 128px; top: 108px">BURN</div>
-  <div class="a t8 dim" style="right: 300px; top: 108px">EST.</div>
-  <div class="a t8 dim" style="right: 212px; top: 108px">ACTUAL</div>
-  <div class="a t8 dim" style="right: 128px; top: 108px">DIFF</div>
-  <div data-r="rows"></div>
-  <div data-frame="divider" data-w="384" data-h="5" style="left: 128px; top: 166px"></div>
-  <div data-r="total"></div>
-
-  <div class="a t8 dim" style="left: 128px; top: 192px" data-r="marginLabel"></div>
-  <div class="a t11" style="right: 128px; top: 191px" data-r="margin"></div>
-
-  <div data-r="whybox" style="left: 124px; top: 208px"></div>
-  <div class="a t8" style="left: 132px; top: 215px" data-r="whyhead">WHY</div>
-  <div
-    class="a t11 pale wrap"
-    style="left: 132px; top: 226px; width: 376px; line-height: 12px"
-    data-r="why"
-  ></div>
-  <div
-    class="a t11 dim wrap"
-    style="left: 128px; top: 276px; width: 384px; line-height: 12px"
-    data-r="lesson"
-  ></div>
-
-  <div data-frame="btn_primary_normal" data-w="104" data-h="24" style="left: 408px; top: 312px">
-    <span class="btnlabel" data-r="button"></span>
-  </div>
-  <div class="ai-label">AI-GENERATED ART</div>
-
-  <span class="mk" style="left: 128px; top: 80px">1</span>
-  <span class="mk" style="left: 120px; top: 130px">2</span>
-  <span class="mk" style="left: 120px; top: 194px">3</span>
-  <span class="mk" style="left: 516px; top: 210px">4</span>
-  <span class="mk" style="left: 120px; top: 280px">5</span>
-  <span class="mk" style="left: 516px; top: 312px">6</span>
-</template>
 
 <script>
   /* UI kit atlas (public/assets/ui/heliopause_ui.png), inlined. */
@@ -1268,6 +1623,125 @@
     tooltip_warn: [4, 4, 4, 4],
   };
 
+  /* Game sprites (public/assets/sprites/*.png), inlined. */
+  const SPRITES = {
+    body_gas_0: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAAC9klEQVR4nO1ZP2hTQRi/FwINoUjIIJLBgAiCY8YMWezgLkgQHLN1cOjUWZwcHLp1Uyih8JwzJEuGjNkLQYjDQzqUIhIiFCvn6z2v977v7vvu3jNC84PS5N7dy+/3/bt/Qmyxxd1GVNSLdurNa07/n6uLQn67WhTp9elTsM9yloDtTz6IbGyImCiEPEaaKkJiOl+LwXTtLaLiQ5xDXqLdbVmfH/dq2Xu5fFiqucQ5XlDgeqNSGPnOq/SPgXa3lfOO8gb1HVEQeRvh+QnoASiclpp3pDdGi5WIkwrJExGJ/OKtCIIhhhJeU2JyV0onH4BjQjixq1DR1i9tIqNYf3n0/tb39v4B6Uc/HX3JPvc6NacXBtPmNRZKEUb+7E0DJWQSN5GN06yvk9YxWqz+/H/3sgmW1uEsDZLJ1QrMB6uAEOi1HcPohryJy/PdXBsmoJQcoJAvLQd2iNY3w0uFlY386/1Hf/vPEtQDJvrdX6Iv4FyIsOSF4tyZpPMTMNZ14roAhcPTi1z4SNImoHkhQmdd5rKAUy6p6yKKgKD9gE+d9yWPoeJNTD7fMHm3BwCCJgnXWl+NMQm6JjCJfJLn7V0NtRxllQlZV7X1OrVbz6mVySrARhgDNsYVGodaBfJBeBKXMBOXJkAPE05C6vGunrnIP39czz7b+joFYEmq2s3dFERa4vNHRaguxt8vhRC7onH/h5W42RYna7oASnVR/ZQIrLIo8nsPH4jx129i7166VBmfC3TWpSInQM508tDpTCNYVKJL8r4YINtLZwj5EDWRhgyMfoD1SQKwMmduQKBx5rreRXZ4s3kxYRuH7vjlou5Fy20dXQi0qqQQGiLEXZsZCeuRBVUEhbQvJhbypBBSpKCSpz/fFCJXB+mFZ9V8bf4XmDiszzpaVKHksriPpxrAmMKOFm354AovCJQxMZG81/E6J6l9EDPIS7BvRdRZZdFC4iQtpdybmqArpqJExEyr6wi6KdRPjrlilMU3dsn3v1yzbrHFXcdvVMm9rpMzWYkAAAAASUVORK5CYII=',
+      w: 48,
+      h: 48,
+    },
+    body_gas_1: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAACJElEQVR4nO2ZMUvDQBTHkxAU6qabH0EciiCIQ/0WTo7iJA4d/BCO4uims9/ApUMQCiVIcfADuGjdLBgOKi+aEK+5u/fu7qVW8l/SJJfk93/v7np5CYJWrVottUJfN1rtrM8o7T+n716eHfoCP3h8rj3/9JDWHn89Ocy3rkZCLnCMiY/BIJjeXjkZCW3hMeBYEyAwYmMiooLbwGPUOTot70+5Du3YFVyVgWoWQNl4FIg0QWcjXjS8rJXtne8faTLDmCB1ob+o2CX6x5sbc8euXyba+23tdX/tDy8u68G6+6gsxCb4m7fJHFQduHyuuAa6jwyNVYwwgRoDOmDdNWDCFh6ryBR9Tg0V3UfOgm5qZRvEprGgUjYekdpHHNHHwGOij8mC9wz4hjcJNYhNoMWAdf1Dy4jdR2sAgOTZRwXZv7vPt3UzjgxdXTa4wmsNwIP7CqhqG92+LBU8axeirGNs4TPL6De2FuKCb8QAJ7zTLGQSR39vLAMYeB/R12YAINZ6vXJfNRtVB3mT4KgMABCA66ZSOAftFgEPUq6zYe0BL9pV7Z6fWS8DXOCF5h2ZNIht4DmijupC4LgoOtnKB7wwVChYplHuqFdlLFvAWID1eFnuaBBaIOpDxgzkN0gTUrXMhwSyuLX0daEI0wgiARFpSoJQWiRVg4v30rxewyDxEyRKldq6vO7bhCBE3esHDlcjwiLqLJ+YqEZcwf/NR75WrVoFy60vWWI/rOXBAFcAAAAASUVORK5CYII=',
+      w: 48,
+      h: 48,
+    },
+    body_gas_2: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAwCAYAAABXAvmHAAADB0lEQVR4nO2YT2gTQRTGZyVgiRfJSUQ8CZbQliD2KhI85CAUqnjowUNLD81BPBXMQUTEgHgQkeQgWvCQg3QDBQ85iEgORTCEYEuJUIRKKXro0oshXoy8Wd92dnZ2dmd2S0HmB2GW2cns973582aXEIPBYDAYDMeHlWZnJ7O5UZx2vwdOas+10hQ+3H4UvNltBKrGbm2lZsRKQ7xQeISJnfU9cvHZQWITJ5IIjyVewte7p71+dPvI6PwpqXDeRLs7JIvt3AhGQ2ZGNFpaBkT8yi1516ecemi7jfFVWnaGfVLszvvugfjPX9z1IWJ6Kj/ijSgbgIfsO/uEOHWfaBasp0a6DU80z4dLr2lZJPNkobBMXj1/SDq9vq/N990f3jWYm57KUw1owtISr8C33Z/CelZop9PzrsEEMDNXpmWpdI0s3Z4NmEADqU0hXfEiQNxao0any1qjRupvmr6R0NqFVKMvEj+ZbdKfjBtn//imCI4EMHv9aqD9kYyAu4jdYecF77x4SorcGjhYfRDaF0whNvrs9FFaA3FHQLYDgXieylsnUGfvuRMDop+fmPCiz4tXNgB7f9jOIxOuKn5mruxFHoVr5wE+saBQMBIlWgWbiTovXnbckI4AJpbmu4+kWikHDmsbg8PtDRAt0JV1N3oIJi+Mvi0RDkSdlSxZ1FH8+XNn6F4sy5Iq2yXs++x+X9IQHmqAjTqwtblJ92I0lEQ8m5DChC/cuU/NxTWQkYmHyMPUiTpkyYTzogEUfrkwTu9XK65wHTJhBymcNiJx8ODJ/k2vfmV4uDb4//Ci2WhXK4S8vDLmNuw9ocWnwrKSAYs3gJ3jw3H64CjA8ReBFxIeVjDAiwY80QIW20OllxyfASjvPa55IwC0Wu9piUZY2DTPCgZURKdmAKcQrgHWCA+b3vGMwgpWEa0rHrDCts8oeLG84Nb2wLsuXcgK+2gxbSAf6LwfS/NA1KkxTew0DcQBTSY1Yv/LxLpfJ1L5rKJrwtaM+pF92IprJGnU/6tPiwaDwWAwGMgx8hfvR8laJcJQEAAAAABJRU5ErkJggg==',
+      w: 48,
+      h: 48,
+    },
+    body_moon_0: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAq0lEQVR4nGNgwALYuYT+gzA2OUZ0hSC6sm0amN9elQWmf357B1fHiKx4465DcM0nzlwB0ysWzWO4f+MMXBMTsmKYIhgNAnpGZgyKGiZw28EaYMDCRAfFvdeuIDTCACNIJ8zNyADkFJDpl86dgouBnMaEzUQQDVKMDTCCCJAt/lGQEIEBZJNhpoM8DrcBWQG6YgwbYLaAQgMbQA5WrBEH0whSCALIEYcV4EsaAB7WUonga9ksAAAAAElFTkSuQmCC',
+      w: 12,
+      h: 12,
+    },
+    body_moon_1: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAvElEQVR4nGNgwALYuYT+gzA2OUZ0hSD69KVrYL6pnhaY/vntHYo6uGKZJXv+f/nxH4wv3XkBxvPWHECxjQmm+O27tww3QpwZNNbsZbj35CWKYVwxOXDbwRqQAUiT14krYPaZCzcw/QDSCXMzDIA0NHGwgNnFu/bBxb8tmYJpAwiAFNf9+MOAM5TYuYT+T1+0DkUC2WSY6aDQwmoDumIMG2C2gEIDG4CZjqIBpglEwzSCFIIA1ohD14graQAAZGdau3juMswAAAAASUVORK5CYII=',
+      w: 12,
+      h: 12,
+    },
+    body_moon_2: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAuUlEQVR4nGNgwALYuYT+gzA2OUZ0hSD6xyotMJ8j7BqY/vntHYo6uOL/z6b9X+QhBadB+EGVEoptTDDFs+04wAKx82oYFie1MMTmKMENm23HAbcdrAFZIZgNVWxnBDEEGTCBdILdfG4ZRARKL55yD0wfOvcDxRa4DTCTa81SGB4ee4bVdAZYKIF03iwQQJGAmQwDqYd+gEMLxQZcijFsgNkCCyl0ADMdRQNME8yDMIUggDXi0DXiShoA821VrIjiJosAAAAASUVORK5CYII=',
+      w: 12,
+      h: 12,
+    },
+    body_moon_3: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAAMCAYAAABWdVznAAAAp0lEQVR4nGNgwALYuYT+gzA2OSZsCmfbcTAES/3DqpEFWfHNAgEU0zxUGBhWHGNi2MvF8P/nt3eMcBvQFVetesew4843MFtA7AuDMwsXWA2Kkw6d+4FkMhcYwzQhA0aYm9EBTPGHVzxwsb1/vqF6Gl0xNsAIIkC2gEIFZiLI3cgmw0wHeRzFBlyKMWyA2QIKDWwAZjqKBpgmEA3TCFIIAjDFOAG+pAEAtLRPnvio07IAAAAASUVORK5CYII=',
+      w: 12,
+      h: 12,
+    },
+    body_rocky_0: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAABSklEQVR4nGNgoDFgJKSAnUvoPz75n9/e4TWDkZDBG3cdAvNPnLmCIn/tCoS/cdk0vBYx4jIcZjAyQLYEZgEIXDp3iuH+jTNYLWEi1nBCQFHDBGtwMhFr+Am0IMIGRKWUMCxhocTwS+dOofB5+ITA9OtnDP9hwQW3ABsoyCtC4UfEJWGEP0hsxaJ5YPaXT+8wzGCBub6yDZIa0EEE1FBsQM/IDG44elDBfMFCajhfQ3I9MQBvEOEzHD38sQUPQQuwhTk2w/EBjHyADEAGE2M4vnhiITdsiTGc6Di4hCNIYIbPmdJDOIhwGXIJSRzZtcQYDgLwwgmUF0DlCS4QQaSBIPD62T14wYc3kskxHB2gFK8gX4ByIaxMwZW2iXU9RiSDJEBZnGRTcRiONYggltxjoIbhRFWZolJKuJSAAcwxJFWZ2CzCBQhV+jQHALrSty6LZhbuAAAAAElFTkSuQmCC',
+      w: 24,
+      h: 24,
+    },
+    body_rocky_1: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAABV0lEQVR4nLWVr0/EMBTHu2YJZEE0iBNnMCgkEoE5gwaPx/EXgSUkWHJmZmIST4I5M0EIOUGWkRCOfJd0dO177RvhPmZL132/r9/+UmrLZKkOO8X+Jvb9s32PamQp4e7xhv359s2oq8vzqFHGiXf3R6O2Vd2o6qnr30+Pd4d3sHxp1UOjSRMtEZdwMf8m49RS8cqpmGORF4GJloiv6qaPBdgnhZl9BCY5JWY5OJmPvllxbjTr172grTeA4/O1IStPgQn2wSjKQm0w6ZpaKbG8K8FcuAQRxTKuPHG3eioe0kAiDO5qrcxMJYkacHFA3FaNlcNVPzKQZrvsY/kVjImTOzktPo3c/fnssBAJmkQsLsPhhL2A88TFFYGo38ZRfrXDwcdOsi+0FlbsMzpeMQrswinVxqoHwfltTf5C6YmTqwgd0PE/xEVX5iIxGlvMpCuTMuJIXfpb5wcQvbGNztJVJAAAAABJRU5ErkJggg==',
+      w: 24,
+      h: 24,
+    },
+    body_rocky_2: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAABYElEQVR4nGNgoDFgJKSAnUvoPz75n9/e4TWDkZDBb9+9BfPvPXmJIn/mwg0wnRkXhNciJlyGgwyGGQ4CSjLiWB0yfdE6Bq6YHJw+ZcJlOD7gdeIKhhguS5iINfweWhBhAywGVhiWMJFj+DYLHYa6H38w1LHpGGFYgjUOCIEz0AhGB7+unMMQA1sAsvH0pWtYXX6PQNAU79qHIYbsCxZ0A2ERCAoGUlyPC6BYgGwwNou80FIPsuuxBQ9WC3BZBAJNHCwohnPb2TF8PXSIAR/AG8mg4IAZim44CCAbDkpB2AALMWHbxMECTpYgGj1SkYMGZAl6UJGUTIvxGI6Nj2IBtuSGLAcKDlCY4zMMZxCBS8IlU/4XE6HhFxEG/7lwDF664kxF5BiMDaCU4aDcB8qFsBRBKAIJuR7DB2CJC8fw1mCkGI41FYEUgBRSw3CiqkwWAytcSsAA5hhcVSbNK32aAwBTr8kU4jpVJgAAAABJRU5ErkJggg==',
+      w: 24,
+      h: 24,
+    },
+    body_rocky_3: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAByklEQVR4nLVVv0vDUBC+Bmsklg6iHbpZHFpxKCgUxMnR/6G7SBHnjg6dO5Ti4Nb/w82CWwexDiKC0KHGDCEGaqGVe83Fl+TyXjv0g5K8H/2+u+/duwCsGRndBtPamavWJ76j5NjQER+fXYixY48j657riOfXCOYqoUwaORHLkEVIAOF7Lvy4Niti6Mgfrz/g0ngAHbbzu6ydhi7yXucd6o0SK/LZ3oLWwSgcZ00rIWLobLmbncOy2DSthEjCIg69IItm4TniP823q54Y/078xH+FACrul0/YQ3XsMbTGR6xw863IzstZRMo0XoqE4a0vokUhuXqWQeo94ODFyLE8e50R3AxyrD0rnUEzZgeSI5B85QzQkmXICWnRRwQwfaxrIiXUGyWoS0JI/n1fCPddPalNEFcbT3yvWAovjRxxK5hDIQIFUHUPxXOQfxFC/UpZjE+HrzCd+KJ1hAJ41a1cno3CD6ImYjrUbm2WEEKgGAkIi4ImpWzLhIUlC8/Jnm7tnxhB5Pgedj/KIg3tqiciJTtUkAXCnTiBLVeuCHynn46UI0+UqcqqfqWsjT5OHslAFsGNq2LKkCNSv6fUrLKmpSWmwLj1tX/0144/NrsWi8n9tf0AAAAASUVORK5CYII=',
+      w: 24,
+      h: 24,
+    },
+    body_star: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAGOUlEQVR4nO1bsY7cNhClhCuCuDFcXpPgcF+wZWC7SuEidQoBuT6Ay1T+AFcpDaTfAPsFLlykSgKX9wWBYTcugzQG0m0wun26p7czJLWr9WaBfcBCOoki5w2Hw+GQl9IZZ5xxTHTXD9e44v6MU0Z3wF5cPrtcn7xSlhNJ4Fv+7iSGSnf9cG1Clwjjfa7s+xdXxXp2RZsOhJffP0o3bz429sMzJqmEUC5H9BA9f5E+I54uvuiv7xdXa1y/fvmuQS/j3gMr8ujoMj3BPbh+/fiO6Is7wrjHT//2yqEOrft/ZQHLjWBs8kwQ5XAf9bQ91zLr15e9In6//bev39qa0xoudvlo9dc/TTR+YeZGwITHPcoaEZC0e1ztO+5hVtygmDf3baoizCpNLlw/ixNcisAgDzTf/TkohgkxaQ/2Dr8Pbz+OlIBv1GmC9BTyhurCrOFn11/2z2CS3Ot25R5Wkl99czmQUuCdXX999a7/1qtDh9A+w6KZUhjkQdye8ZhHL8G0DT88vxoRzinAA+piJbM1wTekHdFMKRxpGuR5SBhxA3o0uqIMI3oOZbAM6iD1/ewKSBtYI1Gvo7eUaIhFl9LtavhzioUYcvHDrE7wZjPN8Zhk8vYcPW/oyT//qVyxkTclGBZdrzD9GVSR6nOAKeuGNs0AI24/Hd89eSaXA8qRJZQsohQ91kyJrfdQIy6d7tgRYbraIm+9BTIgl1MEyDtlIp8QWQL8Qc2U2EQvPIeiU56aHgsb9SYIfnr0Y3rw9y/jd155qgsKgLK9GSJNRJN7qdEYnrHjY28P4VzyOeKE0fvMcPCUABm92CQaDk2qgFWozi0KcrZIV/iArFI8RZI1GCALt48otIS2du63Cq1RVKwNDj0PIVlgIZv7233HdUTDZEMavxKv4ZtUCfa48A9sASMFQEgSHGSsp3OkUYa/e/Dbk/v6NnXzULCwWeVhWXOBUZsmAD4B8/2WyZtwGwE/ffvHiKiRmkp++FsVSzBFYHhGa4RcLNBGL7zkA3t+a3jk+ApEDCXyKBOWI4viACkXF/B06CmijQTReBv3HPJGwkWmvDfEoaID7IqVI3eU5iS9WaCdKgMa2uoBCWcZu5Df+oaHweZeLcBk04xSKY3WRi80Ta2LHh4CA2rD3pmgU6H9oqgwqqONXsB8VAm4L67wDgGE04GiowwThoG3/9hGbXkJD23oKErg9YUzNEuJV/UDLf9RWjryAghDwJ0KZ8bgD5z4YgomOcEbCR6gUV765tJbEHoO7z/ED5mVIsupewy5zm1KuT8801Q25/qGdX9m0bOLIkaxRCFPoGsTnQXYD7AltF7DViCKA9DIqOfVKd2u/IiuEogaQ2QcII99RIIR+erFkFWqToVNryaHV1oGAyjDFuNZTy4KRYJWh/HkQGjpZIKg7S0BOKWViQpzSuB3o3sshmRBxOQxNHn81+wlNvrAMxNoU/3A1mpQBMSiCE4sWh9kLUNzhRvlfnj184g8J0RY5ohTaAErKsgOxHZp4flRMRQxmg1EUPTeVPIjs9ecomMBd3uRj9f41Zw3yM4CUAQHFt6iyN0D8Javi67aD4xyAIJcYjTaksvlCpucIKW0MidG2ApGjknzg5Ikcac69SWSBPFMP4oAS7tFTU4BqgT1BbwdtrUhEiVHcygkPljJuk2muQD1ARrX7LwzlIIMEQs6XIPMcAhklCSnyHV6SRC7KvlcXMNoIllyswEa1jS0CudaApt3zuSd/J+Bt84V0U5xbihfRAqYctBg2MdPY0EHx5hW+dWcR/jt/TQHxfbEqY1S4FPDpUl7wssWe+cCDN72mW50ROBUnC7R99kdbmoLloYEC8RCR0mKHNTZRSdFDJHjq0VbW9ALkDxhIFAksPoJL5bHzhOT95bn3opv6qnzJs0AOEFv/1CDJq9H+ZnCM/fStvgUtPt8rPlCnAaDcOhdTU/z8TgGki18EAMHJbnHazO+B0fnnOQG+JSnHpr0DlFGp0b5pGitPAdHV9GQKUWF947Clo7Lego4es/XgImowCULiMqfBHFP6F0E5++8kyhzoZmrIl00eQkK7ztv3o5WcFPPAR8Ny4AsejWyipMy8QjeGT12mjkHWgpiTuJ/hc4444wz0gnhP6JEFAGL9IXKAAAAAElFTkSuQmCC',
+      w: 64,
+      h: 64,
+    },
+    res_materials: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABhElEQVR4nGNgGAWjYKSA/8+m/ae6oexcQv9BmBjLv/z4/5+qjmDnEgIbuMhDimhHYBNnItfyH3da4PzZdhxgMXx6GKWyGKniAHao5Q+n9KCIE+MIih3AjsNyShzBxDDAgGnYOoCdyCzKRCvLF795y8AVk0MwTTARYxipCQtkOQwQcgQTMamelNQNsrxo3V4UMXyOYCJkOQyAHEELwERqYUMXB9ATMDEMMGBB5pBTlpMCYOb//PaOESME2LmE/le2TWNQ1DChmQOMbbzAGNmjLOiKIuKSGNqrzuA0hEOlBsGZgMSGgsUkOooFRIBc5B+VxbBi0TyiNIHUwsCTRw/A9Ls3rxju38DtcJgaEACF8v0bZ/6DogIeFzBHwMDGZdNwWg6zFGaokIgYnH/2yDas+pCjFuRQWDpgxOUAZIBsISEA8yU+gNUBIABLHOi+pNRCGIBFEXIuYMSmEOYQUIpFtwwU3KRYistivA6AAeTsQmr2RE6Q2CwmygEMSIDUQgqfpYMKAABV38H04oxP/QAAAABJRU5ErkJggg==',
+      w: 32,
+      h: 32,
+    },
+    spacecraft: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAqUlEQVR4nGNgGL6AnUvoPwgTUseES/PNAgGGH6u0wGySDUAGIINgrsHmKkZstitqmDBExCUx4ALtVVlg+ue3d4ws6JqNbbwY3r15xWBhooPTANFZqxj6gpwZYkWE/6MYgAzmLViB0wAGBweGonV7wUwWZHGQk84e2Qb2gpYObhdsTAuDq2fEFwvyVlIMD489Y1Cf8AFFHqQRxmZhIABAmpE1UD0hMQx9AAClJD5VLHf83AAAAABJRU5ErkJggg==',
+      w: 16,
+      h: 16,
+    },
+    spacecraft_flame: {
+      src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAZElEQVR4nGNgGAUDDxhhjEtWLv9BNJ/DPQaFtnuMRBtwycrlP0gTCMhbSTEwGEUxfBXKZODhYCTKECa9Y3sYPx1QAnMeHnvGwHBuGUleYAERIEMuMUC88JDhHoOCD3G2j4LBAgAzhBiCmPLYdwAAAABJRU5ErkJggg==',
+      w: 16,
+      h: 16,
+    },
+  };
+
+  /* Flight HUD per phase. */
+  const HUDS = {
+    takeoff: {
+      phase: 0,
+      progress: 4,
+      fuel: '10.4 t of 12.0 t',
+      bar: 0.87,
+      log: [
+        ['TAKEOFF est 3,100 burning…', 'cyan'],
+        ['TRANSFER est 680', 'faint'],
+        ['LANDING est 1,050', 'faint'],
+      ],
+      margin: 'Margin planned: 220 m/s',
+    },
+    transfer: {
+      phase: 1,
+      progress: 55,
+      fuel: '4.9 t of 12.0 t',
+      bar: 0.41,
+      log: [
+        ['TAKEOFF est 3,100 actual 3,160 m/s +2%', 'green'],
+        ['TRANSFER est 680 burning…', 'cyan'],
+        ['LANDING est 1,050', 'faint'],
+      ],
+      margin: 'Margin so far: 160 m/s of 220 planned',
+    },
+    landing: {
+      phase: 2,
+      progress: 96,
+      fuel: '1.6 t of 12.0 t',
+      bar: 0.13,
+      log: [
+        ['TAKEOFF est 3,100 actual 3,160 m/s +2%', 'green'],
+        ['TRANSFER est 680 actual 655 m/s −4%', 'green'],
+        ['LANDING est 1,050 burning…', 'cyan'],
+      ],
+      margin: 'Margin so far: 185 m/s of 220 planned',
+    },
+  };
+
   /* Report variants. Numbers follow the rule that each burn lands within ±10% of its estimate. */
   const REPORTS = {
     arrived: {
@@ -1344,8 +1818,7 @@
 
   function fillReport(host, r) {
     host.querySelector('[data-r="route"]').textContent = r.route;
-    const badge = host.querySelector('[data-r="badge"]');
-    badge.dataset.frame = r.badge;
+    host.querySelector('[data-r="badge"]').dataset.frame = r.badge;
     const title = host.querySelector('[data-r="title"]');
     title.textContent = r.title;
     title.classList.add(r.tone);
@@ -1386,32 +1859,217 @@
     host.querySelector('[data-r="button"]').textContent = r.button;
   }
 
+  function fillHud(host, h) {
+    const names = ['TAKEOFF', 'TRANSFER', 'LANDING'];
+    const xs = [168, 260, 352];
+    const phases = host.querySelector('[data-h="phases"]');
+    names.forEach((name, i) => {
+      const x = xs[i];
+      if (i < h.phase) {
+        const b = document.createElement('div');
+        b.dataset.frame = 'badge_ok';
+        b.setAttribute('style', `left:${x}px;top:59px`);
+        phases.before(b);
+        phases.before(el('a t8 green', `left:${x + 15}px;top:61px`, name));
+      } else if (i === h.phase) {
+        const d = el('a t8 cyan', `left:${x}px;top:61px`);
+        d.innerHTML = '<span class="blink">●</span> ' + name;
+        phases.before(d);
+      } else {
+        phases.before(el('a t8 faint', `left:${x}px;top:61px`, name));
+      }
+    });
+    phases.remove();
+    host.querySelector('[data-h="fuel"]').textContent = h.fuel;
+    const bar = host.querySelector('[data-h="fuelbar"]');
+    bar.dataset.frame = 'bar_fill_am';
+    bar.dataset.w = Math.round(186 * h.bar);
+    bar.dataset.h = 6;
+    host.querySelector('[data-h="flown"]').setAttribute('stroke-dasharray', `${h.progress} 100`);
+    host.querySelector('[data-h="dot"]').dataset.progress = h.progress;
+    const log = host.querySelector('[data-h="log"]');
+    h.log.forEach(([text, tone], i) =>
+      log.before(el('a t11 ' + tone, `left:296px;top:${295 + i * 13}px`, text)),
+    );
+    log.before(el('a t10 dim', 'left:296px;top:334px', h.margin));
+    log.remove();
+  }
+
   function expandTemplates() {
-    document.querySelectorAll('[data-use]').forEach((ph) => {
+    let ph;
+    while ((ph = document.querySelector('[data-use]'))) {
       const tpl = document.getElementById(ph.dataset.use);
-      const frag = tpl.content.cloneNode(true);
       const holder = document.createElement('div');
-      holder.appendChild(frag);
+      holder.appendChild(tpl.content.cloneNode(true));
       if (ph.dataset.fuel) holder.querySelector('[data-slot="fuel"]').textContent = ph.dataset.fuel;
       if (ph.dataset.dv) holder.querySelector('[data-slot="dv"]').textContent = ph.dataset.dv;
       if (ph.dataset.hop) holder.querySelector('[data-slot="hop"]').textContent = ph.dataset.hop;
       if (ph.dataset.variant) fillReport(holder, REPORTS[ph.dataset.variant]);
+      if (ph.dataset.hud) fillHud(holder, HUDS[ph.dataset.hud]);
       ph.replaceWith(...holder.childNodes);
+    }
+  }
+
+  /* Painted backdrops: starfield, and for surfaces a far ridge, near ridge and ground. Stand-ins for surface_* art. */
+  const GROUNDS = {
+    rust: {
+      far: '#1c2434',
+      ridge: '#5a2410',
+      ground: '#a2481a',
+      top: '#e07a22',
+      speck: '#5a2410',
+      rock: '#e07a22',
+      hl: '#ffb43c',
+    },
+    grey: {
+      far: '#121826',
+      ridge: '#283246',
+      ground: '#3a465c',
+      top: '#8090a8',
+      speck: '#283246',
+      rock: '#56647c',
+      hl: '#b8c4d4',
+    },
+    icy: {
+      far: '#0b3a4c',
+      ridge: '#11667e',
+      ground: '#1ca4bc',
+      top: '#aaf6ff',
+      speck: '#11667e',
+      rock: '#d2dce8',
+      hl: '#f4f8ff',
+    },
+  };
+
+  function rng(seed) {
+    let s = (seed * 9301 + 49297) % 2147483647;
+    return () => (s = (s * 16807) % 2147483647) / 2147483647;
+  }
+
+  function drawScene(cv) {
+    cv.width = 640;
+    cv.height = 360;
+    const ctx = cv.getContext('2d');
+    const d = cv.dataset;
+    const rnd = rng(Number(d.seed) || 1);
+    const px = (c, x, y, w = 1, h = 1) => {
+      ctx.fillStyle = c;
+      ctx.fillRect(Math.round(x), Math.round(y), w, h);
+    };
+    px('#070a12', 0, 0, 640, 360);
+    const starCols = ['#9eacc0', '#56647c', '#aaf6ff', '#d2dce8', '#3a465c'];
+    for (let i = 0; i < 150; i++) {
+      const x = rnd() * 640,
+        y = rnd() * 360,
+        c = starCols[Math.floor(rnd() * starCols.length)];
+      if (d.streaks) px(c, x, y, 2 + Math.floor(rnd() * 9), 1);
+      else px(c, x, y);
+    }
+    if (d.scene !== 'surface') return;
+
+    const g = GROUNDS[d.ground];
+    const H = Number(d.horizon);
+    const flat = d.flat ? Number(d.flat) : null;
+    const ph = Array.from({ length: 6 }, () => rnd() * 6.283);
+    const wave = (x, a, b, c) =>
+      (Math.sin(x * 0.011 + ph[a]) * 0.5 +
+        Math.sin(x * 0.029 + ph[b]) * 0.3 +
+        Math.sin(x * 0.071 + ph[c]) * 0.2 +
+        1) /
+      2;
+    const nearFlat = (x, r) => flat !== null && Math.abs(x - flat) < r;
+    const groundY = [];
+    for (let x = 0; x < 640; x += 2) {
+      const far = H - 16 - Math.floor(wave(x, 0, 1, 2) * 30);
+      px(g.far, x, far, 2, 360 - far);
+      const ridge = H - 4 - Math.floor(wave(x + 400, 3, 4, 5) * 14);
+      px(g.ridge, x, ridge, 2, 360 - ridge);
+      let gy = H + Math.round(Math.sin(x * 0.023 + ph[2]) * 2 + Math.sin(x * 0.09 + ph[4]));
+      if (nearFlat(x, 44)) gy = H;
+      groundY[x] = groundY[x + 1] = gy;
+      px(g.ground, x, gy, 2, 360 - gy);
+      px(g.top, x, gy, 2, 1);
+    }
+    for (let i = 0; i < 1400; i++) {
+      const x = Math.floor(rnd() * 640);
+      const y = groundY[x] + 3 + rnd() * (360 - groundY[x]);
+      px(rnd() < 0.8 ? g.speck : g.top, x, y);
+    }
+    for (let i = 0; i < 6; i++) {
+      const cx = 20 + rnd() * 600,
+        cy = H + 14 + rnd() * (340 - H),
+        rx = 6 + rnd() * 16,
+        ry = Math.max(2, rx * 0.3);
+      if (nearFlat(cx, 60) || cy > 356) continue;
+      for (let t = 0; t < 6.283; t += 0.08) {
+        px(Math.sin(t) < 0 ? g.speck : g.top, cx + Math.cos(t) * rx, cy + Math.sin(t) * ry);
+      }
+    }
+    for (let i = 0; i < 18; i++) {
+      const x = Math.floor(rnd() * 636);
+      if (nearFlat(x, 40)) continue;
+      const y = groundY[x] + 2 + rnd() * Math.min(60, 356 - groundY[x]);
+      const w = 2 + Math.floor(rnd() * 3);
+      px(g.rock, x, y, w, 2);
+      px(g.hl, x, y, 1, 1);
+    }
+    if (d.dust) {
+      const cx = Number(d.dust);
+      for (let i = 0; i < 160; i++) {
+        const side = rnd() < 0.5 ? -1 : 1;
+        const dx = side * (10 + rnd() * 70);
+        const dy = -rnd() * (16 - Math.abs(dx) / 6);
+        px(rnd() < 0.5 ? g.top : g.hl, cx + dx, H - 1 + dy, rnd() < 0.3 ? 2 : 1, 1);
+      }
+    }
+    if (d.debris) {
+      const cx = Number(d.debris);
+      const smoke = ['#283246', '#3a465c', '#56647c'];
+      for (let i = 0; i < 26; i++) {
+        const y = H - 8 - rnd() * 120;
+        const s = 3 + Math.floor((H - y) / 22);
+        px(smoke[Math.floor(rnd() * 3)], cx - 8 + rnd() * 24 + (H - y) * 0.25, y, s, s);
+      }
+      for (let i = 0; i < 22; i++) {
+        px(
+          rnd() < 0.5 ? '#b8c4d4' : '#e07a22',
+          cx - 46 + rnd() * 92,
+          H - 2 + rnd() * 10,
+          rnd() < 0.4 ? 2 : 1,
+          1,
+        );
+      }
+    }
+  }
+
+  function placeSprites() {
+    document.querySelectorAll('img.sp').forEach((im) => {
+      const s = SPRITES[im.dataset.sprite];
+      if (!s) return;
+      const v = (n, dflt) => {
+        const raw = im.style.getPropertyValue(n).trim();
+        return raw === '' ? dflt : Number(raw);
+      };
+      const k = v('--k', 1),
+        w = s.w * k,
+        h = s.h * k;
+      im.src = s.src;
+      im.style.width = w + 'px';
+      im.style.height = h + 'px';
+      im.style.left = v('--x', 0) - w / 2 + 'px';
+      im.style.top = v('--y', 0) - h / 2 + 'px';
+      const r = v('--r', 0);
+      if (r) im.style.transform = `rotate(${r}deg)`;
     });
   }
 
-  function seededStars() {
-    const colours = ['#9eacc0', '#56647c', '#aaf6ff', '#d2dce8', '#3a465c'];
-    document.querySelectorAll('.stars').forEach((s) => {
-      let seed = Number(s.dataset.seed || 1) * 9301 + 49297;
-      const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-      for (let i = 0; i < 110; i++) {
-        const dot = document.createElement('i');
-        dot.style.left = Math.floor(rnd() * 640) + 'px';
-        dot.style.top = Math.floor(rnd() * 360) + 'px';
-        dot.style.background = colours[Math.floor(rnd() * colours.length)];
-        s.appendChild(dot);
-      }
+  function placeRouteDots() {
+    document.querySelectorAll('rect[data-progress]').forEach((dot) => {
+      const path = dot.parentNode.querySelector('[data-h="flown"]');
+      const len = path.getTotalLength();
+      const p = path.getPointAtLength((len * Number(dot.dataset.progress)) / 100);
+      dot.setAttribute('x', Math.round(p.x - 1.5));
+      dot.setAttribute('y', Math.round(p.y - 1.5));
     });
   }
 
@@ -1461,7 +2119,9 @@
   }
 
   expandTemplates();
-  seededStars();
+  document.querySelectorAll('canvas.scene').forEach(drawScene);
+  placeSprites();
+  placeRouteDots();
   fit();
   window.addEventListener('resize', fit);
   const img = new Image();
