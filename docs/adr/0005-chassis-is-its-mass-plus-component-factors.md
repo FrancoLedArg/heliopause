@@ -12,6 +12,6 @@ The ticket called the Chassis's own mass its "hull mass"; the code says the Chas
 
 ## Consequences
 
-- Retuning a level-1 Engine or Fuel Tank recalibrates every Chassis and leaves the starting figures unchanged; Spec A's numbers move only by editing `CHASSIS_TUNING`.
-- A Component's catalogue Isp and capacity are not what the player gets on any Chassis: any display of "what this Component gives" must show the scaled figure for the Spacecraft's Chassis, which `refit` (and the later preview) returns.
-- The Spacecraft stores its derived figures (`dryMass`, `fuelCapacity`, `engineIsp`) beside its Slots, so every reader keeps reading plain figures. They are only correct because every change to the Slots goes through `refit`.
+- Retuning a level-1 Engine or Fuel Tank recalibrates every Chassis and leaves the starting figures unchanged, and a test pins them bit for bit (a Chassis factor times a retuned base figure can miss Spec A's figure by one floating-point ulp; the pin test would catch it). Spec A's numbers move only by editing `CHASSIS_TUNING`.
+- A Component's catalogue Isp and capacity (`baseIsp`, `baseFuelCapacity`) are not what the player gets on any Chassis. `componentEffect(chassisId, componentId)` in `src/game/sim/spacecraft.ts` applies the Chassis factor, and it is the only source for showing a Component's effect; the Spacecraft's own figures are derived from it, so the scaling lives in one place.
+- The Spacecraft stores its derived figures (`dryMass`, `fuelCapacity`, `engineIsp`) beside its Slots, so every reader keeps reading plain figures. The Slots are an opaque `Loadout` type that only `newSpacecraft` and `refit` make, so a Spacecraft copied with new Slots and stale figures does not typecheck.
