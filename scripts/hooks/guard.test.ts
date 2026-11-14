@@ -7,6 +7,8 @@ const context = {
   cwd: '/work/heliopause',
   scratchDirs: ['/tmp', '/private/tmp', '/var/folders/xy/T'],
   tmpDir: '/var/folders/xy/T',
+  /** Fake filesystem: every directory exists except ones named `nonexistent*`. */
+  isDirectory: (dir: string) => !dir.includes('nonexistent'),
 };
 
 /** A PR or review body posted the way agents usually do, via a quoted heredoc. */
@@ -82,6 +84,7 @@ describe('guard allows ordinary agent work', () => {
     'cd /tmp && rm -rf x',
     'cd "$CLAUDE_PROJECT_DIR/dist" && rm -rf assets',
     'cd dist && cd .. && rm -rf dist',
+    'cd dist && rm -rf */',
     'if pnpm test; then echo ok; fi',
     'echo $((1 + 2))',
   ])('%s', (script) => {
@@ -196,6 +199,10 @@ describe('guard blocks', () => {
     'rm -rf **/*',
     'rm -rf [!.]*',
     'cd dist && cd .. && rm -rf ?*',
+    'rm -rf */',
+    'rm -rf ./*/',
+    'rm -rf **/',
+    'cd nonexistent-dir; rm -rf *',
   ])('%s', (script) => {
     expect(check(script)).not.toBeNull();
   });
