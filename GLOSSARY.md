@@ -69,8 +69,12 @@ _Avoid_: Satellite
 ## The craft
 
 **Spacecraft**:
-The player's one vehicle, kept and modified for the whole Run.
+The player's one vehicle, built on the Chassis picked at New Run, kept and modified for the whole Run.
 _Avoid_: Ship, satellite, rocket, vessel
+
+**Chassis**:
+The starting design of the Spacecraft, picked at New Run. It sets the Spacecraft's shape and its starting dry mass, Fuel capacity and engine.
+_Avoid_: Hull, frame, model, class
 
 **Component**:
 A part installed on the Spacecraft in a Slot, with its own mass and Materials cost. Kinds so far: Engine, Fuel Tank, Drill (each with levels) and the Jump Drive.
