@@ -48,8 +48,11 @@ export function nextFlybyDelayMs(random: () => number): number {
   return Math.round(FLYBY_MIN_MS + random() * (FLYBY_MAX_MS - FLYBY_MIN_MS));
 }
 
-/** Sky bands clear of the logo, tagline and New Run panel (y 72-230 on the 640x360 screen). */
-export const FLYBY_LANES: readonly number[] = [24, 44, 252, 300, 334];
+/** Half the fly-by sprite's height (16 px at scale 2), so a lane's band is y plus or minus this. */
+export const FLYBY_HALF_HEIGHT = 16;
+
+/** Sky bands clear of the logo, tagline and title menu panel (y 72 to TITLE_PANEL_BOTTOM on the 640x360 screen). */
+export const FLYBY_LANES: readonly number[] = [24, 44, 316, 336];
 
 /** The lane for a fly-by; `random` returns [0, 1). */
 export function flybyLane(random: () => number): number {
