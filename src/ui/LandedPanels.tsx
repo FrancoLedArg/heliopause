@@ -14,9 +14,9 @@ interface LandedPanelsProps {
   /** The Nav Chart is open and covers the plate and the Nav Chart button. */
   chartOpen: boolean;
   /** The Spacecraft panel is open and covers the plate and both buttons. */
-  spacecraftOpen?: boolean;
+  spacecraftOpen: boolean;
   /** The player pressed the Spacecraft button. */
-  onOpenSpacecraft?: () => void;
+  onOpenSpacecraft: () => void;
   /** Counts requests to put focus on the Nav Chart button (after the Hop report closes, or a New Run). */
   focusRequest?: number;
 }
@@ -25,7 +25,7 @@ interface LandedPanelsProps {
 export function LandedPanels({
   run,
   chartOpen,
-  spacecraftOpen = false,
+  spacecraftOpen,
   onOpenSpacecraft,
   focusRequest = 0,
 }: LandedPanelsProps) {

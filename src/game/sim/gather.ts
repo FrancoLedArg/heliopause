@@ -1,4 +1,5 @@
 import type { Run } from './run.ts';
+import { drillMultiplier } from './spacecraft.ts';
 import { deepFreeze, findBody, type BodyId } from './starSystem.ts';
 import { kilograms, materials, type Kilograms, type Materials } from './units.ts';
 
@@ -16,14 +17,6 @@ export interface Landing {
   readonly collection: Collection;
 }
 
-/**
- * The factor on a Body's base yield. Always 1 until the Drill gives it a number (#114): this is the
- * one place that ticket changes (it will read the Drills installed on `run.spacecraft`).
- */
-function yieldMultiplier(): number {
-  return 1;
-}
-
 /** Whether `bodyId` has already given up its yield in this Run. */
 export function isDepleted(run: Run, bodyId: BodyId): boolean {
   return run.depleted.includes(bodyId);
@@ -31,7 +24,8 @@ export function isDepleted(run: Run, bodyId: BodyId): boolean {
 
 /**
  * Collects the yield of `bodyId`, the Body the Spacecraft has just landed on: the first time only,
- * after which the Body is Depleted. Fuel is capped at the Tank's capacity. It leaves the Run's
+ * after which the Body is Depleted. The Spacecraft's Drills multiply the yield (the best one counts,
+ * see `drillMultiplier`). Fuel is capped at the Tank's capacity. It leaves the Run's
  * status to the caller (a Hop sets it). Throws for a Body that is not a landable Body of this Star
  * System: a programmer error.
  */
@@ -41,9 +35,10 @@ export function collectYield(run: Run, bodyId: BodyId): Landing {
   if (isDepleted(run, body.id)) return { run, collection: { kind: 'depleted' } };
 
   const depleted = [...run.depleted, body.id];
-  const multiplier = yieldMultiplier();
+  const multiplier = drillMultiplier(run.spacecraft);
   if (body.composition === 'rocky') {
-    const collected = materials(body.baseYield * multiplier);
+    // Materials are whole units: a multiplied yield rounds to the nearest, a half up.
+    const collected = materials(Math.round(body.baseYield * multiplier));
     return deepFreeze({
       run: { ...run, materials: materials(run.materials + collected), depleted },
       collection: { kind: 'materials', collected },

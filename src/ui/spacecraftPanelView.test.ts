@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   COMPONENT_IDS,
+  collectYield,
   COMPONENTS,
+  homePlanet,
   install,
+  kilograms,
   materials,
+  refit,
   startRun,
   type Slot,
 } from '../game/sim/index.ts';
@@ -33,6 +37,27 @@ describe('a Component’s effect is shown as the Chassis scales it', () => {
   it('says how much more a Drill yields', () => {
     expect(describeEffect('scout', 'drill-1')).toContain('1.5×');
     expect(describeEffect('scout', 'drill-2')).toContain('2×');
+  });
+
+  it('keeps its promise: the multiplier the panel says is the one a landing applies', () => {
+    for (const id of ['drill-1', 'drill-2'] as const) {
+      const run = startRun(2026, 'scout');
+      const moon = homePlanet(run.starSystem).moons[0];
+      if (!moon) throw new Error('The Home Planet has a Moon');
+      const said = /([\d.]+)×/.exec(describeEffect('scout', id))?.[1];
+      const fitted = {
+        ...run,
+        spacecraft: {
+          ...run.spacecraft,
+          ...refit(run.spacecraft, ['engine-1', 'fuel-tank-1', id, null]),
+          fuelCapacity: kilograms(1_000_000),
+          fuelMass: kilograms(0),
+        },
+      };
+      const landing = collectYield(fitted, moon.id).collection;
+      if (landing.kind !== 'fuel') throw new Error('The Moon is Icy');
+      expect(landing.collected / moon.baseYield).toBeCloseTo(Number(said), 9);
+    }
   });
 
   it('is one sentence for every Component on every Chassis', () => {

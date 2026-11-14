@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   kilograms,
   collectYield,
+  install,
+  materials,
   launchHop,
   listBodies,
   homePlanet,
@@ -135,6 +137,41 @@ describe('the Hop report', () => {
       const view = describeReport(away, launched.flight);
       expect(view.collected).toMatch(/^Collected \d+ Materials\.$/);
       expect(view.note).toBeUndefined();
+    });
+
+    it('names the Drill inside the Collected line, and nowhere else', () => {
+      const installed = install(run, 2, 'drill-1');
+      if (installed.kind !== 'installed') throw new Error('expected an install');
+      const view = describeReport(installed.run, flown(installed.run).flight);
+      expect(view.collected).toMatch(/^Collected [\d.]+ t of Fuel \(Drill ×1\.5\)\.$/);
+      expect(view.headline).not.toMatch(/Drill/);
+      expect(view.note).not.toMatch(/Drill/);
+    });
+
+    it('does not credit the Drill when nothing was collected', () => {
+      const installed = install(run, 2, 'drill-1');
+      if (installed.kind !== 'installed') throw new Error('expected an install');
+      const { flight } = flown(installed.run);
+      const full = {
+        ...flight,
+        collection: {
+          kind: 'fuel' as const,
+          collected: kilograms(0),
+          leftBehind: kilograms(7_000),
+        },
+      };
+      expect(describeReport(installed.run, full).collected).not.toMatch(/Drill/);
+    });
+
+    it('names the Drill on a Rocky yield too', () => {
+      const installed = install({ ...run, materials: materials(100) }, 2, 'drill-2');
+      if (installed.kind !== 'installed') throw new Error('expected an install');
+      const away = { ...installed.run, status: { kind: 'landed', bodyId: moon.id } as const };
+      const launched = launchHop(away, run.starSystem.homePlanetId);
+      if (launched.kind !== 'flown') throw new Error('expected a flight');
+      expect(describeReport(away, launched.flight).collected).toMatch(
+        /^Collected \d+ Materials \(Drill ×2\)\.$/,
+      );
     });
 
     it('says a Depleted Body had nothing left', () => {

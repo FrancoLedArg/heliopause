@@ -21,6 +21,7 @@ export type {
 export {
   availableDeltaV,
   componentEffect,
+  drillMultiplier,
   fuelAfterBurning,
   newSpacecraft,
   refit,

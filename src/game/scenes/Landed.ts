@@ -61,7 +61,12 @@ export class Landed extends Scene {
     // The Spacecraft panel asks for installs; the Run lives here, so this is where it changes.
     const offInstall = EventBus.on('component-install-requested', (slotIndex, componentId) => {
       const installed = install(this.run, slotIndex, componentId);
-      if (installed.kind !== 'installed') return;
+      // The panel checks an install before it asks, so a refusal here is a programmer error.
+      if (installed.kind !== 'installed') {
+        throw new Error(
+          `Install of ${componentId} in Slot ${String(slotIndex)} refused: ${installed.reason.kind}`,
+        );
+      }
       this.run = installed.run;
       EventBus.emit('run-updated', this.run);
     });

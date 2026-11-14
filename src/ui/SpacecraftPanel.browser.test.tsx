@@ -123,6 +123,15 @@ it('keeps the whole panel inside the 640×360 stage, and no text clipped by its 
   }
 });
 
+it('describes every Install button by the effect it shows, so a screen reader hears the promise', async () => {
+  const host = await renderUi(<Harness initial={runWith('hauler', 25)} />);
+  const button = installButton(host, /Install Drill, level 1/);
+  const described = button.getAttribute('aria-describedby');
+  expect(described).toBeTruthy();
+  const target = described ? document.getElementById(described) : null;
+  expect(target?.textContent).toBe('Yields 1.5× from each Body.');
+});
+
 it('installs the cheapest Component with the starting Materials: Materials and Δv change, and the panel says so', async () => {
   const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
   const before = byTestId(host, 'panel-delta-v').textContent;
