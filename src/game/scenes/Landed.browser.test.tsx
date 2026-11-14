@@ -82,11 +82,12 @@ function measure(scene: Landed): { ship: Box; panels: Map<string, Box> } {
     bottom: (r.bottom - stageRect.top) / k,
   });
   const panels = new Map<string, Box>();
-  for (const selector of ['.top-bar', '.landed-plate', '.ai-label']) {
-    const el = document.querySelector(selector);
-    if (!el) throw new Error(`missing ${selector}`);
-    panels.set(selector, toStage(el.getBoundingClientRect()));
-  }
+  // Every panel the UI layer draws, so a new one (the Nav Chart button, #29) is covered automatically.
+  const elements = [...document.querySelectorAll('.stage__ui .game-ui > *')];
+  expect(elements.length).toBeGreaterThanOrEqual(3); // top bar, plate, AI-art label
+  elements.forEach((el, i) => {
+    panels.set(`${el.className} #${String(i)}`, toStage(el.getBoundingClientRect()));
+  });
   // The ship container holds the sprite and its shadow, so these bounds include both.
   const b = scene.layers.ship.getBounds();
   return { ship: { left: b.left, top: b.top, right: b.right, bottom: b.bottom }, panels };
