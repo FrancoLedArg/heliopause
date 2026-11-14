@@ -157,3 +157,50 @@ it('shows the whole target subtitle for a Moon of the longest-named planet, insi
     );
   }
 });
+
+// Icy or Rocky is its own short item, so the worst-case name can never push it out of view.
+it('shows the composition in the tooltip and the target head for the longest-named planet, inside their frames', async () => {
+  const run = startRun(123, 'scout');
+  const longName = 'Thaeprioquaeprix Prime';
+  const planets = run.starSystem.planets.map((planet) =>
+    planet.moons.length > 0 ? { ...planet, name: longName } : planet,
+  );
+  const longRun = { ...run, starSystem: { ...run.starSystem, planets } };
+  const moon = listBodies(longRun.starSystem).find((b) => b.kind === 'moon');
+  if (!moon) throw new Error('no moon');
+  host = document.createElement('div');
+  host.className = 'stage__ui';
+  document.body.append(host);
+  root = createRoot(host);
+  act(() => {
+    root?.render(
+      <div className="game-ui">
+        <NavChartPanel run={longRun} state={{ focusedId: moon.id, selectedId: moon.id }} />
+      </div>,
+    );
+  });
+  await document.fonts.load('14px VT323');
+  await document.fonts.load('8px Silkscreen');
+  await document.fonts.ready;
+  const tooltip = host.querySelector<HTMLElement>('[data-testid="inspect"]');
+  const tipBadge = host.querySelector<HTMLElement>('[data-testid="landable"]');
+  const target = host.querySelector<HTMLElement>('[data-testid="target"]');
+  const targetBadge = target?.querySelector<HTMLElement>('.nav-chart__badge');
+  const tipWords = host.querySelector<HTMLElement>('[data-testid="tip-composition"]');
+  const targetWords = host.querySelector<HTMLElement>('[data-testid="target-composition"]');
+  if (!tooltip || !tipBadge || !target || !targetBadge || !tipWords || !targetWords) {
+    throw new Error('missing composition parts');
+  }
+  expect(tipWords.textContent).toMatch(/Icy|Rocky/);
+  expect(targetWords.textContent).toMatch(/Icy|Rocky/);
+  expect(tipBadge.scrollWidth).toBeLessThanOrEqual(tipBadge.clientWidth);
+  expect(tipWords.getBoundingClientRect().right).toBeLessThanOrEqual(
+    tooltip.getBoundingClientRect().right,
+  );
+  expect(targetWords.getBoundingClientRect().right).toBeLessThanOrEqual(
+    target.getBoundingClientRect().right,
+  );
+  // The head holds the label and the badge on one 12 px row.
+  expect(targetBadge.getBoundingClientRect().height).toBeLessThanOrEqual(12);
+  expect(targetBadge.scrollWidth).toBeLessThanOrEqual(targetBadge.clientWidth);
+});

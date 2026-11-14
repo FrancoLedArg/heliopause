@@ -37,6 +37,7 @@ export type {
 } from './catalogue.ts';
 export type {
   Body,
+  BodyComposition,
   BodyId,
   GasGiant,
   LandableBody,
@@ -48,6 +49,8 @@ export type {
   StarSystem,
 } from './starSystem.ts';
 export {
+  BODY_TUNING,
+  ICE_LINE,
   CHASSIS_IDS,
   CHASSIS_TUNING,
   DISPERSION,
@@ -67,6 +70,7 @@ export type {
 export {
   astronomicalUnits,
   kilograms,
+  materials,
   kilometers,
   materials,
   metersPerSecond,
@@ -77,6 +81,7 @@ export {
 export type {
   AstronomicalUnits,
   Kilograms,
+  Materials,
   Kilometers,
   Materials,
   MetersPerSecond,
