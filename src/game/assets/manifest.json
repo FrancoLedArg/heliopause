@@ -61,5 +61,12 @@
       "file": "sprites/spacecraft_flame.png"
     }
   ],
+  "atlases": [
+    {
+      "key": "ui",
+      "image": "ui/heliopause_ui.png",
+      "data": "ui/heliopause_ui.json"
+    }
+  ],
   "audio": []
 }
