@@ -1,6 +1,7 @@
 // The Component catalogue: what each Component weighs, costs and does. Real-world-flavoured figures
-// cite `docs/research/propulsion-trade-offs.md`; the rest is gameplay tuning. A Component's Isp and
-// Fuel capacity are its own; the Chassis it is installed on scales them (ADR 0005).
+// cite `docs/research/propulsion-trade-offs.md`; the rest is gameplay tuning. An Engine's Isp and a
+// Fuel Tank's capacity here are base figures: the Chassis it is installed on scales them (ADR 0005),
+// so what the player gets, and must be shown, comes from `componentEffect` in spacecraft.ts.
 import {
   kilograms,
   materials,
@@ -46,13 +47,15 @@ interface ComponentEntry {
 /** Turns Fuel into Δv. The best installed Engine sets the Spacecraft's Isp. */
 export interface Engine extends ComponentEntry {
   readonly kind: 'engine';
-  readonly isp: Seconds;
+  /** Before the Chassis scales it. Show the player `componentEffect`, never this. */
+  readonly baseIsp: Seconds;
 }
 
 /** Holds Fuel. The Spacecraft's Fuel capacity is the sum of its Fuel Tanks. */
 export interface FuelTank extends ComponentEntry {
   readonly kind: 'fuel-tank';
-  readonly fuelCapacity: Kilograms;
+  /** Before the Chassis scales it. Show the player `componentEffect`, never this. */
+  readonly baseFuelCapacity: Kilograms;
 }
 
 /** Multiplies what a Body yields when the Spacecraft lands on it. */
@@ -76,9 +79,9 @@ export const COMPONENTS = {
     level: 1,
     mass: kilograms(1_000),
     cost: materials(30),
-    isp: seconds(900),
+    baseIsp: seconds(900),
     explanation:
-      'A reactor heats hydrogen Fuel and shoots it out the back, about twice as efficient as the best chemical rocket.',
+      'A reactor heats hydrogen Fuel and shoots it out the back, at least twice as efficient as the best chemical rocket.',
     provenance: {
       kind: 'sourced',
       source: `Isp about 900 s, a nuclear thermal engine: ${PROPULSION} §5 and §1.2, ${BOROWSKI}. ${CHASSIS_SCALES} Isp.`,
@@ -91,9 +94,9 @@ export const COMPONENTS = {
     mass: kilograms(1_500),
     cost: materials(60),
     // A quarter better than level 1, past any tested nuclear thermal engine.
-    isp: seconds(1_125),
+    baseIsp: seconds(1_125),
     explanation:
-      'A hotter reactor that gets a quarter more Δv from the same Fuel, but it is heavier and costs more.',
+      'A hotter reactor that gets more Δv from every kilogram of Fuel, but it is heavier and costs more.',
     provenance: { kind: 'gameplay-tuning' },
   },
   'fuel-tank-1': {
@@ -102,11 +105,11 @@ export const COMPONENTS = {
     level: 1,
     mass: kilograms(1_500),
     cost: materials(20),
-    fuelCapacity: kilograms(6_000),
+    baseFuelCapacity: kilograms(6_000),
     explanation: 'Holds more Fuel, but its own mass costs Δv on every Hop, even while it is empty.',
     provenance: {
       kind: 'sourced',
-      source: `Tank mass a fifth of tank plus Fuel (propellant fraction 0.80), the hydrogen tank figure in ${PROPULSION} §6, drawn from §4. Cost is gameplay tuning; the Chassis scales the capacity.`,
+      source: `Tank mass a fifth of tank plus Fuel (propellant fraction 0.80): for hydrogen the tank is about 18% of tank plus fuel, ${PROPULSION} §4 (the Copernicus drop tank, ${BOROWSKI}). Mass rounded for play; cost is gameplay tuning; the Chassis scales the capacity.`,
     },
   },
   'fuel-tank-2': {
@@ -115,7 +118,7 @@ export const COMPONENTS = {
     level: 2,
     mass: kilograms(2_600),
     cost: materials(45),
-    fuelCapacity: kilograms(12_000),
+    baseFuelCapacity: kilograms(12_000),
     explanation:
       'Holds twice the Fuel of the level-1 Tank in one Slot, and is a little lighter for what it holds.',
     provenance: {

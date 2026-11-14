@@ -13,7 +13,7 @@ describe('Δv from Fuel', () => {
     // Worked example: 450 s × 9.80665 m/s² × ln(10 t / 2 t) = 4,413 m/s × 1.6094 = 7,102.4 m/s.
     const spacecraft: Spacecraft = {
       chassisId: 'scout',
-      slots: ['engine-1', 'fuel-tank-1', null, null],
+      slots: newSpacecraft('scout').slots,
       dryMass: kilograms(2_000),
       fuelMass: kilograms(8_000),
       fuelCapacity: kilograms(8_000),

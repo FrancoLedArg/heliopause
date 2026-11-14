@@ -16,13 +16,14 @@ export type {
 } from './hop.ts';
 export {
   availableDeltaV,
+  componentEffect,
   fuelAfterBurning,
   newSpacecraft,
   refit,
   SLOT_COUNT,
   STARTING_SLOTS,
 } from './spacecraft.ts';
-export type { Slot, Spacecraft } from './spacecraft.ts';
+export type { ComponentEffect, Loadout, Slot, Spacecraft } from './spacecraft.ts';
 export { COMPONENT_IDS, COMPONENTS } from './catalogue.ts';
 export type {
   Component,

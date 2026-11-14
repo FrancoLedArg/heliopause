@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   availableDeltaV,
   CHASSIS_IDS,
+  componentEffect,
   COMPONENTS,
+  fuelAfterBurning,
   kilograms,
+  metersPerSecond,
   newSpacecraft,
   refit,
   type Component,
+  type Spacecraft,
 } from './index.ts';
 
 describe('the Component catalogue', () => {
@@ -57,13 +61,13 @@ describe('the Component catalogue', () => {
   });
 });
 
-/** The figure a Component changes: an Engine's Isp, a Fuel Tank's capacity, a Drill's multiplier. */
+/** A Component's base figure: an Engine's Isp, a Fuel Tank's capacity, a Drill's multiplier. */
 function effectOf(component: Component): number {
   switch (component.kind) {
     case 'engine':
-      return component.isp;
+      return component.baseIsp;
     case 'fuel-tank':
-      return component.fuelCapacity;
+      return component.baseFuelCapacity;
     case 'drill':
       return component.yieldMultiplier;
   }
@@ -183,6 +187,19 @@ describe('what the installed Components make of the Spacecraft', () => {
     expect(availableDeltaV(refit(start, [null, 'fuel-tank-1', null, null]))).toBe(0);
   });
 
+  it('with no Engine installed, burning no Δv leaves the Fuel as it was', () => {
+    const noEngine = refit(newSpacecraft('scout'), [null, 'fuel-tank-1', null, null]);
+    expect(fuelAfterBurning(noEngine, metersPerSecond(0))).toBe(noEngine.fuelMass);
+  });
+
+  it('the Slots change only through refit, so the figures cannot go stale', () => {
+    const start = newSpacecraft('scout');
+    // @ts-expect-error: new Slots spread into a copy would keep the old dry mass and Δv.
+    const stale: Spacecraft = { ...start, slots: start.slots.with(2, 'drill-1') };
+    expect(stale.dryMass).toBe(start.dryMass);
+    expect(refit(start, start.slots.with(2, 'drill-1')).dryMass).toBeGreaterThan(start.dryMass);
+  });
+
   it('a Spacecraft always has exactly 4 Slots', () => {
     const start = newSpacecraft('scout');
     expect(() => refit(start, ['engine-1', 'fuel-tank-1'])).toThrow(/4 Slots/);
@@ -190,6 +207,43 @@ describe('what the installed Components make of the Spacecraft', () => {
 });
 
 describe('the Chassis', () => {
+  it("a Component's effect is scaled by the Chassis it is on", () => {
+    for (const id of CHASSIS_IDS) {
+      const start = newSpacecraft(id);
+      expect(componentEffect(id, 'fuel-tank-1')).toEqual({
+        kind: 'fuel-tank',
+        fuelCapacity: start.fuelCapacity,
+      });
+      expect(componentEffect(id, 'engine-1')).toEqual({ kind: 'engine', isp: start.engineIsp });
+      expect(componentEffect(id, 'drill-2')).toEqual({ kind: 'drill', yieldMultiplier: 2 });
+    }
+    // Worked example: the hauler's level-1 Tank holds 66 t, against the catalogue's 6 t.
+    expect(componentEffect('hauler', 'fuel-tank-1')).toEqual({
+      kind: 'fuel-tank',
+      fuelCapacity: 66_000,
+    });
+  });
+
+  it("installing a Fuel Tank raises Fuel capacity by exactly that Tank's effect", () => {
+    for (const id of CHASSIS_IDS) {
+      const start = newSpacecraft(id);
+      const tank = componentEffect(id, 'fuel-tank-2');
+      if (tank.kind !== 'fuel-tank') throw new Error('fuel-tank-2 is a Fuel Tank');
+      const refitted = refit(start, ['engine-1', 'fuel-tank-1', 'fuel-tank-2', null]);
+      expect(refitted.fuelCapacity).toBe(start.fuelCapacity + tank.fuelCapacity);
+    }
+  });
+
+  it("the best Engine's effect is the Spacecraft's Isp", () => {
+    for (const id of CHASSIS_IDS) {
+      const refitted = refit(newSpacecraft(id), ['engine-1', 'fuel-tank-1', 'engine-2', null]);
+      expect(componentEffect(id, 'engine-2')).toEqual({
+        kind: 'engine',
+        isp: refitted.engineIsp,
+      });
+    }
+  });
+
   it('the same Component changes each Chassis differently', () => {
     const added = CHASSIS_IDS.map((id) => {
       const start = newSpacecraft(id);
