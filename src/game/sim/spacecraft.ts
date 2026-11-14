@@ -1,3 +1,4 @@
+import type { ComponentId } from './catalogue.ts';
 import { CHASSIS_TUNING, SOURCED_CONSTANTS, type ChassisId } from './data.ts';
 import {
   kilograms,
@@ -7,9 +8,20 @@ import {
   type Seconds,
 } from './units.ts';
 
-/** The player's one vehicle. In this slice it has no Components: its Chassis sets its masses and engine. */
+/** A place on the Spacecraft that holds one Component, or `null` while it is empty. */
+export type Slot = ComponentId | null;
+
+/** How many Slots every Spacecraft has. */
+export const SLOT_COUNT = 4;
+
+/** What a New Run's Spacecraft carries: a level-1 Engine and a level-1 Fuel Tank, 2 Slots empty. */
+export const STARTING_SLOTS: readonly Slot[] = ['engine-1', 'fuel-tank-1', null, null];
+
+/** The player's one vehicle: a Chassis with Components in its Slots, and the Fuel it carries. */
 export interface Spacecraft {
   readonly chassisId: ChassisId;
+  /** Always `SLOT_COUNT` long. */
+  readonly slots: readonly Slot[];
   /** Everything but Fuel. */
   readonly dryMass: Kilograms;
   readonly fuelMass: Kilograms;
@@ -20,7 +32,7 @@ export interface Spacecraft {
 /** The Spacecraft a New Run starts with on this Chassis, Fuel full. */
 export function newSpacecraft(chassisId: ChassisId): Spacecraft {
   const chassis = CHASSIS_TUNING[chassisId];
-  return { chassisId, ...chassis, fuelMass: chassis.fuelCapacity };
+  return { chassisId, slots: STARTING_SLOTS, ...chassis, fuelMass: chassis.fuelCapacity };
 }
 
 /** The Δv the Spacecraft's Fuel provides: the rocket equation, Isp × g0 × ln(wet mass / dry mass). */
