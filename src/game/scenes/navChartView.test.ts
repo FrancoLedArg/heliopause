@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import { currentBody, listBodies, startRun, type Run } from '../sim/index.ts';
 import {
+  BRACKET_GAP,
   CHART,
   chartReducer,
   crossSegments,
@@ -115,7 +116,7 @@ describe('the Nav Chart layout', () => {
     }
   });
 
-  it('crosses a Depleted Body with an X that stays inside its sprite', () => {
+  it('crosses a Depleted Body with an X that reaches past its sprite, inside the focus brackets', () => {
     const layout = layoutChart(newRun(123));
     for (const node of layout.nodes) {
       const [a, b] = crossSegments(node);
@@ -124,10 +125,11 @@ describe('the Nav Chart layout', () => {
       expect(a.from[1] + a.to[1]).toBe(2 * node.y);
       expect(b.from[0] + b.to[0]).toBe(2 * node.x);
       expect(b.from[1] + b.to[1]).toBe(2 * node.y);
-      expect(a.from[0]).not.toBe(a.to[0]);
-      expect(a.from[1]).not.toBe(a.to[1]);
       for (const [x, y] of [a.from, a.to, b.from, b.to]) {
-        expect(Math.hypot(x - node.x, y - node.y)).toBeLessThanOrEqual(node.radius);
+        // The corners sit 2 px outside the sprite's box and within the bracket corners (radius + 6).
+        expect(Math.abs(x - node.x)).toBe(node.radius + 2);
+        expect(Math.abs(y - node.y)).toBe(node.radius + 2);
+        expect(node.radius + 2).toBeLessThan(BRACKET_GAP + node.radius);
       }
     }
   });

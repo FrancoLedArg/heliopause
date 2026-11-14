@@ -392,9 +392,9 @@ export interface Segment {
   readonly to: readonly [number, number];
 }
 
-/** The two diagonals of the X that marks a Depleted Body, through its centre and inside its sprite. */
+/** The two diagonals of the X that marks a Depleted Body: through its centre, reaching 2 px past its sprite so it shows on a small one, inside the focus brackets. */
 export function crossSegments(node: ChartNode): [Segment, Segment] {
-  const arm = Math.max(2, Math.floor((node.radius * 0.7) / Math.SQRT2 + 0.5));
+  const arm = node.radius + 2;
   const at = (dx: number, dy: number): [number, number] => [node.x + dx, node.y + dy];
   return [
     { from: at(-arm, -arm), to: at(arm, arm) },

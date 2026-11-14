@@ -159,10 +159,16 @@ export class NavChart extends Scene {
     }
 
     // A Depleted Body is crossed out: an X over it, which is a shape, not just a colour.
-    g.lineStyle(1, paletteNumber('am3'));
-    for (const node of this.layout.nodes) {
-      if (!isDepleted(this.run, node.body.id)) continue;
-      for (const { from, to } of crossSegments(node)) g.lineBetween(...from, ...to);
+    // A 3 px dark stroke with a 1 px bright one on top, so it shows over any sprite.
+    for (const [width, colour] of [
+      [3, paletteNumber('void')],
+      [1, paletteNumber('am3')],
+    ] as const) {
+      g.lineStyle(width, colour);
+      for (const node of this.layout.nodes) {
+        if (!isDepleted(this.run, node.body.id)) continue;
+        for (const { from, to } of crossSegments(node)) g.lineBetween(...from, ...to);
+      }
     }
 
     const here = at(currentBody(this.run).id);

@@ -355,7 +355,7 @@ it('keeps the tallest plan, 21-character target, Margin warning and Depleted, cl
   // The head badge reads "Landable · Depleted" on one row beside the label, inside the block.
   const head = byTestId(host, 'target');
   const words = byTestId(host, 'target-composition');
-  expect(words.textContent).toContain('Depleted');
+  expect(words.textContent).toBe('Depleted · no yield');
   const label = head.querySelector<HTMLElement>('.nav-chart__target-label');
   const badge = words.closest<HTMLElement>('.nav-chart__badge');
   if (!label || !badge) throw new Error('missing head parts');

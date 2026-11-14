@@ -8,8 +8,6 @@ import { TopBar } from './TopBar.tsx';
 
 const PLATE_WIDTH = 284;
 const PLATE_HEIGHT = 62;
-/** A Depleted Body adds a row for its badge under the detail line; the plate grows upward, its bottom edge fixed above the credit tag. */
-const DEPLETED_ROW = 14;
 
 interface LandedPanelsProps {
   run: Run;
@@ -34,7 +32,6 @@ export function LandedPanels({
   const body = currentBody(run);
   const type = bodyFullLabel(run, body);
   const depleted = isDepleted(run, body.id);
-  const plateHeight = depleted ? PLATE_HEIGHT + DEPLETED_ROW : PLATE_HEIGHT;
 
   // Closing the Nav Chart hands focus back to the button that opened it.
   const buttonSlot = useRef<HTMLDivElement>(null);
@@ -72,25 +69,20 @@ export function LandedPanels({
           <section
             className="landed-plate"
             aria-labelledby="landed-title"
-            style={{
-              width: PLATE_WIDTH,
-              height: plateHeight,
-              top: 274 + PLATE_HEIGHT - plateHeight,
-            }}
+            style={{ width: PLATE_WIDTH, height: PLATE_HEIGHT }}
           >
-            <KitFrame frame="panel_holo" width={PLATE_WIDTH} height={plateHeight} />
+            <KitFrame frame="panel_holo" width={PLATE_WIDTH} height={PLATE_HEIGHT} />
             <h1 id="landed-title" className="landed-plate__title">
               {body.name}
             </h1>
             <p className="landed-plate__kind" data-testid="landed-kind">
               {type}
+              {depleted && (
+                <span className="landed-plate__depleted" data-testid="landed-depleted">
+                  {' · Depleted'}
+                </span>
+              )}
             </p>
-            {depleted && (
-              <p className="landed-plate__depleted" data-testid="landed-depleted">
-                <KitFrame frame="badge_warning" />
-                Depleted
-              </p>
-            )}
             <p className="landed-plate__detail">
               Gravity {formatGravity(body.surfaceGravity)} ·{' '}
               {formatDistanceAu(body.distanceFromStar)} from the star

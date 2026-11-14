@@ -308,10 +308,21 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         <div className="nav-chart__target-head">
           <p className="nav-chart__target-label">Target</p>
           {target && (
-            <p className="nav-chart__badge nav-chart__badge--ok">
-              <KitFrame frame="badge_ok" />
-              Landable
-              <span data-testid="target-composition">{` · ${bodyStatusLabel(run, target)}`}</span>
+            <p
+              className={`nav-chart__badge ${isDepleted(run, target.id) ? 'nav-chart__badge--warn' : 'nav-chart__badge--ok'}`}
+            >
+              {isDepleted(run, target.id) ? (
+                <>
+                  <KitFrame frame="badge_warning" />
+                  <span data-testid="target-composition">Depleted · no yield</span>
+                </>
+              ) : (
+                <>
+                  <KitFrame frame="badge_ok" />
+                  Landable
+                  <span data-testid="target-composition">{` · ${bodyStatusLabel(run, target)}`}</span>
+                </>
+              )}
             </p>
           )}
         </div>

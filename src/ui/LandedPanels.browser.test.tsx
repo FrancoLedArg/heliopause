@@ -8,7 +8,7 @@ afterEach(cleanUp);
 // Seed 4171 has the longest names in 20,000 seeds; Thirthiothux Minor is a Moon of Praespraethaen Prime.
 const SLACK = 6;
 
-it('marks a Depleted Body on the Landed plate, clear of the other lines and inside the frame', async () => {
+it('marks a Depleted Body on the Landed plate, on the kind row, inside an unchanged plate', async () => {
   const run = startRun(4171, 'scout');
   const body = listBodies(run.starSystem).find((b) => b.name === 'Thirthiothux Minor');
   if (!body) throw new Error('seed 4171 has no Thirthiothux Minor');
@@ -24,16 +24,21 @@ it('marks a Depleted Body on the Landed plate, clear of the other lines and insi
   const detail = host.querySelector<HTMLElement>('.landed-plate__detail');
   if (!plate || !detail) throw new Error('no plate');
   const mark = byTestId(host, 'landed-depleted');
-  expect(mark.textContent).toBe('Depleted');
+  expect(mark.textContent).toBe(' · Depleted');
   const frame = plate.getBoundingClientRect();
   const box = mark.getBoundingClientRect();
-  // Under the detail line, the plate grown to hold it, and the whole badge inside the frame.
-  expect(box.top).toBeGreaterThanOrEqual(detail.getBoundingClientRect().bottom);
+  // The plate keeps its size and place (the Hop report ends above y 274), and the whole kind row,
+  // longest case, ends inside it with room to spare.
+  expect(frame.top).toBeGreaterThanOrEqual(274);
+  expect(frame.height).toBeLessThanOrEqual(62);
+  const kind = byTestId(host, 'landed-kind');
+  const text = document.createRange();
+  text.selectNodeContents(kind);
+  expect(text.getBoundingClientRect().right).toBeLessThanOrEqual(frame.right - SLACK);
+  expect(kind.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    detail.getBoundingClientRect().top + 1,
+  );
   expect(box.right).toBeLessThanOrEqual(frame.right - SLACK);
-  expect(box.bottom).toBeLessThanOrEqual(frame.bottom - 3);
-  // Still clear of the Nav Chart button and the credit tag below.
-  expect(frame.right).toBeLessThanOrEqual(296);
-  expect(frame.bottom).toBeLessThanOrEqual(336);
   expect(mark.scrollWidth).toBeLessThanOrEqual(mark.clientWidth);
 });
 

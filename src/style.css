@@ -994,15 +994,7 @@ body {
   color: var(--gm6);
 }
 
-/* Depleted: a badge on its own row under the detail line, which the plate grows to hold. */
+/* Depleted ends the kind row, in amber (and in words, so not by colour alone). */
 .landed-plate__depleted {
-  position: absolute;
-  top: 58px;
-  left: 12px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font: 8px/12px var(--font-pixel);
-  text-transform: uppercase;
   color: var(--am3);
 }
