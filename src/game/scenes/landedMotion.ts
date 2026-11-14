@@ -3,15 +3,15 @@
 /** One full left-right-left cycle: each sweep takes half of it, calm and slow. */
 export const DRIFT_PERIOD_MS = 100_000;
 
-/** How far (px) each layer travels either side of centre at the peak of a sweep: nearer is further. */
-export const DRIFT_RANGE = { stars: 3, sky: 8, far: 14, mid: 28, near: 48 } as const;
+/** How far (px) each layer travels either side of centre at the peak of a sweep: the ground, nearest, travels furthest. */
+export const DRIFT_RANGE = { stars: 3, sky: 8, ground: 48 } as const;
 
 export type DriftLayer = keyof typeof DRIFT_RANGE;
 export type DriftOffsets = Record<DriftLayer, number>;
 
 /** A reusable offsets object: pass the same one to `driftOffsets` every frame. */
 export function newDriftOffsets(): DriftOffsets {
-  return { stars: 0, sky: 0, far: 0, mid: 0, near: 0 };
+  return { stars: 0, sky: 0, ground: 0 };
 }
 
 /** Pixels a layer `layerWidth` wide has to spare on each side once centred on the 640 px screen. */
@@ -38,8 +38,6 @@ export function driftOffsets(phase: number, out: DriftOffsets): DriftOffsets {
   const s = Math.sin(phase);
   out.stars = DRIFT_RANGE.stars * s;
   out.sky = DRIFT_RANGE.sky * s;
-  out.far = DRIFT_RANGE.far * s;
-  out.mid = DRIFT_RANGE.mid * s;
-  out.near = DRIFT_RANGE.near * s;
+  out.ground = DRIFT_RANGE.ground * s;
   return out;
 }

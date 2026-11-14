@@ -21,7 +21,7 @@ import type {
   Run,
 } from '../sim/index.ts';
 
-/** Which surface art a Body gets: keys `surface_<kind>` (near), `_mid`, `_far`. */
+/** Which surface art a Body gets: key `surface_<kind>`, the one ground strip. */
 export type SurfaceKind = 'rocky' | 'moon' | 'icy';
 
 /** Only the surfaces the sim can produce today. Icy arrives with icy Bodies. */
@@ -30,18 +30,18 @@ export function surfaceKind(body: LandableBody): SurfaceKind {
 }
 
 /**
- * Where the whole Spacecraft stands: `x` is the centre of its base at rest, `baseY` the ground
- * line it rests on. The near layer's ground is almost level from x 450 to 600 (it drops 2-4 px).
- * The ambient drift (#37) moves the near ground and the ship rides it, so the ship sweeps
- * `SHIP_SWEEP_X`; panels must stay clear of the whole `SHIP_SWEEP` box, not only of the resting
- * position. The location plate sits at lower left, clear of it.
+ * Where the whole Spacecraft stands: `x` is the centre of its base at rest, `baseY` the line it
+ * rests on, which is the ground's top edge (`GROUND_TOP`). The ambient drift (#37) moves the
+ * ground and the ship rides it, so the ship sweeps `SHIP_SWEEP_X`; panels must stay clear of the
+ * whole `SHIP_SWEEP` box, not only of the resting position. The location plate sits at lower
+ * left, clear of it.
  */
 export const SHIP_PLACEMENT = { x: 525, baseY: 296 } as const;
 
-/** The centre of the ship's base at the two ends of its drift: the resting `x` either side by the near layer's range. */
+/** The centre of the ship's base at the two ends of its drift: the resting `x` either side by the ground's range. */
 export const SHIP_SWEEP_X = {
-  min: SHIP_PLACEMENT.x - DRIFT_RANGE.near,
-  max: SHIP_PLACEMENT.x + DRIFT_RANGE.near,
+  min: SHIP_PLACEMENT.x - DRIFT_RANGE.ground,
+  max: SHIP_PLACEMENT.x + DRIFT_RANGE.ground,
 } as const;
 
 /** The shadow under the Spacecraft: an ellipse this far below the base line, this tall (px). */
@@ -62,7 +62,22 @@ export const SHIP_SWEEP = (() => {
   };
 })();
 
-/** Width of each surface layer: wider than the 640 px screen so the ambient drift never shows an edge. */
+const SHIP_EXTENT = standingExtent(CHASSIS_IDS);
+/** Gameplay tuning: space kept either side of the widest standing Spacecraft. */
+const FOOTPRINT_MARGIN = 12;
+/**
+ * How far either side of the centre of its base the Spacecraft reaches, with a margin: nothing on
+ * the ground (pebbles) is placed inside it. It comes from the widest Chassis art, so a wider
+ * Spacecraft widens it with no edit here.
+ */
+export const SHIP_FOOTPRINT_HALF_WIDTH = SHIP_EXTENT.halfWidth + FOOTPRINT_MARGIN;
+
+/** The ground's top edge: one level y across the whole screen, exactly the Spacecraft's base line. */
+export const GROUND_TOP = SHIP_PLACEMENT.baseY;
+/** The ground fills the screen from its top edge to the bottom of the 360 px screen. */
+export const GROUND_HEIGHT = 360 - GROUND_TOP;
+
+/** Width of the ground strip: wider than the 640 px screen so the ambient drift never shows an edge. */
 export const SURFACE_WIDTH = 800;
 
 /** Width of the sky layer: wider than the 640 px screen so it can drift with parallax later. */
@@ -109,8 +124,9 @@ const MOON_REACH = 4;
 const NUDGES = [0, -6, 6, -12, 12, -18, 18, -24, 24, -32, 32] as const;
 
 /**
- * The far-layer horizon on screen, as the generated art draws it (about 16 px above the painted
- * stand-in's limb): planets are kept above it so they do not sink behind the ground.
+ * How low a sky Body may hang at screen x `skyX`. This is the old curved horizon, kept only so the
+ * sky layout stays exactly as it was (#122: the sky is unchanged). It is always above the flat
+ * ground's top edge (`GROUND_TOP`), so no sky Body sinks behind the ground.
  */
 export function horizonY(skyX: number): number {
   const t = (skyX - (SKY_WIDTH - SCREEN_WIDTH) / 2 + 80) / 800;
@@ -336,4 +352,37 @@ export function skyBodies(run: Run): SkyBody[] {
   }
 
   return [star, ...placed.values()].sort((a, b) => b.distanceAu - a.distanceAu);
+}
+
+/** A pebble resting on the ground's top surface: `x` and `width` along the strip, `height` above its top edge. */
+export interface Pebble {
+  readonly x: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+const PEBBLE_COUNT = 16;
+
+/**
+ * The pebbles on the ground of the Body `run` is landed on, in ground strip pixels. Placed by
+ * code over any ground art, kept out of the Spacecraft's footprint (which stays at one place on
+ * the strip, since the Spacecraft rides the ground), and the same Body always gets the same ones.
+ */
+export function pebbles(run: Run): Pebble[] {
+  const rng = createRng(run.seed ^ stringSeed(`${currentBody(run).id}:pebbles`));
+  const shipX = SHIP_PLACEMENT.x - (SCREEN_WIDTH - SURFACE_WIDTH) / 2;
+  const keepOut = {
+    left: shipX - SHIP_FOOTPRINT_HALF_WIDTH,
+    right: shipX + SHIP_FOOTPRINT_HALF_WIDTH,
+  };
+  const placed: Pebble[] = [];
+  for (let i = 0; i < PEBBLE_COUNT; i++) {
+    const width = rng.int(2, 5);
+    const x = rng.int(0, SURFACE_WIDTH - width);
+    const height = rng.int(1, 3);
+    // The rng draws above happen for every pebble, kept or not, so the kept ones do not shift.
+    if (x + width > keepOut.left && x < keepOut.right) continue;
+    placed.push({ x, width, height });
+  }
+  return placed;
 }
