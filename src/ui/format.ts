@@ -6,6 +6,7 @@ import type {
   Kilograms,
   MetersPerSecond,
   MetersPerSecondSquared,
+  Seconds,
 } from '../game/sim/index.ts';
 
 const WHOLE = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
@@ -31,6 +32,11 @@ export function formatMass(mass: Kilograms): string {
 /** Fuel mass as tonnes. */
 export function formatFuel(mass: Kilograms): string {
   return formatMass(mass);
+}
+
+/** An Engine's Isp in whole seconds. */
+export function formatIsp(isp: Seconds): string {
+  return `${WHOLE.format(isp)} s`;
 }
 
 /** Δv in m/s or km/s; a dash while the Δv is not yet known. */
