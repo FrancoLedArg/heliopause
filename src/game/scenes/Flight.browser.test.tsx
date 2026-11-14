@@ -17,6 +17,7 @@ import {
   type Run,
 } from '../sim/index.ts';
 import type { Flight, FlightData } from './Flight.ts';
+import { flightPlayback } from './flightPlayback.ts';
 import { SceneKey } from './keys.ts';
 import '../../style.css';
 
@@ -172,11 +173,14 @@ it('the F key turns fast-forward on and off: the clock runs about 4x as fast and
   const { scene } = await fly('scout');
   const button = document.querySelector<HTMLButtonElement>('.fast-forward');
   expect(button?.getAttribute('aria-pressed')).toBe('false');
+  // Playback per millisecond of the tween clock (`tweens.time`, in seconds), not of wall time: the
+  // tween manager advances both together every update, so the ratio is exactly the time scale the
+  // feature sets (1 at 1x, 4 at 4x) however loaded the machine is.
   const advance = async (): Promise<number> => {
-    const from = scene.playbackMs;
-    const started = performance.now();
+    const playbackStart = scene.playbackMs;
+    const tweenStart = scene.tweens.time;
     await wait(1000);
-    return (scene.playbackMs - from) / (performance.now() - started);
+    return (scene.playbackMs - playbackStart) / ((scene.tweens.time - tweenStart) * 1000);
   };
   await wait(300); // let the create frame's catch-up pass before the 1x window
   const normal = await advance();
@@ -214,8 +218,12 @@ it('under reduced motion there are no particles and no stage fade', async () => 
   vi.spyOn(window, 'matchMedia').mockImplementation(
     (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
   );
-  const { scene } = await fly('scout');
+  const { scene, data } = await fly('scout');
   expect(emitters(scene)).toHaveLength(0);
+  // The scene picks the shorter reduced pace (the playback itself is tested in flightPlayback.test.ts).
+  expect(scene.playback.duration).toBe(
+    flightPlayback(data.before.spacecraft, data.flight, 'reduced').duration,
+  );
   scene.seek(transferSpan(scene).start + 50);
   expect(scene.cameras.main.fadeEffect.isRunning).toBe(false);
 });
@@ -235,6 +243,7 @@ it('the route inset names the two Bodies and shows how far along the Hop is', as
   expect(share).toBeLessThan(70);
 });
 
+// It waits on the real (reduced) playback to end, so a loaded machine needs more than the default 15 s.
 it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clear of the report', async () => {
   vi.spyOn(window, 'matchMedia').mockImplementation(
     (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
@@ -274,7 +283,7 @@ it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clea
   if (!scene) throw new Error('no Flight scene');
   // The whole Spacecraft, plumes included, sits right of the report.
   expect(scene.ship.getBounds().left).toBeGreaterThanOrEqual(reportRight);
-});
+}, 60_000);
 
 it('the particles use the real sprites, tinted: dust and smoke by surface, sparks amber', async () => {
   const { scene } = await fly('scout');
