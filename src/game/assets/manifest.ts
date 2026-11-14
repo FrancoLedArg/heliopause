@@ -43,6 +43,13 @@ export function hasAsset(key: string, source: AssetManifest = manifest): boolean
   return [...source.images, ...source.atlases, ...source.audio].some((entry) => entry.key === key);
 }
 
+/** Page-relative URL of a single image, for DOM drawing outside Phaser. Throws if the key is not listed. */
+export function imageUrl(key: string, source: AssetManifest = manifest): string {
+  const entry = source.images.find((image) => image.key === key);
+  if (!entry) throw new Error(`No image with key "${key}" in the asset manifest`);
+  return `${ASSET_ROOT}/${entry.file}`;
+}
+
 /** Page-relative URL of an atlas's image, for DOM drawing outside Phaser. Throws if the key is not listed. */
 export function atlasImageUrl(key: string, source: AssetManifest = manifest): string {
   const entry = source.atlases.find((atlas) => atlas.key === key);

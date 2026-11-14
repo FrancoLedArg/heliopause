@@ -3,6 +3,7 @@ import { KIT_ATLAS_KEY } from '../ui/kit/kit.ts';
 import { EventBus } from './EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from './main.ts';
 import { SceneKey } from './scenes/keys.ts';
+import type { Run } from './sim/index.ts';
 
 let game: Phaser.Game | undefined;
 
@@ -56,8 +57,15 @@ it('a New Run request on the Title screen lands on the Landed scene', async () =
   const { game } = await bootToTitle();
 
   const landed = nextSceneReady();
-  EventBus.emit('new-run-requested', 123);
+  const run = new Promise<Run>((resolve) => {
+    const off = EventBus.on('run-started', (started) => {
+      off();
+      resolve(started);
+    });
+  });
+  EventBus.emit('new-run-requested', 123, 'lancer');
 
   expect(await landed).toBe(SceneKey.Landed);
+  expect((await run).spacecraft.chassisId).toBe('lancer');
   expect(game.scene.isActive(SceneKey.Title)).toBe(false);
 });

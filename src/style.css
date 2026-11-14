@@ -287,3 +287,147 @@ body {
   font: 14px/12px var(--font-pixel-body);
   color: var(--gm6);
 }
+
+/* ---- Chassis picker ---- */
+
+.chassis-picker__title {
+  position: absolute;
+  top: 22px;
+  left: 0;
+  width: 640px;
+  text-align: center;
+  font: 16px/16px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--wh3);
+}
+
+.chassis-picker__cards {
+  position: absolute;
+  top: 52px;
+  left: 16px;
+  display: flex;
+  gap: 16px;
+  pointer-events: auto;
+}
+
+.chassis-card {
+  position: relative;
+  display: block;
+  cursor: pointer;
+}
+
+.chassis-card > .kit-frame {
+  position: absolute;
+  inset: 0;
+}
+
+/* The real radio stays in the tab order and answers the arrow keys, but is not drawn. */
+.chassis-card__input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+}
+
+/* Focus and selection show as outlines and a text tag, never colour alone. */
+.chassis-card:has(.chassis-card__input:focus-visible) {
+  outline: 2px solid var(--cy3);
+  outline-offset: 2px;
+}
+
+.chassis-card--selected {
+  outline: 1px solid var(--am3);
+  outline-offset: 0;
+}
+
+.chassis-card__name {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--wh3);
+}
+
+.chassis-card__tag {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  padding: 1px 3px 2px;
+  border: 1px solid var(--am3);
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--am3);
+}
+
+.chassis-card__sprite {
+  position: absolute;
+  top: 26px;
+  left: 48px;
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  image-rendering: pixelated;
+}
+
+/* The generic Spacecraft image stands in until the Chassis art ships: shown whole, not cropped. */
+.chassis-card__sprite--stand-in {
+  background-size: contain;
+  background-position: center;
+}
+
+.chassis-card__stats {
+  position: absolute;
+  top: 100px;
+  left: 12px;
+  right: 12px;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 4px;
+  font: 14px/14px var(--font-pixel-body);
+}
+
+.chassis-card__stats dt {
+  color: var(--gm5);
+}
+
+.chassis-card__stats dd {
+  margin: 0;
+  text-align: right;
+  color: var(--wh3);
+}
+
+.chassis-card__fuel {
+  color: var(--am3);
+}
+
+.chassis-card__dv {
+  color: var(--cy3);
+}
+
+.chassis-picker__note {
+  position: absolute;
+  top: 232px;
+  left: 40px;
+  width: 560px;
+  text-align: center;
+  font: 14px/14px var(--font-pixel-body);
+  color: var(--gm6);
+}
+
+.chassis-picker__actions {
+  position: absolute;
+  top: 280px;
+  left: 0;
+  width: 640px;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  pointer-events: auto;
+}
+
+.chassis-picker {
+  position: absolute;
+  inset: 0;
+}

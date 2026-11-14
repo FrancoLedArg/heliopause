@@ -10,10 +10,12 @@ interface TitleMenuProps {
   /** A New Run was chosen and the game is moving to it. */
   starting: boolean;
   onNewRun: () => void;
+  /** Put keyboard focus on New Run, e.g. when coming back from the Chassis picker. */
+  focusNewRun?: boolean;
 }
 
 /** Title screen panels: the logo, the New Run action and the build label. */
-export function TitleMenu({ starting, onNewRun }: TitleMenuProps) {
+export function TitleMenu({ starting, onNewRun, focusNewRun }: TitleMenuProps) {
   return (
     <section className="title-menu" aria-labelledby="title-logo">
       <h1 id="title-logo" className="title-menu__logo">
@@ -27,6 +29,7 @@ export function TitleMenu({ starting, onNewRun }: TitleMenuProps) {
           width={BUTTON_WIDTH}
           className="title-menu__new-run"
           disabled={starting}
+          autoFocus={focusNewRun}
           onClick={onNewRun}
         >
           New Run
