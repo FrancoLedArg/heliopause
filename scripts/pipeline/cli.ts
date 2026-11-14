@@ -9,7 +9,10 @@ import { parseArgs } from 'node:util';
 import {
   checksFromRollup,
   closedIssueNumbers,
+  isBehind,
   Label,
+  leanStatus,
+  parseMergeState,
   summarize,
   type IssueSnapshot,
   type PipelineStatus,
@@ -54,6 +57,7 @@ interface SnapshotQuery {
           title: string;
           headRefName: string;
           body: string;
+          mergeStateStatus: string;
           commits: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] };
         })[];
       };
@@ -74,7 +78,7 @@ query($owner: String!, $name: String!) {
     }
     pullRequests(first: 50, states: OPEN) {
       nodes {
-        number title headRefName body
+        number title headRefName body mergeStateStatus
         labels(first: 30) { nodes { name } }
         commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
       }
@@ -109,6 +113,7 @@ function snapshot(repo: Repo): { issues: IssueSnapshot[]; pulls: PullSnapshot[] 
       title: node.title,
       headRefName: node.headRefName,
       body: node.body,
+      mergeState: parseMergeState(node.mergeStateStatus),
       labels: node.labels.nodes.map((label) => label.name),
       checks: checksFromRollup(node.commits.nodes[0]?.commit.statusCheckRollup?.state),
     })),
@@ -128,7 +133,7 @@ function formatStatus(status: PipelineStatus): string {
       'In progress',
       status.inProgressTickets.map(
         ({ ticket, pull }) =>
-          `${line(ticket)} → ${pull ? `PR #${String(pull.number)} [checks: ${pull.checks}${pull.labels.includes(Label.AgentApproved) ? ', approved' : ''}]` : 'no PR yet'}`,
+          `${line(ticket)} → ${pull ? `PR #${String(pull.number)} [checks: ${pull.checks}${isBehind(pull) ? ', behind main' : ''}${pull.labels.includes(Label.AgentApproved) ? ', approved' : ''}]` : 'no PR yet'}`,
       ),
     ),
     section(
@@ -141,6 +146,11 @@ function formatStatus(status: PipelineStatus): string {
       'Mergeable',
       status.mergeable.map((p) => `  PR #${String(p.number)} ${p.title}`),
     ),
+    section(
+      'Behind main (update)',
+      status.behindMain.map((p) => `  PR #${String(p.number)} ${p.title}`),
+    ),
+    section('Blocked specs', status.blockedSpecs.map(line)),
     section('Blocked tickets', status.blockedTickets.map(line)),
     section('Needs triage (human)', status.needsTriage.map(line)),
     section('Asset requests (human)', status.assetRequests.map(line)),
@@ -171,7 +181,7 @@ const commands: Record<string, (args: string[]) => void> = {
     const { values } = parseArgs({ args, options: { json: { type: 'boolean' } } });
     const { issues, pulls } = snapshot(currentRepo());
     const status = summarize(issues, pulls);
-    console.log(values.json ? JSON.stringify(status, null, 2) : formatStatus(status));
+    console.log(values.json ? JSON.stringify(leanStatus(status), null, 2) : formatStatus(status));
   },
 
   /** Mark a spec or ticket as taken by the Orchestrator. */
@@ -245,6 +255,19 @@ const commands: Record<string, (args: string[]) => void> = {
       throw new Error(`PR #${String(pr)} CI is ${pull.checks}, not passing`);
     }
 
+    if (isBehind(pull)) {
+      gh([
+        'api',
+        '-X',
+        'PUT',
+        `repos/${repo.owner}/${repo.name}/pulls/${String(pr)}/update-branch`,
+      ]);
+      console.log(
+        `PR #${String(pr)} was behind main: updated its branch. CI must pass again before it can merge; the next pass will merge it.`,
+      );
+      return;
+    }
+
     gh([
       'api',
       '-X',
@@ -255,9 +278,10 @@ const commands: Record<string, (args: string[]) => void> = {
     ]);
     console.log(`Merged PR #${String(pr)}`);
 
+    const doneLabels = `${Label.ReadyForAgent},${Label.InProgress}`;
     const tickets = closedIssueNumbers(pull.body);
     for (const ticket of tickets) {
-      gh(['issue', 'edit', String(ticket), '--remove-label', Label.InProgress]);
+      gh(['issue', 'edit', String(ticket), '--remove-label', doneLabels]);
     }
 
     const specs = new Set(
@@ -287,7 +311,7 @@ const commands: Record<string, (args: string[]) => void> = {
       console.log(`Spec #${String(spec)}: ${String(completed)}/${String(total)} tickets done`);
       if (total > 0 && completed === total) {
         comment('issue', spec, `🤖 All ${String(total)} tickets merged. Spec delivered.`);
-        gh(['issue', 'edit', String(spec), '--remove-label', Label.InProgress]);
+        gh(['issue', 'edit', String(spec), '--remove-label', doneLabels]);
         gh(['issue', 'close', String(spec), '--reason', 'completed']);
         console.log(`Closed spec #${String(spec)}`);
       }
