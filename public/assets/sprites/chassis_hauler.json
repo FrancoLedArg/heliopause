@@ -1,0 +1,73 @@
+{
+  "frames": {
+    "landed": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 96,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 96,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 96,
+        "h": 64
+      }
+    },
+    "landed_lit": {
+      "frame": {
+        "x": 96,
+        "y": 0,
+        "w": 96,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 96,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 96,
+        "h": 64
+      }
+    },
+    "flight": {
+      "frame": {
+        "x": 192,
+        "y": 0,
+        "w": 96,
+        "h": 64
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 96,
+        "h": 64
+      },
+      "sourceSize": {
+        "w": 96,
+        "h": 64
+      }
+    }
+  },
+  "meta": {
+    "app": "docs/design/sprites/gen_sprites.py",
+    "image": "chassis_hauler.png",
+    "size": {
+      "w": 288,
+      "h": 64
+    },
+    "scale": "1"
+  }
+}

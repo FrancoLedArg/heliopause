@@ -102,6 +102,26 @@
       "key": "ui",
       "image": "ui/heliopause_ui.png",
       "data": "ui/heliopause_ui.json"
+    },
+    {
+      "key": "chassis_scout",
+      "image": "sprites/chassis_scout.png",
+      "data": "sprites/chassis_scout.json"
+    },
+    {
+      "key": "chassis_hauler",
+      "image": "sprites/chassis_hauler.png",
+      "data": "sprites/chassis_hauler.json"
+    },
+    {
+      "key": "chassis_lancer",
+      "image": "sprites/chassis_lancer.png",
+      "data": "sprites/chassis_lancer.json"
+    },
+    {
+      "key": "fx_thruster",
+      "image": "sprites/fx_thruster.png",
+      "data": "sprites/fx_thruster.json"
     }
   ],
   "audio": []
