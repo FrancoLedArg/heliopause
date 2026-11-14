@@ -3,6 +3,7 @@ import {
   checksFromRollup,
   closedIssueNumbers,
   Label,
+  leanStatus,
   summarize,
   type IssueSnapshot,
   type PullSnapshot,
@@ -26,6 +27,7 @@ const pull = (number: number, body: string, extra: Partial<PullSnapshot> = {}) =
     body,
     labels: [],
     checks: 'none',
+    mergeState: 'CLEAN',
     ...extra,
   }) satisfies PullSnapshot;
 
@@ -92,6 +94,54 @@ describe('summarize', () => {
     );
     expect(status.mergeable.map((p) => p.number)).toEqual([1]);
     expect(status.awaitingReview.map((p) => p.number)).toEqual([3]);
+  });
+
+  it('keeps a spec with open blockers out of newSpecs', () => {
+    const status = summarize(
+      [
+        issue(1, [Label.Spec, Label.ReadyForAgent]),
+        issue(2, [Label.Spec, Label.ReadyForAgent], { openBlockers: 1 }),
+      ],
+      [],
+    );
+    expect(status.newSpecs.map((i) => i.number)).toEqual([1]);
+    expect(status.blockedSpecs.map((i) => i.number)).toEqual([2]);
+  });
+});
+
+describe('behind-main handling', () => {
+  it('does not list an approved, green PR as mergeable while it is behind main', () => {
+    const status = summarize(
+      [],
+      [
+        pull(1, '', { labels: [Label.AgentApproved], checks: 'passing', mergeState: 'BEHIND' }),
+        pull(2, '', { labels: [Label.AgentApproved], checks: 'passing', mergeState: 'CLEAN' }),
+      ],
+    );
+    expect(status.mergeable.map((p) => p.number)).toEqual([2]);
+    expect(status.behindMain.map((p) => p.number)).toEqual([1]);
+  });
+
+  it('holds back an approved, green PR whose merge state is still UNKNOWN', () => {
+    const status = summarize(
+      [],
+      [pull(1, '', { labels: [Label.AgentApproved], checks: 'passing', mergeState: 'UNKNOWN' })],
+    );
+    expect(status.mergeable).toEqual([]);
+    expect(status.behindMain).toEqual([]);
+  });
+
+  it('leanStatus drops PR bodies but keeps closed ticket numbers and merge state', () => {
+    const status = summarize(
+      [issue(3, [Label.InProgress])],
+      [pull(10, 'Closes #3 secret body text', { mergeState: 'BEHIND' })],
+    );
+    const json = JSON.stringify(leanStatus(status));
+    expect(json).not.toContain('"body"');
+    expect(json).not.toContain('secret body text');
+    const lean = leanStatus(status);
+    expect(lean.awaitingReview[0]).toMatchObject({ number: 10, closes: [3], mergeState: 'BEHIND' });
+    expect(lean.inProgressTickets[0]?.pull).toMatchObject({ number: 10, closes: [3] });
   });
 });
 

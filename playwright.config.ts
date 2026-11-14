@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// Concurrent agents each pick their own port (E2E_PORT) so worktrees never share a server.
+// Concurrent agents each pick their own port (`pnpm verify --port`, which sets E2E_PORT) so worktrees never share a server.
 const port = Number(process.env['E2E_PORT'] ?? 4173);
 
 export default defineConfig({
