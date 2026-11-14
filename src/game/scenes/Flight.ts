@@ -13,11 +13,13 @@ import {
   type Run,
 } from '../sim/index.ts';
 import {
+  FAST_FORWARD,
   flightPlayback,
   type FlightMoment,
   type FlightPlayback,
   type Pace,
 } from './flightPlayback.ts';
+import { createFlightEffects, type FlightEffects } from './flightEffects.ts';
 import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
 import { bodySprite, SHIP_PLACEMENT } from './landedView.ts';
@@ -66,8 +68,15 @@ const BOOST_EXIT = {
   x: SHIP_PLACEMENT.x + BOOST.x * (1 - FOLLOW),
   y: SHIP_PLACEMENT.baseY - (LIFT.height + BOOST.y) * (1 - FOLLOW),
 } as const;
-/** The share of the Transfer over which the camera catches up with the Spacecraft. */
-const TRANSFER_SETTLE = 0.25;
+/**
+ * The share of the Transfer over which the camera catches up with the Spacecraft. Long, and onto a
+ * line that starts near where the boost left it, so the catch-up reads as a calm drift, not a pan.
+ */
+const TRANSFER_SETTLE = 0.45;
+/** Where the Transfer's line carries the Spacecraft on screen: from `x` at the start, `dx` further by the end. */
+const TRANSFER_LINE = { x: 380, dx: 36 } as const;
+/** Dust and smoke rise only while the Spacecraft is this close to the ground (px). */
+const GROUND_FX_HEIGHT = 120;
 /**
  * The departure Body in the Transfer: large at the left, receding toward the left edge. It stays in
  * the open sky between the top bar and phase strip (above y 78 right of x 170) and the flight log
@@ -111,6 +120,11 @@ export class Flight extends Scene {
   private pace: Pace = 'full';
   private clock!: Tweens.Tween;
   private finished = false;
+  /** The pooled particles; none under reduced motion. */
+  private fx: FlightEffects | undefined;
+  private nozzles!: Nozzles;
+  /** Where the playback is (ms from Launch). */
+  playbackMs = 0;
 
   private stages!: Readonly<
     Record<'departure' | 'arrival' | 'space', readonly GameObjects.Container[]>
@@ -147,6 +161,7 @@ export class Flight extends Scene {
     this.shaken = new Set();
     this.lastMoment = undefined;
     this.stage = undefined;
+    this.playbackMs = 0;
   }
 
   create(): void {
@@ -174,6 +189,7 @@ export class Flight extends Scene {
       arrival: [...Object.values(arrival)],
       space: [space],
     };
+    this.fx = this.pace === 'full' ? createFlightEffects(this) : undefined;
     this.buildShip();
 
     this.clock = this.tweens.addCounter({
@@ -191,7 +207,12 @@ export class Flight extends Scene {
     });
 
     onLeaveRun(this);
+    // Fast-forward only scales the clock (and the particles keep up): the outcome is settled already.
+    const offSpeed = EventBus.on('hop-fast-forward-requested', (fast) => {
+      this.setSpeed(fast ? FAST_FORWARD : 1);
+    });
     const stop = (): void => {
+      offSpeed();
       this.clock.remove();
       this.events.off(Scenes.Events.SHUTDOWN, stop);
       this.events.off(Scenes.Events.DESTROY, stop);
@@ -210,7 +231,13 @@ export class Flight extends Scene {
     this.render(ms);
   }
 
+  private setSpeed(speed: number): void {
+    this.clock.timeScale = speed;
+    this.fx?.setSpeed(speed);
+  }
+
   private render(ms: number): void {
+    this.playbackMs = ms;
     const moment = this.playback.at(ms);
     // Poses freeze where the engine cut out; what follows is the aftermath of a failed Burn.
     const stopped = Math.min(ms, this.playback.stopsAt);
@@ -252,6 +279,8 @@ export class Flight extends Scene {
     this.thrust(thrusting && !flying, thrusting && flying, 1 + 0.4 * (rise > 0 ? 1 : 0));
     this.follow(x, y);
     this.shadow.setAlpha(0.45 * (1 - clamp01((base - y) / 80)));
+    this.groundFx(thrusting && !flying, x, y);
+    this.fx?.exhaust(thrusting && flying, this.rearNozzle(x, y));
     if (progress > LIFT.at && thrusting) this.shake('liftoff', 380, 0.004);
   }
 
@@ -260,13 +289,14 @@ export class Flight extends Scene {
     // The Spacecraft climbs diagonally to the upper right, bobbing a little as it goes. It starts
     // where the boost left it on screen and the camera catches up, so the cut reads as one movement.
     const settle = smooth(progress / TRANSFER_SETTLE);
-    const lineX = 296 + 56 * progress;
+    const lineX = TRANSFER_LINE.x + TRANSFER_LINE.dx * progress;
     const lineY = 214 - 40 * progress + Math.sin(progress * 9) * 2;
     const x = Math.round(BOOST_EXIT.x + (lineX - BOOST_EXIT.x) * settle);
     const y = Math.round(BOOST_EXIT.y + (lineY - BOOST_EXIT.y) * settle);
     this.shipArt('flight');
     this.ship.setPosition(x, y).setAngle(0);
     this.thrust(false, thrusting, 1);
+    this.fx?.exhaust(thrusting, this.rearNozzle(x, y));
     // Behind, the departure Body shrinks away toward the left edge; ahead, the target grows. Both
     // stay in the open sky, clear of the HUD (phase strip above, flight log and Fuel below left).
     const recede = smooth(progress);
@@ -311,8 +341,22 @@ export class Flight extends Scene {
     this.shipArt('landed');
     this.ship.setPosition(x, y).setAngle(angle);
     this.thrust(thrusting, false, 1.4);
+    this.groundFx(thrusting, x, y);
     this.follow(SHIP_PLACEMENT.x, y);
     this.shadow.setAlpha(0.45 * (1 - clamp01((base - y) / 80)));
+  }
+
+  /** Dust and smoke at the ground while the engine fires near it. */
+  private groundFx(thrusting: boolean, x: number, y: number): void {
+    this.fx?.ground(thrusting && SHIP_PLACEMENT.baseY - y < GROUND_FX_HEIGHT, {
+      x,
+      y: SHIP_PLACEMENT.baseY + 2,
+    });
+  }
+
+  /** The rear nozzle in the world, for a Spacecraft level at (`x`, `y`). */
+  private rearNozzle(x: number, y: number): { x: number; y: number } {
+    return { x: x + this.nozzles.rear.x, y: y + this.nozzles.rear.y };
   }
 
   /** The camera rides with the Spacecraft, a step behind, so the ground falls away below it. */
@@ -345,12 +389,16 @@ export class Flight extends Scene {
   private showStage(burn: Burn): void {
     const stage = burn === 'takeoff' ? 'departure' : burn === 'transfer' ? 'space' : 'arrival';
     // A brief fade softens each cut between the ground and space.
-    if (this.stage !== undefined && this.stage !== stage) this.cameras.main.fadeIn(STAGE_FADE_MS);
+    // Reduced motion takes the cut as it is.
+    if (this.pace === 'full' && this.stage !== undefined && this.stage !== stage) {
+      this.cameras.main.fadeIn(STAGE_FADE_MS);
+    }
     this.stage = stage;
     for (const [name, objects] of Object.entries(this.stages)) {
       for (const object of objects) object.setVisible(name === stage);
     }
     this.shadow.setVisible(stage !== 'space');
+    this.fx?.setStage(stage === 'space');
   }
 
   /** Tells the HUD when something it shows has changed: the Burn, the thrust, the log or a Fuel step. */
@@ -508,6 +556,7 @@ export class Flight extends Scene {
     const { chassisId } = this.before.spacecraft;
     const art = hasAsset(`chassis_${chassisId}`);
     const nozzles = art ? NOZZLES[chassisId] : STAND_IN_NOZZLES;
+    this.nozzles = nozzles;
     const plume = (at: { x: number; y: number }, angle: number): GameObjects.Image =>
       hasAsset('fx_thruster')
         ? this.add.image(at.x, at.y, 'fx_thruster', 'flicker_0').setOrigin(0.5, 0).setAngle(angle)

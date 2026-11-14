@@ -1,7 +1,8 @@
 // The Hop playback's HUD as words and numbers: the phase strip, the Fuel bar and the flight log.
 // Every figure comes from the simulation's flight; the playback's moment only says how far along it is.
 import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
-import { BURNS, type Burn, type HopFlight, type Run } from '../game/sim/index.ts';
+import { bodySprite } from '../game/scenes/landedView.ts';
+import { BURNS, findBody, type Burn, type HopFlight, type Run } from '../game/sim/index.ts';
 import { formatFuel, formatPlanDeltaV } from './format.ts';
 
 const BURN_LABEL: Record<Burn, string> = {
@@ -27,7 +28,19 @@ export interface LogRow {
   readonly change: string;
 }
 
+/** The route inset: where the Hop starts and ends, and how far along it is. */
+export interface RouteView {
+  readonly from: string;
+  readonly to: string;
+  /** Texture keys of the two Bodies' sprites (`public/assets/sprites/<key>.png`). */
+  readonly fromSprite: string;
+  readonly toSprite: string;
+  /** 0 at the departure Body, 1 at the target. */
+  readonly share: number;
+}
+
 export interface FlightView {
+  readonly route: RouteView;
   readonly phases: readonly PhaseView[];
   /** "10.4 t of 12.0 t". */
   readonly fuel: string;
@@ -48,6 +61,7 @@ export function describeFlight(
   const capacity = before.spacecraft.fuelCapacity;
   const currentIndex = BURNS.indexOf(current);
   return {
+    route: describeRoute(before, flight, moment),
     phases: BURNS.map((burn, index) => ({
       label: BURN_LABEL[burn],
       state: index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'next',
@@ -89,4 +103,25 @@ function signedPercent(share: number): string {
   const percent = Math.round(share * 100);
   const sign = percent > 0 ? '+' : percent < 0 ? '−' : '±';
   return `${sign}${String(Math.abs(percent))}%`;
+}
+
+function describeRoute(
+  before: Run,
+  flight: HopFlight,
+  moment: FlightMoment | undefined,
+): RouteView {
+  const body = (id: typeof flight.plan.fromId) => {
+    const found = findBody(before.starSystem, id);
+    if (!found) throw new Error(`No Body ${id}`);
+    return found;
+  };
+  const from = body(flight.plan.fromId);
+  const to = body(flight.plan.toId);
+  return {
+    from: from.name,
+    to: to.name,
+    fromSprite: bodySprite(before, from),
+    toSprite: bodySprite(before, to),
+    share: Math.min(Math.max(moment?.route ?? 0, 0), 1),
+  };
 }
