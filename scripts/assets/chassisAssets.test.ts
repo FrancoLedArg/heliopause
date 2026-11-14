@@ -124,17 +124,48 @@ describe('Chassis sprites', () => {
     }
   });
 
+  it('the scout is the smallest landed Chassis, and every landed ship touches the frame bottom', () => {
+    const outline = (id: string): { width: number; height: number; bottom: number } => {
+      const png = decodePng(read(atlas(`chassis_${id}`).image));
+      const frame = frames(`chassis_${id}`)['landed']?.frame;
+      if (!frame) throw new Error(`${id} lacks landed`);
+      let [minX, minY, maxX, maxY] = [frame.w, frame.h, -1, -1];
+      for (let y = 0; y < frame.h; y++) {
+        for (let x = 0; x < frame.w; x++) {
+          if ((png.rgba[((frame.y + y) * png.width + frame.x + x) * 4 + 3] ?? 0) === 0) continue;
+          [minX, minY, maxX, maxY] = [
+            Math.min(minX, x),
+            Math.min(minY, y),
+            Math.max(maxX, x),
+            Math.max(maxY, y),
+          ];
+        }
+      }
+      return { width: maxX - minX + 1, height: maxY - minY + 1, bottom: maxY };
+    };
+    const [scout, hauler, lancer] = [outline('scout'), outline('hauler'), outline('lancer')];
+    const area = (box: { width: number; height: number }): number => box.width * box.height;
+    expect(area(scout)).toBeLessThan(area(hauler) * 0.85);
+    expect(area(scout)).toBeLessThan(area(lancer) * 0.85);
+    expect(scout.width).toBeLessThan(Math.min(hauler.width, lancer.width) - 10);
+    for (const ship of [scout, hauler, lancer]) expect(ship.bottom).toBe(63);
+  });
+
   it('uses only palette colours, fully opaque or fully transparent', () => {
     for (const key of ['chassis_scout', 'chassis_hauler', 'chassis_lancer', 'fx_thruster']) {
       const { rgba } = decodePng(read(atlas(key).image));
+      const offPalette = new Set<string>();
+      const partialAlpha = new Set<number>();
       for (let i = 0; i < rgba.length; i += 4) {
-        const alpha = rgba[i + 3];
-        expect([0, 255]).toContain(alpha);
+        const alpha = rgba[i + 3] ?? 0;
+        if (alpha !== 0 && alpha !== 255) partialAlpha.add(alpha);
         if (alpha === 255) {
           const colour = hex(rgba[i] ?? 0) + hex(rgba[i + 1] ?? 0) + hex(rgba[i + 2] ?? 0);
-          expect(palette.has(colour), `${key}: #${colour} is not in palette.json`).toBe(true);
+          if (!palette.has(colour)) offPalette.add(`#${colour}`);
         }
       }
+      expect([...offPalette], `${key}: colours not in palette.json`).toEqual([]);
+      expect([...partialAlpha], `${key}: partly transparent pixels`).toEqual([]);
     }
   });
 });

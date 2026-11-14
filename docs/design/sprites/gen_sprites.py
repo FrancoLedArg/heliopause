@@ -786,9 +786,9 @@ def surface_preview(surfaces, ship, path):
 #   Everything in this section is self-contained (functions named `chassis_*`, `_vox*`).
 
 CHASSIS_FRAME = (96, 64)
-CHASSIS_FEET_ROW = 62  # last opaque row (outline included) of a landed frame
+CHASSIS_FEET_ROW = 63  # last opaque row of a landed frame (the outline under the feet): it touches the bottom edge
 VOX = 4  # pixels per voxel edge
-DEPTH_X, DEPTH_Y = 0.35, 0.5  # screen shift per voxel of depth (away from the viewer)
+DEPTH_X, DEPTH_Y = 0.45, 0.85  # screen shift per voxel of depth (away from the viewer): a high 3/4 view
 FLIGHT_PITCH = math.radians(24)
 
 # Material ramps, dark -> bright (face level 0..4).
@@ -865,7 +865,7 @@ class _Vox:
         g = np.zeros((hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]), dtype=np.int8)
         for (x, y, z), m in self.cells.items():
             g[x - lo[0], y - lo[1], z - lo[2]] = VOX_MATS.index(m) + 1
-        return g, lo
+        return g
 
 
 def _vox_ramp(mat, state):
@@ -877,11 +877,11 @@ def _vox_ramp(mat, state):
 def _vox_render(model, state, pitch=0.0, canvas=(160, 128)):
     """Ray-march the model into a transparent canvas; returns a Spr (no outline yet).
 
-    Screen = (x + 0.35y, -z - 0.5y) voxel units: far things (larger y) sit up and to the
+    Screen = (x + 0.45y, -z - 0.85y) voxel units: far things (larger y) sit up and to the
     right, so the near side face, the top and the nose face (+x) are the visible ones.
     `pitch` tilts the nose up around the model's centre.
     """
-    grid, _ = model.grid()
+    grid = model.grid()
     nx, ny, nz = grid.shape
     cx, cz = nx / 2.0, nz / 2.0
     cw, ch = canvas
@@ -960,35 +960,42 @@ def _vox_render(model, state, pitch=0.0, canvas=(160, 128)):
 
 
 # --- the three designs
-def chassis_scout(legs=True):
-    """Small and nimble: a pale dart with swept delta wings, a bubble canopy and a tall dorsal fin."""
-    v = _Vox()
-    v.box(1, 11, -1, 1, 3, 6, "pale")  # fuselage
-    v.box(11, 14, -1, 1, 4, 6, "pale")  # nose cone, belly rising
-    v.box(14, 16, -1, 1, 5, 6, "pale")  # needle tip
-    v.box(7, 12, -1, 1, 6, 7, "glass")  # bubble canopy
-    v.box(9, 12, -1, 1, 7, 8, "glass")
-    v.box(5, 7, -1, 1, 6, 7, "dark")  # canopy frame
-    v.sym(2, 9, 1, 3, 3, 4, "hull")  # swept delta wings
-    v.sym(1, 6, 3, 5, 3, 4, "hull")
-    v.sym(1, 3, 5, 6, 3, 4, "hull")
-    v.sym(10, 12, 1, 3, 4, 5, "crimson")  # canards
-    v.box(1, 4, 0, 1, 6, 9, "pale")  # dorsal fin
-    for x in range(4, 11):
-        v.put(x, -1, 4, "strip")  # glowing flank
-    v.put(1, 5, 4, "light")
-    v.put(1, -6, 4, "light")
-    v.put(1, 0, 9, "beacon")
-    v.sym(3, 6, 3, 5, 2, 3, "nozzle")  # hover nozzles under the wings
-    v.sym(3, 6, 3, 5, 1, 2, "glow")
+def _gear(v, legs, feet, nozzles):
+    """Hover nozzles (dark bell, amber outlet on the lowest layer so it faces the ground)
+    and, when landed, thin struts on flat pads standing beside them, fore and aft.
+    feet: (x0, x1, y0, y1) of each strut; its pad reaches one voxel further out."""
+    for x0, x1, y0, y1 in nozzles:
+        v.sym(x0, x1, y0, y1, 2, 3, "nozzle")
+        v.sym(x0, x1, y0, y1, 1, 2, "glow")
     if legs:
-        v.sym(3, 6, 3, 5, 0, 1, "dark")
-        v.box(8, 11, -1, 1, 0, 3, "dark")  # belly skid
+        for x0, x1, y0, y1 in feet:
+            v.sym(x0, x1, y0, y1, 1, 3, "dark")
+            v.sym(x0 - 1, x1 + 1, y0, y1 + 1, 0, 1, "hull")
+
+
+def chassis_scout(legs=True):
+    """Small and nimble: a short pale dart with swept delta wings, a bubble canopy, a dorsal fin and red canards."""
+    v = _Vox()
+    v.box(1, 9, -1, 1, 3, 5, "pale")  # fuselage
+    v.box(9, 11, -1, 1, 3, 4, "pale")  # nose
+    v.box(5, 9, -1, 1, 5, 6, "glass")  # bubble canopy
+    v.box(6, 9, -1, 1, 6, 7, "glass")
+    v.box(3, 5, -1, 1, 5, 6, "dark")  # canopy frame
+    v.sym(2, 8, 1, 3, 3, 4, "hull")  # swept delta wings
+    v.sym(1, 5, 3, 4, 3, 4, "hull")
+    v.sym(8, 10, 1, 2, 3, 4, "crimson")  # canards
+    v.box(1, 3, 0, 1, 5, 8, "pale")  # dorsal fin
+    for x in range(3, 9):
+        v.put(x, -1, 4, "strip")  # glowing flank
+    v.put(1, 3, 4, "light")
+    v.put(1, -4, 4, "light")
+    v.put(1, 0, 8, "beacon")
+    _gear(v, legs, [(1, 2, 3, 4), (6, 7, 1, 2)], [(3, 5, 1, 3)])
     return v
 
 
 def chassis_hauler(legs=True):
-    """Bulky: two fat tanks slung beside a spine, a boxy cab, four hover nozzles on stout feet."""
+    """Bulky: two fat tanks slung beside a spine, a boxy cab, a hover nozzle under each tank on four stout feet."""
     v = _Vox()
     v.box(1, 15, -1, 1, 3, 6, "dark")  # spine
     for cy in (-3.0, 3.0):
@@ -1005,39 +1012,30 @@ def chassis_hauler(legs=True):
     v.put(16, 1, 6, "light")
     v.put(0, -3, 7, "light")
     v.put(0, 2, 7, "light")
-    for x0 in (3, 9):
-        v.sym(x0, x0 + 3, 2, 4, 2, 3, "nozzle")
-        v.sym(x0, x0 + 3, 2, 4, 1, 2, "glow")
-        if legs:
-            v.sym(x0, x0 + 3, 2, 4, 0, 1, "dark")
+    _gear(v, legs, [(3, 4, 3, 4), (11, 12, 3, 4)], [(6, 9, 2, 4)])
     return v
 
 
 def chassis_lancer(legs=True):
-    """Long and sleek: a needle fuselage, a low canopy, swept blades with tip fins and a glowing flank."""
+    """Long and sleek: a needle fuselage, a low canopy, swept blades with red-capped tip fins and a glowing flank."""
     v = _Vox()
-    v.box(2, 16, -1, 1, 3, 5, "dark")  # needle fuselage
-    v.box(16, 19, -1, 1, 3, 4, "dark")  # nose
-    v.box(16, 18, -1, 1, 4, 5, "dark")
+    v.box(2, 15, -1, 1, 3, 5, "dark")  # needle fuselage
+    v.box(15, 18, -1, 1, 3, 4, "dark")  # nose
+    v.box(15, 17, -1, 1, 4, 5, "dark")
     v.box(11, 15, -1, 1, 5, 6, "glass")  # low canopy
     v.box(5, 11, -1, 1, 5, 6, "hull")  # dorsal spine
-    v.box(1, 5, 0, 1, 6, 8, "hull")  # dorsal fin
-    for x in range(4, 16):
+    v.box(1, 4, 0, 1, 5, 6, "hull")  # dorsal fin
+    for x in range(4, 15):
         v.put(x, -1, 4, "strip")  # glowing flank
-    v.sym(3, 9, 1, 3, 3, 4, "hull")  # swept blades
-    v.sym(2, 6, 3, 4, 3, 4, "hull")
-    v.sym(1, 4, 4, 5, 3, 5, "hull")  # tip fins
-    v.sym(1, 4, 4, 5, 5, 6, "crimson")
-    v.put(0, 4, 4, "light")
-    v.put(0, -5, 4, "light")
-    v.put(1, 0, 8, "beacon")
-    v.sym(3, 6, 1, 3, 2, 3, "nozzle")
-    v.sym(3, 6, 1, 3, 1, 2, "glow")
-    v.box(2, 5, -1, 1, 2, 3, "nozzle")
-    v.box(2, 5, -1, 1, 1, 2, "glow")
-    if legs:
-        v.box(3, 6, -3, 3, 0, 1, "dark")  # skid
-        v.box(13, 14, -1, 0, 0, 3, "dark")  # nose strut
+    v.sym(2, 10, 1, 3, 3, 4, "hull")  # swept blades
+    v.sym(0, 7, 3, 4, 3, 4, "hull")
+    v.sym(1, 4, 3, 4, 4, 5, "hull")  # tip fins
+    v.sym(1, 4, 3, 4, 5, 6, "crimson")
+    v.sym(10, 13, 1, 2, 3, 4, "hull")  # fore sponsons
+    v.put(1, 3, 6, "light")
+    v.put(1, -4, 6, "light")
+    v.put(1, 0, 6, "beacon")
+    _gear(v, legs, [(0, 1, 3, 4), (11, 12, 1, 2)], [(3, 6, 1, 3)])
     return v
 
 
@@ -1085,6 +1083,7 @@ def build_chassis():
 THRUSTER_W, THRUSTER_H = 16, 24
 # (length, sway, seed) per flicker frame: the plume breathes in length and wobbles sideways.
 THRUSTER_FRAMES = ((21, 0.0, 1), (18, 0.6, 2), (23, -0.6, 3))
+THRUSTER_RAMP = ("wh3", "am4", "am3", "am2", "am1", "am0")  # white-hot core out to the brown edge
 
 
 def chassis_thruster_frame(length, sway, seed):
@@ -1106,8 +1105,7 @@ def chassis_thruster_frame(length, sway, seed):
             v = r * 0.75 + t * 0.55 + noise
             if v > 1.0 and hash01(x, y, seed + 9) > 0.35:
                 continue  # ragged tip
-            ramp = ("wh3", "am4", "am3", "am2", "am1", "am0")
-            s.px(x, y, ramp[min(5, int(max(v, 0.0) * 5.2))])
+            s.px(x, y, THRUSTER_RAMP[min(5, int(max(v, 0.0) * 5.2))])
     return s
 
 
