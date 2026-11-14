@@ -83,6 +83,8 @@ export interface PanelRow {
   readonly explanation: string;
   /** Whether the Run's Materials cover the cost (the panel still says so in words). */
   readonly affordable: boolean;
+  /** How many more Materials the Run needs to afford it; 0 when it can. */
+  readonly short: number;
 }
 
 /** Every Component in the catalogue, in catalogue order, as it reads on this Run's Chassis. */
@@ -98,6 +100,7 @@ export function panelRows(run: Run): readonly PanelRow[] {
       effect: describeEffect(run.spacecraft.chassisId, id),
       explanation: component.explanation,
       affordable: run.materials >= component.cost,
+      short: Math.max(0, component.cost - run.materials),
     };
   });
 }

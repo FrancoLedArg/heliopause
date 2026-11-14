@@ -101,12 +101,16 @@ describe('the catalogue rows', () => {
       cost: '20 Materials',
       effect: 'Holds 21.0 t of Fuel.',
       affordable: true,
+      short: 0,
     });
   });
 
   it('say which Components the Run cannot afford yet', () => {
     const rows = panelRows(run);
-    expect(rows.find((row) => row.id === 'engine-1')?.affordable).toBe(false);
+    expect(rows.find((row) => row.id === 'engine-1')).toMatchObject({
+      affordable: false,
+      short: 5,
+    });
     expect(rows.find((row) => row.id === 'drill-1')?.affordable).toBe(true);
     expect(COMPONENTS['engine-1'].cost).toBeGreaterThan(run.materials);
   });

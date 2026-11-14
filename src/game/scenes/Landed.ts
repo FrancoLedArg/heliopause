@@ -1,7 +1,7 @@
 import { Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
-import { launchHop, type HopFlight, type Run } from '../sim/index.ts';
+import { install, launchHop, type HopFlight, type Run } from '../sim/index.ts';
 import { SHIP_PLACEMENT } from './landedView.ts';
 import { SceneKey } from './keys.ts';
 import type { FlightData } from './Flight.ts';
@@ -58,9 +58,17 @@ export class Landed extends Scene {
       const data: FlightData = { before: this.run, flight: launched.flight, after: launched.run };
       this.scene.start(SceneKey.Flight, data);
     });
+    // The Spacecraft panel asks for installs; the Run lives here, so this is where it changes.
+    const offInstall = EventBus.on('component-install-requested', (slotIndex, componentId) => {
+      const installed = install(this.run, slotIndex, componentId);
+      if (installed.kind !== 'installed') return;
+      this.run = installed.run;
+      EventBus.emit('run-updated', this.run);
+    });
     // A destroyed game never shuts its scenes down, so unsubscribe on both events.
     const unsubscribe = (): void => {
       offOpen();
+      offInstall();
       offLaunch();
       this.events.off(Scenes.Events.SHUTDOWN, unsubscribe);
       this.events.off(Scenes.Events.DESTROY, unsubscribe);

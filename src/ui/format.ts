@@ -3,6 +3,7 @@
 import { findBody, type Body, type Run } from '../game/sim/index.ts';
 import type {
   AstronomicalUnits,
+  ChassisId,
   Kilograms,
   MetersPerSecond,
   MetersPerSecondSquared,
@@ -32,6 +33,11 @@ export function formatMass(mass: Kilograms): string {
 /** Fuel mass as tonnes. */
 export function formatFuel(mass: Kilograms): string {
   return formatMass(mass);
+}
+
+/** A Chassis's name as the player reads it. */
+export function chassisName(id: ChassisId): string {
+  return { scout: 'Scout', hauler: 'Hauler', lancer: 'Lancer' }[id];
 }
 
 /** An Engine's Isp in whole seconds. */
