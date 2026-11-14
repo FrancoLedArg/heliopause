@@ -3,6 +3,7 @@ import {
   checksFromRollup,
   closedIssueNumbers,
   Label,
+  mergeFailureMeansBehind,
   leanStatus,
   summarize,
   type IssueSnapshot,
@@ -152,5 +153,31 @@ describe('checksFromRollup', () => {
     expect(checksFromRollup('ERROR')).toBe('failing');
     expect(checksFromRollup('PENDING')).toBe('pending');
     expect(checksFromRollup(null)).toBe('none');
+  });
+});
+
+describe('mergeFailureMeansBehind', () => {
+  it('treats the expected-required-check 405 as behind main', () => {
+    expect(
+      mergeFailureMeansBehind('gh: Required status check "verify" is expected. (HTTP 405)'),
+    ).toBe(true);
+    expect(
+      mergeFailureMeansBehind(
+        '{"message":"Required status check \\"verify\\" is expected.","status":"405"}',
+      ),
+    ).toBe(true);
+  });
+
+  it('does not treat other 405s as behind main', () => {
+    expect(mergeFailureMeansBehind('gh: Pull Request is not mergeable (HTTP 405)')).toBe(false);
+    expect(mergeFailureMeansBehind('gh: Base branch was modified (HTTP 405)')).toBe(false);
+  });
+
+  it('does not treat the check message under other statuses as behind main', () => {
+    expect(mergeFailureMeansBehind('Required status check "verify" is expected. (HTTP 422)')).toBe(
+      false,
+    );
+    expect(mergeFailureMeansBehind('gh: Not Found (HTTP 404)')).toBe(false);
+    expect(mergeFailureMeansBehind('')).toBe(false);
   });
 });
