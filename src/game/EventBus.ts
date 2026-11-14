@@ -1,7 +1,8 @@
 import { Events } from 'phaser';
 import type { SceneKey } from './scenes/keys.ts';
 import type { ChartCommand, ChartState } from './scenes/navChartView.ts';
-import type { BodyId, ChassisId, Run, Seed } from './sim/index.ts';
+import type { FlightMoment, Pace } from './scenes/flightPlayback.ts';
+import type { BodyId, ChassisId, HopFlight, Run, Seed } from './sim/index.ts';
 
 /** Events crossing the React <-> Phaser boundary. Add an entry here before emitting a new event. */
 export interface GameEvents {
@@ -30,9 +31,28 @@ export interface GameEvents {
   'nav-target-selected': [targetId: BodyId | undefined];
   /**
    * React -> Phaser: the player pressed Launch on the Hop plan for `targetId`, at any Success Chance.
-   * Ticket #31 (flight playback) consumes it; until then nothing listens.
+   * The Landed scene settles the Hop in the simulation and starts its playback.
    */
   'hop-launch-requested': [targetId: BodyId];
+  /**
+   * Phaser -> React: a Hop's playback begins (sent just before the Flight's `scene-ready`). `before`
+   * is the Run at Launch; `flight` already holds the outcome; `pace` is how long each Burn plays.
+   */
+  'hop-flight-started': [before: Run, flight: HopFlight, pace: Pace];
+  /** Phaser -> React: the playback moved on (Burn, thrust, Fuel, flight log); sent only on a visible change. */
+  'hop-flight-moment': [moment: FlightMoment];
+  /** React -> Phaser: the player turned the Hop playback's fast-forward on or off. It only scales the clock. */
+  'hop-fast-forward-requested': [fast: boolean];
+  /**
+   * Phaser -> React: the playback of a Fell Short or Crashed Hop is over, and the Run with it. An
+   * Arrived Hop goes on to the Landed view instead.
+   */
+  'hop-failed': [flight: HopFlight];
+  /**
+   * Phaser -> React: the Landed view on the new Body follows an Arrived Hop, so its report is shown beside
+   * it (sent after the Landed view's `run-started`, before its `scene-ready`). `before` is the Run at Launch.
+   */
+  'hop-arrived': [before: Run, flight: HopFlight];
   /** React -> Phaser: the player confirmed leaving the Run from the in-Run Menu; go back to the Title scene. */
   'leave-run-requested': [];
 }

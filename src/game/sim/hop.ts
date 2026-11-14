@@ -1,4 +1,5 @@
-import type { Rng } from '../lib/rng.ts';
+import { createRng, type Rng } from '../lib/rng.ts';
+import { stringSeed } from '../lib/stringSeed.ts';
 import { DISPERSION, SOURCED_CONSTANTS } from './data.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
 import { availableDeltaV, fuelAfterBurning } from './spacecraft.ts';
@@ -203,8 +204,30 @@ export function flyHop(
       : { kind: 'ended', outcome: outcome.kind };
   return deepFreeze({
     flight,
-    run: { ...run, spacecraft: { ...run.spacecraft, fuelMass: fuelRemaining }, status },
+    run: {
+      ...run,
+      spacecraft: { ...run.spacecraft, fuelMass: fuelRemaining },
+      status,
+      hopsFlown: run.hopsFlown + 1,
+    },
   });
+}
+
+/** Launching either flies the Hop, or explains why the target cannot be chosen. */
+export type LaunchResult =
+  | { readonly kind: 'flown'; readonly flight: HopFlight; readonly run: Run }
+  | Extract<HopPlanResult, { kind: 'invalid-target' }>;
+
+/**
+ * Launches a Hop to `targetId`: plans it exactly as the player saw it, then flies it with Burns drawn
+ * from the Run's seed and how many Hops it has flown, so the same Run always flies the same Hop and
+ * a seed replays a whole Run. The outcome is settled here, before any playback.
+ */
+export function launchHop(run: Run, targetId: BodyId): LaunchResult {
+  const planned = planHop(run, targetId);
+  if (planned.kind !== 'planned') return planned;
+  const rng = createRng(run.seed ^ stringSeed(`hop:${String(run.hopsFlown)}`));
+  return { kind: 'flown', ...flyHop(run, planned.plan, rng) };
 }
 
 const BURN_NAMES: Readonly<Record<Burn, string>> = {
@@ -246,9 +269,9 @@ function explain(
 /** Why the Fuel did not cover the Burns: no Margin to begin with, or Burns that ran long. */
 function failureCause(plan: HopPlan, burns: readonly BurnResult[]): string {
   if (plan.margin < 0) {
-    const needed = percent(plan.totalEstimate / plan.availableDeltaV - 1);
-    if (needed < 50) {
-      return `The plan needed ${needed}% more Δv than the Fuel provides, so it had no Margin.`;
+    const short = percent(-marginShare(plan));
+    if (short < 50) {
+      return `The Fuel gives ${short}% less Δv than the plan needs, so it had no Margin.`;
     }
     return (
       `This Hop needs ${formatDeltaV(plan.totalEstimate)} of Δv, but the Fuel gives only ` +
@@ -272,8 +295,20 @@ function failureCause(plan: HopPlan, burns: readonly BurnResult[]): string {
  * estimate itself (a percentage in the hundreds says little).
  */
 function marginPhrase(plan: HopPlan): string {
-  const share = percent(plan.margin / plan.totalEstimate);
+  if (plan.margin < 0)
+    return `no Margin (the Fuel gave ${percent(-marginShare(plan))}% less Δv than the plan needs)`;
+  const share = percent(marginShare(plan));
   return share < 100 ? `${share}% Margin` : `${formatDeltaV(plan.margin)} of Margin`;
+}
+
+/**
+ * The one definition of a Margin as a share: the Margin over the estimate, negative for a shortfall.
+ * It shares its base with "the Burns took N% more Δv than estimated", so the two can be read against
+ * each other, and a shortfall reads "the Fuel gives N% less Δv than the plan needs". The plan, the
+ * why text and the report all use it.
+ */
+export function marginShare(plan: Pick<HopPlan, 'margin' | 'totalEstimate'>): number {
+  return plan.margin / plan.totalEstimate;
 }
 
 /** Δv rounded for the player: m/s below 1 km/s, km/s to one decimal above. */

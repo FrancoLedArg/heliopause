@@ -1,0 +1,106 @@
+/* ---- Hop report: a panel on the left, clear of the Spacecraft (which sits right of x 429 on the ground, or drifts to x 470) ---- */
+
+.hop-report {
+  position: absolute;
+  top: 40px;
+  left: 8px;
+  pointer-events: auto;
+}
+
+.hop-report > .kit-frame:first-child {
+  position: absolute;
+  inset: 0;
+}
+
+.hop-report__body {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 12px 10px;
+  /* Longer text must not push the buttons out of the frame. */
+  overflow: hidden;
+}
+
+.hop-report__badge {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin: 0;
+  font: 8px/12px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.hop-report--fell-short .hop-report__badge,
+.hop-report--crashed .hop-report__badge {
+  color: var(--rd3);
+}
+
+.hop-report--arrived .hop-report__badge {
+  color: var(--gr3);
+}
+
+.game-ui .hop-report__title {
+  margin: 0;
+  font: 16px/16px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--wh3);
+}
+
+.hop-report__headline {
+  margin: 0;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--wh2);
+}
+
+.hop-report__table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--gm6);
+}
+
+.hop-report__table th,
+.hop-report__table td {
+  padding: 0 0 0 6px;
+  height: 12px;
+  font-weight: 400;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.hop-report__table th:first-child,
+.hop-report__table th[scope='row'],
+.hop-report__table thead th:first-child {
+  padding-left: 0;
+  text-align: left;
+}
+
+.hop-report__table thead th {
+  height: 11px;
+  font: 8px/11px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.hop-report__margin {
+  margin: 0;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--am3);
+}
+
+.hop-report__why {
+  margin: 0;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--gm6);
+}
+
+.hop-report__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: auto;
+  flex: none;
+}

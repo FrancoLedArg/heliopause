@@ -5,11 +5,15 @@ import {
   availableDeltaV,
   flyHop,
   homePlanet,
+  launchHop,
   listBodies,
+  marginShare,
   metersPerSecond,
   metersPerSecondSquared,
   planHop,
   startRun,
+  type BodyId,
+  type HopFlight,
   type Run,
 } from './index.ts';
 import { farLandables, homeMoon, landedOn, plan, withBodies, withDeltaV } from './testing.ts';
@@ -339,7 +343,44 @@ describe('flying a Hop', () => {
     const { from, plan: hopeless } = tight(moonPlan.totalEstimate * 0.8);
     const { flight } = flyHop(from, hopeless, createRng(3));
     expect(flight.outcome.kind).not.toBe('arrived');
-    expect(flight.why).toMatch(/needed 25% more Δv than the Fuel provides/);
+    expect(flight.why).toMatch(/The Fuel gives 20% less Δv than the plan needs/);
+  });
+
+  it('the Margin share is the Margin over the estimate: a shortfall reads as "N% less Δv"', () => {
+    // Hauler on seed 123: Viormio needs 21,347 m/s of the 20,011 m/s the Fuel gives (-6.3%).
+    const hauler = startRun(123, 'hauler');
+    const viormio = listBodies(hauler.starSystem).find((body) => body.name === 'Viormio');
+    if (!viormio) throw new Error('seed 123 has no Viormio');
+    const planned = planHop(hauler, viormio.id);
+    if (planned.kind !== 'planned') throw new Error('expected a plan');
+    expect(Math.round(marginShare(planned.plan) * 1000)).toBe(-63);
+    const { flight } = flyHop(hauler, planned.plan, createRng(1));
+    expect(flight.why).toMatch(
+      /The Fuel gives 6% less Δv than the plan needs, so it had no Margin\./,
+    );
+  });
+
+  it('an arrival that had no Margin never says it had a negative one', () => {
+    const { from, plan: short } = tight(moonPlan.totalEstimate * 0.97);
+    const { flight } = flyHop(from, short, createRng(9));
+    expect(flight.outcome.kind).toBe('arrived');
+    expect(flight.why).not.toMatch(/-\d+%/);
+    expect(flight.why).toMatch(
+      /you had no Margin \(the Fuel gave 3% less Δv than the plan needs\)/,
+    );
+  });
+
+  it('an Arrived why never says the Burns ran over by more than the Margin it had', () => {
+    for (let step = 0; step <= 8; step++) {
+      const { from, plan: sized } = tight(moonPlan.totalEstimate * (1.04 + step * 0.01));
+      for (let seed = 0; seed < 1500; seed++) {
+        const { flight } = flyHop(from, sized, createRng(seed));
+        const match = /^Arrived.*took (\d+)% more Δv than estimated; you had (\d+)% Margin/.exec(
+          flight.why,
+        );
+        if (match) expect(Number(match[1])).toBeLessThanOrEqual(Number(match[2]));
+      }
+    }
   });
 
   it('the why for a plan far short of its Δv gives the figures, not a huge percentage', () => {
@@ -385,5 +426,51 @@ describe('flying a Hop', () => {
   it('a plan made for another Spacecraft state cannot be flown', () => {
     const { run: arrived } = flyHop(run, moonPlan, createRng(1));
     expect(() => flyHop(arrived, moonPlan, createRng(1))).toThrow();
+  });
+});
+
+describe('launching a Hop', () => {
+  const moon = homeMoon(run);
+
+  const flown = (from: Run, targetId: BodyId) => {
+    const result = launchHop(from, targetId);
+    if (result.kind !== 'flown') throw new Error(`Expected a flight, got ${result.reason}`);
+    return result;
+  };
+  /** The dispersion factor each flown Burn drew. */
+  const factors = (flight: HopFlight) =>
+    flight.burns.map((burn) => (burn.status === 'completed' ? burn.actual / burn.estimated : 0));
+
+  it('flies the exact plan the player saw for the target', () => {
+    expect(flown(run, moon.id).flight.plan).toEqual(plan(run, moon.id));
+  });
+
+  it('replays identically: the same Run launched at the same target flies the same Hop', () => {
+    expect(launchHop(startRun(2026, 'scout'), moon.id)).toEqual(launchHop(run, moon.id));
+  });
+
+  it('counts the Hops flown in a Run, starting from none', () => {
+    expect(run.hopsFlown).toBe(0);
+    const first = flown(run, moon.id);
+    expect(first.run.hopsFlown).toBe(1);
+    expect(flown(first.run, run.starSystem.homePlanetId).run.hopsFlown).toBe(2);
+  });
+
+  it('each Hop of a Run draws its own Burns: the next Hop does not repeat the last one’s', () => {
+    const first = flown(run, moon.id);
+    const back = flown(first.run, run.starSystem.homePlanetId);
+    expect(factors(back.flight)).not.toEqual(factors(first.flight));
+  });
+
+  it('a Run with another seed draws other Burns for the same Hop', () => {
+    const other: Run = { ...run, seed: run.seed + 1 };
+    expect(factors(flown(other, moon.id).flight)).not.toEqual(factors(flown(run, moon.id).flight));
+  });
+
+  it('an invalid target is not launched, and says why', () => {
+    expect(launchHop(run, run.starSystem.homePlanetId)).toMatchObject({
+      kind: 'invalid-target',
+      reason: 'current-body',
+    });
   });
 });
