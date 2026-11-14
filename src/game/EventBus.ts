@@ -17,11 +17,15 @@ export interface GameEvents {
   'nav-chart-close-requested': [];
   /** React -> Phaser: a key press on the Nav Chart (move between Bodies, select). */
   'nav-chart-command': [command: ChartCommand];
-  /** Phaser -> React: what the Nav Chart shows now (focused Body, chosen target), or `undefined` once it is closed. */
+  /**
+   * Phaser -> React: what the Nav Chart shows now (focused Body, chosen target), or `undefined` once it
+   * is closed. For drawing the chart panel.
+   */
   'nav-chart-state': [state: ChartState | undefined];
   /**
-   * Phaser -> React: the Hop target changed. `undefined` when the target is cleared (the chart was
-   * closed). Only valid targets are ever sent. The Hop plan panel (#30) listens to this.
+   * Phaser -> React: the Hop target changed. THE event the Hop plan (#30) reads: it carries only valid
+   * targets, and `undefined` when the target is cleared (the chart was closed). `nav-chart-state`'s
+   * `selectedId` is the same value and is only for the chart panel's own display.
    */
   'nav-target-selected': [targetId: BodyId | undefined];
 }

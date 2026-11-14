@@ -49,7 +49,7 @@ const DISTANCE_EXPONENT = 0.4;
 /** Pixels kept clear between two Bodies (or a Body and the star). */
 const GAP = 3;
 /** Moons hang on a small ring round their planet: gap, then a little growth per extra Moon. */
-const MOON_RING_GAP = 9;
+const MOON_RING_GAP = 20;
 const MOON_RING_GROWTH = 3;
 const ANGLE_STEP = (2 * Math.PI) / 180;
 
@@ -190,6 +190,24 @@ export function ringSegments(centre: Point, radius: number): Segment[] {
   return segments;
 }
 
+/**
+ * The ends of the route line: from the edge of the "you" ring to the edge of the target square, so even
+ * a short Hop (a planet to its Moon) shows a clear run of dashes between the two marks.
+ */
+export function routeEnds(from: ChartNode, to: ChartNode): [Point, Point] {
+  const length = Math.hypot(to.x - from.x, to.y - from.y);
+  const [ux, uy] = [(to.x - from.x) / length, (to.y - from.y) / length];
+  const start = from.radius + MARK_GAP;
+  const end = to.radius + MARK_GAP + 1;
+  return [
+    { x: from.x + ux * start, y: from.y + uy * start },
+    { x: to.x - ux * end, y: to.y - uy * end },
+  ];
+}
+
+/** Pixels between a Body's sprite and the ring or square round it. */
+export const MARK_GAP = 3;
+
 /** A line from `a` to `b` cut into dashes of `dash` pixels with `gap` pixels between them. */
 export function dashedSegments(a: Point, b: Point, dash: number, gap: number): Segment[] {
   const length = Math.hypot(b.x - a.x, b.y - a.y);
@@ -299,4 +317,203 @@ export function chartReducer(
 
 function choose(run: Run, state: ChartState, id: BodyId): ChartState {
   return targetStatus(run, id).valid ? { ...state, selectedId: id } : state;
+}
+
+/** A box on the chart, in chart pixels. */
+export interface Rect {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/** What the labels depend on: where the Spacecraft is, the chosen target and the Body in focus. */
+export interface LabelContext {
+  readonly hereId: BodyId;
+  readonly targetId: BodyId | undefined;
+  readonly focusedId: BodyId;
+}
+
+export interface PlacedLabel {
+  readonly id: BodyId | 'heliopause';
+  readonly text: string;
+  /** The text as drawn: one line, or the name over its "you" / "target" note when that fits better. */
+  readonly lines: readonly string[];
+  readonly kind: 'here' | 'target' | 'focused' | 'planet' | 'heliopause';
+  readonly box: Rect;
+}
+
+/** Silkscreen at 8 px: measured advance per character, rounded up (gameplay tuning, kept generous). */
+export const LABEL = { charWidth: 6, height: 8 } as const;
+
+/** The label text: the Body's name, then "you" or "target" where that applies. */
+export function labelText(body: Body, context: LabelContext): string {
+  if (body.id === context.hereId) return `${body.name} · you`;
+  if (body.id === context.targetId) return `${body.name} · target`;
+  return body.name;
+}
+
+const circleTouchesBox = (c: Point & { radius: number }, r: Rect, margin: number): boolean => {
+  const dx = Math.max(r.x - c.x, 0, c.x - (r.x + r.w));
+  const dy = Math.max(r.y - c.y, 0, c.y - (r.y + r.h));
+  return Math.hypot(dx, dy) < c.radius + margin;
+};
+
+const boxesTouch = (a: Rect, b: Rect, margin: number): boolean =>
+  a.x < b.x + b.w + margin &&
+  b.x < a.x + a.w + margin &&
+  a.y < b.y + b.h + margin &&
+  b.y < a.y + a.h + margin;
+
+const clampBox = (box: Rect): Rect => ({
+  ...box,
+  x: Math.min(Math.max(box.x, 0), CHART.width - box.w),
+  y: Math.min(Math.max(box.y, 0), CHART.height - box.h),
+});
+
+/** Pixels a label keeps from any Body: room for the focus brackets and the ring or square round it. */
+const BODY_CLEARANCE = 6;
+
+/** Angles to try round a Body, best first: below, above, right, left, then the corners and in between. */
+const SPOT_ANGLES = [90, 270, 0, 180, 45, 135, 315, 225, 60, 120, 240, 300, 20, 160, 200, 340];
+
+/** Spots for a box of `w` x `h` round a Body, nearest first: the box's nearest edge `d` pixels off the Body. */
+function spotsAround(node: ChartNode, w: number, h: number): Rect[] {
+  const spots: Rect[] = [];
+  for (const d of [3, 8, 16, 26, 40, 56, 76]) {
+    for (const degrees of SPOT_ANGLES) {
+      const angle = (degrees * Math.PI) / 180;
+      const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
+      const reach = node.radius + d;
+      const cx = node.x + cos * (reach + (w / 2) * Math.abs(cos));
+      const cy = node.y + sin * (reach + (h / 2) * Math.abs(sin));
+      spots.push({ x: cx - w / 2, y: cy - h / 2, w, h });
+    }
+  }
+  return spots.map(clampBox).map((box) => ({ ...box, x: Math.round(box.x), y: Math.round(box.y) }));
+}
+
+/**
+ * Where each label goes. Every label sits beside its own Body, on a spot that touches no other label and no
+ * Body. The Spacecraft's Body, the target and the focused Body always get a label (they take the
+ * least-bad spot if every clear one is taken); the Heliopause and the other planets are drawn only
+ * when a clear spot exists. Same chart and focus, same labels.
+ */
+export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedLabel[] {
+  const bodies = [layout.star, ...layout.nodes];
+  const placed: PlacedLabel[] = [];
+  const clear = (box: Rect, margin: number = BODY_CLEARANCE): boolean =>
+    placed.every((l) => !boxesTouch(l.box, box, 1)) &&
+    bodies.every((b) => !circleTouchesBox(b, box, margin));
+  const clashes = (box: Rect): number => placed.filter((l) => boxesTouch(l.box, box, 1)).length;
+
+  interface Option {
+    readonly lines: readonly string[];
+    readonly box: Rect;
+  }
+  const place = (
+    id: PlacedLabel['id'],
+    text: string,
+    kind: PlacedLabel['kind'],
+    options: readonly Option[],
+    required: boolean,
+  ): void => {
+    // Roomy spots first; a required label settles for any spot that touches nothing.
+    const free =
+      options.find((o) => clear(o.box)) ??
+      (required ? options.find((o) => clear(o.box, 1)) : undefined);
+    const pick =
+      free ??
+      (required ? [...options].sort((a, b) => clashes(a.box) - clashes(b.box))[0] : undefined);
+    if (pick) placed.push({ id, text, kind, lines: pick.lines, box: pick.box });
+  };
+
+  /** One-line spots round a Body first; then, for a name with a note, the same on two lines. */
+  const optionsFor = (node: ChartNode, text: string, name: string): Option[] => {
+    const oneLine = spotsAround(node, text.length * LABEL.charWidth, LABEL.height).map((box) => ({
+      lines: [text],
+      box,
+    }));
+    if (text === name) return oneLine;
+    const note = text.slice(name.length + 3);
+    const width = Math.max(name.length, note.length) * LABEL.charWidth;
+    const twoLines = spotsAround(node, width, 2 * LABEL.height + 1).map((box) => ({
+      lines: [name, note],
+      box,
+    }));
+    return [...oneLine, ...twoLines];
+  };
+
+  const shown = new Set<BodyId>();
+  const labelFor = (id: BodyId | undefined, kind: PlacedLabel['kind']): void => {
+    if (id === undefined || shown.has(id)) return;
+    const node = layout.nodes.find((n) => n.body.id === id);
+    if (!node) return;
+    shown.add(id);
+    const text = labelText(node.body, context);
+    place(id, text, kind, optionsFor(node, text, node.body.name), true);
+  };
+  labelFor(context.hereId, 'here');
+  labelFor(context.targetId, 'target');
+  labelFor(context.focusedId, 'focused');
+
+  // The Heliopause label hangs just inside its ring, wherever there is room along it.
+  const w = 'heliopause'.length * LABEL.charWidth;
+  const ringOptions: Option[] = [];
+  for (const dy of [0, -14, 14, -28, 28, -42, 42, -56, 56, -70, 70, -84, 84]) {
+    const ringX = layout.star.x + Math.sqrt(layout.heliopauseRadius ** 2 - dy * dy);
+    const box = {
+      x: Math.round(ringX - 4 - w),
+      y: Math.round(layout.star.y + dy - LABEL.height / 2),
+      w,
+      h: LABEL.height,
+    };
+    if (insideBox(box)) ringOptions.push({ lines: ['Heliopause'], box });
+  }
+  place('heliopause', 'Heliopause', 'heliopause', ringOptions, false);
+
+  for (const node of layout.nodes) {
+    if (node.body.kind === 'moon' || shown.has(node.body.id)) continue;
+    const text = labelText(node.body, context);
+    place(node.body.id, text, 'planet', optionsFor(node, text, node.body.name), false);
+  }
+  return placed;
+}
+
+const insideBox = (r: Rect): boolean =>
+  r.x >= 0 && r.y >= 0 && r.x + r.w <= CHART.width && r.y + r.h <= CHART.height;
+
+/** Width of the Body tooltip, and its height with and without the line saying why a Body is not a target. */
+export const TOOLTIP_SIZE = { w: 150, h: 58, hWithReason: 86 } as const;
+
+/**
+ * Where the focused Body's tooltip goes: on the chart, never over the Body itself, as near it as it can
+ * be while hiding the fewest other Bodies and labels (`labels`, the boxes already placed).
+ */
+export function placeTooltip(
+  layout: ChartLayout,
+  id: BodyId,
+  height: number = TOOLTIP_SIZE.h,
+  labels: readonly Rect[] = [],
+): Rect {
+  const node = layout.nodes.find((n) => n.body.id === id);
+  if (!node) throw new Error(`Nav Chart has no Body ${id}`);
+  const w = TOOLTIP_SIZE.w;
+  const h = height;
+  // Every spot on an 8 px grid that leaves the focused Body in view; the cheapest, then the closest, wins.
+  const others = [layout.star, ...layout.nodes.filter((n) => n !== node)];
+  const cost = (box: Rect): number =>
+    others.filter((n) => circleTouchesBox(n, box, 0)).length * 3 +
+    labels.filter((l) => boxesTouch(l, box, 0)).length * 2 +
+    Math.hypot(box.x + w / 2 - node.x, box.y + h / 2 - node.y) / 100;
+  let best: Rect | undefined;
+  for (let y = 0; y <= CHART.height - h; y += 8) {
+    for (let x = 0; x <= CHART.width - w; x += 8) {
+      const box = { x, y, w, h };
+      if (circleTouchesBox(node, box, 6)) continue;
+      if (!best || cost(box) < cost(best)) best = box;
+    }
+  }
+  if (!best) throw new Error(`Nav Chart has no room for a tooltip beside ${node.body.name}`);
+  return { ...best, x: Math.round(best.x), y: Math.round(best.y) };
 }

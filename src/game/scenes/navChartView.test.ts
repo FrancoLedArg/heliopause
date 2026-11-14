@@ -6,7 +6,13 @@ import {
   dashedSegments,
   initialChartState,
   layoutChart,
+  labelText,
   moveFocus,
+  placeLabels,
+  placeTooltip,
+  routeEnds,
+  TOOLTIP_SIZE,
+  type Rect,
   ringSegments,
   stepFocus,
   targetStatus,
@@ -235,5 +241,115 @@ describe('the Nav Chart state', () => {
       focusedId: here,
       selectedId: moon.id,
     });
+  });
+});
+
+const overlaps = (a: Rect, b: Rect): boolean =>
+  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+const insideChart = (r: Rect): boolean =>
+  r.x >= 0 && r.y >= 0 && r.x + r.w <= CHART.width && r.y + r.h <= CHART.height;
+const touchesCircle = (r: Rect, c: { x: number; y: number; radius: number }): boolean => {
+  const dx = Math.max(r.x - c.x, 0, c.x - (r.x + r.w));
+  const dy = Math.max(r.y - c.y, 0, c.y - (r.y + r.h));
+  return Math.hypot(dx, dy) < c.radius;
+};
+
+describe('Body labels on the Nav Chart', () => {
+  it('never overlap each other or a Body, stay on the chart, and always show here, target and focus', () => {
+    for (const seed of SEEDS) {
+      const run = newRun(seed);
+      const layout = layoutChart(run);
+      const here = currentBody(run).id;
+      const targetId = homeMoon(run).id;
+      for (const focused of layout.nodes.map((n) => n.body.id)) {
+        for (const target of [undefined, targetId]) {
+          const labels = placeLabels(layout, {
+            hereId: here,
+            targetId: target,
+            focusedId: focused,
+          });
+          const where = `seed ${seed}, focus ${focused}, target ${target ?? 'none'}`;
+          for (const id of [here, target, focused]) {
+            if (id !== undefined) {
+              expect(
+                labels.some((l) => l.id === id),
+                `${where}: label for ${id}`,
+              ).toBe(true);
+            }
+          }
+          for (const [i, a] of labels.entries()) {
+            expect(insideChart(a.box), `${where}: ${a.text} inside`).toBe(true);
+            for (const b of labels.slice(i + 1)) {
+              expect(overlaps(a.box, b.box), `${where}: ${a.text} / ${b.text}`).toBe(false);
+            }
+            for (const n of [...layout.nodes, { ...layout.star }]) {
+              expect(touchesCircle(a.box, n), `${where}: ${a.text} on a Body`).toBe(false);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it('sit nearest their own Body', () => {
+    const run = newRun(123);
+    const layout = layoutChart(run);
+    const labels = placeLabels(layout, {
+      hereId: currentBody(run).id,
+      targetId: undefined,
+      focusedId: currentBody(run).id,
+    });
+    for (const label of labels) {
+      if (label.id === 'heliopause') continue;
+      const own = layout.nodes.find((n) => n.body.id === label.id);
+      const centre = { x: label.box.x + label.box.w / 2, y: label.box.y + label.box.h / 2 };
+      const distance = (n: { x: number; y: number; radius: number }): number =>
+        Math.hypot(centre.x - n.x, centre.y - n.y) - n.radius;
+      if (!own) throw new Error(`no node for ${label.id}`);
+      const nearest = Math.min(...layout.nodes.map(distance));
+      expect(distance(own) - nearest).toBeLessThanOrEqual(24);
+    }
+  });
+
+  it('writes the name, plus where the Spacecraft is and what the target is', () => {
+    const run = newRun(5);
+    const here = currentBody(run);
+    expect(labelText(here, { hereId: here.id, targetId: undefined, focusedId: here.id })).toBe(
+      `${here.name} · you`,
+    );
+    const moon = homeMoon(run);
+    expect(labelText(moon, { hereId: here.id, targetId: moon.id, focusedId: here.id })).toBe(
+      `${moon.name} · target`,
+    );
+  });
+});
+
+describe('the Body tooltip', () => {
+  it('sits on the chart beside the focused Body without covering it', () => {
+    for (const seed of SEEDS) {
+      const layout = layoutChart(newRun(seed));
+      for (const node of layout.nodes) {
+        const box = placeTooltip(layout, node.body.id);
+        expect(insideChart(box), `seed ${seed}`).toBe(true);
+        expect(box.w).toBe(TOOLTIP_SIZE.w);
+        expect(touchesCircle(box, node), `seed ${seed}: tooltip covers ${node.body.name}`).toBe(
+          false,
+        );
+      }
+    }
+  });
+});
+
+describe('the route line', () => {
+  it('leaves a clearly visible run between the "you" ring and the target square, even for a planet and its Moon', () => {
+    for (const seed of SEEDS) {
+      const run = newRun(seed);
+      const layout = layoutChart(run);
+      const from = layout.nodes.find((n) => n.body.id === currentBody(run).id);
+      const to = layout.nodes.find((n) => n.body.id === homeMoon(run).id);
+      if (!from || !to) throw new Error('missing node');
+      const [a, b] = routeEnds(from, to);
+      expect(Math.hypot(b.x - a.x, b.y - a.y), `seed ${seed}`).toBeGreaterThanOrEqual(6);
+    }
   });
 });

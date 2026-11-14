@@ -1,9 +1,13 @@
-import { useEffect, useRef, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import {
   CHART,
+  LABEL,
   layoutChart,
+  placeLabels,
+  placeTooltip,
   targetStatus,
+  TOOLTIP_SIZE,
   type ChartCommand,
   type ChartState,
   type Direction,
@@ -15,6 +19,7 @@ import { KitFrame } from './kit/KitFrame.tsx';
 
 const PANEL = { x: 8, y: 52, width: 432, height: 284 } as const;
 const SIDE = { x: 444, y: 52, width: 188, height: 284 } as const;
+const TITLEBAR_HEIGHT = 14;
 
 const ARROWS: Partial<Record<string, Direction>> = {
   ArrowLeft: 'left',
@@ -33,16 +38,21 @@ function commandForKey(key: string): ChartCommand | undefined {
   return undefined;
 }
 
-/** A label sits under its Body, or above it when it would run off the bottom of the chart. */
-function labelTop(y: number, radius: number): number {
-  const LABEL_HEIGHT = 8;
-  const below = y + radius + 3;
-  return below + LABEL_HEIGHT > CHART.height ? y - radius - 3 - LABEL_HEIGHT : below;
-}
-
 const requestClose = (): void => {
   EventBus.emit('nav-chart-close-requested');
 };
+
+/**
+ * The holo frame with the chart's rectangle cut out of it. The chart is drawn by Phaser under this
+ * layer, and a translucent frame over it would dim the sprites, so nothing may cover the chart.
+ */
+const FRAME_CLIP = (() => {
+  const [left, top] = [CHART.x - PANEL.x, CHART.y - PANEL.y];
+  const [right, bottom] = [left + CHART.width, top + CHART.height];
+  const hole = `${left}px ${top}px, ${left}px ${bottom}px, ${right}px ${bottom}px, ${right}px ${top}px, ${left}px ${top}px`;
+  const outer = `0 0, ${PANEL.width}px 0, ${PANEL.width}px ${PANEL.height}px, 0 ${PANEL.height}px, 0 0`;
+  return `polygon(evenodd, ${outer}, ${hole})`;
+})();
 
 interface NavChartPanelProps {
   run: Run;
@@ -50,12 +60,12 @@ interface NavChartPanelProps {
 }
 
 /**
- * The panel round the Nav Chart: frame, title, a label for each Body, the Body inspector and the
- * keyboard. The chart itself is Phaser's (behind this layer, so the translucent frame lets it show);
- * this layer sends key presses to it as commands and shows what it reports back.
+ * The panel round the Nav Chart: frame, title, a label for each Body, a tooltip for the focused Body,
+ * the Hop plan side panel (its target block for now) and the keyboard. The chart itself is Phaser's,
+ * behind this layer; this layer sends key presses to it as commands and shows what it reports back.
  */
 export function NavChartPanel({ run, state }: NavChartPanelProps) {
-  const layout = layoutChart(run);
+  const layout = useMemo(() => layoutChart(run), [run]);
   const here = currentBody(run);
   const focused = findBody(run.starSystem, state.focusedId);
   const target =
@@ -63,7 +73,29 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
   if (!focused) throw new Error(`Nav Chart is focused on unknown Body ${state.focusedId}`);
   const status = targetStatus(run, focused.id);
 
+  const labels = useMemo(
+    () =>
+      placeLabels(layout, {
+        hereId: here.id,
+        targetId: state.selectedId,
+        focusedId: state.focusedId,
+      }),
+    [layout, here.id, state.selectedId, state.focusedId],
+  );
+  const tipHeight = status.valid ? TOOLTIP_SIZE.h : TOOLTIP_SIZE.hWithReason;
+  const tooltip = useMemo(
+    () =>
+      placeTooltip(
+        layout,
+        state.focusedId,
+        tipHeight,
+        labels.map((l) => l.box),
+      ),
+    [layout, state.focusedId, tipHeight, labels],
+  );
+
   const chartRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     chartRef.current?.focus();
   }, []);
@@ -91,6 +123,21 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
     if (!event.repeat || command.kind !== 'select') EventBus.emit('nav-chart-command', command);
   };
 
+  // The panel is modal: Tab goes round the chart and the Close button and never leaves.
+  const onPanelKey = (event: KeyboardEvent<HTMLElement>): void => {
+    if (event.key !== 'Tab') return;
+    const first = chartRef.current;
+    const last = closeRef.current?.querySelector('button');
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   const optionId = (body: Body): string => `nav-option-${body.id}`;
   const stateWords = (body: Body): string => {
     const words = [bodyTypeLabel(run, body)];
@@ -99,14 +146,30 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
     if (body.id === target?.id) words.push('target');
     return words.join(', ');
   };
+  const at = (box: { x: number; y: number }): CSSProperties => ({
+    left: CHART.x + box.x,
+    top: CHART.y + box.y,
+  });
 
   return (
-    <section className="nav-chart" role="dialog" aria-label="Nav Chart">
-      <div className="nav-chart__panel" style={{ left: PANEL.x, top: PANEL.y }}>
+    <section
+      className="nav-chart"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Nav Chart"
+      onKeyDown={onPanelKey}
+    >
+      <div
+        className="nav-chart__panel"
+        style={{ left: PANEL.x, top: PANEL.y, clipPath: FRAME_CLIP }}
+      >
         <KitFrame frame="panel_holo" width={PANEL.width} height={PANEL.height} />
       </div>
-      <div className="nav-chart__titlebar" style={{ left: PANEL.x + 8, top: PANEL.y + 8 }}>
-        <KitFrame frame="titlebar" width={PANEL.width - 16} height={14} />
+      <div
+        className="nav-chart__titlebar"
+        style={{ left: PANEL.x + 8, top: PANEL.y + 8, width: PANEL.width - 16 }}
+      >
+        <KitFrame frame="titlebar" width={PANEL.width - 16} height={TITLEBAR_HEIGHT} />
         <h1 className="nav-chart__title">Nav Chart</h1>
         <p className="nav-chart__system">{run.starSystem.name}</p>
       </div>
@@ -135,32 +198,52 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         ))}
       </div>
 
-      {layout.nodes.map(({ body, x, y, radius }) => {
-        const isHere = body.id === here.id;
-        const isTarget = body.id === target?.id;
-        if (body.kind === 'moon' && !isHere && !isTarget && body.id !== focused.id) return null;
-        return (
-          <p
-            key={body.id}
-            className={`nav-chart__label${isHere ? ' nav-chart__label--here' : ''}${isTarget ? ' nav-chart__label--target' : ''}`}
-            style={{ left: CHART.x + x, top: CHART.y + labelTop(y, radius) }}
-          >
-            {body.name}
-            {isHere && ' · you'}
-            {isTarget && ' · target'}
-          </p>
-        );
-      })}
+      {labels.map((label) => (
+        <p
+          key={label.id}
+          className={`nav-chart__label nav-chart__label--${label.kind}`}
+          style={{
+            ...at(label.box),
+            width: label.box.w,
+            height: label.box.h,
+            lineHeight: `${LABEL.height + 1}px`,
+          }}
+        >
+          {label.lines.map((line) => (
+            <span key={line}>{line}</span>
+          ))}
+        </p>
+      ))}
 
-      <p
-        className="nav-chart__label nav-chart__label--heliopause"
-        style={{
-          left: CHART.x + layout.star.x + layout.heliopauseRadius - 4,
-          top: CHART.y + layout.star.y - 4,
-        }}
+      <div
+        className="nav-chart__tooltip"
+        data-testid="inspect"
+        style={{ ...at(tooltip), width: TOOLTIP_SIZE.w, height: tipHeight }}
       >
-        Heliopause
-      </p>
+        <KitFrame
+          frame={status.valid ? 'tooltip' : 'tooltip_warn'}
+          width={TOOLTIP_SIZE.w}
+          height={tipHeight}
+          className="nav-chart__tooltip-frame"
+        />
+        <h2 className="nav-chart__tip-name">{focused.name}</h2>
+        <p className="nav-chart__tip-kind">{bodyTypeLabel(run, focused)}</p>
+        <p className="nav-chart__tip-fact">
+          {formatGravity(focused.surfaceGravity)} · {formatDistanceAu(focused.distanceFromStar)}
+        </p>
+        <p
+          className={`nav-chart__badge ${focused.landable ? 'nav-chart__badge--ok' : 'nav-chart__badge--warn'}`}
+          data-testid="landable"
+        >
+          <KitFrame frame={focused.landable ? 'badge_ok' : 'badge_lock'} />
+          {focused.landable ? 'Landable' : 'No surface'}
+        </p>
+        {!status.valid && (
+          <p className="nav-chart__tip-verdict" data-testid="verdict">
+            {status.why}
+          </p>
+        )}
+      </div>
 
       <p className="nav-chart__help">
         Arrow keys or the mouse look at a Body; Enter or a click makes it the target. PgUp and PgDn
@@ -170,46 +253,37 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
       <div className="nav-chart__side" style={{ left: SIDE.x, top: SIDE.y }}>
         <KitFrame frame="panel_metal" width={SIDE.width} height={SIDE.height} />
       </div>
-      <div className="nav-chart__titlebar" style={{ left: SIDE.x + 8, top: SIDE.y + 8 }}>
-        <KitFrame frame="titlebar" width={SIDE.width - 16} height={14} />
-        <h2 className="nav-chart__title">Body</h2>
-      </div>
-      <div className="nav-chart__inspect" data-testid="inspect" aria-live="polite">
-        <h2 className="nav-chart__body-name">{focused.name}</h2>
-        <p className="nav-chart__body-kind">{bodyTypeLabel(run, focused)}</p>
-        <p className="nav-chart__body-fact">
-          {focused.kind === 'gas-giant' ? 'Gravity at cloud tops' : 'Gravity'}{' '}
-          {formatGravity(focused.surfaceGravity)}
-        </p>
-        <p className="nav-chart__body-fact">
-          {formatDistanceAu(focused.distanceFromStar)} from the star
-        </p>
-        <p
-          className={`nav-chart__badge ${focused.landable ? 'nav-chart__badge--ok' : 'nav-chart__badge--warn'}`}
-          data-testid="landable"
-        >
-          <KitFrame frame={focused.landable ? 'badge_ok' : 'badge_lock'} />
-          {focused.landable ? 'Landable' : 'No surface'}
-        </p>
-        <KitFrame frame="divider" width={164} height={5} className="nav-chart__divider" />
-        <p className="nav-chart__verdict" data-testid="verdict">
-          {status.valid ? 'Can be the target: press Enter or click.' : status.why}
-        </p>
-      </div>
-
-      <div className="nav-chart__target" data-testid="target">
-        <p className="nav-chart__target-label">Hop target</p>
-        <p className="nav-chart__target-name">{target ? target.name : 'None chosen'}</p>
-      </div>
-
-      <KitButton
-        width={76}
-        className="nav-chart__close"
-        onClick={requestClose}
-        aria-keyshortcuts="Escape"
+      <div
+        className="nav-chart__titlebar"
+        style={{ left: SIDE.x + 8, top: SIDE.y + 8, width: SIDE.width - 16 }}
       >
-        Close
-      </KitButton>
+        <KitFrame frame="titlebar" width={SIDE.width - 16} height={TITLEBAR_HEIGHT} />
+        <h2 className="nav-chart__title">Hop plan</h2>
+      </div>
+
+      {/* The target block; the Burns, totals and Success Chance go below it (ticket #30). */}
+      <div className="nav-chart__target" data-testid="target">
+        <p className="nav-chart__target-label">Target</p>
+        <p className="nav-chart__target-name">{target ? target.name : 'None chosen'}</p>
+        {target && (
+          <>
+            <p className="nav-chart__target-kind">
+              {bodyTypeLabel(run, target)} · {formatGravity(target.surfaceGravity)}
+            </p>
+            <p className="nav-chart__badge nav-chart__badge--ok">
+              <KitFrame frame="badge_ok" />
+              Landable
+            </p>
+          </>
+        )}
+        <KitFrame frame="divider" width={164} height={5} className="nav-chart__divider" />
+      </div>
+
+      <div ref={closeRef} className="nav-chart__close">
+        <KitButton width={76} onClick={requestClose} aria-keyshortcuts="Escape">
+          Close
+        </KitButton>
+      </div>
     </section>
   );
 }

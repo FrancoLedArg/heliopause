@@ -10,6 +10,7 @@ import {
   initialChartState,
   layoutChart,
   ringSegments,
+  routeEnds,
   type ChartCommand,
   type ChartLayout,
   type ChartNode,
@@ -50,7 +51,7 @@ export class NavChart extends Scene {
     this.add.rectangle(0, 0, 640, 360, paletteNumber('void'), 0.65).setOrigin(0);
     const chart = this.add.container(CHART.x, CHART.y);
     chart.add(
-      this.add.rectangle(0, 0, CHART.width, CHART.height, paletteNumber('scr0'), 0.8).setOrigin(0),
+      this.add.rectangle(0, 0, CHART.width, CHART.height, paletteNumber('scr0'), 0.95).setOrigin(0),
     );
     chart.add(this.drawRings());
     chart.add(
@@ -150,7 +151,7 @@ export class NavChart extends Scene {
 
     // Gas Giants carry a dotted ring: no surface to land on (shape, not just colour).
     for (const node of this.layout.nodes) {
-      if (node.body.kind === 'gas-giant') this.dottedRing(node, node.radius + 3, 'gm5');
+      if (node.body.kind === 'gas-giant') this.dottedRing(node, node.radius + 3);
     }
 
     const here = at(currentBody(this.run).id);
@@ -163,7 +164,7 @@ export class NavChart extends Scene {
       this.chartState.selectedId === undefined ? undefined : at(this.chartState.selectedId);
     if (here && target) {
       g.lineStyle(1, paletteNumber('cy3'));
-      for (const { from, to } of dashedSegments(here, target, 3, 3)) {
+      for (const { from, to } of dashedSegments(...routeEnds(here, target), 2, 2)) {
         g.lineBetween(...from, ...to);
       }
       g.strokeRect(
@@ -178,16 +179,17 @@ export class NavChart extends Scene {
     if (focus) this.cornerBrackets(focus, focus.radius + 6);
   }
 
-  private dottedRing(node: ChartNode, radius: number, color: 'gm5'): void {
-    this.marks.fillStyle(paletteNumber(color));
-    const dots = Math.round(radius * 1.2);
-    for (let i = 0; i < dots; i += 2) {
+  /** Dots round a Body, 2 px each: bright enough to read over the dark chart. */
+  private dottedRing(node: ChartNode, radius: number): void {
+    this.marks.fillStyle(paletteNumber('wh2'));
+    const dots = Math.round((2 * Math.PI * radius) / 6);
+    for (let i = 0; i < dots; i += 1) {
       const angle = (i / dots) * 2 * Math.PI;
       this.marks.fillRect(
-        Math.round(node.x + radius * Math.cos(angle)),
-        Math.round(node.y + radius * Math.sin(angle)),
-        1,
-        1,
+        Math.round(node.x + radius * Math.cos(angle)) - 1,
+        Math.round(node.y + radius * Math.sin(angle)) - 1,
+        2,
+        2,
       );
     }
   }

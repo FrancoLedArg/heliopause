@@ -312,27 +312,16 @@ body {
   inset: 0;
 }
 
-.nav-chart > *,
-.nav-chart__titlebar,
-.nav-chart__inspect,
-.nav-chart__target {
+.nav-chart > * {
   position: absolute;
 }
 
-/* Mouse clicks fall through to the chart in the canvas below; only the button takes them. */
-.nav-chart__panel,
-.nav-chart__side,
-.nav-chart__titlebar,
-.nav-chart__chart,
-.nav-chart__label,
-.nav-chart__help,
-.nav-chart__inspect,
-.nav-chart__target {
+/* Mouse clicks fall through to the chart in the canvas below; only the Close button takes them. */
+.nav-chart > *:not(.nav-chart__close) {
   pointer-events: none;
 }
 
 .nav-chart__titlebar {
-  width: 0;
   height: 14px;
 }
 
@@ -350,9 +339,8 @@ body {
 .nav-chart__system {
   position: absolute;
   top: 3px;
-  right: -388px;
-  width: 200px;
-  text-align: right;
+  right: 22px;
+  white-space: nowrap;
   font: 8px/8px var(--font-pixel);
   text-transform: uppercase;
   color: var(--cy3);
@@ -364,16 +352,16 @@ body {
 }
 
 .nav-chart__label {
-  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
   white-space: nowrap;
-  font: 8px/8px var(--font-pixel);
+  font: 8px/9px var(--font-pixel);
   text-transform: uppercase;
   color: var(--gm6);
   text-shadow: 0 1px 0 var(--void);
 }
 
 .nav-chart__label--heliopause {
-  transform: translateX(-100%);
   color: var(--vi3);
 }
 
@@ -385,6 +373,10 @@ body {
   color: var(--cy3);
 }
 
+.nav-chart__label--focused {
+  color: var(--wh3);
+}
+
 .nav-chart__help {
   left: 24px;
   top: 305px;
@@ -393,38 +385,59 @@ body {
   color: var(--gm5);
 }
 
-.nav-chart__inspect {
-  left: 456px;
-  top: 82px;
-  width: 164px;
+/* The tooltip for the focused Body, on the chart (wireframe callout 4). */
+.nav-chart__tooltip-frame {
+  position: absolute;
+  inset: 0;
 }
 
-.nav-chart__body-name {
+.nav-chart__tooltip > :not(.nav-chart__tooltip-frame) {
+  position: absolute;
+  left: 7px;
+  right: 7px;
   margin: 0;
-  font: 16px/16px var(--font-pixel);
+}
+
+.nav-chart__tip-name {
+  top: 6px;
+  font: 8px/8px var(--font-pixel);
   text-transform: uppercase;
   color: var(--cy3);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.nav-chart__body-kind {
-  margin-top: 3px;
+.nav-chart__tip-kind {
+  top: 17px;
   font: 8px/8px var(--font-pixel);
   text-transform: uppercase;
   color: var(--gm5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.nav-chart__body-fact {
-  margin-top: 3px;
-  font: 14px/12px var(--font-pixel-body);
+.nav-chart__tip-fact {
+  top: 27px;
+  font: 14px/11px var(--font-pixel-body);
   color: var(--gm6);
+}
+
+.nav-chart__tooltip .nav-chart__badge {
+  top: 40px;
+}
+
+.nav-chart__tip-verdict {
+  top: 55px;
+  font: 14px/11px var(--font-pixel-body);
+  color: var(--wh2);
 }
 
 .nav-chart__badge {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-top: 6px;
   font: 8px/12px var(--font-pixel);
   text-transform: uppercase;
 }
@@ -437,20 +450,16 @@ body {
   color: var(--am3);
 }
 
-.nav-chart__divider {
-  margin-top: 6px;
-}
-
-.nav-chart__verdict {
-  margin-top: 5px;
-  font: 14px/12px var(--font-pixel-body);
-  color: var(--wh2);
-}
-
+/* The Hop plan's target block: wireframe y 82 to 145, the rest of the panel is for ticket #30. */
 .nav-chart__target {
   left: 456px;
-  top: 262px;
+  top: 82px;
   width: 164px;
+  height: 61px;
+}
+
+.nav-chart__target > p {
+  margin: 0;
 }
 
 .nav-chart__target-label {
@@ -460,10 +469,32 @@ body {
 }
 
 .nav-chart__target-name {
-  margin-top: 3px;
+  margin-top: 2px;
   font: 16px/16px var(--font-pixel);
   text-transform: uppercase;
   color: var(--cy3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-chart__target-kind {
+  margin-top: 2px;
+  font: 14px/11px var(--font-pixel-body);
+  color: var(--gm6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-chart__target .nav-chart__badge {
+  margin-top: 2px;
+}
+
+.nav-chart__divider {
+  position: absolute;
+  left: 0;
+  top: 56px;
 }
 
 .nav-chart__close {

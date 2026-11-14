@@ -1,4 +1,5 @@
 import { availableDeltaV, currentBody, type Run } from '../game/sim/index.ts';
+import { useEffect, useRef } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import {
   bodyTypeLabel,
@@ -25,6 +26,14 @@ interface LandedPanelsProps {
 export function LandedPanels({ run, chartOpen }: LandedPanelsProps) {
   const body = currentBody(run);
   const type = bodyTypeLabel(run, body);
+
+  // Closing the Nav Chart hands focus back to the button that opened it.
+  const buttonSlot = useRef<HTMLDivElement>(null);
+  const wasOpen = useRef(chartOpen);
+  useEffect(() => {
+    if (wasOpen.current && !chartOpen) buttonSlot.current?.querySelector('button')?.focus();
+    wasOpen.current = chartOpen;
+  }, [chartOpen]);
 
   return (
     <>
@@ -64,7 +73,6 @@ export function LandedPanels({ run, chartOpen }: LandedPanelsProps) {
           <KitButton
             variant="primary"
             width={116}
-            className="landed-nav-button"
             aria-keyshortcuts="M"
             onClick={() => {
               EventBus.emit('nav-chart-open-requested');
