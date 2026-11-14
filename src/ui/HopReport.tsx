@@ -5,7 +5,7 @@ import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import './HopReport.css';
 
-const PANEL = { width: 332, height: 226 } as const;
+const PANEL = { width: 356, height: 226 } as const;
 
 export interface ReportAction {
   readonly label: string;
@@ -100,6 +100,12 @@ export function HopReport({ before, flight, actions, onEscape }: HopReportProps)
         <p className="hop-report__margin" data-testid="hop-report-margin">
           {view.margin}
         </p>
+        {view.collected !== undefined && (
+          <p className="hop-report__collected" data-testid="hop-report-collected">
+            {view.collected}
+          </p>
+        )}
+        {view.note !== undefined && <p className="hop-report__note">{view.note}</p>}
         <p id="hop-report-why" className="hop-report__why">
           {view.why}
         </p>

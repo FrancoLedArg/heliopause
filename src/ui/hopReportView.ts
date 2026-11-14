@@ -2,6 +2,7 @@
 // the simulation's plain-language why. Every figure comes from the flight; nothing is recomputed here.
 import {
   BURNS,
+  type Collection,
   findBody,
   marginShare,
   metersPerSecond,
@@ -11,7 +12,11 @@ import {
   type MetersPerSecond,
   type Run,
 } from '../game/sim/index.ts';
-import { formatMarginShare, formatPlanDeltaV as formatDeltaV } from './format.ts';
+import { formatFuel, formatMarginShare, formatPlanDeltaV as formatDeltaV } from './format.ts';
+
+/** Shown the first time a Run collects Fuel: real missions, not a claim of NASA's. */
+const ICE_TO_PROPELLANT =
+  'Real missions plan to split lunar water ice into hydrogen and oxygen, so rockets could refuel on the Moon.';
 
 const BURN_LABEL: Record<Burn, string> = {
   takeoff: 'Takeoff',
@@ -35,6 +40,10 @@ export interface ReportView {
   readonly rows: readonly ReportRow[];
   /** The Margin left after the Hop, or that none was left. */
   readonly margin: string;
+  /** What landing collected, in words; absent when the Hop did not arrive. */
+  readonly collected?: string;
+  /** The ice-to-propellant line, the first time the Run collects Fuel. */
+  readonly note?: string;
   /** The simulation's explanation, as written. */
   readonly why: string;
 }
@@ -59,6 +68,11 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
         headline: `Landed on ${targetName}.`,
         rows,
         margin: `Margin left: ${formatDeltaV(flight.deltaVRemaining)} of Δv (${planned})`,
+        ...(flight.collection && {
+          collected: describeCollection(flight.collection),
+          ...(flight.collection.kind === 'fuel' &&
+            !hadFuelBefore(before) && { note: ICE_TO_PROPELLANT }),
+        }),
         why: flight.why,
       };
     case 'fell-short':
@@ -113,4 +127,26 @@ function signedPercent(share: number): string {
   const percent = Math.round(share * 100);
   const sign = percent > 0 ? '+' : percent < 0 ? '−' : '±';
   return `${sign}${String(Math.abs(percent))}%`;
+}
+
+/** Whether an Icy Body has already given up its Fuel in `run`. */
+function hadFuelBefore(run: Run): boolean {
+  return run.depleted.some((id) => {
+    const body = findBody(run.starSystem, id);
+    return body?.landable && body.composition === 'icy';
+  });
+}
+
+/** What a landing collected, as one line for the player. */
+function describeCollection(collection: Collection): string {
+  switch (collection.kind) {
+    case 'fuel':
+      return collection.leftBehind > 0
+        ? `Collected ${formatFuel(collection.collected)} of Fuel; ${formatFuel(collection.leftBehind)} left behind: the Tank is full.`
+        : `Collected ${formatFuel(collection.collected)} of Fuel.`;
+    case 'materials':
+      return `Collected ${String(collection.collected)} Materials.`;
+    case 'depleted':
+      return 'Nothing to collect: this Body is Depleted.';
+  }
 }

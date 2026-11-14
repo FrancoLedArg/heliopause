@@ -1,4 +1,4 @@
-/* ---- Hop report: a panel on the left, clear of the Spacecraft (which sits right of x 429 on the ground, or drifts to x 470) ---- */
+/* ---- Hop report: a panel on the left (8 to 364), clear of the Spacecraft (which sits right of x 429 on the ground, or drifts to x 470) ---- */
 
 .hop-report {
   position: absolute;
@@ -103,4 +103,16 @@
   justify-content: flex-end;
   margin-top: auto;
   flex: none;
+}
+
+.hop-report__collected {
+  margin: 0;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--gr3);
+}
+
+.hop-report__note {
+  margin: 0;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--cy3);
 }

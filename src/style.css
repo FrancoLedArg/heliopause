@@ -205,14 +205,19 @@ body {
 .top-bar__icon {
   position: absolute;
   top: 4px;
+  image-rendering: pixelated;
 }
 
 .top-bar__fuel-icon {
-  left: 292px;
+  left: 210px;
 }
 
 .top-bar__dv-icon {
-  left: 432px;
+  left: 330px;
+}
+
+.top-bar__materials-icon {
+  left: 450px;
 }
 
 .top-bar__label {
@@ -240,7 +245,7 @@ body {
 
 .top-bar__fuel-label,
 .top-bar__fuel {
-  left: 328px;
+  left: 246px;
 }
 
 .top-bar__fuel {
@@ -249,11 +254,20 @@ body {
 
 .top-bar__dv-label,
 .top-bar__dv {
-  left: 468px;
+  left: 366px;
 }
 
 .top-bar__dv {
   color: var(--cy3);
+}
+
+.top-bar__materials-label,
+.top-bar__materials {
+  left: 486px;
+}
+
+.top-bar__materials {
+  color: var(--gr3);
 }
 
 .landed-plate {
