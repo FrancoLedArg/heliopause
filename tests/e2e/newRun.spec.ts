@@ -14,7 +14,7 @@ test('New Run from the title screen lands on the Home Planet, seeded from the UR
   page,
 }, testInfo) => {
   const errors = collectErrors(page);
-  await page.goto('/?seed=123');
+  await page.goto('/?seed=123&chassis=scout');
 
   const newRun = page.getByRole('button', { name: 'New Run' });
   await expect(newRun).toBeVisible();
@@ -43,7 +43,7 @@ test('New Run from the title screen lands on the Home Planet, seeded from the UR
 });
 
 test('New Run works from the keyboard and shows where focus is', async ({ page }) => {
-  await page.goto('/?seed=7');
+  await page.goto('/?seed=7&chassis=scout');
   const newRun = page.getByRole('button', { name: 'New Run' });
   await expect(newRun).toBeVisible();
 
@@ -59,9 +59,59 @@ test('New Run works from the keyboard and shows where focus is', async ({ page }
 });
 
 test('without a seed in the URL, New Run picks one at random', async ({ page }) => {
-  await page.goto('/');
+  await page.goto('/?chassis=scout');
   await page.getByRole('button', { name: 'New Run' }).click();
 
   await expect(page.getByTestId('fuel')).toBeVisible();
   await expect(page.getByTestId('game-ui')).toHaveAttribute('data-run-seed', /^\d+$/);
+});
+
+test('?chassis= in the URL skips the picker and lands on that Chassis', async ({
+  page,
+}, testInfo) => {
+  await page.goto('/?seed=123&chassis=lancer');
+  await page.getByRole('button', { name: 'New Run' }).click();
+
+  await expect(page.getByTestId('fuel')).toHaveText('36.0 t');
+  // Lancer: 1280 s Isp, 6 t dry + 36 t Fuel: 1280 × 9.80665 × ln(42 / 6) is about 24.4 km/s.
+  await expect(page.getByTestId('delta-v')).toHaveText('24.4 km/s');
+  await testInfo.attach('landed-lancer', {
+    body: await page.screenshot(),
+    contentType: 'image/png',
+  });
+});
+
+test('the picker shows each Chassis and its numbers, and picking by keyboard starts the Run on it', async ({
+  page,
+}, testInfo) => {
+  await page.goto('/?seed=5');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+
+  const picker = page.getByRole('region', { name: 'Choose a Chassis' });
+  await expect(picker).toBeVisible();
+  await expect(picker.getByRole('radio')).toHaveCount(3);
+  await expect(picker.getByText('Dry mass')).toHaveCount(3);
+  await expect(picker.getByText('4.0 t', { exact: true })).toBeVisible();
+  await expect(picker.getByText('15.0 t', { exact: true })).toBeVisible();
+  await expect(picker.getByText('66.0 t', { exact: true })).toBeVisible();
+  await expect(picker.getByText('Selected')).toHaveCount(1);
+  await expect(picker.getByText(/heavier craft gets less/)).toBeVisible();
+  await testInfo.attach('picker', { body: await page.screenshot(), contentType: 'image/png' });
+
+  // The first Chassis is focused and chosen; the arrow keys move the choice, Tab reaches Back then Launch.
+  await expect(page.getByRole('radio', { name: /Scout/ })).toBeFocused();
+  await expect(page.getByRole('radio', { name: /Scout/ })).toBeChecked();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('radio', { name: /Hauler/ })).toBeChecked();
+  await expect(page.getByRole('radio', { name: /Hauler/ })).toHaveCount(1);
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Back' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Launch' })).toBeFocused();
+  await page.keyboard.press('Enter');
+
+  await expect(page.getByTestId('fuel')).toHaveText('66.0 t');
+  // Hauler: 1210 s Isp, 15 t dry + 66 t Fuel: 1210 × 9.80665 × ln(81 / 15) is about 20.0 km/s.
+  await expect(page.getByTestId('delta-v')).toHaveText('20.0 km/s');
 });
