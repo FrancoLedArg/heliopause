@@ -6,7 +6,7 @@ AI-generated pixel art (see AI-USAGE.md): the game shows a visible
 Native 640x360, nearest-neighbour. Only kit palette colours are used.
 Light comes from the top-left; every sprite gets a 1px `void` outline.
 
-Usage:  python3 gen_sprites.py <out_dir> [preview_png]
+Usage:  python3 gen_sprites.py <out_dir> [preview_png [surfaces_preview_png]]
 Needs Pillow and numpy.
 """
 import math
@@ -485,6 +485,261 @@ def preview(sprites, path, scale=4):
     sheet.save(path)
 
 
+# ------------------------------------------------------------------ surfaces
+# Landscape surface layers (ticket #22), three parallax layers per Body kind:
+#   surface_<kind>_far  800x200  limb: curved edge against black space
+#   surface_<kind>_mid  800x160  rolling terrain and crater rims
+#   surface_<kind>      800x120  near ground with stones and texture
+# Each layer is opaque below its skyline and transparent above it. The
+# horizon rises lower-left to upper right (the human's Landed sketch).
+# Everything in this section is self-contained (prefix `_surf`/`surface`).
+import random
+
+SURFACE_W = 800
+# Where the layers sit in the 640x360 Landed scene (top-left y of each layer).
+SURFACE_SCENE_Y = {"far": 90, "mid": 180, "near": 240}
+
+
+def _arc(x, left_y, right_y, apex_x=SURFACE_W):
+    """Circular-arc skyline: y = right_y at apex_x, falling toward left_y at x=0."""
+    drop = left_y - right_y
+    r = (apex_x * apex_x) / (2.0 * drop) + drop / 2.0
+    dx = x - apex_x
+    return right_y + (r - math.sqrt(max(r * r - dx * dx, 0.0)))
+
+
+def _vnoise(x, seed, scale):
+    """Smooth 1-D value noise in [0, 1)."""
+    t = x / scale
+    i = math.floor(t)
+    f = t - i
+    f = f * f * (3 - 2 * f)
+    return hash01(i, 0, seed) * (1 - f) + hash01(i + 1, 0, seed) * f
+
+
+def _fbm(x, seed, scales):
+    amp, tot, norm = 1.0, 0.0, 0.0
+    for k, sc in enumerate(scales):
+        tot += amp * _vnoise(x, seed + k * 13, sc)
+        norm += amp
+        amp *= 0.5
+    return tot / norm - 0.5
+
+
+def _skyline(w, left_y, right_y, rough, seed, scales):
+    return [int(round(_arc(x, left_y, right_y) + _fbm(x, seed, scales) * rough)) for x in range(w)]
+
+
+def _fill_terrain(s, sky, bands, edge_hi, edge_lo):
+    """Fill below the skyline. bands: [(max_depth, key), ...] top to bottom;
+    two-pixel dither where one band meets the next."""
+    for x in range(s.w):
+        y0 = sky[x]
+        slope = sky[min(x + 2, s.w - 1)] - sky[max(x - 2, 0)]
+        for y in range(max(y0, 0), s.h):
+            dy = y - y0
+            if dy == 0:
+                s.px(x, y, edge_hi if slope < 0 else edge_lo)
+                continue
+            for i, (limit, key) in enumerate(bands):
+                if dy <= limit:
+                    if i + 1 < len(bands) and limit - dy < 2 and (x + y) % 2 == 0:
+                        key = bands[i + 1][1]
+                    s.px(x, y, key)
+                    break
+
+
+def _crater(s, sky, cx, cy, rx, ry, floor, shade, rim_hi, rim_lo):
+    """Flattened (perspective) crater: lit rim top-left, shadowed floor."""
+    for y in range(cy - ry - 1, cy + ry + 2):
+        for x in range(cx - rx - 1, cx + rx + 2):
+            if not (0 <= x < s.w and 0 <= y < s.h) or y <= sky[x]:
+                continue
+            d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
+            if d > 1.0:
+                continue
+            side = (x - cx) / rx + (y - cy) / ry
+            if d > 0.62:
+                s.px(x, y, rim_hi if side < 0 else rim_lo)
+            else:
+                s.px(x, y, shade if (side < -0.3 or (x + y) % 3 == 0) else floor)
+
+
+def _stone(s, x, y, w, h, hi, mid, lo):
+    """Small lit boulder with a cast shadow to the lower right."""
+    for j in range(h):
+        for i in range(w):
+            ex = ((i + 0.5) / w - 0.5) * 2
+            ey = ((j + 0.5) / h - 0.5) * 2
+            if ex * ex + ey * ey > 1.0:
+                continue
+            s.px(x + i, y + j, hi if ex + ey < -0.55 else lo if ex + ey > 0.5 else mid)
+    for i in range(1, w + 1):
+        s.px(x + i, y + h, lo)
+
+
+def _hatch(s, rng, sky, n, key, length, top_margin):
+    """Diagonal hatch strokes like the human's sketch; denser toward the camera."""
+    for _ in range(n):
+        x = rng.randrange(0, s.w)
+        t = rng.random() ** 0.6
+        y = int(sky[x] + top_margin + t * max(s.h - sky[x] - top_margin - 1, 1))
+        for k in range(rng.randint(*length)):
+            if x + k < s.w and y - k > sky[x + k] + 2:
+                s.px(x + k, y - k, key)
+
+
+def _scatter_craters(s, sky, rng, n, rx_range, squash, y_lo, palette):
+    for _ in range(n):
+        rx = rng.randint(*rx_range)
+        ry = max(2, int(rx * squash))
+        cx = rng.randrange(rx, s.w - rx)
+        lo = max(sky[cx] + ry + 3, y_lo)
+        hi = s.h - ry - 2
+        if lo >= hi:
+            continue
+        _crater(s, sky, cx, rng.randint(lo, hi), rx, ry, *palette)
+
+
+def _cracks(s, rng, sky, n, dark, light):
+    """Random-walk ice cracks with a pale highlight above them."""
+    for _ in range(n):
+        x = rng.randrange(20, s.w - 20)
+        y = rng.randint(sky[x] + 14, s.h - 4)
+        for _ in range(rng.randint(14, 40)):
+            if 0 <= x < s.w and 0 <= y < s.h and y > sky[x] + 4:
+                s.px(x, y, dark)
+                if rng.random() < 0.5 and s.opaque(x, y - 1):
+                    s.px(x, y - 1, light)
+            x += rng.choice((1, 1, 1, 2, -1))
+            y += rng.choice((-1, 0, 0, 1, 1))
+
+
+def _frost(s, rng, sky, n, key):
+    for _ in range(n):
+        x = rng.randrange(s.w)
+        y = rng.randint(sky[x] + 3, s.h - 1)
+        s.px(x, y, key)
+        if rng.random() < 0.3:
+            s.px(x + 1, y, key)
+
+
+# Per-kind look: skyline (left_y, right_y, roughness), edge keys (lit, shaded),
+# depth bands. Palette names only.
+SURFACE_LOOK = {
+    "rocky": dict(  # rust and grey rock, craters, scattered stones
+        far=dict(sky=(172, 32, 6), edge=("am2", "am1"),
+                 bands=[(3, "am1"), (14, "am0"), (40, "rd0"), (9999, "rd0")]),
+        mid=dict(sky=(100, 42, 9), edge=("am2", "am1"),
+                 bands=[(4, "am1"), (30, "am0"), (70, "rd0"), (9999, "rd0")]),
+        near=dict(sky=(84, 40, 5), edge=("am3", "am2"),
+                  bands=[(3, "am2"), (24, "am1"), (60, "am0"), (9999, "rd0")]),
+        crater=("rd0", "am0", "am2", "am1"), crater_near=("am0", "rd0", "am2", "am1"),
+        stone=("gm5", "gm4", "gm2"), hatch="am0", hatch2="am2",
+        n_stone=26, n_crater_mid=7, n_crater_near=4, n_hatch=190,
+    ),
+    "moon": dict(  # grey dust, low and smooth
+        far=dict(sky=(176, 38, 2), edge=("gm6", "gm5"),
+                 bands=[(3, "gm4"), (16, "gm3"), (44, "gm2"), (9999, "gm1")]),
+        mid=dict(sky=(104, 46, 3), edge=("gm6", "gm5"),
+                 bands=[(4, "gm5"), (28, "gm4"), (66, "gm3"), (9999, "gm2")]),
+        near=dict(sky=(86, 44, 2), edge=("gm6", "gm5"),
+                  bands=[(3, "gm5"), (26, "gm4"), (64, "gm3"), (9999, "gm2")]),
+        crater=("gm2", "gm3", "gm6", "gm4"), crater_near=("gm2", "gm3", "gm6", "gm5"),
+        stone=("gm6", "gm5", "gm3"), hatch="gm3", hatch2="gm5",
+        n_stone=7, n_crater_mid=9, n_crater_near=5, n_hatch=90,
+    ),
+    "icy": dict(  # pale blue ice, cracks, frost
+        far=dict(sky=(170, 34, 5), edge=("cy4", "cy3"),
+                 bands=[(3, "cy2"), (14, "cy1"), (40, "cy0"), (9999, "gm2")]),
+        mid=dict(sky=(98, 44, 7), edge=("wh3", "cy4"),
+                 bands=[(4, "cy3"), (28, "cy2"), (66, "cy1"), (9999, "cy0")]),
+        near=dict(sky=(82, 42, 4), edge=("wh3", "cy4"),
+                  bands=[(3, "wh2"), (24, "cy4"), (60, "cy3"), (9999, "cy2")]),
+        crater=("cy1", "cy2", "wh3", "cy3"), crater_near=("cy1", "cy2", "wh3", "cy4"),
+        stone=("wh3", "wh2", "cy2"), hatch="cy2", hatch2="wh3",
+        n_stone=9, n_crater_mid=3, n_crater_near=2, n_hatch=70,
+    ),
+}
+
+
+def surface_layer(kind, layer):
+    """One 800-wide parallax layer; layer is 'far', 'mid' or 'near'."""
+    look = SURFACE_LOOK[kind]
+    spec = look[layer]
+    h = {"far": 200, "mid": 160, "near": 120}[layer]
+    seed = {"rocky": 11, "moon": 23, "icy": 37}[kind] + {"far": 0, "mid": 100, "near": 200}[layer]
+    rng = random.Random(seed)
+    s = Spr(SURFACE_W, h)
+    left, right, rough = spec["sky"]
+    scales = (200, 90, 40) if kind == "moon" else (120, 47, 19)
+    sky = _skyline(SURFACE_W, left, right, rough, seed, scales)
+    _fill_terrain(s, sky, spec["bands"], *spec["edge"])
+
+    if layer == "far":
+        for _ in range(14):  # distant ridge lines on the limb face
+            x = rng.randrange(40, SURFACE_W - 40)
+            y = sky[x] + rng.randint(8, 30)
+            for k in range(rng.randint(10, 26)):
+                if s.opaque(x + k, y):
+                    s.px(x + k, y, spec["bands"][1][1])
+    elif layer == "mid":
+        _scatter_craters(s, sky, rng, look["n_crater_mid"], (14, 34), 0.22, 30, look["crater"])
+        _hatch(s, rng, sky, look["n_hatch"] // 3, look["hatch"], (3, 5), 10)
+        if kind == "icy":
+            _cracks(s, rng, sky, 10, "cy0", "wh2")
+    else:
+        _scatter_craters(s, sky, rng, look["n_crater_near"], (26, 60), 0.2, 24, look["crater_near"])
+        _hatch(s, rng, sky, look["n_hatch"], look["hatch"], (3, 7), 8)
+        _hatch(s, rng, sky, look["n_hatch"] // 4, look["hatch2"], (2, 4), 8)
+        for _ in range(look["n_stone"]):
+            w = rng.choice((3, 3, 4, 5, 6, 8))
+            x = rng.randrange(4, SURFACE_W - 12)
+            _stone(s, x, rng.randint(sky[x] + 10, h - 8), w, max(2, w // 2 + 1), *look["stone"])
+        if kind == "icy":
+            _cracks(s, rng, sky, 16, "cy1", "wh3")
+            _frost(s, rng, sky, 90, "wh3")
+        elif kind == "moon":
+            for _ in range(60):  # fine dust speckle
+                x = rng.randrange(SURFACE_W)
+                s.px(x, rng.randint(sky[x] + 4, h - 1), "gm5")
+    return s
+
+
+def build_surfaces(kinds=("rocky", "moon", "icy")):
+    out = {}
+    for kind in kinds:
+        out[f"surface_{kind}_far"] = surface_layer(kind, "far")
+        out[f"surface_{kind}_mid"] = surface_layer(kind, "mid")
+        out[f"surface_{kind}"] = surface_layer(kind, "near")
+    return out
+
+
+def surface_preview(surfaces, ship, path):
+    """Each kind stacked into the 640x360 Landed scene (camera 100px in), the
+    16x16 Spacecraft sprite at 3x (stand-in until the 3/4 Chassis lands) in
+    front, side by side over a star field."""
+    kinds = [k for k in ("rocky", "moon", "icy") if f"surface_{k}" in surfaces]
+    w, h, gap = 640, 360, 8
+    sheet = Image.new("RGBA", (w * len(kinds) + gap * (len(kinds) + 1), h + 36), col("void"))
+    d = ImageDraw.Draw(sheet)
+    for n, kind in enumerate(kinds):
+        stars = Spr(w, h)
+        for i in range(w * h // 700):
+            x, y = int(hash01(i, 1, 5) * w), int(hash01(i, 2, 5) * h)
+            stars.px(x, y, "wh1" if hash01(i, 3, 5) > 0.7 else "gm4")
+        bg = Image.new("RGBA", (w, h), col("void"))
+        bg.alpha_composite(stars.image())
+        for layer, suffix, off in (("far", "_far", 40), ("mid", "_mid", 70), ("near", "", 100)):
+            spr = surfaces[f"surface_{kind}{suffix}"]
+            bg.alpha_composite(spr.image().crop((off, 0, off + w, spr.h)), (0, SURFACE_SCENE_Y[layer]))
+        bg.alpha_composite(ship.image().resize((ship.w * 3, ship.h * 3), Image.NEAREST), (296, 262))
+        sheet.alpha_composite(bg, (gap + n * (w + gap), 8))
+        d.text((gap + n * (w + gap), h + 14), f"{kind}: far / mid / near layers, stand-in ship", fill=col("wh1"))
+    d.text((gap, h + 24), "HELIOPAUSE landscape surface layers - AI-generated art", fill=col("cy3"))
+    sheet.save(path)
+
+
 if __name__ == "__main__":
     out = Path(sys.argv[1])
     out.mkdir(parents=True, exist_ok=True)
@@ -494,3 +749,9 @@ if __name__ == "__main__":
     if len(sys.argv) > 2:
         preview(sprites, sys.argv[2])
     print("\n".join(f"{n} {s.w}x{s.h}" for n, s in sprites.items()))
+    surfaces = build_surfaces()
+    for name, spr in surfaces.items():
+        spr.image().save(out / f"{name}.png")
+    if len(sys.argv) > 3:
+        surface_preview(surfaces, sprites["spacecraft"], sys.argv[3])
+    print("\n".join(f"{n} {s.w}x{s.h}" for n, s in surfaces.items()))

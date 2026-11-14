@@ -59,6 +59,42 @@
     {
       "key": "spacecraft_flame",
       "file": "sprites/spacecraft_flame.png"
+    },
+    {
+      "key": "surface_icy",
+      "file": "sprites/surface_icy.png"
+    },
+    {
+      "key": "surface_icy_far",
+      "file": "sprites/surface_icy_far.png"
+    },
+    {
+      "key": "surface_icy_mid",
+      "file": "sprites/surface_icy_mid.png"
+    },
+    {
+      "key": "surface_moon",
+      "file": "sprites/surface_moon.png"
+    },
+    {
+      "key": "surface_moon_far",
+      "file": "sprites/surface_moon_far.png"
+    },
+    {
+      "key": "surface_moon_mid",
+      "file": "sprites/surface_moon_mid.png"
+    },
+    {
+      "key": "surface_rocky",
+      "file": "sprites/surface_rocky.png"
+    },
+    {
+      "key": "surface_rocky_far",
+      "file": "sprites/surface_rocky_far.png"
+    },
+    {
+      "key": "surface_rocky_mid",
+      "file": "sprites/surface_rocky_mid.png"
     }
   ],
   "audio": []
