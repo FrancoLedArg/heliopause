@@ -23,7 +23,7 @@ export class Landed extends Scene {
   private run!: Run;
   private report: LandedData['report'];
   /** The layers, back to front: ambient motion (parallax drift) moves these. */
-  layers!: Readonly<Record<'sky' | 'far' | 'mid' | 'near' | 'ship', GameObjects.Container>>;
+  layers!: Readonly<Record<'sky' | 'ground' | 'ship', GameObjects.Container>>;
   /** Whether the ambient life was left still; read once at create from `prefers-reduced-motion`. */
   reducedMotion = false;
   /** The ambient life: tests use it to seek the drift to a chosen moment. */
