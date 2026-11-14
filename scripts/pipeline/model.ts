@@ -188,3 +188,14 @@ export function leanStatus(status: PipelineStatus): LeanStatus {
     mergeable: status.mergeable.map(lean),
   };
 }
+
+/**
+ * Does a failed merge call mean "the PR fell behind main"? GitHub answers 405
+ * "Required status check ... is expected" in the seconds before its merge state
+ * catches up to a just-merged PR; the fix is the same update-branch as for BEHIND.
+ * `output` is the failed call's stderr plus stdout (gh prints the status there).
+ */
+export function mergeFailureMeansBehind(output: string): boolean {
+  const is405 = /HTTP 405|"status":\s*"?405"?/.test(output);
+  return is405 && /Required status check .* is expected/.test(output);
+}
