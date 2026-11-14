@@ -24,6 +24,9 @@ export function GameUI() {
   const [info, setInfo] = useState<'about' | 'credits' | undefined>(undefined);
   // The title button to focus when the menu comes back from the screen it opened.
   const [focus, setFocus] = useState<TitleButton | undefined>(undefined);
+  // Whether the in-Run Menu is open; while it is, it is the topmost overlay and takes every key.
+  const [menuOpen, setMenuOpen] = useState(false);
+
   // Set when the player leaves a Run, so the title they land on takes focus like after the picker's Back.
   const leftRun = useRef(false);
 
@@ -36,6 +39,7 @@ export function GameUI() {
           setRun(undefined);
           setPicking(false);
           setInfo(undefined);
+          setMenuOpen(false);
           setFocus(leftRun.current ? 'new-run' : undefined);
           leftRun.current = false;
         }
@@ -53,7 +57,7 @@ export function GameUI() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key.toLowerCase() !== 'm' || event.ctrlKey || event.metaKey || event.altKey) return;
-      if (scene !== SceneKey.Landed || chart !== undefined || event.repeat) return;
+      if (scene !== SceneKey.Landed || chart !== undefined || menuOpen || event.repeat) return;
       event.preventDefault();
       EventBus.emit('nav-chart-open-requested');
     };
@@ -61,7 +65,7 @@ export function GameUI() {
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [scene, chart]);
+  }, [scene, chart, menuOpen]);
 
   const launch = (chassisId: ChassisId): void => {
     const seed = chooseRunSeed(window.location.search, Math.random);
@@ -116,6 +120,8 @@ export function GameUI() {
       )}
       {scene === SceneKey.Landed && run !== undefined && (
         <RunMenu
+          open={menuOpen}
+          onOpenChange={setMenuOpen}
           onLeave={() => {
             leftRun.current = true;
             EventBus.emit('leave-run-requested');

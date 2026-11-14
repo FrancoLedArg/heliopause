@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 
@@ -10,6 +10,9 @@ const HALF_BUTTON_WIDTH = 68;
 type Step = 'menu' | 'confirm';
 
 interface RunMenuProps {
+  /** Whether the Menu is open; owned by the parent so it can route keys around an open Menu. */
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   /** The player confirmed leaving the Run. */
   onLeave: () => void;
 }
@@ -23,23 +26,22 @@ interface RunMenuProps {
  * the Menu is closed, Esc opens it only if no other handler (the Nav Chart) consumed the key with
  * `preventDefault()`.
  */
-export function RunMenu({ onLeave }: RunMenuProps) {
-  const [open, setOpen] = useState(false);
+export function RunMenu({ open, onOpenChange, onLeave }: RunMenuProps) {
   const [step, setStep] = useState<Step>('menu');
   const returnFocus = useRef<HTMLElement | null>(null);
   const panel = useRef<HTMLDivElement>(null);
 
-  const openMenu = (): void => {
+  const openMenu = useCallback((): void => {
     returnFocus.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setStep('menu');
-    setOpen(true);
-  };
-  const resume = (): void => {
-    setOpen(false);
+    onOpenChange(true);
+  }, [onOpenChange]);
+  const resume = useCallback((): void => {
+    onOpenChange(false);
     returnFocus.current?.focus();
     returnFocus.current = null;
-  };
+  }, [onOpenChange]);
 
   // Closed: Esc opens the Menu, unless another handler used the key to close its own overlay.
   useEffect(() => {
@@ -57,7 +59,7 @@ export function RunMenu({ onLeave }: RunMenuProps) {
       window.removeEventListener('keydown', onKeyDown);
       window.clearTimeout(pending);
     };
-  }, [open]);
+  }, [open, openMenu]);
 
   // Open: this panel is topmost. Capture Esc before overlays beneath it, and keep Tab inside.
   useEffect(() => {
@@ -90,7 +92,7 @@ export function RunMenu({ onLeave }: RunMenuProps) {
     return () => {
       window.removeEventListener('keydown', onKeyDown, true);
     };
-  }, [open, step]);
+  }, [open, step, resume]);
 
   // Each step puts focus on its safe default: Resume, or Stay.
   useEffect(() => {

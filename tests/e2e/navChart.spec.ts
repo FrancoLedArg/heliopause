@@ -147,3 +147,17 @@ test('with the mouse: hover inspects a Body, a click on the Moon selects it, a G
   await page.mouse.click(moon.x, moon.y);
   await expect(page.getByTestId('target')).toContainText(homeMoon.name);
 });
+
+test('M while the in-Run Menu is open does not open the Nav Chart under it', async ({ page }) => {
+  await page.goto(`/?seed=${SEED}&chassis=scout`);
+  await page.getByRole('button', { name: 'New Run' }).click();
+  await page.getByRole('button', { name: 'Menu' }).click();
+  await expect(page.getByRole('dialog', { name: 'Menu' })).toBeVisible();
+  await page.keyboard.press('m');
+  await page.waitForTimeout(250);
+  await expect(page.getByRole('dialog')).toHaveCount(1);
+  await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Resume' })).toBeFocused();
+  await page.getByRole('button', { name: 'Resume' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+});
