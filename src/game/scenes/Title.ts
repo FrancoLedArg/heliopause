@@ -9,6 +9,9 @@ const STAR_COUNT = 140;
 const STARFIELD_SEED = 1977; // Voyager launch year: same sky on every load.
 
 /** The title backdrop. Its menu (logo, New Run, build label) is React's, drawn over the canvas. */
+/** Until the Chassis picker (#36) lets the player choose, every New Run starts with the scout. */
+const DEFAULT_CHASSIS = 'scout';
+
 export class Title extends Scene {
   constructor() {
     super(SceneKey.Title);
@@ -21,7 +24,7 @@ export class Title extends Scene {
     this.add.image(438, 262, 'body_moon_2').setScale(2);
 
     const offNewRun = EventBus.on('new-run-requested', (seed) => {
-      const data: LandedData = { run: startRun(seed) };
+      const data: LandedData = { run: startRun(seed, DEFAULT_CHASSIS) };
       this.scene.start(SceneKey.Landed, data);
     });
     // A destroyed game (React StrictMode remounts, tests) never shuts its scenes down, so unsubscribe on

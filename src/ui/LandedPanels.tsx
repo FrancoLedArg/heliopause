@@ -1,5 +1,4 @@
-import { currentBody, findBody, type Run } from '../game/sim/index.ts';
-import { availableDeltaV } from './availableDeltaV.ts';
+import { availableDeltaV, currentBody, findBody, type Run } from '../game/sim/index.ts';
 import { formatDeltaV, formatDistanceAu, formatFuel, formatGravity } from './format.ts';
 import { KitFrame } from './kit/KitFrame.tsx';
 

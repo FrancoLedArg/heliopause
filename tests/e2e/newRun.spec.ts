@@ -29,8 +29,9 @@ test('New Run from the title screen lands on the Home Planet, seeded from the UR
   const home = homePlanet(generateStarSystem(123));
   await expect(page.getByRole('heading', { name: home.name })).toBeVisible();
   await expect(page.getByText('Home Planet · Rocky')).toBeVisible();
-  await expect(page.getByTestId('fuel')).toHaveText('8.0 t');
-  await expect(page.getByTestId('delta-v')).toBeVisible();
+  await expect(page.getByTestId('fuel')).toHaveText('21.0 t');
+  // Scout: 1230 s Isp, 4 t dry + 21 t Fuel: 1230 × 9.80665 × ln(25 / 4) is about 22.1 km/s.
+  await expect(page.getByTestId('delta-v')).toHaveText('22.1 km/s');
   await expect(page.getByTestId('game-ui')).toHaveAttribute('data-run-seed', '123');
   await expect(page.getByText('AI-generated art')).toBeVisible();
   await expect(newRun).toBeHidden();

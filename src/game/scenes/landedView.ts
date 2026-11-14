@@ -223,7 +223,7 @@ export function skyBodies(run: Run): SkyBody[] {
     const half = halfWidth('moon', scale);
     const trueDx = place(bearing(at)) - place(bearing(position(run, planetBody)));
     const preferred = trueDx === 0 ? (stringSeed(body.id) % 2 === 0 ? 1 : -1) : Math.sign(trueDx);
-    const used = taken.get(planet.bodyId ?? '') ?? { '-1': 0, '1': 0 };
+    const used = taken.get(planetBody.id) ?? { '-1': 0, '1': 0 };
     const offsetOn = (side: -1 | 1): number =>
       side *
       (halfWidth(planet.kind, planet.scale) +
@@ -243,7 +243,7 @@ export function skyBodies(run: Run): SkyBody[] {
         : 1;
     const x = Math.min(Math.max(planet.x + offsetOn(side), SKY_VISIBLE.left), SKY_VISIBLE.right);
     used[`${side}`] += 1;
-    taken.set(planet.bodyId ?? '', used);
+    taken.set(planetBody.id, used);
     placed.set(body.id, {
       bodyId: body.id,
       kind: 'moon',
