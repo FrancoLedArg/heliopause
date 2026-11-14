@@ -127,7 +127,7 @@ export class Flight extends Scene {
   playbackMs = 0;
 
   /** The dust colour of the departure and arrival grounds. */
-  private dust!: Readonly<Record<'departure' | 'arrival', PaletteColor>>;
+  private dustColors!: Readonly<Record<'departure' | 'arrival', PaletteColor>>;
   private stages!: Readonly<
     Record<'departure' | 'arrival' | 'space', readonly GameObjects.Container[]>
   >;
@@ -177,7 +177,7 @@ export class Flight extends Scene {
       status: { kind: 'landed', bodyId: this.flight.plan.toId },
     };
     const { layers: arrival, dustColor: arrivalDust } = this.buildGround(atTarget);
-    this.dust = { departure: departureDust, arrival: arrivalDust };
+    this.dustColors = { departure: departureDust, arrival: arrivalDust };
     const space = this.buildSpace();
     this.shadow = this.add.ellipse(
       SHIP_PLACEMENT.x,
@@ -396,13 +396,13 @@ export class Flight extends Scene {
     if (this.pace === 'full' && this.stage !== undefined && this.stage !== stage) {
       this.cameras.main.fadeIn(STAGE_FADE_MS);
     }
+    if (this.stage !== stage && stage !== 'space') this.fx?.setSurface(this.dustColors[stage]);
     this.stage = stage;
     for (const [name, objects] of Object.entries(this.stages)) {
       for (const object of objects) object.setVisible(name === stage);
     }
     this.shadow.setVisible(stage !== 'space');
     this.fx?.setStage(stage === 'space');
-    if (stage !== 'space') this.fx?.setSurface(this.dust[stage]);
   }
 
   /** Tells the HUD when something it shows has changed: the Burn, the thrust, the log or a Fuel step. */

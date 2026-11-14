@@ -284,10 +284,14 @@ it('the particles use the real sprites, tinted: dust and smoke by surface, spark
   const dust = byTexture('fx_dust');
   const smoke = byTexture('fx_smoke');
   const spark = byTexture('fx_spark');
-  // Real art, not the code-drawn stand-ins: the sprites carry a shaded rim the stand-ins lack.
-  expect(dust?.texture.getSourceImage().width).toBe(6);
-  expect(smoke?.texture.getSourceImage().width).toBe(10);
-  expect(spark?.texture.getSourceImage().width).toBe(3);
+  // Real art, not the code-drawn stand-ins (which are drawn at these same sizes): only the human's grids
+  // have a transparent corner on the dust clump and a dimmer arm on the spark glint.
+  const hex = (key: string, x: number, y: number): number =>
+    scene.textures.getPixel(x, y, key)?.color ?? -1;
+  expect(scene.textures.getPixelAlpha(1, 0, 'fx_dust')).toBe(0);
+  expect(hex('fx_spark', 0, 1)).toBe(paletteNumber('wh2'));
+  expect(hex('fx_spark', 1, 1)).toBe(paletteNumber('wh3'));
+  expect(smoke?.texture.getSourceImage()).toBeInstanceOf(HTMLImageElement);
   // The Home Planet's Moon is departed from a rocky Planet: amber dust (am2); sparks are am4.
   expect(dust?.ops.tint.current).toBe(paletteNumber('am2'));
   expect(smoke?.ops.tint.current).toBe(paletteNumber('am2'));
@@ -299,5 +303,7 @@ it('the smoke rises slowly, grows 1x to 3x and fades over 2 to 3 s', async () =>
   const smoke = emitters(scene).find((e) => e.texture.key === 'fx_smoke');
   expect(smoke?.ops.lifespan.propertyValue).toEqual({ min: 2000, max: 3000 });
   expect(smoke?.ops.scaleX.propertyValue).toEqual({ start: 1, end: 3 });
+  expect(smoke?.ops.speedX.propertyValue).toEqual({ min: 8, max: 20 });
+  expect(smoke?.ops.angle.propertyValue).toEqual({ min: 250, max: 290 });
   expect(smoke?.ops.alpha.propertyValue).toMatchObject({ end: 0 });
 });

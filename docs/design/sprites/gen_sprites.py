@@ -7,7 +7,7 @@ AI-generated. Their pixel grids (FX_GRIDS) were designed by the human
 (issue #98) and are encoded verbatim; the script only turns them into PNGs.
 
 Native 640x360, nearest-neighbour. Only kit palette colours are used.
-Light comes from the top-left; every sprite gets a 1px `void` outline.
+Light comes from the top-left; every sprite gets a 1px `void` outline, except the fx_dust, fx_smoke and fx_spark particles, which have none.
 
 Usage:  python3 -I gen_sprites.py <out_dir> [preview_png [surfaces_preview_png [chassis_preview_png]]]
 Needs Pillow and numpy.
