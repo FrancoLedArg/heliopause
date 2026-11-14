@@ -22,7 +22,13 @@ import {
   type Direction,
 } from '../game/scenes/navChartView.ts';
 import { currentBody, findBody, planHop, type Body, type Run } from '../game/sim/index.ts';
-import { bodyTypeLabel, formatDistanceAu, formatGravity } from './format.ts';
+import {
+  bodyCompositionLabel,
+  bodyFullLabel,
+  bodyTypeLabel,
+  formatDistanceAu,
+  formatGravity,
+} from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import { DELTA_V_EXPLANATION, describeHopPlan } from './hopPlanView.ts';
@@ -153,7 +159,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
 
   const optionId = (body: Body): string => `nav-option-${body.id}`;
   const stateWords = (body: Body): string => {
-    const words = [bodyTypeLabel(run, body)];
+    const words = [bodyFullLabel(run, body)];
     if (body.id === here.id) words.push('you are here');
     if (!body.landable) words.push('no surface');
     if (body.id === target?.id) words.push('target');
@@ -255,6 +261,9 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         >
           <KitFrame frame={focused.landable ? 'badge_ok' : 'badge_lock'} />
           {focused.landable ? 'Landable' : 'No surface'}
+          {bodyCompositionLabel(focused) && (
+            <span data-testid="tip-composition">{` · ${bodyCompositionLabel(focused)}`}</span>
+          )}
         </p>
         {!status.valid && (
           <p className="nav-chart__tip-verdict" data-testid="verdict">
@@ -289,6 +298,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
             <p className="nav-chart__badge nav-chart__badge--ok">
               <KitFrame frame="badge_ok" />
               Landable
+              <span data-testid="target-composition">{` · ${bodyCompositionLabel(target)}`}</span>
             </p>
           )}
         </div>

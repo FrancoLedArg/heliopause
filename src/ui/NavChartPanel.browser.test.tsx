@@ -135,6 +135,22 @@ it('keeps the tallest plan, with a 21-character target and a Margin warning, cle
   const buttons = host.querySelector<HTMLElement>('.nav-chart__actions');
   if (!targetName || !buttons || !plan.lastElementChild) throw new Error('missing plan parts');
   expect(targetName.textContent.toLowerCase()).toBe(name.toLowerCase());
+  // The head row carries the badge and the composition ("Landable · Icy") beside the label.
+  const head = byTestId(host, 'target');
+  const words = byTestId(host, 'target-composition');
+  expect(words.textContent).toMatch(/Icy|Rocky/);
+  // The badge is flush right by design: it must stay inside the block, clear of the label, on one row.
+  const label = head.querySelector<HTMLElement>('.nav-chart__target-label');
+  const badge = words.closest<HTMLElement>('.nav-chart__badge');
+  if (!label || !badge) throw new Error('missing head parts');
+  expect(words.getBoundingClientRect().right).toBeLessThanOrEqual(
+    head.getBoundingClientRect().right,
+  );
+  expect(badge.scrollWidth).toBeLessThanOrEqual(badge.clientWidth);
+  expect(label.getBoundingClientRect().right + 6).toBeLessThanOrEqual(
+    badge.getBoundingClientRect().left,
+  );
+  expect(badge.getBoundingClientRect().height).toBeLessThanOrEqual(12);
   expect(plan.scrollHeight).toBeLessThanOrEqual(plan.clientHeight);
   expect(plan.lastElementChild.getBoundingClientRect().bottom).toBeLessThanOrEqual(
     plan.getBoundingClientRect().bottom - 6,
@@ -184,9 +200,16 @@ it('shows the whole name and subtitle of the longest-named Body in the tooltip, 
   const fact = host.querySelector<HTMLElement>('.nav-chart__tip-fact');
   if (!fact) throw new Error('missing fact line');
   expect(kind.getBoundingClientRect().bottom).toBeLessThanOrEqual(fact.getBoundingClientRect().top);
-  expect(byTestId(host, 'landable').getBoundingClientRect().bottom).toBeLessThanOrEqual(
-    frame.bottom - 3,
+  // The badge, with its "Icy" or "Rocky", sits under the wrapped type line and inside the frame.
+  const badge = byTestId(host, 'landable');
+  const words = byTestId(host, 'tip-composition');
+  expect(words.textContent).toMatch(/Icy|Rocky/);
+  expect(badge.getBoundingClientRect().top).toBeGreaterThanOrEqual(
+    kind.getBoundingClientRect().bottom,
   );
+  expect(badge.scrollWidth).toBeLessThanOrEqual(badge.clientWidth);
+  expect(textRight(words)).toBeLessThanOrEqual(frame.right - SLACK);
+  expect(badge.getBoundingClientRect().bottom).toBeLessThanOrEqual(frame.bottom - 3);
 });
 
 it('shows the whole name and subtitle of the longest-named Body in the Hop plan, above the divider', async () => {
@@ -220,4 +243,40 @@ it('shows the whole name and subtitle of the longest-named Body in the Hop plan,
   expect(plan.getBoundingClientRect().bottom).toBeLessThanOrEqual(
     buttons.getBoundingClientRect().top,
   );
+});
+
+// Icy or Rocky is its own short item, so the worst-case name can never push it out of view.
+it('shows the composition in the tooltip and the target head for the longest-named planet, inside their frames', async () => {
+  const run = startRun(123, 'scout');
+  const longName = 'Thaeprioquaeprix Prime';
+  const planets = run.starSystem.planets.map((planet) =>
+    planet.moons.length > 0 ? { ...planet, name: longName } : planet,
+  );
+  const longRun = { ...run, starSystem: { ...run.starSystem, planets } };
+  const moon = listBodies(longRun.starSystem).find((b) => b.kind === 'moon');
+  if (!moon) throw new Error('no moon');
+  const host = await renderUi(
+    <NavChartPanel run={longRun} state={{ focusedId: moon.id, selectedId: moon.id }} />,
+  );
+  const tooltip = host.querySelector<HTMLElement>('[data-testid="inspect"]');
+  const tipBadge = host.querySelector<HTMLElement>('[data-testid="landable"]');
+  const target = host.querySelector<HTMLElement>('[data-testid="target"]');
+  const targetBadge = target?.querySelector<HTMLElement>('.nav-chart__badge');
+  const tipWords = host.querySelector<HTMLElement>('[data-testid="tip-composition"]');
+  const targetWords = host.querySelector<HTMLElement>('[data-testid="target-composition"]');
+  if (!tooltip || !tipBadge || !target || !targetBadge || !tipWords || !targetWords) {
+    throw new Error('missing composition parts');
+  }
+  expect(tipWords.textContent).toMatch(/Icy|Rocky/);
+  expect(targetWords.textContent).toMatch(/Icy|Rocky/);
+  expect(tipBadge.scrollWidth).toBeLessThanOrEqual(tipBadge.clientWidth);
+  expect(tipWords.getBoundingClientRect().right).toBeLessThanOrEqual(
+    tooltip.getBoundingClientRect().right,
+  );
+  expect(targetWords.getBoundingClientRect().right).toBeLessThanOrEqual(
+    target.getBoundingClientRect().right,
+  );
+  // The head holds the label and the badge on one 12 px row.
+  expect(targetBadge.getBoundingClientRect().height).toBeLessThanOrEqual(12);
+  expect(targetBadge.scrollWidth).toBeLessThanOrEqual(targetBadge.clientWidth);
 });
