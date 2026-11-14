@@ -5,7 +5,7 @@
  * and other allowed interpreters can still run anything.
  */
 import path from 'node:path';
-import { parseShell } from './shell.ts';
+import { parseScoped } from './shell.ts';
 
 export interface GuardContext {
   /** Repository (or worktree) root; recursive deletes are allowed inside it. */
@@ -270,7 +270,7 @@ function checkRm(
       return `recursive delete of an unresolved path (${operand}); use a literal path`;
     }
     if (cwd === null && !path.isAbsolute(resolved)) {
-      return `recursive delete after a cd to an unresolved directory (${operand})`;
+      return `recursive delete after a cd to an unresolved directory (${operand}); run the cd as its own command, or use an absolute path`;
     }
     // A glob whose segments all match every entry (`*`, `**/*`, `?*`, `.[!.]*`) empties the
     // directory before its first glob segment, so judge that directory. Any other pattern
@@ -297,13 +297,14 @@ function checkRm(
 
 /**
  * Directory after `cd args`, or null when it cannot be resolved (`~`, `$HOME`, `-`, unknown
- * vars, a missing directory). Known limitation: a `cd` inside a subshell or `bash -c` leaks
- * into later commands, because `parseShell` drops grouping.
+ * vars, a missing directory). Known limitation: each stage of a pipeline is a subshell
+ * in bash, but the guard treats `cd a | rm …` like `cd a; rm …`.
  */
 function nextCwd(
   cwd: string | null,
   args: readonly string[],
   context: GuardContext,
+  exists: (dir: string) => boolean,
 ): string | null {
   const target = args.find((arg) => arg !== '--' && !/^-[LPe@]+$/.test(arg));
   if (target === undefined || target === '-' || target.startsWith('~')) return null;
@@ -312,19 +313,64 @@ function nextCwd(
   if (cwd === null && !path.isAbsolute(resolved)) return null;
   const next = path.resolve(cwd ?? '/', resolved);
   // A failed `cd` leaves the shell where it was, so an unknown target is unresolved.
-  return context.isDirectory(next) ? next : null;
+  return exists(next) ? next : null;
+}
+
+/**
+ * Directories a `mkdir` creates, resolved against `cwd`; empty when `cwd` or an operand
+ * is unresolved. With `-p` every missing ancestor is created too.
+ */
+function mkdirTargets(
+  args: readonly string[],
+  cwd: string | null,
+  context: GuardContext,
+  exists: (dir: string) => boolean,
+): string[] {
+  const parents = args.some((arg) => arg === '--parents' || shortFlags(arg).includes('p'));
+  const created: string[] = [];
+  let options = true;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] ?? '';
+    if (options && arg === '--') options = false;
+    else if (options && (arg === '-m' || arg === '--mode')) i++;
+    else if (options && arg.startsWith('-')) continue;
+    else {
+      const operand = expandKnownVars(arg, context);
+      if (/[$*?[~]/.test(operand) || (cwd === null && !path.isAbsolute(operand))) continue;
+      let dir = path.resolve(cwd ?? '/', operand);
+      // Without -p, mkdir fails when the parent is missing.
+      if (parents || exists(path.dirname(dir))) created.push(dir);
+      while (parents && path.dirname(dir) !== dir) {
+        dir = path.dirname(dir);
+        created.push(dir);
+      }
+    }
+  }
+  return created;
 }
 
 /** Why `script` is blocked, or null when it may run. */
 export function guard(script: string, context: GuardContext): string | null {
-  // Follows `cd` within the command line so later `rm` operands resolve against it.
+  // Follows `cd` within the command line so later `rm` operands resolve against it. A
+  // subshell scope restores the outer directory when it ends.
   let cwd: string | null = context.cwd;
-  for (const command of parseShell(script)) {
-    const { words, env } = unwrap(command);
+  const outer: (string | null)[] = [];
+  // Directories an earlier `mkdir` on this line creates; a later `cd` into them succeeds.
+  const created = new Set<string>();
+  const exists = (dir: string): boolean => created.has(dir) || context.isDirectory(dir);
+  for (const item of parseScoped(script)) {
+    if ('scope' in item) {
+      if (item.scope === 'enter') outer.push(cwd);
+      else cwd = outer.pop() ?? cwd;
+      continue;
+    }
+    const { words, env } = unwrap(item.words);
     const [head, ...args] = words;
     if (head === undefined) continue;
     const name = path.basename(head);
-    if (name === 'cd') cwd = nextCwd(cwd, args, context);
+    if (name === 'cd') cwd = nextCwd(cwd, args, context, exists);
+    if (name === 'mkdir')
+      for (const dir of mkdirTargets(args, cwd, context, exists)) created.add(dir);
     const reason =
       name === 'git'
         ? checkGit(args, env)
