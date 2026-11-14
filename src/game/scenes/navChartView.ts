@@ -868,9 +868,24 @@ export const TOOLTIP_SIZE = { w: 150, h: 58 } as const;
  */
 const REASON = { top: 55, lineHeight: 11, charsPerLine: 24, bottomPad: 7 } as const;
 
-/** How tall the tooltip is: taller by a line for each line the reason wraps to. */
-export function tooltipHeight(why: string | undefined): number {
-  if (why === undefined) return TOOLTIP_SIZE.h;
+/**
+ * The Body type line is Silkscreen at 8 px (5.6 px a character across the 136 px between the insets):
+ * a longer one wraps onto a second line of 9 px. The cut-off is 22 characters, leaving room for the
+ * wider fonts CI draws.
+ */
+const KIND = { charsPerLine: 22, lineHeight: 9 } as const;
+
+/** How many pixels the lines under the Body type move down when it wraps: 0 or one line. */
+export function tooltipKindExtra(kind: string): number {
+  return kind.length > KIND.charsPerLine ? KIND.lineHeight : 0;
+}
+
+/**
+ * How tall the tooltip is: taller by a line for each line the reason wraps to, and by `kindExtra`
+ * (from `tooltipKindExtra`) when the Body type wraps.
+ */
+export function tooltipHeight(why: string | undefined, kindExtra = 0): number {
+  if (why === undefined) return TOOLTIP_SIZE.h + kindExtra;
   let lines = 1;
   let line = 0;
   for (const word of why.split(' ')) {
@@ -882,7 +897,7 @@ export function tooltipHeight(why: string | undefined): number {
       line = wanted;
     }
   }
-  return REASON.top + lines * REASON.lineHeight + REASON.bottomPad;
+  return REASON.top + lines * REASON.lineHeight + REASON.bottomPad + kindExtra;
 }
 
 /**
