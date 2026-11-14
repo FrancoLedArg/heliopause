@@ -62,32 +62,52 @@ it.each([
   expect(verdict.scrollWidth).toBeLessThanOrEqual(verdict.clientWidth);
 });
 
-// The Hop plan is the densest block on the panel: its low-chance state (the longest) must not run into the buttons.
-it('keeps the whole Hop plan, with its low-chance warning, above Cancel and Launch', async () => {
-  const run = startRun(123, 'scout');
-  const far = listBodies(run.starSystem).find((b) => b.name === 'Thakyxy');
-  if (!far) throw new Error('seed 123 has no Thakyxy');
-  host = document.createElement('div');
-  host.className = 'stage__ui';
-  document.body.append(host);
-  root = createRoot(host);
-  act(() => {
-    root?.render(
-      <div className="game-ui">
-        <NavChartPanel run={run} state={{ focusedId: far.id, selectedId: far.id }} />
-      </div>,
+// The Hop plan is the densest block on the panel. Its longest states (a low chance, and a Margin below
+// zero with its stronger warning) must keep every line, reason and note inside the plan area, above
+// the buttons, and the explanation under the chart must fit its box and the frame.
+it.each(['scout', 'hauler'] as const)(
+  'keeps the whole Hop plan above Cancel and Launch, and the Δv explanation inside the frame (%s, seed 123 Thakyxy)',
+  async (chassis) => {
+    const run = startRun(123, chassis);
+    const far = listBodies(run.starSystem).find((b) => b.name === 'Thakyxy');
+    if (!far) throw new Error('seed 123 has no Thakyxy');
+    host = document.createElement('div');
+    host.className = 'stage__ui';
+    document.body.append(host);
+    root = createRoot(host);
+    act(() => {
+      root?.render(
+        <div className="game-ui">
+          <NavChartPanel run={run} state={{ focusedId: far.id, selectedId: far.id }} />
+        </div>,
+      );
+    });
+    await document.fonts.load('14px VT323');
+    await document.fonts.load('8px Silkscreen');
+    await document.fonts.ready;
+    const plan = host.querySelector<HTMLElement>('[data-testid="hop-plan"]');
+    const warning = host.querySelector<HTMLElement>('[data-testid="plan-warning"]');
+    const explain = host.querySelector<HTMLElement>('[data-testid="plan-explain"]');
+    const frame = host.querySelector<HTMLElement>('.nav-chart__panel');
+    const buttons = host.querySelector<HTMLElement>('.nav-chart__actions');
+    if (!plan || !warning || !explain || !frame || !buttons) throw new Error('missing plan parts');
+    const buttonsTop = buttons.getBoundingClientRect().top;
+    expect(warning.getBoundingClientRect().bottom).toBeLessThanOrEqual(buttonsTop);
+    // Everything in the plan, down to its last line, sits inside the plan area and above the buttons.
+    expect(plan.scrollHeight).toBeLessThanOrEqual(plan.clientHeight);
+    expect(plan.lastElementChild?.getBoundingClientRect().bottom ?? 0).toBeLessThanOrEqual(
+      buttonsTop,
     );
-  });
-  await document.fonts.load('14px VT323');
-  await document.fonts.load('8px Silkscreen');
-  await document.fonts.ready;
-  const warning = host.querySelector<HTMLElement>('[data-testid="plan-warning"]');
-  const explain = host.querySelector<HTMLElement>('[data-testid="plan-explain"]');
-  const buttons = host.querySelector<HTMLElement>('.nav-chart__actions');
-  if (!warning || !explain || !buttons) throw new Error('no warning, explanation or buttons');
-  expect(explain.getBoundingClientRect().bottom).toBeLessThanOrEqual(
-    buttons.getBoundingClientRect().top,
-  );
-  // One line of 11 px.
-  expect(warning.getBoundingClientRect().height).toBeLessThanOrEqual(12);
-});
+    // One line of 11 px, and not cut off.
+    expect(warning.getBoundingClientRect().height).toBeLessThanOrEqual(12);
+    expect(warning.scrollWidth).toBeLessThanOrEqual(warning.clientWidth);
+    for (const reason of host.querySelectorAll<HTMLElement>('[data-testid="burn-reason"]')) {
+      expect(reason.scrollWidth).toBeLessThanOrEqual(reason.clientWidth);
+    }
+    // The explanation under the chart is not cut off by its box or the panel frame.
+    expect(explain.scrollHeight).toBeLessThanOrEqual(explain.clientHeight);
+    expect(explain.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      frame.getBoundingClientRect().bottom,
+    );
+  },
+);
