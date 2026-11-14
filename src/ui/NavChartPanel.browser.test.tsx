@@ -3,7 +3,7 @@ import '@fontsource/vt323/400.css';
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it } from 'vitest';
-import { startRun, type BodyId } from '../game/sim/index.ts';
+import { listBodies, startRun, type BodyId } from '../game/sim/index.ts';
 import { NavChartPanel } from './NavChartPanel.tsx';
 import '../style.css';
 
@@ -60,4 +60,34 @@ it.each([
   expect(text.bottom).toBeLessThanOrEqual(frame.bottom - 3);
   expect(text.right).toBeLessThanOrEqual(frame.right - 3);
   expect(verdict.scrollWidth).toBeLessThanOrEqual(verdict.clientWidth);
+});
+
+// The Hop plan is the densest block on the panel: its low-chance state (the longest) must not run into the buttons.
+it('keeps the whole Hop plan, with its low-chance warning, above Cancel and Launch', async () => {
+  const run = startRun(123, 'scout');
+  const far = listBodies(run.starSystem).find((b) => b.name === 'Thakyxy');
+  if (!far) throw new Error('seed 123 has no Thakyxy');
+  host = document.createElement('div');
+  host.className = 'stage__ui';
+  document.body.append(host);
+  root = createRoot(host);
+  act(() => {
+    root?.render(
+      <div className="game-ui">
+        <NavChartPanel run={run} state={{ focusedId: far.id, selectedId: far.id }} />
+      </div>,
+    );
+  });
+  await document.fonts.load('14px VT323');
+  await document.fonts.load('8px Silkscreen');
+  await document.fonts.ready;
+  const warning = host.querySelector<HTMLElement>('[data-testid="plan-warning"]');
+  const explain = host.querySelector<HTMLElement>('[data-testid="plan-explain"]');
+  const buttons = host.querySelector<HTMLElement>('.nav-chart__actions');
+  if (!warning || !explain || !buttons) throw new Error('no warning, explanation or buttons');
+  expect(explain.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    buttons.getBoundingClientRect().top,
+  );
+  // One line of 11 px.
+  expect(warning.getBoundingClientRect().height).toBeLessThanOrEqual(12);
 });

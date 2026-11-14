@@ -28,6 +28,11 @@ export interface GameEvents {
    * `selectedId` is the same value and is only for the chart panel's own display.
    */
   'nav-target-selected': [targetId: BodyId | undefined];
+  /**
+   * React -> Phaser: the player pressed Launch on the Hop plan for `targetId`, at any Success Chance.
+   * Ticket #31 (flight playback) consumes it; until then nothing listens.
+   */
+  'hop-launch-requested': [targetId: BodyId];
   /** React -> Phaser: the player confirmed leaving the Run from the in-Run Menu; go back to the Title scene. */
   'leave-run-requested': [];
 }

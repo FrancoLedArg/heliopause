@@ -504,6 +504,8 @@ export type ChartCommand =
   | { readonly kind: 'move'; readonly direction: Direction }
   | { readonly kind: 'step'; readonly delta: 1 | -1 }
   | { readonly kind: 'select' }
+  /** Cancel the Hop plan: no target. */
+  | { readonly kind: 'clear' }
   | { readonly kind: 'focus'; readonly id: BodyId }
   | { readonly kind: 'click'; readonly id: BodyId };
 
@@ -529,6 +531,8 @@ export function chartReducer(
       return { ...state, focusedId: stepFocus(layout, state.focusedId, command.delta) };
     case 'focus':
       return { ...state, focusedId: command.id };
+    case 'clear':
+      return { ...state, selectedId: undefined };
     case 'select':
       return choose(run, state, state.focusedId);
     case 'click':
