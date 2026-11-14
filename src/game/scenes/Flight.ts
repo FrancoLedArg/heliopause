@@ -59,6 +59,26 @@ const FOLLOW = 0.82;
 /** Takeoff: spool up, rise, tilt, then boost away up-right (shares of the Takeoff's playback). */
 const LIFT = { at: 0.1, height: 220 } as const;
 const TILT = { from: 0.58, to: 0.7 } as const;
+/** How far (px) the boost carries the Spacecraft right and up by the end of the Takeoff. */
+const BOOST = { x: 300, y: 210 } as const;
+/** Where the boost leaves the Spacecraft on screen: the camera trails it by `1 - FOLLOW`. */
+const BOOST_EXIT = {
+  x: SHIP_PLACEMENT.x + BOOST.x * (1 - FOLLOW),
+  y: SHIP_PLACEMENT.baseY - (LIFT.height + BOOST.y) * (1 - FOLLOW),
+} as const;
+/** The share of the Transfer over which the camera catches up with the Spacecraft. */
+const TRANSFER_SETTLE = 0.25;
+/**
+ * The departure Body in the Transfer: large at the left, receding toward the left edge. It stays in
+ * the open sky between the top bar and phase strip (above y 78 right of x 170) and the flight log
+ * (below y 212), so the player sees it shrink the whole way.
+ */
+const DEPARTURE = {
+  from: { x: 96, y: 132, size: 136 },
+  to: { x: 34, y: 118, size: 26 },
+} as const;
+/** How long the fade at a cut between the ground and space lasts (ms). */
+const STAGE_FADE_MS = 180;
 /** Landing comes down from this high above the ground. */
 const DESCENT_HEIGHT = 300;
 /** How long a Spacecraft that ran dry while Landing takes to hit the ground (ms). */
@@ -85,10 +105,10 @@ export class Flight extends Scene {
   private before!: Run;
   private flight!: HopFlight;
   private after!: Run;
-  /** The pacing of this Hop's playback; tests read its length. */
+  /** The pacing of this Hop's playback; tests find each Burn's span in it. */
   playback!: FlightPlayback;
   /** Shorter, with no streaks or shake, when the player prefers reduced motion. */
-  pace: Pace = 'full';
+  private pace: Pace = 'full';
   private clock!: Tweens.Tween;
   private finished = false;
 
@@ -100,8 +120,10 @@ export class Flight extends Scene {
   private hoverPlume!: GameObjects.Image;
   private rearPlume!: GameObjects.Image;
   private shadow!: GameObjects.Ellipse;
-  private fromBody!: GameObjects.Image;
-  private toBody!: GameObjects.Image;
+  /** The Transfer's departure and target Bodies; tests check the HUD never hides them. */
+  fromBody!: GameObjects.Image;
+  toBody!: GameObjects.Image;
+  private stage: 'departure' | 'arrival' | 'space' | undefined;
   private streaks: {
     readonly line: GameObjects.Rectangle;
     readonly x0: number;
@@ -123,6 +145,7 @@ export class Flight extends Scene {
     this.streaks = [];
     this.shaken = new Set();
     this.lastMoment = undefined;
+    this.stage = undefined;
   }
 
   create(): void {
@@ -213,8 +236,8 @@ export class Flight extends Scene {
     const rise = smooth((progress - LIFT.at) / (TILT.from - LIFT.at));
     const tilt = clamp01((progress - TILT.from) / (TILT.to - TILT.from));
     const boost = clamp01((progress - TILT.to) / (1 - TILT.to)) ** 2;
-    let x = SHIP_PLACEMENT.x + 300 * boost;
-    let y = base - LIFT.height * rise - 210 * boost;
+    let x = SHIP_PLACEMENT.x + BOOST.x * boost;
+    let y = base - LIFT.height * rise - BOOST.y * boost;
     // Ran dry while climbing: the engine is out and the Spacecraft sags.
     if (aftermath > 0) y += Math.min(aftermath, 1200) * 0.02;
     x = Math.round(x);
@@ -232,20 +255,28 @@ export class Flight extends Scene {
 
   private transfer(progress: number, thrusting: boolean, streakMs: number): void {
     this.cameras.main.setScroll(0, 0);
-    // The Spacecraft climbs diagonally to the upper right, bobbing a little as it goes.
-    const x = Math.round(296 + 56 * progress);
-    const y = Math.round(214 - 40 * progress + Math.sin(progress * 9) * 2);
+    // The Spacecraft climbs diagonally to the upper right, bobbing a little as it goes. It starts
+    // where the boost left it on screen and the camera catches up, so the cut reads as one movement.
+    const settle = smooth(progress / TRANSFER_SETTLE);
+    const lineX = 296 + 56 * progress;
+    const lineY = 214 - 40 * progress + Math.sin(progress * 9) * 2;
+    const x = Math.round(BOOST_EXIT.x + (lineX - BOOST_EXIT.x) * settle);
+    const y = Math.round(BOOST_EXIT.y + (lineY - BOOST_EXIT.y) * settle);
     this.shipArt('flight');
     this.ship.setPosition(x, y).setAngle(0);
     this.thrust(false, thrusting, 1);
-    // Behind, the departure Body shrinks away to the lower left; ahead, the target grows.
-    const from = { size: 210, to: 46 };
+    // Behind, the departure Body shrinks away toward the left edge; ahead, the target grows. Both
+    // stay in the open sky, clear of the HUD (phase strip above, flight log and Fuel below left).
+    const recede = smooth(progress);
+    const fromDiameter = DEPARTURE.from.size + (DEPARTURE.to.size - DEPARTURE.from.size) * recede;
     const to = { size: 14, to: 120 };
-    const fromDiameter = from.size + (from.to - from.size) * smooth(progress);
     const toDiameter = to.size + (to.to - to.size) * progress ** 1.6;
     this.fromBody
       .setScale(fromDiameter / this.fromBody.width)
-      .setPosition(Math.round(78 - 110 * progress), Math.round(196 + 120 * progress));
+      .setPosition(
+        Math.round(DEPARTURE.from.x + (DEPARTURE.to.x - DEPARTURE.from.x) * recede),
+        Math.round(DEPARTURE.from.y + (DEPARTURE.to.y - DEPARTURE.from.y) * recede),
+      );
     this.toBody
       .setScale(toDiameter / this.toBody.width)
       .setPosition(Math.round(560 - 40 * progress), Math.round(96 + 24 * progress));
@@ -311,6 +342,9 @@ export class Flight extends Scene {
 
   private showStage(burn: Burn): void {
     const stage = burn === 'takeoff' ? 'departure' : burn === 'transfer' ? 'space' : 'arrival';
+    // A brief fade softens each cut between the ground and space.
+    if (this.stage !== undefined && this.stage !== stage) this.cameras.main.fadeIn(STAGE_FADE_MS);
+    this.stage = stage;
     for (const [name, objects] of Object.entries(this.stages)) {
       for (const object of objects) object.setVisible(name === stage);
     }

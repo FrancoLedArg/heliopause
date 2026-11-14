@@ -2,7 +2,7 @@
 // Every figure comes from the simulation's flight; the playback's moment only says how far along it is.
 import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
 import { BURNS, type Burn, type HopFlight, type Run } from '../game/sim/index.ts';
-import { formatDeltaV, formatFuel } from './format.ts';
+import { formatFuel, formatPlanDeltaV } from './format.ts';
 
 const BURN_LABEL: Record<Burn, string> = {
   takeoff: 'Takeoff',
@@ -56,13 +56,14 @@ export function describeFlight(
     fuelShare: Math.min(Math.max(fuel / capacity, 0), 1),
     log: flight.burns.map((result, index): LogRow => {
       const label = BURN_LABEL[result.burn];
-      const estimate = formatDeltaV(result.estimated);
+      // Whole m/s throughout, like the Hop plan these rows are checked against.
+      const estimate = formatPlanDeltaV(result.estimated);
       if (index < logged && result.status === 'completed') {
         return {
           label,
           state: 'done',
           estimate,
-          actual: formatDeltaV(result.actual),
+          actual: formatPlanDeltaV(result.actual),
           change: signedPercent(result.actual / result.estimated - 1),
         };
       }
@@ -71,7 +72,7 @@ export function describeFlight(
           label,
           state: 'ran-out',
           estimate,
-          actual: `${WHOLE.format(result.delivered)} of ${formatDeltaV(result.actual)}`,
+          actual: `${WHOLE.format(result.delivered)} of ${formatPlanDeltaV(result.actual)}`,
           change: 'ran out',
         };
       }
