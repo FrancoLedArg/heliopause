@@ -16,9 +16,13 @@ _Avoid_: Restart, retry, new game
 One randomly generated star and the Bodies orbiting it. Escaping it leads to the next, harder Star System in the same Run.
 _Avoid_: Solar system, level, map
 
+**Home Planet**:
+The small rocky planet, close to its star and with at least one Moon, where the Spacecraft starts in each Star System. Superseded by Starting Moon when spec #96 is built; until then the code and specs #12, #14 and #15 still use this term.
+_Avoid_: Start, spawn, Earth
+
 **Starting Moon**:
-The randomly chosen Moon where the Spacecraft is marooned at the start of each Star System, knowing nothing but where it stands and one nearby Body.
-_Avoid_: Home Planet, start, spawn, Earth
+The randomly chosen Moon where the Spacecraft is marooned at the start of each Star System, knowing nothing but where it stands and one nearby Body. Replaces Home Planet once spec #96 is built.
+_Avoid_: Start, spawn, Earth
 
 **Stranded**:
 A Run's end when no Hop could have any Success Chance, even after removing every removable Component.
@@ -33,7 +37,7 @@ Leaving a Star System by making the Jump, which wins that Star System.
 _Avoid_: Win, exit
 
 **Jump**:
-Firing the Jump Drive at the Heliopause, which carries the Spacecraft to the next Star System's Starting Moon and burns the Jump Drive out.
+Firing the Jump Drive at the Heliopause, which carries the Spacecraft to the next Star System's Home Planet (Starting Moon once #96 lands) and burns the Jump Drive out.
 _Avoid_: Warp, hyperspace, FTL
 
 **Heliopause**:
