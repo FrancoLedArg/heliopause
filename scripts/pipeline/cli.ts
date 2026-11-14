@@ -65,6 +65,7 @@ interface SnapshotQuery {
           number: number;
           title: string;
           parent: { number: number } | null;
+          subIssuesSummary: { total: number; completed: number } | null;
           issueDependenciesSummary: { blockedBy: number } | null;
         })[];
       };
@@ -94,6 +95,7 @@ query($owner: String!, $name: String!) {
         number title
         labels(first: 30) { nodes { name } }
         parent { number }
+        subIssuesSummary { total completed }
         issueDependenciesSummary { blockedBy }
       }
     }
@@ -169,6 +171,7 @@ function snapshot(repo: Repo): { issues: IssueSnapshot[]; pulls: PullSnapshot[] 
       labels: node.labels.nodes.map((label) => label.name),
       openBlockers: node.issueDependenciesSummary?.blockedBy ?? 0,
       parent: node.parent?.number ?? null,
+      subIssues: node.subIssuesSummary ?? { total: 0, completed: 0 },
     })),
     pulls: pullRequests.nodes.map((node) => ({
       number: node.number,
@@ -193,6 +196,7 @@ function formatStatus(status: PipelineStatus): string {
   return [
     section('New specs', status.newSpecs.map(line)),
     section('Active specs', status.activeSpecs.map(line)),
+    section('Specs to close (all tickets done)', status.specsToClose.map(line)),
     section('Ready tickets', status.readyTickets.map(line)),
     section(
       'In progress',
@@ -251,6 +255,24 @@ const commands: Record<string, (args: string[]) => void> = {
     const { issues, pulls } = snapshot(currentRepo());
     const status = summarize(issues, pulls);
     console.log(values.json ? JSON.stringify(leanStatus(status), null, 2) : formatStatus(status));
+  },
+
+  /** Close every claimed spec whose sub-issues are all closed (recovers a missed close). */
+  'close-specs'() {
+    const { issues, pulls } = snapshot(currentRepo());
+    for (const spec of summarize(issues, pulls).specsToClose) {
+      const total = spec.subIssues.total;
+      comment('issue', spec.number, `🤖 All ${String(total)} tickets merged. Spec delivered.`);
+      gh([
+        'issue',
+        'edit',
+        String(spec.number),
+        '--remove-label',
+        `${Label.ReadyForAgent},${Label.InProgress}`,
+      ]);
+      gh(['issue', 'close', String(spec.number), '--reason', 'completed']);
+      console.log(`Closed spec #${String(spec.number)}`);
+    }
   },
 
   /** Mark a spec or ticket as taken by the Orchestrator. */
@@ -368,6 +390,9 @@ const commands: Record<string, (args: string[]) => void> = {
     const tickets = closedIssueNumbers(pull.body);
     for (const ticket of tickets) {
       gh(['issue', 'edit', String(ticket), '--remove-label', doneLabels]);
+      // GitHub closes `Closes #N` tickets asynchronously; close them now so the
+      // sub-issue count below is not read before it catches up.
+      gh(['issue', 'close', String(ticket), '--reason', 'completed']);
     }
 
     const specs = new Set(

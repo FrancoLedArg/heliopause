@@ -26,6 +26,8 @@ export interface IssueSnapshot {
   openBlockers: number;
   /** Parent spec number when this issue is a sub-issue. */
   parent: number | null;
+  /** Sub-issue progress (specs only meaningful). */
+  subIssues: { total: number; completed: number };
 }
 
 export const MERGE_STATES = [
@@ -68,6 +70,8 @@ export interface PipelineStatus {
   blockedSpecs: IssueSnapshot[];
   /** Specs already claimed and being delivered. */
   activeSpecs: IssueSnapshot[];
+  /** Claimed specs whose sub-issues all exist and are all closed: ready to close, even if a merge missed it. */
+  specsToClose: IssueSnapshot[];
   /** Tickets a Builder (or Researcher) can start right now. */
   readyTickets: IssueSnapshot[];
   /** Tickets waiting on open blockers. */
@@ -155,6 +159,14 @@ export function summarize(
       )
       .sort(byNumber),
     activeSpecs: specs.filter((spec) => has(spec, Label.InProgress)).sort(byNumber),
+    specsToClose: specs
+      .filter(
+        (spec) =>
+          has(spec, Label.InProgress) &&
+          spec.subIssues.total > 0 &&
+          spec.subIssues.completed === spec.subIssues.total,
+      )
+      .sort(byNumber),
     readyTickets: queued.filter((ticket) => ticket.openBlockers === 0).sort(byNumber),
     blockedTickets: queued.filter((ticket) => ticket.openBlockers > 0).sort(byNumber),
     inProgressTickets: tickets

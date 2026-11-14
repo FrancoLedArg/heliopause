@@ -17,6 +17,7 @@ const issue = (number: number, labels: string[], extra: Partial<IssueSnapshot> =
     labels,
     openBlockers: 0,
     parent: null,
+    subIssues: { total: 0, completed: 0 },
     ...extra,
   }) satisfies IssueSnapshot;
 
@@ -39,6 +40,27 @@ describe('closedIssueNumbers', () => {
 
   it('ignores plain references', () => {
     expect(closedIssueNumbers('Part of #4, see #5')).toEqual([]);
+  });
+});
+
+describe('summarize: specsToClose', () => {
+  const done = { subIssues: { total: 3, completed: 3 } };
+
+  it('reports an in-progress spec whose sub-issues are all closed', () => {
+    const status = summarize([issue(12, [Label.Spec, Label.InProgress], done)], []);
+    expect(status.specsToClose.map((spec) => spec.number)).toEqual([12]);
+  });
+
+  it('leaves a spec with an open sub-issue, no sub-issues, or no claim alone', () => {
+    const status = summarize(
+      [
+        issue(1, [Label.Spec, Label.InProgress], { subIssues: { total: 3, completed: 2 } }),
+        issue(2, [Label.Spec, Label.InProgress]),
+        issue(3, [Label.Spec, Label.ReadyForAgent], done),
+      ],
+      [],
+    );
+    expect(status.specsToClose).toEqual([]);
   });
 });
 
