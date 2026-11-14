@@ -2,8 +2,16 @@
 // No Phaser here, so the scene stays a thin renderer and these rules are tested in Node.
 import { stringSeed } from '../lib/stringSeed.ts';
 import { createRng } from '../lib/rng.ts';
-import { currentBody, kilometersToAu, listBodies } from '../sim/index.ts';
-import type { AstronomicalUnits, Body, BodyId, LandableBody, Run } from '../sim/index.ts';
+import { astronomicalUnits, currentBody, kilometersToAu, listBodies } from '../sim/index.ts';
+import type {
+  AstronomicalUnits,
+  Body,
+  BodyId,
+  LandableBody,
+  Moon,
+  Planet,
+  Run,
+} from '../sim/index.ts';
 
 /** Which surface art a Body gets: keys `surface_<kind>` (near), `_mid`, `_far`. */
 export type SurfaceKind = 'rocky' | 'moon' | 'icy';
@@ -45,6 +53,22 @@ const SPRITE_PREFIX = {
   moon: 'body_moon_',
 } as const;
 
+/** Native sprite sizes (px) of the `body_*` art, to keep sprites from overlapping. */
+export const SPRITE_SIZE = { star: 64, 'rocky-planet': 24, 'gas-giant': 48, moon: 12 } as const;
+/** Gap (px) left between a planet and the Moons drawn beside it. */
+const MOON_GAP = 2;
+
+/**
+ * The far-layer horizon on screen, as the generated art draws it (about 16 px above the painted
+ * stand-in's limb): planets are kept above it so they do not sink behind the ground.
+ */
+export function horizonY(skyX: number): number {
+  const t = (skyX - (SKY_WIDTH - SCREEN_WIDTH) / 2 + 80) / 800;
+  return 140 + 110 * (1 - Math.min(Math.max(t, 0), 1)) ** 2 - 16;
+}
+/** Planets stay below the top bar (which ends at y 46) by this much. */
+const TOP_BAR_CLEARANCE = 50;
+
 /** One thing in the sky, placed on the sky layer. */
 export interface SkyBody {
   /** Absent for the star. */
@@ -74,8 +98,7 @@ export function bodySprite(run: Run, body: Body): string {
 function skyHeight(run: Run, body: Body): number {
   const rng = createRng(run.seed ^ stringSeed(`${body.id}:height`));
   if (body.kind === 'moon') {
-    const planet = run.starSystem.planets.find((p) => p.id === body.planetId);
-    return (planet ? skyHeight(run, planet) : SKY_TOP) + rng.int(-MOON_SPREAD, MOON_SPREAD);
+    return skyHeight(run, planetOf(run, body)) + rng.int(-MOON_SPREAD, MOON_SPREAD);
   }
   return rng.int(SKY_TOP, SKY_BOTTOM);
 }
@@ -115,11 +138,29 @@ function scaleForDistance(distanceAu: number, isStar: boolean): number {
   return 1;
 }
 
+function halfWidth(kind: SkyBody['kind'], scale: number): number {
+  return (SPRITE_SIZE[kind] * scale) / 2;
+}
+
+/** Moves a sprite's height to sit below the top bar and above the horizon (the bar wins if both cannot hold). */
+function clampToSky(y: number, x: number, kind: SkyBody['kind'], scale: number): number {
+  const half = halfWidth(kind, scale);
+  return Math.round(Math.max(TOP_BAR_CLEARANCE + half, Math.min(y, horizonY(x) - half - 2)));
+}
+
+/** The planet a Moon orbits; a Moon always has one in its Star System. */
+function planetOf(run: Run, moon: Moon): Planet {
+  const planet = run.starSystem.planets.find((p) => p.id === moon.planetId);
+  if (!planet) throw new Error(`Moon ${moon.id} has no planet in its Star System`);
+  return planet;
+}
+
 /**
  * The star and the nearest Bodies as seen from where the Spacecraft stands, farthest first so
  * nearer ones are drawn in front. The star sits at the middle of the visible sky; every other Body
  * is placed by its bearing from the star's direction, squeezed into the visible band so none starts
- * off-screen. The same Star System always gives the same sky, and a Body looks the same from anywhere.
+ * off-screen. A Moon whose planet is also in the sky hangs beside it instead, clear of its disc.
+ * The same Star System always gives the same sky, and a Body looks the same from anywhere.
  */
 export function skyBodies(run: Run): SkyBody[] {
   const here = currentBody(run);
@@ -130,7 +171,7 @@ export function skyBodies(run: Run): SkyBody[] {
   const place = (bearing: number): number =>
     Math.round(middle + (wrapAngle(bearing - towardStar) / Math.PI) * halfBand);
 
-  const starDistance = Math.hypot(from.x, from.y) as AstronomicalUnits;
+  const starDistance = astronomicalUnits(Math.hypot(from.x, from.y));
   const star: SkyBody = {
     bodyId: undefined,
     kind: 'star',
@@ -141,23 +182,80 @@ export function skyBodies(run: Run): SkyBody[] {
     distanceAu: starDistance,
   };
 
-  const others = listBodies(run.starSystem)
+  const nearest = listBodies(run.starSystem)
     .filter((body) => body.id !== here.id)
     .map((body) => {
       const at = position(run, body);
-      return { body, at, distance: Math.hypot(at.x - from.x, at.y - from.y) as AstronomicalUnits };
+      const distance = astronomicalUnits(Math.hypot(at.x - from.x, at.y - from.y));
+      return { body, at, distance };
     })
     .sort((a, b) => a.distance - b.distance || a.body.id.localeCompare(b.body.id))
-    .slice(0, MAX_SKY_BODIES)
-    .map(({ body, at, distance }): SkyBody => ({
+    .slice(0, MAX_SKY_BODIES);
+
+  const bearing = (at: Point): number => Math.atan2(at.y - from.y, at.x - from.x);
+  const inSky = (id: BodyId): boolean => nearest.some((n) => n.body.id === id);
+
+  // Planets, and Moons whose planet is not in the sky, hang where their bearing puts them.
+  const placed = new Map<BodyId, SkyBody>();
+  for (const { body, at, distance } of nearest) {
+    if (body.kind === 'moon' && inSky(body.planetId)) continue;
+    const scale = scaleForDistance(distance, false);
+    const x = place(bearing(at));
+    placed.set(body.id, {
       bodyId: body.id,
       kind: body.kind,
       sprite: bodySprite(run, body),
-      x: place(Math.atan2(at.y - from.y, at.x - from.x)),
-      y: skyHeight(run, body),
-      scale: scaleForDistance(distance, false),
+      x,
+      y: clampToSky(skyHeight(run, body), x, body.kind, scale),
+      scale,
       distanceAu: distance,
-    }));
+    });
+  }
 
-  return [star, ...others].sort((a, b) => b.distanceAu - a.distanceAu);
+  // Moons whose planet is in the sky hang beside it, on the side of their true bearing.
+  const taken = new Map<BodyId, Record<'-1' | '1', number>>();
+  for (const { body, at, distance } of nearest) {
+    if (body.kind !== 'moon' || !inSky(body.planetId)) continue;
+    const planet = placed.get(body.planetId);
+    const planetBody = planetOf(run, body);
+    if (!planet) throw new Error(`Planet ${planetBody.id} is in the sky but was not placed`);
+    const scale = scaleForDistance(distance, false);
+    const half = halfWidth('moon', scale);
+    const trueDx = place(bearing(at)) - place(bearing(position(run, planetBody)));
+    const preferred = trueDx === 0 ? (stringSeed(body.id) % 2 === 0 ? 1 : -1) : Math.sign(trueDx);
+    const used = taken.get(planet.bodyId ?? '') ?? { '-1': 0, '1': 0 };
+    const offsetOn = (side: -1 | 1): number =>
+      side *
+      (halfWidth(planet.kind, planet.scale) +
+        half +
+        MOON_GAP +
+        used[`${side}`] * (2 * half + MOON_GAP));
+    const fits = (side: -1 | 1): boolean => {
+      const x = planet.x + offsetOn(side);
+      return x >= SKY_VISIBLE.left && x <= SKY_VISIBLE.right;
+    };
+    const side: -1 | 1 = fits(preferred === 1 ? 1 : -1)
+      ? preferred === 1
+        ? 1
+        : -1
+      : preferred === 1
+        ? -1
+        : 1;
+    const x = Math.min(Math.max(planet.x + offsetOn(side), SKY_VISIBLE.left), SKY_VISIBLE.right);
+    used[`${side}`] += 1;
+    taken.set(planet.bodyId ?? '', used);
+    placed.set(body.id, {
+      bodyId: body.id,
+      kind: 'moon',
+      sprite: bodySprite(run, body),
+      x,
+      y:
+        planet.y +
+        createRng(run.seed ^ stringSeed(`${body.id}:height`)).int(-MOON_SPREAD, MOON_SPREAD),
+      scale,
+      distanceAu: distance,
+    });
+  }
+
+  return [star, ...placed.values()].sort((a, b) => b.distanceAu - a.distanceAu);
 }

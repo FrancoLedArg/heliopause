@@ -23,6 +23,7 @@ export {
   STARTER_SPACECRAFT_TUNING,
 } from './data.ts';
 export type { SourcedRange, TuningRange } from './data.ts';
+export { astronomicalUnits } from './units.ts';
 export type {
   AstronomicalUnits,
   Kilograms,

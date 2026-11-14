@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { currentBody, findBody, startRun, type Run } from '../sim/index.ts';
-import { SKY_VISIBLE, skyBodies, surfaceKind } from './landedView.ts';
+import { SKY_VISIBLE, SPRITE_SIZE, horizonY, skyBodies, surfaceKind } from './landedView.ts';
 
 function runOnMoonOfHome(seed: number): Run {
   const run = startRun(seed);
@@ -84,12 +84,33 @@ describe('the Landed sky', () => {
     }
   });
 
-  it("keeps a distant planet's Moons within a few pixels of it", () => {
-    for (let seed = 1; seed <= 100; seed++) {
-      const sky = skyBodies(startRun(seed));
-      for (const moon of sky.filter((s) => s.kind === 'moon' && s.scale === 1)) {
-        const planet = sky.find((s) => s.bodyId === moon.bodyId?.replace(/-moon-\d+$/, ''));
-        if (planet) expect(Math.abs(moon.y - planet.y)).toBeLessThanOrEqual(8);
+  it('a Moon whose planet is in the sky sits beside it, never over it', () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 200; seed++) {
+      const run = startRun(seed);
+      const sky = skyBodies(run);
+      for (const moon of sky.filter((s) => s.kind === 'moon')) {
+        const body = findBody(run.starSystem, moon.bodyId ?? '');
+        if (body?.kind !== 'moon') throw new Error('sky Moon is not a Moon');
+        const planet = sky.find((s) => s.bodyId === body.planetId);
+        if (!planet) continue;
+        checked++;
+        const half = (s: (typeof sky)[number]) => (SPRITE_SIZE[s.kind] * s.scale) / 2;
+        const apart = Math.hypot(moon.x - planet.x, moon.y - planet.y);
+        expect(apart, `seed ${seed}`).toBeGreaterThanOrEqual(half(moon) + half(planet));
+        expect(apart).toBeLessThanOrEqual(half(moon) + half(planet) + 2 * 2 * half(moon) + 6);
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
+  });
+
+  it('keeps planets above the horizon the art draws, and below the top bar', () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      for (const s of skyBodies(startRun(seed))) {
+        if (s.kind === 'star' || s.kind === 'moon' || s.scale > 2) continue;
+        const half = (SPRITE_SIZE[s.kind] * s.scale) / 2;
+        expect(s.y + half, `seed ${seed}`).toBeLessThanOrEqual(horizonY(s.x));
+        expect(s.y - half).toBeGreaterThanOrEqual(46);
       }
     }
   });
