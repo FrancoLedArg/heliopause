@@ -24,4 +24,18 @@ describe('chooseRunSeed', () => {
       expect(chooseRunSeed(search, () => 0)).toBe(0);
     },
   );
+
+  describe('after a Run that already used a seed', () => {
+    it('moves a URL seed on, so New Run makes a different Star System yet stays replayable', () => {
+      expect(chooseRunSeed('?seed=123', neverRandom, 123)).toBe(124);
+    });
+
+    it('wraps at the top of the seed range', () => {
+      expect(chooseRunSeed('?seed=4294967295', neverRandom, 4_294_967_295)).toBe(0);
+    });
+
+    it('still draws a random seed when the URL has none', () => {
+      expect(chooseRunSeed('', () => 0.5, 123)).toBe(2_147_483_648);
+    });
+  });
 });

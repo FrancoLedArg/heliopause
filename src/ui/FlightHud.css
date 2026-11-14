@@ -4,16 +4,14 @@
 .flight-log,
 .fuel-gauge,
 .route-inset,
-.fast-forward,
-.flight-outcome {
+.fast-forward {
   position: absolute;
 }
 
 .phase-strip > .kit-frame:first-child,
 .flight-log > .kit-frame:first-child,
 .fuel-gauge > .kit-frame:first-child,
-.route-inset > .kit-frame:first-child,
-.flight-outcome > .kit-frame:first-child {
+.route-inset > .kit-frame:first-child {
   position: absolute;
   inset: 0;
 }
@@ -188,51 +186,6 @@
   left: 2px;
 }
 
-.flight-outcome {
-  top: 52px;
-  left: 170px;
-  width: 300px;
-  height: 124px;
-  pointer-events: auto;
-}
-
-.flight-outcome__badge {
-  position: absolute;
-  top: 10px;
-  left: 12px;
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  font: 8px/12px var(--font-pixel);
-  text-transform: uppercase;
-  color: var(--rd3);
-}
-
-.game-ui .flight-outcome__title {
-  position: absolute;
-  top: 26px;
-  left: 12px;
-  margin: 0;
-  font: 16px/16px var(--font-pixel);
-  text-transform: uppercase;
-  color: var(--wh3);
-}
-
-.flight-outcome__why {
-  position: absolute;
-  top: 46px;
-  left: 12px;
-  width: 276px;
-  font: 14px/12px var(--font-pixel-body);
-  color: var(--gm6);
-}
-
-.flight-outcome__actions {
-  position: absolute;
-  right: 12px;
-  bottom: 10px;
-}
-
 /* Route inset and fast-forward: bottom middle, clear of the Spacecraft at the right and the log and Fuel at the left. */
 .route-inset {
   top: 294px;
@@ -307,4 +260,16 @@
 .fast-forward {
   top: 304px;
   left: 434px;
+}
+
+/* While fast-forward is on the rate shows beside the icon, so it never relies on colour. */
+.fast-forward .kit-button__label {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  justify-content: center;
+}
+
+.fast-forward__rate {
+  font: 8px/8px var(--font-pixel);
 }

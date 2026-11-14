@@ -20,6 +20,8 @@ interface ChassisPickerProps {
   onBack: () => void;
   /** A launch is under way: the choice is made. */
   launching: boolean;
+  /** The Chassis chosen to begin with; the first one by default. */
+  initial?: ChassisId | undefined;
 }
 
 /**
@@ -27,8 +29,8 @@ interface ChassisPickerProps {
  * Δv, so the player sees what each trades off before choosing. A radio group, so the arrow keys move
  * the choice and Tab moves on to Launch.
  */
-export function ChassisPicker({ onLaunch, onBack, launching }: ChassisPickerProps) {
-  const [chosen, setChosen] = useState<ChassisId>(CHASSIS_IDS[0]);
+export function ChassisPicker({ onLaunch, onBack, launching, initial }: ChassisPickerProps) {
+  const [chosen, setChosen] = useState<ChassisId>(initial ?? CHASSIS_IDS[0]);
 
   return (
     <section className="chassis-picker" aria-labelledby="chassis-picker-title">

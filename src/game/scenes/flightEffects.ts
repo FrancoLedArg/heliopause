@@ -43,7 +43,7 @@ export interface FlightEffects {
 
 /**
  * The playback's particles: dust and smoke at Takeoff and Landing, sparks from the engine on the way.
- * Three pooled emitters made once; frames only switch them on or off and move them, so none allocates.
+ * Three pooled emitters made once; frames only switch them on or off and move them, so no emitter or texture is created per frame.
  */
 export function createFlightEffects(scene: Scene): FlightEffects {
   const dust = scene.add.particles(0, 0, ensureTexture(scene, 'dust'), {
