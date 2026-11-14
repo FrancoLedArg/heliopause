@@ -431,3 +431,56 @@ body {
   position: absolute;
   inset: 0;
 }
+
+/* ---- In-Run Menu ---- */
+
+/* Over the top bar's right end, clear of its Δv value. */
+.run-menu__button {
+  position: absolute;
+  top: 14px;
+  left: 568px;
+}
+
+.run-menu__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.6);
+  pointer-events: auto;
+}
+
+.run-menu {
+  position: absolute;
+  top: 124px;
+  left: 232px;
+}
+
+.run-menu > .kit-frame {
+  position: absolute;
+  inset: 0;
+}
+
+.run-menu__title {
+  position: absolute;
+  top: 14px;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0 14px;
+  text-align: center;
+  font: 8px/12px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--wh3);
+}
+
+.run-menu__actions {
+  position: absolute;
+  top: 54px;
+  left: 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.run-menu__actions--row {
+  grid-auto-flow: column;
+  top: 62px;
+}

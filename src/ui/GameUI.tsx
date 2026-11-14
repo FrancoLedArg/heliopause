@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import { chooseUrlChassis } from '../game/lib/runChassis.ts';
 import { chooseRunSeed } from '../game/lib/runSeed.ts';
@@ -6,6 +6,7 @@ import type { ChassisId, Run, Seed } from '../game/sim/index.ts';
 import { SceneKey } from '../game/scenes/keys.ts';
 import { ChassisPicker } from './ChassisPicker.tsx';
 import { LandedPanels } from './LandedPanels.tsx';
+import { RunMenu } from './RunMenu.tsx';
 import { TitleMenu } from './TitleMenu.tsx';
 
 /**
@@ -18,6 +19,8 @@ export function GameUI() {
   const [run, setRun] = useState<Run | undefined>(undefined);
   const [picking, setPicking] = useState(false);
   const [cameBack, setCameBack] = useState(false);
+  // Set when the player leaves a Run, so the title they land on takes focus like after the picker's Back.
+  const leftRun = useRef(false);
 
   useEffect(
     () =>
@@ -27,7 +30,8 @@ export function GameUI() {
           setRunSeed(undefined);
           setRun(undefined);
           setPicking(false);
-          setCameBack(false);
+          setCameBack(leftRun.current);
+          leftRun.current = false;
         }
       }),
     [],
@@ -64,6 +68,14 @@ export function GameUI() {
         />
       )}
       {scene === SceneKey.Landed && run !== undefined && <LandedPanels run={run} />}
+      {scene === SceneKey.Landed && run !== undefined && (
+        <RunMenu
+          onLeave={() => {
+            leftRun.current = true;
+            EventBus.emit('leave-run-requested');
+          }}
+        />
+      )}
       <p className="hud-tag ai-label">AI-generated art</p>
     </div>
   );
