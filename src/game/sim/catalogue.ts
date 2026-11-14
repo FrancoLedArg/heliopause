@@ -1,3 +1,15 @@
+// The Component catalogue: what each Component weighs, costs and does. Real-world-flavoured figures
+// cite `docs/research/propulsion-trade-offs.md`; the rest is gameplay tuning. A Component's Isp and
+// Fuel capacity are its own; the Chassis it is installed on scales them (ADR 0005).
+import {
+  kilograms,
+  materials,
+  seconds,
+  type Kilograms,
+  type Materials,
+  type Seconds,
+} from './units.ts';
+
 /** Every Component the Spacecraft can carry: Engine, Fuel Tank and Drill, at levels 1 and 2. */
 export const COMPONENT_IDS = [
   'engine-1',
@@ -8,3 +20,129 @@ export const COMPONENT_IDS = [
   'drill-2',
 ] as const;
 export type ComponentId = (typeof COMPONENT_IDS)[number];
+
+export type ComponentLevel = 1 | 2;
+
+/**
+ * Where a Component's figures come from. A sourced Component's real-world-flavoured figure (its Isp
+ * or its tank's share of mass) comes from `source`, which says which figure that is; its Materials
+ * cost is always gameplay tuning. A tuning Component is chosen for play throughout.
+ */
+export type Provenance =
+  { readonly kind: 'sourced'; readonly source: string } | { readonly kind: 'gameplay-tuning' };
+
+interface ComponentEntry {
+  readonly id: ComponentId;
+  readonly level: ComponentLevel;
+  /** Added to the Spacecraft's dry mass while installed. */
+  readonly mass: Kilograms;
+  /** What installing it costs. */
+  readonly cost: Materials;
+  /** One plain sentence for the player: what it does and what it costs in mass. */
+  readonly explanation: string;
+  readonly provenance: Provenance;
+}
+
+/** Turns Fuel into Δv. The best installed Engine sets the Spacecraft's Isp. */
+export interface Engine extends ComponentEntry {
+  readonly kind: 'engine';
+  readonly isp: Seconds;
+}
+
+/** Holds Fuel. The Spacecraft's Fuel capacity is the sum of its Fuel Tanks. */
+export interface FuelTank extends ComponentEntry {
+  readonly kind: 'fuel-tank';
+  readonly fuelCapacity: Kilograms;
+}
+
+/** Multiplies what a Body yields when the Spacecraft lands on it. */
+export interface Drill extends ComponentEntry {
+  readonly kind: 'drill';
+  readonly yieldMultiplier: number;
+}
+
+export type Component = Engine | FuelTank | Drill;
+export type ComponentKind = Component['kind'];
+
+const PROPULSION = 'docs/research/propulsion-trade-offs.md';
+const BOROWSKI = 'Borowski et al., NTRS 20120003776 https://ntrs.nasa.gov/citations/20120003776';
+const CHASSIS_SCALES = 'Mass and cost are gameplay tuning; the Chassis scales the';
+
+/** The catalogue, keyed by id. */
+export const COMPONENTS = {
+  'engine-1': {
+    id: 'engine-1',
+    kind: 'engine',
+    level: 1,
+    mass: kilograms(1_000),
+    cost: materials(30),
+    isp: seconds(900),
+    explanation:
+      'A reactor heats hydrogen Fuel and shoots it out the back, about twice as efficient as the best chemical rocket.',
+    provenance: {
+      kind: 'sourced',
+      source: `Isp about 900 s, a nuclear thermal engine: ${PROPULSION} §5 and §1.2, ${BOROWSKI}. ${CHASSIS_SCALES} Isp.`,
+    },
+  },
+  'engine-2': {
+    id: 'engine-2',
+    kind: 'engine',
+    level: 2,
+    mass: kilograms(1_500),
+    cost: materials(60),
+    // A quarter better than level 1, past any tested nuclear thermal engine.
+    isp: seconds(1_125),
+    explanation:
+      'A hotter reactor that gets a quarter more Δv from the same Fuel, but it is heavier and costs more.',
+    provenance: { kind: 'gameplay-tuning' },
+  },
+  'fuel-tank-1': {
+    id: 'fuel-tank-1',
+    kind: 'fuel-tank',
+    level: 1,
+    mass: kilograms(1_500),
+    cost: materials(20),
+    fuelCapacity: kilograms(6_000),
+    explanation: 'Holds more Fuel, but its own mass costs Δv on every Hop, even while it is empty.',
+    provenance: {
+      kind: 'sourced',
+      source: `Tank mass a fifth of tank plus Fuel (propellant fraction 0.80), the hydrogen tank figure in ${PROPULSION} §6, drawn from §4. Cost is gameplay tuning; the Chassis scales the capacity.`,
+    },
+  },
+  'fuel-tank-2': {
+    id: 'fuel-tank-2',
+    kind: 'fuel-tank',
+    level: 2,
+    mass: kilograms(2_600),
+    cost: materials(45),
+    fuelCapacity: kilograms(12_000),
+    explanation:
+      'Holds twice the Fuel of the level-1 Tank in one Slot, and is a little lighter for what it holds.',
+    provenance: {
+      kind: 'sourced',
+      source: `Propellant fraction 0.82, the Copernicus hydrogen drop tank (about 22 t of tank for 102.4 t of hydrogen): ${PROPULSION} §4, ${BOROWSKI}. Cost is gameplay tuning; the Chassis scales the capacity.`,
+    },
+  },
+  'drill-1': {
+    id: 'drill-1',
+    kind: 'drill',
+    level: 1,
+    mass: kilograms(800),
+    cost: materials(25),
+    yieldMultiplier: 1.5,
+    explanation:
+      'Digs into every Body you land on so it yields half as much again, but you carry its mass on every Hop.',
+    provenance: { kind: 'gameplay-tuning' },
+  },
+  'drill-2': {
+    id: 'drill-2',
+    kind: 'drill',
+    level: 2,
+    mass: kilograms(1_600),
+    cost: materials(50),
+    yieldMultiplier: 2,
+    explanation:
+      'Digs deeper so every Body yields twice as much, but it weighs twice as much as the level-1 Drill.',
+    provenance: { kind: 'gameplay-tuning' },
+  },
+} as const satisfies { readonly [Id in ComponentId]: Component & { readonly id: Id } };

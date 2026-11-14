@@ -14,8 +14,25 @@ export type {
   InvalidTargetReason,
   LaunchResult,
 } from './hop.ts';
-export { availableDeltaV, fuelAfterBurning, newSpacecraft } from './spacecraft.ts';
-export type { Spacecraft } from './spacecraft.ts';
+export {
+  availableDeltaV,
+  fuelAfterBurning,
+  newSpacecraft,
+  SLOT_COUNT,
+  STARTING_SLOTS,
+} from './spacecraft.ts';
+export type { Slot, Spacecraft } from './spacecraft.ts';
+export { COMPONENT_IDS, COMPONENTS } from './catalogue.ts';
+export type {
+  Component,
+  ComponentId,
+  ComponentKind,
+  ComponentLevel,
+  Drill,
+  Engine,
+  FuelTank,
+  Provenance,
+} from './catalogue.ts';
 export type {
   Body,
   BodyId,
@@ -49,6 +66,7 @@ export {
   astronomicalUnits,
   kilograms,
   kilometers,
+  materials,
   metersPerSecond,
   metersPerSecondSquared,
   radians,
@@ -58,6 +76,7 @@ export type {
   AstronomicalUnits,
   Kilograms,
   Kilometers,
+  Materials,
   MetersPerSecond,
   MetersPerSecondSquared,
   Radians,
