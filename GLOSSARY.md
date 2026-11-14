@@ -13,19 +13,27 @@ One randomly generated star and the Bodies orbiting it. Escaping it leads to the
 _Avoid_: Solar system, level, map
 
 **Home Planet**:
-The small rocky planet, close to its star and with at least one Moon, where a Run begins.
+The small rocky planet, close to its star and with at least one Moon, where the Spacecraft starts in each Star System.
 _Avoid_: Start, spawn, Earth
 
 **Stranded**:
-A Run's end when the Spacecraft is on a Body and cannot afford any Hop.
+A Run's end when no Hop could have any Success Chance, even after removing every removable Component.
 _Avoid_: Stuck, softlock
 
+**Score**:
+The number of Star Systems escaped in a Run, with Hops flown as the tie-breaker. The Best Score is the highest one reached on this device.
+_Avoid_: Points, high score
+
 **Escape**:
-Crossing the Heliopause of the current Star System, which wins that Star System.
+Leaving a Star System by making the Jump, which wins that Star System.
 _Avoid_: Win, exit
 
+**Jump**:
+Firing the Jump Drive at the Heliopause, which carries the Spacecraft to the next Star System's Home Planet and burns the Jump Drive out.
+_Avoid_: Warp, hyperspace, FTL
+
 **Heliopause**:
-The outer edge of a Star System, where the star's influence ends.
+The outer edge of a Star System, where the star's influence ends and the Jump Drive can fire. A Hop to it has a Takeoff and Transfer but no Landing.
 _Avoid_: Edge, border
 
 ## Places
@@ -61,7 +69,7 @@ The player's one vehicle, kept and modified for the whole Run.
 _Avoid_: Ship, satellite, rocket, vessel
 
 **Component**:
-A part installed on the Spacecraft in a Slot, with its own mass and Materials cost. Kinds so far: Engine, Fuel Tank, Drill, each with levels.
+A part installed on the Spacecraft in a Slot, with its own mass and Materials cost. Kinds so far: Engine, Fuel Tank, Drill (each with levels) and the Jump Drive.
 _Avoid_: Module, part, upgrade, item
 
 **Slot**:
@@ -75,6 +83,10 @@ _Avoid_: Thruster, motor
 **Fuel Tank**:
 The Component that sets how much Fuel the Spacecraft can carry.
 _Avoid_: Tank, storage
+
+**Jump Drive**:
+A heavy, costly Component that makes the Jump possible; built anew in every Star System.
+_Avoid_: Super engine, warp drive, hyperdrive
 
 **Drill**:
 The Component that increases how much a Body yields when the Spacecraft lands on it.
@@ -93,7 +105,7 @@ _Avoid_: Money, budget, credits, scrap
 ## Travel
 
 **Hop**:
-One planned trip of the Spacecraft from the Body it is on to another, played out after the player commits to it.
+One planned trip of the Spacecraft from the Body it is on to another Body or to the Heliopause, played out after the player commits to it.
 _Avoid_: Jump, mission, trip, turn
 
 **Burn**:
