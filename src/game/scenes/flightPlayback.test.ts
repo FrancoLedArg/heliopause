@@ -7,18 +7,21 @@ import {
   kilograms,
   planHop,
   startRun,
+  type BodyId,
   type HopFlight,
   type Run,
 } from '../sim/index.ts';
-import { flightPlayback, type FlightPlayback } from './flightPlayback.ts';
+import { flightPlayback, PHASE_MS, type FlightPlayback } from './flightPlayback.ts';
 
 const run = startRun(123, 'scout');
 const moon = homePlanet(run.starSystem).moons[0];
 if (!moon) throw new Error('The Home Planet has a Moon');
+/** The Home Planet's Moon: every Hop in these tests goes there. */
+const moonId: BodyId = moon.id;
 
 /** Flies the Hop to the Home Planet's Moon from `from`, with the first seed whose outcome is `kind`. */
 function flightEnding(kind: HopFlight['outcome']['kind'], from: Run, burn?: string): HopFlight {
-  const planned = planHop(from, moon?.id ?? run.starSystem.homePlanetId);
+  const planned = planHop(from, moonId);
   if (planned.kind !== 'planned') throw new Error('no plan');
   for (let seed = 0; seed < 2000; seed++) {
     const { flight } = flyHop(from, planned.plan, createRng(seed));
@@ -44,14 +47,14 @@ const arrived = flightEnding('arrived', run);
 
 /** The Run with just enough Fuel for `fraction` of the Hop's estimated Δv. */
 function shortRun(fraction: number): Run {
-  const planned = planHop(run, moon?.id ?? run.starSystem.homePlanetId);
+  const planned = planHop(run, moonId);
   if (planned.kind !== 'planned') throw new Error('no plan');
   // Bisect the Fuel share that gives `fraction` of the total estimate.
   let low = 0;
   let high = 1;
   for (let i = 0; i < 60; i++) {
     const mid = (low + high) / 2;
-    const p = planHop(withFuel(mid), moon?.id ?? run.starSystem.homePlanetId);
+    const p = planHop(withFuel(mid), moonId);
     if (p.kind === 'planned' && p.plan.availableDeltaV < planned.plan.totalEstimate * fraction) {
       low = mid;
     } else high = mid;
@@ -135,8 +138,14 @@ describe('Hop playback', () => {
     const from = shortRun(0.2);
     const flight = flightEnding('fell-short', from, 'takeoff');
     const playback = flightPlayback(from.spacecraft, flight, 'full');
-    expect(samples(playback).every((moment) => moment.burn === 'takeoff')).toBe(true);
+    expect(playback.at(0).fuel).toBeCloseTo(from.spacecraft.fuelMass, 6);
+    // The engine cuts out partway through the Takeoff, not at its end.
+    expect(playback.stopsAt).toBeGreaterThan(0);
+    expect(playback.stopsAt).toBeLessThan(PHASE_MS.full.takeoff);
+    expect(playback.at(playback.stopsAt - 20).thrusting).toBe(true);
+    expect(playback.at(playback.stopsAt).thrusting).toBe(false);
     expect(playback.at(playback.stopsAt).fuel).toBeCloseTo(0, 6);
+    expect(samples(playback).every((moment) => moment.burn === 'takeoff')).toBe(true);
   });
 
   it('a Hop that Crashed stops partway through the Landing, with the Fuel spent', () => {
