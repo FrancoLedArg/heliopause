@@ -287,3 +287,186 @@ body {
   font: 14px/12px var(--font-pixel-body);
   color: var(--gm6);
 }
+
+/* ---- Landed: Nav Chart button ---- */
+
+.landed-nav-button {
+  position: absolute;
+  top: 322px;
+  left: 516px;
+}
+
+/* ---- Nav Chart panel (wireframe v2 section 2) ---- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.nav-chart {
+  position: absolute;
+  inset: 0;
+}
+
+.nav-chart > *,
+.nav-chart__titlebar,
+.nav-chart__inspect,
+.nav-chart__target {
+  position: absolute;
+}
+
+/* Mouse clicks fall through to the chart in the canvas below; only the button takes them. */
+.nav-chart__panel,
+.nav-chart__side,
+.nav-chart__titlebar,
+.nav-chart__chart,
+.nav-chart__label,
+.nav-chart__help,
+.nav-chart__inspect,
+.nav-chart__target {
+  pointer-events: none;
+}
+
+.nav-chart__titlebar {
+  width: 0;
+  height: 14px;
+}
+
+.nav-chart__title {
+  position: absolute;
+  top: 3px;
+  left: 22px;
+  margin: 0;
+  white-space: nowrap;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--wh2);
+}
+
+.nav-chart__system {
+  position: absolute;
+  top: 3px;
+  right: -388px;
+  width: 200px;
+  text-align: right;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--cy3);
+}
+
+.nav-chart__chart:focus-visible {
+  outline: 1px solid var(--cy3);
+  outline-offset: 2px;
+}
+
+.nav-chart__label {
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm6);
+  text-shadow: 0 1px 0 var(--void);
+}
+
+.nav-chart__label--heliopause {
+  transform: translateX(-100%);
+  color: var(--vi3);
+}
+
+.nav-chart__label--here {
+  color: var(--am3);
+}
+
+.nav-chart__label--target {
+  color: var(--cy3);
+}
+
+.nav-chart__help {
+  left: 24px;
+  top: 305px;
+  width: 404px;
+  font: 14px/11px var(--font-pixel-body);
+  color: var(--gm5);
+}
+
+.nav-chart__inspect {
+  left: 456px;
+  top: 82px;
+  width: 164px;
+}
+
+.nav-chart__body-name {
+  margin: 0;
+  font: 16px/16px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--cy3);
+  overflow-wrap: anywhere;
+}
+
+.nav-chart__body-kind {
+  margin-top: 3px;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.nav-chart__body-fact {
+  margin-top: 3px;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--gm6);
+}
+
+.nav-chart__badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font: 8px/12px var(--font-pixel);
+  text-transform: uppercase;
+}
+
+.nav-chart__badge--ok {
+  color: var(--gr3);
+}
+
+.nav-chart__badge--warn {
+  color: var(--am3);
+}
+
+.nav-chart__divider {
+  margin-top: 6px;
+}
+
+.nav-chart__verdict {
+  margin-top: 5px;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--wh2);
+}
+
+.nav-chart__target {
+  left: 456px;
+  top: 262px;
+  width: 164px;
+}
+
+.nav-chart__target-label {
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.nav-chart__target-name {
+  margin-top: 3px;
+  font: 16px/16px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--cy3);
+}
+
+.nav-chart__close {
+  left: 456px;
+  top: 304px;
+}

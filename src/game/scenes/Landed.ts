@@ -1,4 +1,4 @@
-import { Scene, type GameObjects } from 'phaser';
+import { Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber, type PaletteColor } from '../../ui/kit/palette.ts';
 import { hasAsset } from '../assets/manifest.ts';
 import { EventBus } from '../EventBus.ts';
@@ -8,6 +8,7 @@ import { currentBody, type Run } from '../sim/index.ts';
 import { SKY_WIDTH, skyBodies, surfaceKind, type SurfaceKind } from './landedView.ts';
 import { SceneKey } from './keys.ts';
 import { addStarfield } from './starfield.ts';
+import type { NavChartData } from './NavChart.ts';
 
 export interface LandedData {
   /** The Run to show: the Spacecraft landed on its current Body. */
@@ -86,6 +87,25 @@ export class Landed extends Scene {
       this.paintNear(g, p, rng);
     });
     this.layers = { sky, far, mid, near, ship: this.buildShip() };
+
+    // The Nav Chart runs as its own scene over this one, which keeps running (dimmed) beneath it.
+    const offOpen = EventBus.on('nav-chart-open-requested', () => {
+      if (this.scene.isActive(SceneKey.NavChart)) return;
+      const data: NavChartData = { run: this.run };
+      this.scene.launch(SceneKey.NavChart, data);
+    });
+    // A destroyed game never shuts its scenes down, so unsubscribe on both events.
+    const unsubscribe = (): void => {
+      offOpen();
+      this.events.off(Scenes.Events.SHUTDOWN, unsubscribe);
+      this.events.off(Scenes.Events.DESTROY, unsubscribe);
+    };
+    this.events.once(Scenes.Events.SHUTDOWN, unsubscribe);
+    this.events.once(Scenes.Events.DESTROY, unsubscribe);
+    // Leaving the Landed view takes an open Nav Chart with it (on destroy the chart is destroyed anyway).
+    this.events.once(Scenes.Events.SHUTDOWN, () => {
+      this.scene.stop(SceneKey.NavChart);
+    });
 
     EventBus.emit('run-started', this.run);
     EventBus.emit('scene-ready', SceneKey.Landed);
