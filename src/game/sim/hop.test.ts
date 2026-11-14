@@ -7,6 +7,7 @@ import {
   homePlanet,
   listBodies,
   metersPerSecond,
+  metersPerSecondSquared,
   planHop,
   startRun,
   type Run,
@@ -58,9 +59,9 @@ describe('Burn estimates', () => {
   });
 
   it('Takeoff from a Mars-sized Body costs what reaching orbit from Mars does: 4.2 km/s', () => {
-    // NASA NTRS (research doc §3): Mars surface to low orbit 4,200 m/s; Mars escape velocity 5.0 km/s.
+    // NASA NTRS (research doc §3): Mars surface to low orbit 4,200 m/s; Mars escape velocity 5.03 km/s.
     const homeId = run.starSystem.homePlanetId;
-    const marsLike = withBodies(run, { [homeId]: { escapeVelocity: metersPerSecond(5_000) } });
+    const marsLike = withBodies(run, { [homeId]: { escapeVelocity: metersPerSecond(5_030) } });
     const moon = homePlanet(marsLike.starSystem).moons[0];
     if (!moon) throw new Error('The Home Planet has a Moon');
     expect(plan(marsLike, moon.id).estimates.takeoff).toBeCloseTo(4_200, -1);
@@ -95,16 +96,32 @@ describe('Burn estimates', () => {
     }
   });
 
-  it('a Transfer between Earth’s and Mars’s orbits costs the textbook Hohmann departure of 2.94 km/s', () => {
-    // Hohmann departure burn from 1 AU to 1.524 AU around the Sun: 32.73 − 29.78 ≈ 2.94 km/s.
+  it('a Transfer from low Earth orbit to Mars’s orbit costs about 3.66 km/s', () => {
+    // Patched conics: the Hohmann departure around the Sun (1 → 1.524 AU) needs 2.95 km/s once
+    // clear of Earth; leaving from low orbit, where Takeoff ends, Earth's gravity well raises that to
+    // √(2.95² + 11.2²) − 7.92 ≈ 3.66 km/s. Research doc §3 cites about 3.6 km/s from LEO (UNVERIFIED).
     const home = homePlanet(run.starSystem);
     const [target] = farLandables(run).filter((body) => body.kind === 'rocky-planet');
     if (!target) throw new Error('Seed 2026 has a second rocky planet');
     const earthMars = withBodies(run, {
-      [home.id]: { distanceFromStar: astronomicalUnits(1) },
+      [home.id]: {
+        distanceFromStar: astronomicalUnits(1),
+        surfaceGravity: metersPerSecondSquared(9.8),
+        escapeVelocity: metersPerSecond(11_200),
+      },
       [target.id]: { distanceFromStar: astronomicalUnits(1.524) },
     });
-    expect(plan(earthMars, target.id).estimates.transfer).toBeCloseTo(2_940, -2);
+    expect(plan(earthMars, target.id).estimates.transfer).toBeCloseTo(3_660, -1);
+  });
+
+  it("a Transfer to another planet's system costs more than one to any of the Home Planet's Moons", () => {
+    for (const seed of Array.from({ length: 2_000 }, (_, i) => i * 7_919 + 13)) {
+      const start = startRun(seed, 'scout');
+      const home = homePlanet(start.starSystem);
+      const toMoons = home.moons.map((moon) => plan(start, moon.id).estimates.transfer);
+      const toOthers = farLandables(start).map((body) => plan(start, body.id).estimates.transfer);
+      expect(Math.min(...toOthers)).toBeGreaterThan(Math.max(...toMoons));
+    }
   });
 
   it('a Transfer costs more the farther apart the Bodies are', () => {
@@ -141,24 +158,6 @@ describe('Burn estimates', () => {
       ).estimates.transfer;
     expect(climb(0.4, 0.6)).toBeGreaterThan(climb(1.0, 1.2));
     expect(climb(0.4, 0.6)).toBeGreaterThan(climb(1.0, 1.5));
-  });
-
-  it('climbing outward costs more than falling back inward between the same two Bodies', () => {
-    for (const seed of SEEDS.slice(0, 50)) {
-      const start = startRun(seed, 'scout');
-      const home = homePlanet(start.starSystem);
-      for (const body of farLandables(start)) {
-        const there = plan(start, body.id).estimates.transfer;
-        const back = plan(landedOn(start, body.id), home.id).estimates.transfer;
-        if (body.distanceFromStar > home.distanceFromStar) expect(there).toBeGreaterThan(back);
-        else expect(back).toBeGreaterThan(there);
-      }
-      for (const moon of home.moons) {
-        const there = plan(start, moon.id).estimates.transfer;
-        const back = plan(landedOn(start, moon.id), home.id).estimates.transfer;
-        expect(there).toBeGreaterThan(back);
-      }
-    }
   });
 });
 
@@ -343,11 +342,38 @@ describe('flying a Hop', () => {
     expect(flight.why).toMatch(/needed 25% more Δv than the Fuel provides/);
   });
 
+  it('the why for a plan far short of its Δv gives the figures, not a huge percentage', () => {
+    const { from, plan: hopeless } = tight(moonPlan.totalEstimate * 0.1);
+    const { flight } = flyHop(from, hopeless, createRng(3));
+    expect(flight.why).toMatch(
+      /This Hop needs \d+\.\d km\/s of Δv, but the Fuel gives only \d+ m\/s, so it had no Margin\./,
+    );
+  });
+
   it('the why for an arrival compares the Burns against the estimate and the Margin', () => {
     const { flight } = flyHop(run, moonPlan, createRng(9));
     expect(flight.why).toMatch(
-      /^Arrived on .+\. The Burns took (\d+% (more|less) Δv than estimated|about the estimated Δv); you had \d+% Margin\.$/,
+      /^Arrived on .+\. The Burns took (\d+% (more|less) Δv than estimated|about the estimated Δv); you had (\d+% Margin|\d+\.\d km\/s of Margin)\.$/,
     );
+    const { from, plan: slim } = tight(moonPlan.totalEstimate * 1.15);
+    expect(flyHop(from, slim, createRng(9)).flight.why).toMatch(/; you had 15% Margin\.$/);
+  });
+
+  it('the why never quotes a percentage of 100 or more', () => {
+    for (const seed of SEEDS.slice(0, 40)) {
+      const start = startRun(seed, 'lancer');
+      for (const body of listBodies(start.starSystem)) {
+        const result = planHop(start, body.id);
+        if (result.kind !== 'planned') continue;
+        const { why } = flyHop(start, result.plan, createRng(seed)).flight;
+        expect(why).not.toMatch(/\d{3,}%/);
+      }
+    }
+  });
+
+  it('a flight carries the Fuel at launch, so playback needs nothing else', () => {
+    const { flight } = flyHop(run, moonPlan, createRng(4));
+    expect(flight.fuelAtLaunch).toBe(run.spacecraft.fuelMass);
   });
 
   it('a Run that has ended cannot plan another Hop', () => {

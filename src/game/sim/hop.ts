@@ -133,6 +133,8 @@ export interface HopFlight {
   readonly outcome: HopOutcome;
   /** Takeoff, Transfer and Landing, in the order they are flown. */
   readonly burns: readonly BurnResult[];
+  /** The Fuel on board before Takeoff. */
+  readonly fuelAtLaunch: Kilograms;
   readonly fuelRemaining: Kilograms;
   readonly deltaVRemaining: MetersPerSecond;
   /** Plain language: what the Burns cost against their estimates, and why the Hop ended as it did. */
@@ -190,6 +192,7 @@ export function flyHop(
     plan,
     outcome,
     burns,
+    fuelAtLaunch: run.spacecraft.fuelMass,
     fuelRemaining,
     deltaVRemaining: remaining,
     why: explain(plan, outcome, burns, target.name),
@@ -228,7 +231,7 @@ function explain(
         change === 0
           ? 'about the estimated Δv'
           : `${Math.abs(change)}% ${change > 0 ? 'more' : 'less'} Δv than estimated`;
-      return `Arrived on ${targetName}. The Burns took ${cost}; you had ${marginPercent(plan)}% Margin.`;
+      return `Arrived on ${targetName}. The Burns took ${cost}; you had ${marginPhrase(plan)}.`;
     }
     case 'fell-short':
       return `Fuel ran out during the ${BURN_NAMES[outcome.burn]}. ${failureCause(plan, burns)}`;
@@ -244,7 +247,13 @@ function explain(
 function failureCause(plan: HopPlan, burns: readonly BurnResult[]): string {
   if (plan.margin < 0) {
     const needed = percent(plan.totalEstimate / plan.availableDeltaV - 1);
-    return `The plan needed ${needed}% more Δv than the Fuel provides, so it had no Margin.`;
+    if (needed < 50) {
+      return `The plan needed ${needed}% more Δv than the Fuel provides, so it had no Margin.`;
+    }
+    return (
+      `This Hop needs ${formatDeltaV(plan.totalEstimate)} of Δv, but the Fuel gives only ` +
+      `${formatDeltaV(plan.availableDeltaV)}, so it had no Margin.`
+    );
   }
   const overruns = burns.flatMap((burn) =>
     burn.status !== 'not-flown' && burn.actual > burn.estimated
@@ -255,12 +264,21 @@ function failureCause(plan: HopPlan, burns: readonly BurnResult[]): string {
     overruns.length > 1
       ? `${overruns.slice(0, -1).join(', ')} and ${overruns.at(-1) ?? ''}`
       : overruns.join('');
-  return `${list} more Δv than estimated; you had ${marginPercent(plan)}% Margin.`;
+  return `${list} more Δv than estimated; you had ${marginPhrase(plan)}.`;
 }
 
-/** The Margin as a share of the estimate, as the player reads it. */
-function marginPercent(plan: HopPlan): number {
-  return percent(plan.margin / plan.totalEstimate);
+/**
+ * The Margin as the player reads it: a share of the estimate, or in km/s once it is as big as the
+ * estimate itself (a percentage in the hundreds says little).
+ */
+function marginPhrase(plan: HopPlan): string {
+  const share = percent(plan.margin / plan.totalEstimate);
+  return share < 100 ? `${share}% Margin` : `${formatDeltaV(plan.margin)} of Margin`;
+}
+
+/** Δv rounded for the player: m/s below 1 km/s, km/s to one decimal above. */
+function formatDeltaV(deltaV: MetersPerSecond): string {
+  return deltaV < 1_000 ? `${Math.round(deltaV)} m/s` : `${(deltaV / 1_000).toFixed(1)} km/s`;
 }
 
 /** A share as a whole percentage, for the player. */
@@ -296,13 +314,13 @@ function successChance(estimates: readonly number[], available: number): number 
     cumulative += sign * Math.max(0, slack - subsetWidth) ** n;
   }
   const factorial = Array.from({ length: n }, (_, i) => i + 1).reduce((a, b) => a * b, 1);
-  const volume = widths.reduce((product, width) => product * width, factorial);
-  return Math.min(1, Math.max(0, cumulative / volume));
+  const denominator = widths.reduce((product, width) => product * width, factorial);
+  return Math.min(1, Math.max(0, cumulative / denominator));
 }
 
 /**
  * Takeoff from, or Landing on, a Body's surface: in proportion to its escape velocity. The ratio is
- * Mars's (surface to low orbit, gravity losses included, over its escape velocity), about 0.84; it
+ * Mars's (surface to low orbit, gravity losses included, over its escape velocity), about 0.835; it
  * fits Earth's commonly quoted 9.4 km/s to orbit too. Bodies have no atmosphere in this slice, so
  * Landing is Takeoff in reverse.
  */
@@ -315,24 +333,29 @@ function surfaceBurn(body: LandableBody): MetersPerSecond {
 /**
  * The Transfer, Hohmann-like: the boost that puts the Spacecraft on an ellipse from its orbit to the
  * target's (matching the target is part of Landing). Between a planet and its own Moons, or two
- * Moons of one planet, the orbits are around that planet; otherwise around the star. Farther orbits
- * cost more, and the same climb costs more the deeper in the star's gravity it starts, so climbing
- * outward costs more than falling back inward.
+ * Moons of one planet, the orbits are around that planet. Otherwise the ellipse is around the star,
+ * and the boost starts deep in the departure planet's gravity (its low orbit, where Takeoff ends, or
+ * the Moon's orbit), so it must also climb out of that well. Farther orbits cost more, and the same
+ * climb costs more the deeper in the star's gravity it starts.
  */
 function transferBurn(system: StarSystem, from: Body, to: Body): MetersPerSecond {
   const fromPlanet = planetOf(system, from);
   const toPlanet = planetOf(system, to);
+  const mu = gravitationalParameter(fromPlanet);
+  const radius = orbitAroundPlanet(fromPlanet, from);
   if (fromPlanet.id === toPlanet.id) {
-    const planet = fromPlanet;
-    return departureBurn(
-      gravitationalParameter(planet),
-      orbitAroundPlanet(planet, from),
-      orbitAroundPlanet(planet, to),
-    );
+    return departureBurn(mu, radius, orbitAroundPlanet(fromPlanet, to));
   }
   // Every star is Sun-like in this slice: a circular orbit at 1 AU moves as fast as Earth's.
   const starGravitationalParameter = SOURCED_CONSTANTS.orbitalVelocityAt1Au.value ** 2; // (m/s)²·AU
-  return departureBurn(starGravitationalParameter, from.distanceFromStar, to.distanceFromStar);
+  const excessSpeed = departureBurn(
+    starGravitationalParameter,
+    from.distanceFromStar,
+    to.distanceFromStar,
+  );
+  // Patched conics: from a circular orbit of radius r, leaving with speed v∞ to spare takes
+  // √(v∞² + 2μ/r) − √(μ/r).
+  return metersPerSecond(Math.sqrt(excessSpeed ** 2 + (2 * mu) / radius) - Math.sqrt(mu / radius));
 }
 
 /**

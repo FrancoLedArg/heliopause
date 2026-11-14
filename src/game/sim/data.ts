@@ -123,8 +123,8 @@ export const SOURCED_CONSTANTS = {
       'docs/research/nasa-data-for-generation.md §3, NASA NTRS Palaszewski, "Mars Landing Vehicles: Descent and Ascent Propulsion Design Issues" https://ntrs.nasa.gov/citations/20210026187',
   } satisfies SourcedValue<MetersPerSecond>,
   marsEscapeVelocity: {
-    value: metersPerSecond(5_000),
-    source: `Mars. ${NSSDCA_PLANETS}`,
+    value: metersPerSecond(5_030),
+    source: `Mars, 5.03 km/s on the NSSDCA Mars fact sheet https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html (5.0 rounded in the research doc §1 table)`,
   } satisfies SourcedValue<MetersPerSecond>,
   /** A planet's speed on a circular orbit 1 AU from a Sun-like star: Earth's mean orbital velocity. */
   orbitalVelocityAt1Au: {
@@ -139,7 +139,7 @@ export const SOURCED_CONSTANTS = {
  */
 export const DISPERSION = { min: 0.9, max: 1.1 } as const satisfies TuningRange;
 
-/** The three starting hulls a New Run can take. */
+/** The three Chassis a New Run can pick from. */
 export const CHASSIS_IDS = ['scout', 'hauler', 'lancer'] as const;
 export type ChassisId = (typeof CHASSIS_IDS)[number];
 
