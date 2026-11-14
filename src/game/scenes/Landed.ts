@@ -3,6 +3,7 @@ import { paletteNumber, type PaletteColor } from '../../ui/kit/palette.ts';
 import { hasAsset } from '../assets/manifest.ts';
 import { EventBus } from '../EventBus.ts';
 import { createRng, type Rng } from '../lib/rng.ts';
+import { stringSeed } from '../lib/stringSeed.ts';
 import { currentBody, type Run } from '../sim/index.ts';
 import { SKY_WIDTH, skyBodies, surfaceKind, type SurfaceKind } from './landedView.ts';
 import { SceneKey } from './keys.ts';
@@ -112,7 +113,7 @@ export class Landed extends Scene {
       container.add(this.add.image(0, 0, key).setOrigin(0, 0));
     } else {
       const graphics = this.add.graphics();
-      paint(graphics, PALETTES[kind], createRng(this.run.seed ^ hash(key)));
+      paint(graphics, PALETTES[kind], createRng(this.run.seed ^ stringSeed(key)));
       container.add(graphics);
     }
     return container;
@@ -136,7 +137,12 @@ export class Landed extends Scene {
   /** Mid layer stand-in: rolling ridges that follow the limb's curve. */
   private paintMid(graphics: GameObjects.Graphics, palette: SurfacePalette, rng: Rng): void {
     graphics.fillStyle(paletteNumber(palette.mid));
-    fillBelow(graphics, MID.height, (x) => limbY(x) + 34 - MID.y + rng.int(-6, 6));
+    // A random walk, so the ridge rolls instead of jittering column to column.
+    let drift = 0;
+    fillBelow(graphics, MID.height, (x) => {
+      drift = Math.max(-8, Math.min(8, drift + rng.int(-2, 2)));
+      return limbY(x) + 34 - MID.y + drift;
+    });
   }
 
   /** Near layer stand-in: the ground the Spacecraft stands on, with specks and hatch strokes. */
@@ -190,11 +196,4 @@ function fillBelow(
     const y = Math.min(Math.max(Math.round(skyline(x)), 0), bottom);
     graphics.fillRect(x, y, STEP, bottom - y);
   }
-}
-
-/** A small stable hash of a string, to give each layer its own stream of the Run's seeded randomness. */
-function hash(text: string): number {
-  let h = 0x811c9dc5;
-  for (const char of text) h = Math.imul(h ^ char.charCodeAt(0), 0x01000193);
-  return h >>> 0;
 }

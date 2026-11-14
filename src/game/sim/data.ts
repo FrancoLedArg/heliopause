@@ -6,6 +6,7 @@ import {
   metersPerSecondSquared,
   seconds,
   type AstronomicalUnits,
+  type Kilometers,
   type MetersPerSecond,
   type MetersPerSecondSquared,
 } from './units.ts';
@@ -110,3 +111,15 @@ export const STARTER_SPACECRAFT_TUNING = {
   fuelMass: kilograms(8_000),
   engineIsp: seconds(450),
 } as const;
+
+/**
+ * Kilometres in one astronomical unit: the IAU 2012 definition, 149,597,870,700 m exactly.
+ * Source: NASA/JPL Solar System Dynamics, "Astrodynamic Parameters" https://ssd.jpl.nasa.gov/astro_par.html
+ * (a defined constant, not gameplay tuning).
+ */
+export const KILOMETERS_PER_AU = 149_597_870.7;
+
+/** A distance in kilometres, in astronomical units. */
+export function kilometersToAu(distance: Kilometers): AstronomicalUnits {
+  return astronomicalUnits(distance / KILOMETERS_PER_AU);
+}

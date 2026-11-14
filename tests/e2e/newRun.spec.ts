@@ -28,7 +28,7 @@ test('New Run from the title screen lands on the Home Planet, seeded from the UR
 
   const home = homePlanet(generateStarSystem(123));
   await expect(page.getByRole('heading', { name: home.name })).toBeVisible();
-  await expect(page.getByText('Rocky planet')).toBeVisible();
+  await expect(page.getByText('Home Planet · Rocky')).toBeVisible();
   await expect(page.getByTestId('fuel')).toHaveText('8.0 t');
   await expect(page.getByTestId('delta-v')).toBeVisible();
   await expect(page.getByTestId('game-ui')).toHaveAttribute('data-run-seed', '123');

@@ -16,7 +16,13 @@ interface LandedPanelsProps {
 export function LandedPanels({ run }: LandedPanelsProps) {
   const body = currentBody(run);
   const parent = body.kind === 'moon' ? findBody(run.starSystem, body.planetId) : undefined;
-  const type = body.kind === 'moon' ? `Moon of ${parent?.name ?? 'a planet'}` : 'Rocky planet';
+  if (body.kind === 'moon' && !parent) throw new Error(`Moon ${body.id} has no planet`);
+  const type =
+    body.kind === 'moon'
+      ? `Moon of ${parent?.name ?? ''}`
+      : body.id === run.starSystem.homePlanetId
+        ? 'Home Planet · Rocky'
+        : 'Rocky planet';
 
   return (
     <>

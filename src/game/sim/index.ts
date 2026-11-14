@@ -15,7 +15,13 @@ export type {
   Star,
   StarSystem,
 } from './starSystem.ts';
-export { GENERATION_TUNING, SOURCED_RANGES, STARTER_SPACECRAFT_TUNING } from './data.ts';
+export {
+  GENERATION_TUNING,
+  KILOMETERS_PER_AU,
+  kilometersToAu,
+  SOURCED_RANGES,
+  STARTER_SPACECRAFT_TUNING,
+} from './data.ts';
 export type { SourcedRange, TuningRange } from './data.ts';
 export type {
   AstronomicalUnits,
