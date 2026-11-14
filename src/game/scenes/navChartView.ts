@@ -776,13 +776,17 @@ export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedL
       if (!least || by < least.by) least = { option, by };
     }
     if (!least) {
-      // Nowhere clear at all: the nearest spot on the chart that covers the fewest labels and marks.
+      // Nowhere clear at all: the spot on the chart that covers the fewest labels and marks, and above
+      // all no Body or the star (a label may sit over a ring or bracket, never over a sprite).
       const covers = (box: Rect): number =>
         placed.filter((l) => boxesTouch(l.box, box, 0)).length +
-        [star, ...marks.values()].filter((f) => touches(f, box, 0)).length;
-      for (const option of options) {
-        if (!insideBox(option.box)) continue;
-        const by = NOWHERE_CLEAR * covers(option.box);
+        [star, ...marks.values()].filter((f) => touches(f, box, 0)).length +
+        [layout.star, ...layout.nodes].filter((n) => circleTouchesBox(n, box, 0)).length *
+          NOWHERE_CLEAR;
+      for (const o of options) {
+        const box = clampToChart(o.box);
+        const option = { ...o, box, d: edgeDistance(box, node) };
+        const by = NOWHERE_CLEAR * covers(option.box) + stray(option, node);
         if (!least || by < least.by) least = { option, by };
       }
     }

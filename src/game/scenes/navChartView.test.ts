@@ -416,6 +416,23 @@ describe('Body labels on the Nav Chart', () => {
     expect(reviewCases().flatMap(labelClashes).join('\n')).toBe('');
   });
 
+  it('keep off every Body even on a chart too full to label well (seed 72, Sonios Minor as the target)', () => {
+    const run = newRun(72);
+    const layout = layoutFor(72);
+    const target = layout.nodes.find((n) => n.body.id === 'planet-7-moon-1');
+    if (!target) throw new Error('seed 72 has no planet-7-moon-1');
+    const problems = layout.nodes.flatMap((n) =>
+      labelClashes(
+        chartCase(72, {
+          hereId: currentBody(run).id,
+          targetId: target.body.id,
+          focusedId: n.body.id,
+        }),
+      ),
+    );
+    expect(problems.join('\n')).toBe('');
+  });
+
   it('keep Cequyntaen-4 off the Bodies on seed 135 with a far Moon as the target', () => {
     const layout = layoutFor(135);
     const id = (wanted: string) => {
