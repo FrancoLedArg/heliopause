@@ -2,11 +2,11 @@ import type { GameObjects, Scene } from 'phaser';
 import { paletteNumber, type PaletteColor } from '../../ui/kit/palette.ts';
 import { hasAsset } from '../assets/manifest.ts';
 
-/** Texture keys of the particle art. Until the art is in the manifest, tiny stand-ins are drawn at the same sizes. */
+/** Texture keys of the particle art. Until the art is in the manifest, white stand-ins are drawn at the same sizes (code tints both). */
 const TEXTURES = {
-  dust: { key: 'fx_dust', size: 6, color: 'gm5' },
-  smoke: { key: 'fx_smoke', size: 10, color: 'gm4' },
-  spark: { key: 'fx_spark', size: 3, color: 'cy3' },
+  dust: { key: 'fx_dust', size: 6, color: 'wh3' },
+  smoke: { key: 'fx_smoke', size: 10, color: 'wh3' },
+  spark: { key: 'fx_spark', size: 3, color: 'wh3' },
 } as const satisfies Record<string, { key: string; size: number; color: PaletteColor }>;
 
 type TextureName = keyof typeof TEXTURES;
@@ -35,6 +35,8 @@ export interface FlightEffects {
   readonly ground: (on: boolean, at: GroundSpot) => void;
   /** A trail of sparks from the rear nozzle while `on`. */
   readonly exhaust: (on: boolean, at: GroundSpot) => void;
+  /** Tints the dust and smoke to read against the ground they rise from. */
+  readonly setSurface: (color: PaletteColor) => void;
   /** Hides the ground effects in space and the sparks never; clears what is in the air at a cut. */
   readonly setStage: (inSpace: boolean) => void;
   /** Particles keep pace with the playback when it is fast-forwarded. */
@@ -62,12 +64,13 @@ export function createFlightEffects(scene: Scene): FlightEffects {
     emitting: false,
     frequency: 80,
     quantity: 1,
-    lifespan: { min: 900, max: 1500 },
-    speed: { min: 8, max: 34 },
-    angle: { min: 240, max: 300 },
-    scale: { start: 0.5, end: 2 },
+    // Rises slowly, grows 1x to 3x and fades over 2 to 3 s.
+    lifespan: { min: 2000, max: 3000 },
+    speed: { min: 8, max: 20 },
+    angle: { min: 250, max: 290 },
+    scale: { start: 1, end: 3 },
     alpha: { start: 0.45, end: 0 },
-    maxAliveParticles: 24,
+    maxAliveParticles: 36,
   });
   // The plume points back and down-left at 24° below the horizontal; sparks leave along it.
   const sparks = scene.add.particles(0, 0, ensureTexture(scene, 'spark'), {
@@ -77,6 +80,7 @@ export function createFlightEffects(scene: Scene): FlightEffects {
     lifespan: { min: 350, max: 600 },
     speed: { min: 120, max: 210 },
     angle: { min: 146, max: 166 },
+    tint: paletteNumber('am4'),
     scale: { start: 1, end: 0.2 },
     alpha: { start: 0.9, end: 0 },
     maxAliveParticles: 24,
@@ -109,6 +113,9 @@ export function createFlightEffects(scene: Scene): FlightEffects {
     },
     exhaust: (on, at) => {
       drive([sparks], on, at);
+    },
+    setSurface: (color) => {
+      for (const emitter of ground) emitter.setParticleTint(paletteNumber(color));
     },
     setStage: (inSpace) => {
       for (const emitter of ground) {

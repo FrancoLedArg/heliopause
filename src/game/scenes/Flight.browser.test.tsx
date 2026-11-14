@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { GameObjects } from 'phaser';
 import { afterEach, expect, it, vi } from 'vitest';
 import { GameUI } from '../../ui/GameUI.tsx';
+import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
 import {
@@ -273,4 +274,30 @@ it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clea
   if (!scene) throw new Error('no Flight scene');
   // The whole Spacecraft, plumes included, sits right of the report.
   expect(scene.ship.getBounds().left).toBeGreaterThanOrEqual(reportRight);
+});
+
+it('the particles use the real sprites, tinted: dust and smoke by surface, sparks amber', async () => {
+  const { scene } = await fly('scout');
+  scene.seek(900);
+  const byTexture = (key: string): GameObjects.Particles.ParticleEmitter | undefined =>
+    emitters(scene).find((e) => e.texture.key === key);
+  const dust = byTexture('fx_dust');
+  const smoke = byTexture('fx_smoke');
+  const spark = byTexture('fx_spark');
+  // Real art, not the code-drawn stand-ins: the sprites carry a shaded rim the stand-ins lack.
+  expect(dust?.texture.getSourceImage().width).toBe(6);
+  expect(smoke?.texture.getSourceImage().width).toBe(10);
+  expect(spark?.texture.getSourceImage().width).toBe(3);
+  // The Home Planet's Moon is departed from a rocky Planet: amber dust (am2); sparks are am4.
+  expect(dust?.ops.tint.current).toBe(paletteNumber('am2'));
+  expect(smoke?.ops.tint.current).toBe(paletteNumber('am2'));
+  expect(spark?.ops.tint.current).toBe(paletteNumber('am4'));
+});
+
+it('the smoke rises slowly, grows 1x to 3x and fades over 2 to 3 s', async () => {
+  const { scene } = await fly('scout');
+  const smoke = emitters(scene).find((e) => e.texture.key === 'fx_smoke');
+  expect(smoke?.ops.lifespan.propertyValue).toEqual({ min: 2000, max: 3000 });
+  expect(smoke?.ops.scaleX.propertyValue).toEqual({ start: 1, end: 3 });
+  expect(smoke?.ops.alpha.propertyValue).toMatchObject({ end: 0 });
 });

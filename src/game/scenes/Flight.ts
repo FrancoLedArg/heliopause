@@ -1,5 +1,5 @@
 import { Scene, Scenes, type GameObjects, type Tweens } from 'phaser';
-import { paletteNumber } from '../../ui/kit/palette.ts';
+import { paletteNumber, type PaletteColor } from '../../ui/kit/palette.ts';
 import { hasAsset } from '../assets/manifest.ts';
 import { EventBus } from '../EventBus.ts';
 import { prefersReducedMotion } from '../lib/motion.ts';
@@ -126,6 +126,8 @@ export class Flight extends Scene {
   /** Where the playback is (ms from Launch). */
   playbackMs = 0;
 
+  /** The dust colour of the departure and arrival grounds. */
+  private dust!: Readonly<Record<'departure' | 'arrival', PaletteColor>>;
   private stages!: Readonly<
     Record<'departure' | 'arrival' | 'space', readonly GameObjects.Container[]>
   >;
@@ -168,13 +170,14 @@ export class Flight extends Scene {
     this.pace = prefersReducedMotion() ? 'reduced' : 'full';
     this.playback = flightPlayback(this.before.spacecraft, this.flight, this.pace);
 
-    const departure = this.buildGround(this.before);
+    const { layers: departure, dustColor: departureDust } = this.buildGround(this.before);
     // The target's sky as seen from its own surface: where the Spacecraft is about to stand.
     const atTarget: Run = {
       ...this.before,
       status: { kind: 'landed', bodyId: this.flight.plan.toId },
     };
-    const arrival = this.buildGround(atTarget);
+    const { layers: arrival, dustColor: arrivalDust } = this.buildGround(atTarget);
+    this.dust = { departure: departureDust, arrival: arrivalDust };
     const space = this.buildSpace();
     this.shadow = this.add.ellipse(
       SHIP_PLACEMENT.x,
@@ -399,6 +402,7 @@ export class Flight extends Scene {
     }
     this.shadow.setVisible(stage !== 'space');
     this.fx?.setStage(stage === 'space');
+    if (stage !== 'space') this.fx?.setSurface(this.dust[stage]);
   }
 
   /** Tells the HUD when something it shows has changed: the Burn, the thrust, the log or a Fuel step. */
@@ -504,13 +508,13 @@ export class Flight extends Scene {
     });
   }
 
-  private buildGround(run: Run): LandscapeLayers {
-    const { layers } = buildLandscape(this, run);
+  private buildGround(run: Run): { layers: LandscapeLayers; dustColor: PaletteColor } {
+    const { layers, dustColor } = buildLandscape(this, run);
     layers.sky.setScrollFactor(SCROLL_FACTOR.sky);
     layers.far.setScrollFactor(SCROLL_FACTOR.far);
     layers.mid.setScrollFactor(SCROLL_FACTOR.mid);
     layers.near.setScrollFactor(SCROLL_FACTOR.near);
-    return layers;
+    return { layers, dustColor };
   }
 
   /** Deep space, held still on screen: stars, the two Bodies and the speed streaks. */
