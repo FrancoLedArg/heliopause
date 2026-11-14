@@ -95,6 +95,18 @@ describe('summarize', () => {
     expect(status.mergeable.map((p) => p.number)).toEqual([1]);
     expect(status.awaitingReview.map((p) => p.number)).toEqual([3]);
   });
+
+  it('keeps a spec with open blockers out of newSpecs', () => {
+    const status = summarize(
+      [
+        issue(1, [Label.Spec, Label.ReadyForAgent]),
+        issue(2, [Label.Spec, Label.ReadyForAgent], { openBlockers: 1 }),
+      ],
+      [],
+    );
+    expect(status.newSpecs.map((i) => i.number)).toEqual([1]);
+    expect(status.blockedSpecs.map((i) => i.number)).toEqual([2]);
+  });
 });
 
 describe('behind-main handling', () => {
@@ -107,18 +119,16 @@ describe('behind-main handling', () => {
       ],
     );
     expect(status.mergeable.map((p) => p.number)).toEqual([2]);
+    expect(status.behindMain.map((p) => p.number)).toEqual([1]);
   });
 
-  it('keeps a spec with open blockers out of newSpecs', () => {
+  it('holds back an approved, green PR whose merge state is still UNKNOWN', () => {
     const status = summarize(
-      [
-        issue(1, [Label.Spec, Label.ReadyForAgent]),
-        issue(2, [Label.Spec, Label.ReadyForAgent], { openBlockers: 1 }),
-      ],
       [],
+      [pull(1, '', { labels: [Label.AgentApproved], checks: 'passing', mergeState: 'UNKNOWN' })],
     );
-    expect(status.newSpecs.map((i) => i.number)).toEqual([1]);
-    expect(status.blockedSpecs.map((i) => i.number)).toEqual([2]);
+    expect(status.mergeable).toEqual([]);
+    expect(status.behindMain).toEqual([]);
   });
 
   it('leanStatus drops PR bodies but keeps closed ticket numbers and merge state', () => {

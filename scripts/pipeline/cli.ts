@@ -12,6 +12,7 @@ import {
   isBehind,
   Label,
   leanStatus,
+  parseMergeState,
   summarize,
   type IssueSnapshot,
   type PipelineStatus,
@@ -112,7 +113,7 @@ function snapshot(repo: Repo): { issues: IssueSnapshot[]; pulls: PullSnapshot[] 
       title: node.title,
       headRefName: node.headRefName,
       body: node.body,
-      mergeState: node.mergeStateStatus,
+      mergeState: parseMergeState(node.mergeStateStatus),
       labels: node.labels.nodes.map((label) => label.name),
       checks: checksFromRollup(node.commits.nodes[0]?.commit.statusCheckRollup?.state),
     })),
@@ -144,6 +145,10 @@ function formatStatus(status: PipelineStatus): string {
     section(
       'Mergeable',
       status.mergeable.map((p) => `  PR #${String(p.number)} ${p.title}`),
+    ),
+    section(
+      'Behind main (update)',
+      status.behindMain.map((p) => `  PR #${String(p.number)} ${p.title}`),
     ),
     section('Blocked specs', status.blockedSpecs.map(line)),
     section('Blocked tickets', status.blockedTickets.map(line)),
