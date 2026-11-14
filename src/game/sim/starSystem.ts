@@ -145,14 +145,15 @@ export function generateStarSystem(seed: Seed): StarSystem {
     outermost * sampleFloat(rng, GENERATION_TUNING.heliopausePerOutermostPlanet),
   );
 
-  return {
+  // Frozen: Bodies do not move, and nothing outside the rules can change them.
+  return deepFreeze({
     seed,
     name,
     star: { name },
     planets,
     homePlanetId: `planet-${homeIndex + 1}`,
     heliopauseRadius,
-  };
+  });
 }
 
 function generateMoons(
@@ -175,6 +176,11 @@ function generateMoons(
       ...sampleBodySize(rng, SOURCED_RANGES.moon),
     }),
   );
+}
+
+/** The Body with this id, or `undefined` when the Star System has none (e.g. a stale selection). */
+export function findBody(system: StarSystem, id: BodyId): Body | undefined {
+  return listBodies(system).find((body) => body.id === id);
 }
 
 /** The rocky planet where every Run in this Star System starts. */
@@ -207,6 +213,15 @@ function sampleBodySize(
     surfaceGravity: metersPerSecondSquared(lerp(ranges.surfaceGravity, size)),
     escapeVelocity: metersPerSecond(lerp(ranges.escapeVelocity, size)),
   };
+}
+
+/** Freezes a simulation value and everything it holds, so state only changes through the rules. */
+export function deepFreeze<T extends object>(value: T): T {
+  for (const key of Reflect.ownKeys(value)) {
+    const child: unknown = Reflect.get(value, key);
+    if (typeof child === 'object' && child !== null) deepFreeze(child);
+  }
+  return Object.freeze(value);
 }
 
 function lerp(range: TuningRange, t: number): number {
