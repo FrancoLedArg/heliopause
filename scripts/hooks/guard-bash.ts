@@ -15,8 +15,9 @@ function main(): number {
     };
     const command = payload.tool_input?.command ?? '';
     const projectDir = process.env['CLAUDE_PROJECT_DIR'] ?? payload.cwd ?? process.cwd();
-    const scratchDirs = ['/tmp', '/private/tmp', '/var/folders', os.tmpdir()];
-    const reason = guard(command, { projectDir, scratchDirs });
+    const tmpDir = os.tmpdir();
+    const scratchDirs = ['/tmp', '/private/tmp', '/var/folders', tmpDir];
+    const reason = guard(command, { projectDir, scratchDirs, tmpDir });
     if (!reason) return 0;
     process.stderr.write(`Blocked by the Bash guard: ${reason}. See docs/agents/workflow.md.\n`);
     return 2;

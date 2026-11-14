@@ -12,6 +12,8 @@ export interface GuardContext {
   projectDir: string;
   /** Extra directories where recursive deletes are allowed (temp dirs). */
   scratchDirs: readonly string[];
+  /** Value of $TMPDIR, so `rm -r "$TMPDIR/x"` resolves to a real path. */
+  tmpDir: string;
 }
 
 const WRAPPERS: Record<string, { flagsWithArg: string; positionalArgs: number }> = {
@@ -124,7 +126,7 @@ function checkGit(args: readonly string[], env: ReadonlyMap<string, string>): st
       return null;
     }
     case 'commit':
-      return shortFlags(rest.find((arg) => shortFlags(arg).includes('n')) ?? '')
+      return rest.some((arg) => shortFlags(arg).includes('n'))
         ? 'skipping hooks with commit -n'
         : null;
     case 'reset':
@@ -178,7 +180,7 @@ function checkGh(args: readonly string[]): string | null {
     const arg = rest[i] ?? '';
     if (arg === '-X' || arg === '--method') method = rest[++i] ?? '';
     else if (arg.startsWith('--method=')) method = arg.slice('--method='.length);
-    else if (/^-X./.test(arg)) method = arg.slice(2);
+    else if (/^-X./.test(arg)) method = arg.slice(2).replace(/^=/, '');
     else if (['-f', '-F', '--field', '--raw-field', '--input'].includes(arg)) {
       hasFields = true;
       positionals.push(rest[++i] ?? '');
@@ -187,11 +189,13 @@ function checkGh(args: readonly string[]): string | null {
   method = method.toUpperCase();
   if (method === 'DELETE') return 'DELETE via gh api';
   const endpoint = positionals[0] ?? '';
-  if (
-    /pulls\/\d+\/merge\/?$/.test(endpoint) &&
-    (hasFields || (method !== '' && method !== 'GET'))
-  ) {
+  const writes = hasFields || (method !== '' && method !== 'GET');
+  if (writes && /pulls\/\d+\/merge\/?$/.test(endpoint)) {
     return 'merging outside the pipeline (use pnpm pipeline merge)';
+  }
+  if (writes && /\/merges\/?$/.test(endpoint)) return 'merging branches through the API';
+  if (writes && /git\/refs\/heads\/(?:main|master)\/?$/.test(endpoint)) {
+    return 'moving main through the API';
   }
   if (positionals.some((arg) => GRAPHQL_DESTRUCTIVE.test(arg)))
     return 'destructive GraphQL mutation';
@@ -211,20 +215,26 @@ function checkRm(args: readonly string[], context: GuardContext): string | null 
   if (!recursive) return null;
 
   const roots = [context.projectDir, ...context.scratchDirs].map((dir) => path.resolve(dir));
+  const known: Record<string, string> = {
+    CLAUDE_PROJECT_DIR: context.projectDir,
+    TMPDIR: context.tmpDir,
+  };
   for (const operand of operands) {
     const outside = `recursive delete outside the repo (${operand})`;
     if (operand.startsWith('~')) return outside;
     if (operand.split('/').includes('..')) return outside;
-    if (operand.startsWith('$')) {
-      const match = /^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?/.exec(operand);
-      if (!match || !['TMPDIR', 'CLAUDE_PROJECT_DIR'].includes(match[1] ?? '')) {
-        return `recursive delete of an unresolved path (${operand}); use a literal path`;
-      }
-      continue;
+    const resolved = operand.replace(
+      /\$\{?(CLAUDE_PROJECT_DIR|TMPDIR)\}?(?![A-Za-z0-9_])/g,
+      (_, name: string) => known[name] ?? '$',
+    );
+    if (resolved.includes('$')) {
+      return `recursive delete of an unresolved path (${operand}); use a literal path`;
     }
-    if (path.isAbsolute(operand)) {
-      const target = path.resolve(operand);
-      const inside = roots.some((root) => target !== root && target.startsWith(root + path.sep));
+    if (path.isAbsolute(resolved)) {
+      const target = path.resolve(resolved);
+      // Strictly inside a root, and never a root itself (e.g. all of $TMPDIR).
+      const inside =
+        !roots.includes(target) && roots.some((root) => target.startsWith(root + path.sep));
       if (!inside) return outside;
     }
   }

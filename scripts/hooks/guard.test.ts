@@ -4,8 +4,12 @@ import { parseShell } from './shell.ts';
 
 const context = {
   projectDir: '/work/heliopause',
-  scratchDirs: ['/tmp', '/private/tmp', '/var/folders'],
+  scratchDirs: ['/tmp', '/private/tmp', '/var/folders', '/var/folders/xy/T'],
+  tmpDir: '/var/folders/xy/T',
 };
+
+/** A PR or review body posted the way agents usually do, via a quoted heredoc. */
+const heredocBody = (body: string) => `gh pr comment 1 --body "$(cat <<'EOF'\n${body}\nEOF\n)"`;
 const check = (script: string) => guard(script, context);
 
 describe('parseShell', () => {
@@ -61,6 +65,13 @@ describe('guard allows ordinary agent work', () => {
     'gh api repos/o/r/issues/3',
     'gh api repos/o/r/pulls/3/merge',
     'cd /tmp && ls',
+    heredocBody("It's done; `gh label delete spec` is now blocked."),
+    heredocBody('Findings:\n1) force push slips through\n2) fixed :)'),
+    heredocBody("```\ngit reset --hard origin/main\n```\nand it's (mostly) fine"),
+    'rm -rf "$TMPDIR/vitest-cache"',
+    'rm -rf "${CLAUDE_PROJECT_DIR}/dist"',
+    'if pnpm test; then echo ok; fi',
+    'echo $((1 + 2))',
   ])('%s', (script) => {
     expect(check(script)).toBeNull();
   });
@@ -125,6 +136,19 @@ describe('guard blocks', () => {
     'rm -rf "$HOME/x"',
     'rm -rf /Users/someone/other',
     'rm -rf /work/heliopause',
+    `${heredocBody("It's done")} && git push --force`,
+    `${heredocBody('1) step')} && git reset --hard`,
+    'if git push origin main; then echo ok; fi',
+    'while ! git push --force; do sleep 1; done',
+    'until git reset --hard HEAD; do :; done',
+    'gh api -X=DELETE repos/o/r/labels/x',
+    'gh api -XDELETE repos/o/r/labels/x',
+    'gh api repos/o/r/merges -f base=main -f head=agent/1',
+    'gh api -X PATCH repos/o/r/git/refs/heads/main -f sha=abc',
+    'rm -rf "$CLAUDE_PROJECT_DIR"',
+    'rm -rf "$CLAUDE_PROJECT_DIR/$SUBDIR"',
+    'rm -rf "$TMPDIR"',
+    'rm -rf "$SOMEWHERE/x"',
   ])('%s', (script) => {
     expect(check(script)).not.toBeNull();
   });

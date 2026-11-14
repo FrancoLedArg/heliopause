@@ -8,39 +8,24 @@
  * words keep their literal `$VAR` text, which the guard treats conservatively.
  */
 
-const SEPARATOR_WORDS = new Set(['{', '}', '!', 'then', 'do', 'else', 'elif', 'fi', 'done']);
+const SEPARATOR_WORDS = new Set([
+  '{',
+  '}',
+  '!',
+  'if',
+  'then',
+  'elif',
+  'else',
+  'fi',
+  'while',
+  'until',
+  'do',
+  'done',
+]);
 
 interface Pending {
   delimiter: string;
   stripTabs: boolean;
-}
-
-/** Index just past the `)` that closes a `$(` whose content starts at `start`. */
-function closingParen(script: string, start: number): number {
-  let depth = 1;
-  let i = start;
-  while (i < script.length && depth > 0) {
-    const ch = script[i];
-    if (ch === '\\') {
-      i += 2;
-      continue;
-    }
-    if (ch === "'") {
-      const end = script.indexOf("'", i + 1);
-      i = end === -1 ? script.length : end + 1;
-      continue;
-    }
-    if (ch === '"') {
-      i++;
-      while (i < script.length && script[i] !== '"') i += script[i] === '\\' ? 2 : 1;
-      i++;
-      continue;
-    }
-    if (ch === '(') depth++;
-    if (ch === ')') depth--;
-    i++;
-  }
-  return i;
 }
 
 /** Index just past the closing backtick for a backtick substitution starting at `start`. */
@@ -51,7 +36,32 @@ function closingBacktick(script: string, start: number): number {
 }
 
 export function parseShell(script: string): string[][] {
+  // Unwrap `bash -c '…'`, `sh -c '…'`, `eval …` into the commands they run.
+  return lex(script, 0, false).commands.flatMap((command) => {
+    const [head, ...rest] = command;
+    if (head === undefined) return [];
+    if (head === 'eval') return [command, ...parseShell(rest.join(' '))];
+    if (/^(?:.*\/)?(?:bash|sh|zsh|dash)$/.test(head)) {
+      const flag = rest.findIndex((arg) => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(arg));
+      const body = flag === -1 ? undefined : rest[flag + 1];
+      if (body !== undefined) return [command, ...parseShell(body)];
+    }
+    return [command];
+  });
+}
+
+/**
+ * Lex from `start`. Inside a `$(…)` substitution, stop at its unmatched `)` and report
+ * where it ended, so heredocs and quotes inside the substitution are lexed by these
+ * same rules rather than a second scanner.
+ */
+function lex(
+  script: string,
+  start: number,
+  inSubstitution: boolean,
+): { commands: string[][]; end: number } {
   const commands: string[][] = [];
+  let depth = 0;
   let words: string[] = [];
   let word = '';
   let inWord = false;
@@ -60,7 +70,7 @@ export function parseShell(script: string): string[][] {
   /** The next word is a heredoc delimiter. */
   let heredocNext: { stripTabs: boolean } | null = null;
   let pending: Pending[] = [];
-  let i = 0;
+  let i = start;
 
   const endWord = (): void => {
     if (!inWord) return;
@@ -86,6 +96,13 @@ export function parseShell(script: string): string[][] {
 
   const substitute = (inner: string): void => {
     commands.push(...parseShell(inner));
+  };
+
+  /** Lex the `$(…)` whose content starts at `from`; returns the index after its `)`. */
+  const substitution = (from: number): number => {
+    const inner = lex(script, from, true);
+    commands.push(...inner.commands);
+    return inner.end;
   };
 
   const skipHeredocBodies = (): void => {
@@ -142,10 +159,8 @@ export function parseShell(script: string): string[][] {
           word += '$`"\\\n'.includes(escaped) ? (escaped === '\n' ? '' : escaped) : c + escaped;
           i += 2;
         } else if (c === '$' && script[i + 1] === '(') {
-          const end = closingParen(script, i + 2);
-          substitute(script.slice(i + 2, end - 1));
+          i = substitution(i + 2);
           word += '$(…)';
-          i = end;
         } else if (c === '`') {
           const end = closingBacktick(script, i + 1);
           substitute(script.slice(i + 1, end - 1));
@@ -162,11 +177,9 @@ export function parseShell(script: string): string[][] {
     }
 
     if (ch === '$' && next === '(') {
-      const end = closingParen(script, i + 2);
-      substitute(script.slice(i + 2, end - 1));
+      i = substitution(i + 2);
       word += '$(…)';
       inWord = true;
-      i = end;
       continue;
     }
 
@@ -230,7 +243,22 @@ export function parseShell(script: string): string[][] {
       continue;
     }
 
-    if (ch === ';' || ch === '&' || ch === '|' || ch === '(' || ch === ')') {
+    if (ch === '(') {
+      endCommand();
+      depth++;
+      i++;
+      continue;
+    }
+
+    if (ch === ')') {
+      endCommand();
+      i++;
+      if (depth > 0) depth--;
+      else if (inSubstitution) return { commands, end: i };
+      continue;
+    }
+
+    if (ch === ';' || ch === '&' || ch === '|') {
       endCommand();
       i +=
         (ch === '&' && next === '&') ||
@@ -246,17 +274,5 @@ export function parseShell(script: string): string[][] {
     i++;
   }
   endCommand();
-
-  // Unwrap `bash -c '…'`, `sh -c '…'`, `eval …` into the commands they run.
-  return commands.flatMap((command) => {
-    const [head, ...rest] = command;
-    if (head === undefined) return [];
-    if (head === 'eval') return [command, ...parseShell(rest.join(' '))];
-    if (/^(?:.*\/)?(?:bash|sh|zsh|dash)$/.test(head)) {
-      const flag = rest.findIndex((arg) => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(arg));
-      const body = flag === -1 ? undefined : rest[flag + 1];
-      if (body !== undefined) return [command, ...parseShell(body)];
-    }
-    return [command];
-  });
+  return { commands, end: i };
 }
