@@ -73,7 +73,7 @@ The player's one vehicle, built on the Chassis picked at New Run, kept and modif
 _Avoid_: Ship, satellite, rocket, vessel
 
 **Chassis**:
-The starting hull the player picks at New Run. It sets the Spacecraft's shape and its starting dry mass, Fuel capacity and engine. Changing it during a Run is out of v1.
+The starting design of the Spacecraft, picked at New Run. It sets the Spacecraft's shape and its starting dry mass, Fuel capacity and engine.
 _Avoid_: Hull, frame, model, class
 
 **Component**:
