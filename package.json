@@ -1,0 +1,63 @@
+{
+  "name": "heliopause",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Space Mission Design Game — NASA Space Apps Challenge 2026",
+  "type": "module",
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -b",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run --project unit",
+    "test:browser": "vitest run --project browser",
+    "test:watch": "vitest --project unit",
+    "test:e2e": "playwright test",
+    "verify": "pnpm typecheck && pnpm lint && pnpm format:check && pnpm test && pnpm test:browser && pnpm build && pnpm test:e2e",
+    "pipeline": "tsx scripts/pipeline/cli.ts",
+    "orchestrator": "claude --agent orchestrator --permission-mode dontAsk",
+    "planner": "claude --agent planner",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "phaser": "4.2.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.65.1",
+    "@types/node": "24.10.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.3.0",
+    "@vitest/browser-playwright": "5.1.0",
+    "eslint": "10.15.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "eslint-plugin-react-refresh": "0.5.7",
+    "globals": "17.14.0",
+    "husky": "9.1.7",
+    "lint-staged": "17.6.0",
+    "prettier": "3.10.1",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.2",
+    "vite": "8.3.8",
+    "vitest": "5.1.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": [
+      "eslint --max-warnings 0 --no-warn-ignored --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,html,yml,yaml}": "prettier --write"
+  }
+}

@@ -1,0 +1,3 @@
+# The spec is the only human gate
+
+The human approves work once, by finishing a grilling session that ends in a published spec; tickets, reviews and merges to `main` then happen without human approval, gated by an Opus Reviewer and green CI. The human wants to own product decisions while agents own nearly all the code, and a per-ticket or per-PR approval would put them back in the loop on technical work. The trade-off is that a mistaken spec gets built in full, so the Planner's grilling has to reach a confirmed shared understanding before publishing, and the Orchestrator may ask product questions once per spec after research.
