@@ -615,8 +615,8 @@ body {
   position: absolute;
 }
 
-/* Mouse clicks fall through to the chart in the canvas below; only the Close button takes them. */
-.nav-chart > *:not(.nav-chart__close) {
+/* Mouse clicks fall through to the chart in the canvas below; only the Cancel and Launch buttons take them. */
+.nav-chart > *:not(.nav-chart__actions) {
   pointer-events: none;
 }
 
@@ -749,7 +749,7 @@ body {
   color: var(--am3);
 }
 
-/* The Hop plan's target block: wireframe y 82 to 145, the rest of the panel is for ticket #30. */
+/* The Hop plan's target block: wireframe y 82 to 145; the plan sits below it. */
 .nav-chart__target {
   left: 456px;
   top: 82px;
@@ -796,7 +796,127 @@ body {
   top: 56px;
 }
 
-.nav-chart__close {
+.nav-chart__actions {
   left: 456px;
   top: 304px;
+  display: flex;
+  gap: 8px;
+}
+
+/* The plan: Burns, totals, Success Chance and the Δv line, wireframe y 147 to 300. */
+.nav-chart__plan {
+  left: 456px;
+  top: 144px;
+  width: 164px;
+  height: 154px;
+  font: 14px/11px var(--font-pixel-body);
+  color: var(--wh3);
+}
+
+.nav-chart__plan p,
+.nav-chart__plan dl,
+.nav-chart__plan dd {
+  margin: 0;
+}
+
+.nav-chart__plan canvas {
+  display: block;
+  margin: 1px 0;
+}
+
+.nav-chart__burns {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.nav-chart__burns th,
+.nav-chart__burns td {
+  padding: 0;
+  height: 11px;
+  font-weight: normal;
+}
+
+.nav-chart__burns thead th {
+  height: 10px;
+  font: 8px/10px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.nav-chart__burns th {
+  text-align: left;
+}
+
+.nav-chart__burns td,
+.nav-chart__burns thead th:last-child {
+  text-align: right;
+}
+
+.nav-chart__totals {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+}
+
+.nav-chart__totals dt {
+  font: 8px/11px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.nav-chart__totals dd {
+  text-align: right;
+  line-height: 11px;
+}
+
+.nav-chart__totals .nav-chart__available {
+  color: var(--cy3);
+}
+
+.nav-chart__totals .nav-chart__basis {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  line-height: 10px;
+  color: var(--gm6);
+}
+
+.nav-chart__totals .nav-chart__short {
+  color: var(--rd3);
+}
+
+.nav-chart__success {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+}
+
+.nav-chart__success-label {
+  flex: 1;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.nav-chart__success-value {
+  font: 16px/16px var(--font-pixel);
+}
+
+.nav-chart__success--ok .nav-chart__success-value {
+  color: var(--gr3);
+}
+
+.nav-chart__success--low .nav-chart__success-value {
+  color: var(--am3);
+}
+
+.nav-chart__warning {
+  color: var(--am3);
+  line-height: 11px;
+}
+
+.nav-chart__explain {
+  margin-top: 2px;
+  line-height: 11px;
+  color: var(--gm6);
 }

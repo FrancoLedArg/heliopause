@@ -41,6 +41,14 @@ export function formatDeltaV(deltaV: MetersPerSecond | undefined): string {
     : `${WHOLE.format(deltaV)} m/s`;
 }
 
+/** A probability (0 to 1) as a whole percent; never 100% unless certain, never 0% unless impossible. */
+export function formatPercent(probability: number): string {
+  const percent = Math.round(probability * 100);
+  if (probability > 0 && percent < 1) return '<1%';
+  if (probability < 1 && percent > 99) return '>99%';
+  return `${percent}%`;
+}
+
 /** What kind of Body this is, in the player's words: "Moon of Cinder", "Home Planet · Rocky", "Gas Giant". */
 export function bodyTypeLabel(run: Run, body: Body): string {
   switch (body.kind) {

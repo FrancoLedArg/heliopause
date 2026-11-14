@@ -23,11 +23,16 @@ export interface GameEvents {
    */
   'nav-chart-state': [state: ChartState | undefined];
   /**
-   * Phaser -> React: the Hop target changed. THE event the Hop plan (#30) reads: it carries only valid
+   * Phaser -> React: the Hop target changed. A Hop target was chosen or cleared: it carries only valid
    * targets, and `undefined` when the target is cleared (the chart was closed). `nav-chart-state`'s
-   * `selectedId` is the same value and is only for the chart panel's own display.
+   * `selectedId` is the same value; the Hop plan (#30) reads `selectedId`, since it arrives with the rest of the panel's state.
    */
   'nav-target-selected': [targetId: BodyId | undefined];
+  /**
+   * React -> Phaser: the player pressed Launch on the Hop plan for `targetId`, at any Success Chance.
+   * Ticket #31 (flight playback) consumes it; until then nothing listens.
+   */
+  'hop-launch-requested': [targetId: BodyId];
   /** React -> Phaser: the player confirmed leaving the Run from the in-Run Menu; go back to the Title scene. */
   'leave-run-requested': [];
 }

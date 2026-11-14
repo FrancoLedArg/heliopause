@@ -614,4 +614,18 @@ describe('the route line', () => {
       expect(Math.max(Math.abs(b.x - to.x), Math.abs(b.y - to.y))).toBeCloseTo(to.radius + 6, 5);
     }
   });
+
+  it('clear drops the target and keeps the focus', () => {
+    const run = newRun(5);
+    const layout = layoutChart(run);
+    const moon = homeMoon(run);
+    const clicked = chartReducer(run, layout, initialChartState(run), {
+      kind: 'click',
+      id: moon.id,
+    });
+    expect(chartReducer(run, layout, clicked, { kind: 'clear' })).toEqual({
+      focusedId: moon.id,
+      selectedId: undefined,
+    });
+  });
 });

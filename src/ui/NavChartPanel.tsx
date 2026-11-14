@@ -13,10 +13,11 @@ import {
   type ChartState,
   type Direction,
 } from '../game/scenes/navChartView.ts';
-import { currentBody, findBody, type Body, type Run } from '../game/sim/index.ts';
+import { currentBody, findBody, planHop, type Body, type Run } from '../game/sim/index.ts';
 import { bodyTypeLabel, formatDistanceAu, formatGravity } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { DELTA_V_EXPLANATION, describeHopPlan } from './hopPlanView.ts';
 
 const PANEL = { x: 8, y: 52, width: 432, height: 284 } as const;
 const SIDE = { x: 444, y: 52, width: 188, height: 284 } as const;
@@ -43,6 +44,10 @@ const requestClose = (): void => {
   EventBus.emit('nav-chart-close-requested');
 };
 
+const cancelPlan = (): void => {
+  EventBus.emit('nav-chart-command', { kind: 'clear' });
+};
+
 /**
  * The holo frame with the chart's rectangle cut out of it. The chart is drawn by Phaser under this
  * layer, and a translucent frame over it would dim the sprites, so nothing may cover the chart.
@@ -62,7 +67,7 @@ interface NavChartPanelProps {
 
 /**
  * The panel round the Nav Chart: frame, title, a label for each Body, a tooltip for the focused Body,
- * the Hop plan side panel (its target block for now) and the keyboard. The chart itself is Phaser's,
+ * the Hop plan side panel (target, Burns, totals, Success Chance, Cancel and Launch) and the keyboard. The chart itself is Phaser's,
  * behind this layer; this layer sends key presses to it as commands and shows what it reports back.
  */
 export function NavChartPanel({ run, state }: NavChartPanelProps) {
@@ -80,8 +85,12 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
   const tipHeight = tooltipHeight(status.valid ? undefined : status.why);
   const tooltip = placeTooltip(layout, context, tipHeight, labels);
 
+  const planned = state.selectedId === undefined ? undefined : planHop(run, state.selectedId);
+  const view =
+    planned?.kind === 'planned' && target ? describeHopPlan(run, planned.plan) : undefined;
+
   const chartRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef<HTMLDivElement>(null);
+  const actionsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     chartRef.current?.focus();
   }, []);
@@ -109,11 +118,14 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
     if (!event.repeat || command.kind !== 'select') EventBus.emit('nav-chart-command', command);
   };
 
-  // The panel is modal: Tab goes round the chart and the Close button and never leaves.
+  // The panel is modal: Tab goes round the chart, Cancel and Launch and never leaves. Launch is disabled
+  // until there is a target, so the loop ends on the last button that can take focus.
   const onPanelKey = (event: KeyboardEvent<HTMLElement>): void => {
     if (event.key !== 'Tab') return;
     const first = chartRef.current;
-    const last = closeRef.current?.querySelector('button');
+    const last =
+      actionsRef.current?.querySelector<HTMLButtonElement>('button:last-of-type:enabled') ??
+      actionsRef.current?.querySelector('button');
     if (!first || !last) return;
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
@@ -247,7 +259,6 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         <h2 className="nav-chart__title">Hop plan</h2>
       </div>
 
-      {/* The target block; the Burns, totals and Success Chance go below it (ticket #30). */}
       <div className="nav-chart__target" data-testid="target">
         <p className="nav-chart__target-label">Target</p>
         <p className="nav-chart__target-name">{target ? target.name : 'None chosen'}</p>
@@ -265,9 +276,93 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         <KitFrame frame="divider" width={164} height={5} className="nav-chart__divider" />
       </div>
 
-      <div ref={closeRef} className="nav-chart__close">
-        <KitButton width={76} onClick={requestClose} aria-keyshortcuts="Escape">
-          Close
+      <div className="nav-chart__plan" data-testid="hop-plan">
+        {view ? (
+          <>
+            <table className="nav-chart__burns">
+              <thead className="sr-only">
+                <tr>
+                  <th scope="col">Burn</th>
+                  <th scope="col">Est. Δv</th>
+                </tr>
+              </thead>
+              <tbody>
+                {view.burns.map((burn) => (
+                  <tr key={burn.label}>
+                    <th scope="row">{burn.label}</th>
+                    <td>{burn.estimate}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <KitFrame frame="divider" width={164} height={5} />
+            <dl className="nav-chart__totals">
+              <dt>Needed</dt>
+              <dd data-testid="plan-needed">{view.needed}</dd>
+              <dt>Available</dt>
+              <dd className="nav-chart__available" data-testid="plan-available">
+                {view.available}
+              </dd>
+              <dd className="nav-chart__basis" data-testid="plan-basis">
+                from {view.availableBasis}
+              </dd>
+              <dt>Margin</dt>
+              <dd
+                className={view.marginIsShort ? 'nav-chart__short' : undefined}
+                data-testid="plan-margin"
+              >
+                {view.margin}
+              </dd>
+            </dl>
+            <p
+              className={`nav-chart__success ${view.low ? 'nav-chart__success--low' : 'nav-chart__success--ok'}`}
+              data-testid="plan-success"
+            >
+              <span className="nav-chart__success-label">Success</span>
+              <KitFrame frame={view.low ? 'badge_warning' : 'badge_ok'} />
+              <span className="nav-chart__success-value">{view.successChance}</span>
+            </p>
+            {view.warning && (
+              <p className="nav-chart__warning" data-testid="plan-warning" role="status">
+                {view.warning}
+              </p>
+            )}
+            <p className="nav-chart__explain" data-testid="plan-explain">
+              {DELTA_V_EXPLANATION}
+            </p>
+          </>
+        ) : (
+          <p className="nav-chart__explain">
+            Pick a landable Body on the chart to plan a Hop. {DELTA_V_EXPLANATION}
+          </p>
+        )}
+      </div>
+
+      <div ref={actionsRef} className="nav-chart__actions">
+        <KitButton
+          width={76}
+          onClick={
+            target
+              ? () => {
+                  cancelPlan();
+                  chartRef.current?.focus();
+                }
+              : requestClose
+          }
+          aria-keyshortcuts={target ? undefined : 'Escape'}
+        >
+          {target ? 'Cancel' : 'Close'}
+        </KitButton>
+        <KitButton
+          width={80}
+          variant="primary"
+          disabled={!target}
+          onClick={() => {
+            // TODO(#31): flight playback consumes this; until it lands Launch only announces the Hop.
+            if (target) EventBus.emit('hop-launch-requested', target.id);
+          }}
+        >
+          Launch
         </KitButton>
       </div>
     </section>
