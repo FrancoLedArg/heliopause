@@ -32,6 +32,7 @@ export {
   CHASSIS_TUNING,
   DISPERSION,
   GENERATION_TUNING,
+  kilometersToAu,
   SOURCED_CONSTANTS,
   SOURCED_RANGES,
 } from './data.ts';

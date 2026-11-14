@@ -188,22 +188,83 @@ body {
   right: 6px;
 }
 
-/* ---- Landed (placeholder) ---- */
+/* ---- Landed ---- */
 
-.landed-plate {
+.top-bar {
   position: absolute;
-  top: 282px;
-  left: 12px;
+  top: 6px;
+  left: 8px;
 }
 
+.top-bar > .kit-frame:first-child,
 .landed-plate > .kit-frame {
   position: absolute;
   inset: 0;
 }
 
+.top-bar__icon {
+  position: absolute;
+  top: 4px;
+}
+
+.top-bar__fuel-icon {
+  left: 292px;
+}
+
+.top-bar__dv-icon {
+  left: 432px;
+}
+
+.top-bar__label {
+  position: absolute;
+  top: 9px;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.top-bar__value {
+  position: absolute;
+  top: 18px;
+  font: 18px/16px var(--font-pixel-body);
+}
+
+.top-bar__system-label,
+.top-bar__system {
+  left: 14px;
+}
+
+.top-bar__system {
+  color: var(--cy3);
+}
+
+.top-bar__fuel-label,
+.top-bar__fuel {
+  left: 328px;
+}
+
+.top-bar__fuel {
+  color: var(--am3);
+}
+
+.top-bar__dv-label,
+.top-bar__dv {
+  left: 468px;
+}
+
+.top-bar__dv {
+  color: var(--cy3);
+}
+
+.landed-plate {
+  position: absolute;
+  top: 274px;
+  left: 12px;
+}
+
 .landed-plate__title {
   position: absolute;
-  top: 10px;
+  top: 9px;
   left: 12px;
   font: 16px/16px var(--font-pixel);
   text-transform: uppercase;
@@ -221,8 +282,8 @@ body {
 
 .landed-plate__detail {
   position: absolute;
-  top: 39px;
+  top: 42px;
   left: 12px;
-  font: 11px/11px var(--font-pixel-body);
+  font: 14px/12px var(--font-pixel-body);
   color: var(--gm6);
 }

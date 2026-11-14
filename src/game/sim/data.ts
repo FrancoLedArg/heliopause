@@ -7,6 +7,7 @@ import {
   seconds,
   type AstronomicalUnits,
   type Kilograms,
+  type Kilometers,
   type MetersPerSecond,
   type MetersPerSecondSquared,
   type Seconds,
@@ -131,7 +132,18 @@ export const SOURCED_CONSTANTS = {
     value: metersPerSecond(29_800),
     source: `Earth, "Orbital Velocity" row. ${NSSDCA_PLANETS}`,
   } satisfies SourcedValue<MetersPerSecond>,
+  /** The AU in kilometres: a defined constant (IAU 2012: 149,597,870,700 m exactly), not tuning. */
+  kilometersPerAu: {
+    value: 149_597_870.7,
+    source:
+      'IAU 2012 Resolution B2, NASA/JPL Solar System Dynamics "Astrodynamic Parameters" https://ssd.jpl.nasa.gov/astro_par.html',
+  } satisfies SourcedValue<number>,
 } as const;
+
+/** A distance in kilometres, in astronomical units. */
+export function kilometersToAu(distance: Kilometers): AstronomicalUnits {
+  return astronomicalUnits(distance / SOURCED_CONSTANTS.kilometersPerAu.value);
+}
 
 /**
  * Gameplay tuning: every Burn's actual Δv is its estimate times a factor drawn uniformly from this
