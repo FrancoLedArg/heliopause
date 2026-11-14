@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import { chooseUrlChassis } from '../game/lib/runChassis.ts';
 import { chooseRunSeed } from '../game/lib/runSeed.ts';
@@ -7,6 +7,7 @@ import { SceneKey } from '../game/scenes/keys.ts';
 import { ChassisPicker } from './ChassisPicker.tsx';
 import { LandedPanels } from './LandedPanels.tsx';
 import { AboutPanel, CreditsPanel } from './InfoPanels.tsx';
+import { RunMenu } from './RunMenu.tsx';
 import { TitleMenu, type TitleButton } from './TitleMenu.tsx';
 
 /**
@@ -21,6 +22,8 @@ export function GameUI() {
   const [info, setInfo] = useState<'about' | 'credits' | undefined>(undefined);
   // The title button to focus when the menu comes back from the screen it opened.
   const [focus, setFocus] = useState<TitleButton | undefined>(undefined);
+  // Set when the player leaves a Run, so the title they land on takes focus like after the picker's Back.
+  const leftRun = useRef(false);
 
   useEffect(
     () =>
@@ -31,7 +34,8 @@ export function GameUI() {
           setRun(undefined);
           setPicking(false);
           setInfo(undefined);
-          setFocus(undefined);
+          setFocus(leftRun.current ? 'new-run' : undefined);
+          leftRun.current = false;
         }
       }),
     [],
@@ -85,6 +89,14 @@ export function GameUI() {
         />
       )}
       {scene === SceneKey.Landed && run !== undefined && <LandedPanels run={run} />}
+      {scene === SceneKey.Landed && run !== undefined && (
+        <RunMenu
+          onLeave={() => {
+            leftRun.current = true;
+            EventBus.emit('leave-run-requested');
+          }}
+        />
+      )}
       <p className="hud-tag ai-label">AI-generated art</p>
     </div>
   );
