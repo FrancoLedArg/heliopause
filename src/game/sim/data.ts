@@ -2,6 +2,7 @@ import {
   astronomicalUnits,
   kilograms,
   kilometers,
+  materials,
   metersPerSecond,
   metersPerSecondSquared,
   seconds,
@@ -109,22 +110,31 @@ export const GENERATION_TUNING = {
   moonDistanceFromPlanet: { min: kilometers(150_000), max: kilometers(1_900_000) },
 } as const satisfies Record<string, TuningRange | Record<string, TuningRange>>;
 
-/**
- * Gameplay tuning for what a landable Body is made of. Not real-world figures: the real ice line
- * (research ticket #110) can replace `iceLineAu` once it lands.
- */
+/** Real-world figure behind what landable Bodies are made of. */
+export const ICE_LINE = {
+  /**
+   * The Solar System's ice line, about 2.7 AU. Only this figure is sourced; the chance of an Icy
+   * Body, d / (d + ice line), is a gameplay curve (see `BODY_TUNING`).
+   */
+  distance: {
+    value: astronomicalUnits(2.7),
+    source:
+      'Lecar et al. 2006, ApJ 640, 1115 https://doi.org/10.1086/500159; Martin & Livio 2013, MNRAS (ice line of the Solar System); see docs/research/ for the ice-line note from research PR #120',
+  } satisfies SourcedValue<AstronomicalUnits>,
+} as const;
+
+/** Gameplay tuning for what a landable Body is made of. Not real-world figures. */
 export const BODY_TUNING = {
   /**
-   * Tuning stand-in for the ice line: the distance from the star where half the landable Bodies are
-   * Icy. The chance of an Icy Body is d / (d + iceLineAu), so it rises steadily with distance.
+   * Base yield by type, before any Drill multiplier. Icy is Fuel in kilograms, scaled to Chassis
+   * Fuel capacity (21,000 to 66,000 kg) so one landing is a meaningful refill. Rocky is Materials,
+   * in the unit of Component costs (#112).
    */
-  iceLineAu: 2.7,
-  /** Base yield by type, before any Drill multiplier: Fuel for an Icy Body, Materials for a Rocky one. */
   baseYield: {
-    icy: { min: 20, max: 60 },
-    rocky: { min: 10, max: 30 },
+    icy: { min: kilograms(3_000), max: kilograms(9_000) },
+    rocky: { min: materials(10), max: materials(30) },
   },
-} as const satisfies Record<string, number | Record<string, TuningRange>>;
+} as const satisfies Record<string, Record<string, TuningRange>>;
 
 /** Real-world figures behind the Hop rules. Each cites its source. */
 export const SOURCED_CONSTANTS = {

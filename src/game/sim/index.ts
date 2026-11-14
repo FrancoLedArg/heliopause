@@ -31,6 +31,7 @@ export type {
 } from './starSystem.ts';
 export {
   BODY_TUNING,
+  ICE_LINE,
   CHASSIS_IDS,
   CHASSIS_TUNING,
   DISPERSION,
@@ -50,6 +51,7 @@ export type {
 export {
   astronomicalUnits,
   kilograms,
+  materials,
   kilometers,
   metersPerSecond,
   metersPerSecondSquared,
@@ -59,6 +61,7 @@ export {
 export type {
   AstronomicalUnits,
   Kilograms,
+  Materials,
   Kilometers,
   MetersPerSecond,
   MetersPerSecondSquared,

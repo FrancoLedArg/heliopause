@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   BODY_TUNING,
+  ICE_LINE,
   generateStarSystem,
   homePlanet,
   listBodies,
@@ -169,11 +170,19 @@ describe('Star System generation', () => {
 describe('Icy and Rocky Bodies', () => {
   const landable = systems.flatMap((system) => listBodies(system).filter((b) => b.landable));
 
-  it('every landable Body is Icy or Rocky with a positive base yield', () => {
+  it('every landable Body is Icy or Rocky with a base yield inside the tuning range of its type', () => {
     for (const body of landable) {
       expect(['icy', 'rocky']).toContain(body.composition);
-      expect(body.baseYield).toBeGreaterThan(0);
+      const range = BODY_TUNING.baseYield[body.composition];
+      expect(body.baseYield).toBeGreaterThanOrEqual(range.min);
+      expect(body.baseYield).toBeLessThanOrEqual(range.max);
     }
+  });
+
+  it('an Icy yield is a meaningful share of the smallest Fuel tank (21,000 kg)', () => {
+    const icy = landable.filter((b) => b.composition === 'icy');
+    expect(Math.min(...icy.map((b) => b.baseYield))).toBeGreaterThanOrEqual(21_000 * 0.1);
+    expect(Math.max(...icy.map((b) => b.baseYield))).toBeLessThan(21_000);
   });
 
   it('a Gas Giant has no resource type or yield', () => {
@@ -197,8 +206,8 @@ describe('Icy and Rocky Bodies', () => {
   it('Icy Bodies are more common in the outer system', () => {
     const share = (bodies: typeof landable) =>
       bodies.filter((b) => b.composition === 'icy').length / bodies.length;
-    const inner = landable.filter((b) => b.distanceFromStar < BODY_TUNING.iceLineAu);
-    const outer = landable.filter((b) => b.distanceFromStar >= BODY_TUNING.iceLineAu);
+    const inner = landable.filter((b) => b.distanceFromStar < ICE_LINE.distance.value);
+    const outer = landable.filter((b) => b.distanceFromStar >= ICE_LINE.distance.value);
     expect(inner.length).toBeGreaterThan(50);
     expect(outer.length).toBeGreaterThan(50);
     expect(share(outer)).toBeGreaterThan(share(inner) + 0.2);

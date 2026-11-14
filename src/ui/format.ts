@@ -63,21 +63,29 @@ export function formatMarginShare(share: number): string {
   return percent < 100 ? `${percent}%` : '';
 }
 
-const capitalised = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1);
-
-/** What kind of Body this is, in the player's words: "Icy Moon of Cinder", "Home Planet · Rocky", "Gas Giant" (no resource type: it has no surface). */
+/** What kind of Body this is, in the player's words: "Moon of Cinder", "Home Planet", "Planet", "Gas Giant". The kind only: Icy or Rocky is `bodyCompositionLabel`. */
 export function bodyTypeLabel(run: Run, body: Body): string {
   switch (body.kind) {
     case 'moon': {
       const planet = findBody(run.starSystem, body.planetId);
       if (!planet) throw new Error(`Moon ${body.id} has no planet`);
-      return `${capitalised(body.composition)} Moon of ${planet.name}`;
+      return `Moon of ${planet.name}`;
     }
     case 'gas-giant':
       return 'Gas Giant';
     case 'rocky-planet':
-      return body.id === run.starSystem.homePlanetId
-        ? `Home Planet · ${capitalised(body.composition)}`
-        : `${capitalised(body.composition)} planet`;
+      return body.id === run.starSystem.homePlanetId ? 'Home Planet' : 'Planet';
   }
+}
+
+/** What a landable Body is made of, as a short word: "Icy" or "Rocky". A Gas Giant has none. */
+export function bodyCompositionLabel(body: Body): 'Icy' | 'Rocky' | undefined {
+  if (!body.landable) return undefined;
+  return body.composition === 'icy' ? 'Icy' : 'Rocky';
+}
+
+/** The kind and, for a landable Body, its composition: "Moon of Cinder · Icy". For roomy places. */
+export function bodyFullLabel(run: Run, body: Body): string {
+  const composition = bodyCompositionLabel(body);
+  return composition ? `${bodyTypeLabel(run, body)} · ${composition}` : bodyTypeLabel(run, body);
 }

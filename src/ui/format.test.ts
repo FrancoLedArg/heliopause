@@ -7,6 +7,8 @@ import type {
 } from '../game/sim/index.ts';
 import { CHASSIS_IDS, homePlanet, listBodies, startRun } from '../game/sim/index.ts';
 import {
+  bodyCompositionLabel,
+  bodyFullLabel,
   bodyTypeLabel,
   formatDeltaV,
   formatDistanceAu,
@@ -53,21 +55,34 @@ describe('numbers shown to the player', () => {
 describe('Body type label', () => {
   const run = startRun(123, CHASSIS_IDS[0]);
   const bodies = listBodies(run.starSystem);
+  const home = homePlanet(run.starSystem);
 
-  it('says Icy or Rocky for every landable Body, as text', () => {
-    const home = homePlanet(run.starSystem);
-    expect(bodyTypeLabel(run, home)).toBe('Home Planet · Rocky');
-    expect(bodyTypeLabel(run, home.moons[0] ?? home)).toBe(`Icy Moon of ${home.name}`);
+  it('names the kind only, never the composition', () => {
+    expect(bodyTypeLabel(run, home)).toBe('Home Planet');
+    const moon = home.moons[0];
+    if (!moon) throw new Error('seed 123 has no Home Planet Moon');
+    expect(bodyTypeLabel(run, moon)).toBe(`Moon of ${home.name}`);
     for (const body of bodies) {
-      if (!body.landable || body.id === home.id) continue;
-      const word = body.composition === 'icy' ? 'Icy' : 'Rocky';
-      expect(bodyTypeLabel(run, body)).toMatch(new RegExp(`^${word} (planet|Moon of )`));
+      if (body.kind === 'rocky-planet' && body.id !== home.id) {
+        expect(bodyTypeLabel(run, body)).toBe('Planet');
+      }
     }
   });
 
-  it('names a Gas Giant without a resource type', () => {
+  it('says Icy or Rocky as a separate word for every landable Body', () => {
+    expect(bodyCompositionLabel(home)).toBe('Rocky');
+    for (const body of bodies) {
+      if (!body.landable) continue;
+      expect(bodyCompositionLabel(body)).toBe(body.composition === 'icy' ? 'Icy' : 'Rocky');
+    }
+    const moon = home.moons[0];
+    if (moon) expect(bodyFullLabel(run, moon)).toBe(`Moon of ${home.name} · Icy`);
+  });
+
+  it('gives a Gas Giant no composition', () => {
     for (const body of bodies.filter((b) => b.kind === 'gas-giant')) {
-      expect(bodyTypeLabel(run, body)).toBe('Gas Giant');
+      expect(bodyCompositionLabel(body)).toBeUndefined();
+      expect(bodyFullLabel(run, body)).toBe('Gas Giant');
     }
   });
 });
