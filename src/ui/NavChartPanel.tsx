@@ -271,18 +271,24 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
       </div>
 
       <div className="nav-chart__target" data-testid="target">
-        <p className="nav-chart__target-label">Target</p>
-        <p className="nav-chart__target-name">{target ? target.name : 'None chosen'}</p>
-        {target && (
-          <>
-            <p className="nav-chart__target-kind">
-              {bodyTypeLabel(run, target)} · {formatGravity(target.surfaceGravity)}
-            </p>
+        <div className="nav-chart__target-head">
+          <p className="nav-chart__target-label">Target</p>
+          {target && (
             <p className="nav-chart__badge nav-chart__badge--ok">
               <KitFrame frame="badge_ok" />
               Landable
             </p>
-          </>
+          )}
+        </div>
+        <p className="nav-chart__target-name">{target ? target.name : 'None chosen'}</p>
+        {target && (
+          <p className="nav-chart__target-kind" data-testid="target-kind">
+            <span data-testid="target-type">{bodyTypeLabel(run, target)}</span>
+            {' · '}
+            <span className="nav-chart__target-gravity" data-testid="target-gravity">
+              {formatGravity(target.surfaceGravity)}
+            </span>
+          </p>
         )}
         <KitFrame frame="divider" width={164} height={5} className="nav-chart__divider" />
       </div>

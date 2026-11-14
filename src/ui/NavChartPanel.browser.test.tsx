@@ -111,3 +111,49 @@ it.each(['scout', 'hauler'] as const)(
     );
   },
 );
+
+// The longest name the generator makes: three syllables of onset, vowel and coda (15 letters) plus an
+// epithet. A Moon of such a planet has the longest target subtitle, and the numbers must fit beside it.
+it('shows the whole target subtitle for a Moon of the longest-named planet, inside the frame', async () => {
+  const run = startRun(123, 'scout');
+  const longName = 'Thaeprioquaeprix Prime';
+  const planets = run.starSystem.planets.map((planet) =>
+    planet.moons.length > 0 ? { ...planet, name: longName } : planet,
+  );
+  const longRun = { ...run, starSystem: { ...run.starSystem, planets } };
+  const moon = listBodies(longRun.starSystem).find((b) => b.kind === 'moon');
+  if (!moon) throw new Error('no moon');
+  host = document.createElement('div');
+  host.className = 'stage__ui';
+  document.body.append(host);
+  root = createRoot(host);
+  act(() => {
+    root?.render(
+      <div className="game-ui">
+        <NavChartPanel run={longRun} state={{ focusedId: moon.id, selectedId: moon.id }} />
+      </div>,
+    );
+  });
+  await document.fonts.load('14px VT323');
+  await document.fonts.load('8px Silkscreen');
+  await document.fonts.ready;
+  const target = host.querySelector<HTMLElement>('[data-testid="target"]');
+  const kind = host.querySelector<HTMLElement>('[data-testid="target-kind"]');
+  const gravity = host.querySelector<HTMLElement>('[data-testid="target-gravity"]');
+  const divider = host.querySelector<HTMLElement>('.nav-chart__divider');
+  if (!target || !kind || !gravity || !divider) throw new Error('missing target parts');
+  expect(kind.textContent).toContain(longName);
+  expect(gravity.textContent).toContain('m/s²');
+  // The subtitle wraps onto at most two lines of 11 px, none cut off, and ends a few pixels above the
+  // divider with the gravity inside the target block (slack for font differences).
+  expect(kind.getBoundingClientRect().height).toBeLessThanOrEqual(22);
+  for (const el of [kind, gravity]) {
+    expect(el.scrollWidth).toBeLessThanOrEqual(el.clientWidth);
+    expect(el.getBoundingClientRect().right).toBeLessThanOrEqual(
+      target.getBoundingClientRect().right,
+    );
+    expect(el.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      divider.getBoundingClientRect().top - 2,
+    );
+  }
+});
