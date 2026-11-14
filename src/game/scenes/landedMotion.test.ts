@@ -1,3 +1,4 @@
+import { SKY_WIDTH, SURFACE_WIDTH } from './landedView.ts';
 import { describe, expect, it } from 'vitest';
 import {
   DRIFT_PERIOD_MS,
@@ -12,8 +13,8 @@ import {
 
 describe('driftSlack', () => {
   it('is the width a layer has to spare on each side once centred on the 640 px screen', () => {
-    expect(driftSlack(800)).toBe(80);
-    expect(driftSlack(960)).toBe(160);
+    expect(driftSlack(SURFACE_WIDTH)).toBe(80);
+    expect(driftSlack(SKY_WIDTH)).toBe(160);
   });
 });
 
@@ -40,10 +41,10 @@ describe('driftOffsets', () => {
   });
 
   it('never moves a layer past the slack it has, so no edge shows', () => {
-    expect(DRIFT_RANGE.near).toBeLessThan(driftSlack(800));
-    expect(DRIFT_RANGE.mid).toBeLessThan(driftSlack(800));
-    expect(DRIFT_RANGE.far).toBeLessThan(driftSlack(800));
-    expect(DRIFT_RANGE.sky).toBeLessThan(driftSlack(960));
+    expect(DRIFT_RANGE.near).toBeLessThan(driftSlack(SURFACE_WIDTH));
+    expect(DRIFT_RANGE.mid).toBeLessThan(driftSlack(SURFACE_WIDTH));
+    expect(DRIFT_RANGE.far).toBeLessThan(driftSlack(SURFACE_WIDTH));
+    expect(DRIFT_RANGE.sky).toBeLessThan(driftSlack(SKY_WIDTH));
   });
 
   it('writes into the object it is given, so a frame allocates nothing', () => {

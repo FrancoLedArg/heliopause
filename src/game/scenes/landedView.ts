@@ -2,6 +2,7 @@
 // No Phaser here, so the scene stays a thin renderer and these rules are tested in Node.
 import { stringSeed } from '../lib/stringSeed.ts';
 import { createRng } from '../lib/rng.ts';
+import { DRIFT_RANGE } from './landedMotion.ts';
 import { astronomicalUnits, currentBody, kilometersToAu, listBodies } from '../sim/index.ts';
 import type {
   AstronomicalUnits,
@@ -22,12 +23,22 @@ export function surfaceKind(body: LandableBody): SurfaceKind {
 }
 
 /**
- * Where the whole Spacecraft stands: `x` is the centre of its base, `baseY` the ground line it
- * rests on. The near layer's ground is almost level from x 450 to 600 (it drops 2-4 px), so the
- * 96 px wide Chassis sits in the middle of that stretch, clear of the location plate at lower
- * left. The ambient-motion work (#37) reuses this to keep the ship fixed against the drift.
+ * Where the whole Spacecraft stands: `x` is the centre of its base at rest, `baseY` the ground
+ * line it rests on. The near layer's ground is almost level from x 450 to 600 (it drops 2-4 px).
+ * The ambient drift (#37) moves the near ground and the ship rides it, so the ship sweeps
+ * `SHIP_SWEEP_X` (x 429-621 for the 96 px Chassis); panels must stay clear of that whole span,
+ * not only of the resting position. The location plate sits at lower left, clear of it.
  */
 export const SHIP_PLACEMENT = { x: 525, baseY: 296 } as const;
+
+/** The centre of the ship's base at the two ends of its drift: the resting `x` either side by the near layer's range. */
+export const SHIP_SWEEP_X = {
+  min: SHIP_PLACEMENT.x - DRIFT_RANGE.near,
+  max: SHIP_PLACEMENT.x + DRIFT_RANGE.near,
+} as const;
+
+/** Width of each surface layer: wider than the 640 px screen so the ambient drift never shows an edge. */
+export const SURFACE_WIDTH = 800;
 
 /** Width of the sky layer: wider than the 640 px screen so it can drift with parallax later. */
 export const SKY_WIDTH = 960;

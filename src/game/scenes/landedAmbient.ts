@@ -9,23 +9,23 @@ import {
   newDriftOffsets,
   phaseAt,
 } from './landedMotion.ts';
-import { prefersReducedMotion } from './titleMotion.ts';
+import { prefersReducedMotion } from '../lib/motion.ts';
+import type { TwinklingStarfield } from './starfield.ts';
+import { twinkle } from './starfield.ts';
 
 const MOTE_COUNT = 22;
-/** Dust hugs the ground: these y values sit on the near layer. */
+/** Dust hugs the ground: low on the screen, over the mid and near layers. It blows in screen space, so the camera's drift does not move it. */
 const DUST_Y = { min: 272, max: 346 } as const;
 const DUST_SPEED = { min: 9, max: 26 } as const;
 const LIGHTS_ON_MS = 700;
 const LIGHTS_OFF_MS = 1500;
-export const TWINKLE_EVERY = 14;
 
 export interface AmbientTargets {
   /** The scene's layers, back to front. */
   readonly layers: Readonly<Record<'sky' | 'far' | 'mid' | 'near' | 'ship', GameObjects.Container>>;
   /** Where each layer rests when the camera is centred. */
   readonly rest: { readonly sky: number; readonly layer: number; readonly ship: number };
-  readonly stars: GameObjects.Graphics;
-  readonly twinklers: readonly GameObjects.Graphics[];
+  readonly starfield: TwinklingStarfield;
   /** Turns the Spacecraft's lights on or off. */
   readonly setShipLights: (on: boolean) => void;
   readonly dustColor: PaletteColor;
@@ -35,6 +35,8 @@ export interface AmbientTargets {
 export interface LandedAmbient {
   /** True when the player prefers reduced motion: nothing moves. */
   readonly reducedMotion: boolean;
+  /** Test seam: jumps the drift clock to `ms` into its cycle and holds it there. Does nothing under reduced motion. */
+  readonly seekDrift: (ms: number) => void;
   /** Stops every tween, timer and listener the ambient life started. Safe to call twice. */
   readonly dispose: () => void;
 }
@@ -48,11 +50,17 @@ export interface LandedAmbient {
 export function createLandedAmbient(scene: Scene, targets: AmbientTargets): LandedAmbient {
   const reducedMotion = prefersReducedMotion();
   const tweens: Tweens.Tween[] = [];
+  let seekDrift: (ms: number) => void = () => undefined;
   let stopLights = (): void => undefined;
   let stopDust = (): void => undefined;
 
   if (!reducedMotion) {
-    tweens.push(driftTween(scene, targets), ...twinkleTweens(scene, targets.twinklers));
+    const drift = driftTween(scene, targets);
+    seekDrift = drift.seek;
+    tweens.push(
+      drift.tween,
+      ...targets.starfield.twinklers.map(({ star, index }) => twinkle(scene, star, index)),
+    );
     stopLights = blinkLights(scene, targets.setShipLights);
     tweens.push(glowTween(scene, targets.layers.ship));
     stopDust = blowDust(scene, targets);
@@ -61,6 +69,9 @@ export function createLandedAmbient(scene: Scene, targets: AmbientTargets): Land
   let disposed = false;
   return {
     reducedMotion,
+    seekDrift: (ms) => {
+      seekDrift(ms);
+    },
     dispose: () => {
       if (disposed) return;
       disposed = true;
@@ -73,40 +84,38 @@ export function createLandedAmbient(scene: Scene, targets: AmbientTargets): Land
 }
 
 /** One tween is the camera's clock; each frame it sets every layer's x from the shared offsets. The Spacecraft rides the ground it stands on. */
-function driftTween(scene: Scene, t: AmbientTargets): Tweens.Tween {
+function driftTween(
+  scene: Scene,
+  t: AmbientTargets,
+): { tween: Tweens.Tween; seek: (ms: number) => void } {
   const offsets = newDriftOffsets();
   const clock = { ms: 0 };
-  return scene.tweens.add({
+  const place = (): void => {
+    driftOffsets(phaseAt(clock.ms), offsets);
+    t.layers.sky.x = t.rest.sky + offsets.sky;
+    // The stars are farther than the Bodies, so they trail them a little inside the sky.
+    t.starfield.container.x = offsets.stars - offsets.sky;
+    t.layers.far.x = t.rest.layer + offsets.far;
+    t.layers.mid.x = t.rest.layer + offsets.mid;
+    t.layers.near.x = t.rest.layer + offsets.near;
+    t.layers.ship.x = t.rest.ship + offsets.near;
+  };
+  const tween = scene.tweens.add({
     targets: clock,
     ms: DRIFT_PERIOD_MS,
     duration: DRIFT_PERIOD_MS,
     ease: 'Linear',
     repeat: -1,
-    onUpdate: () => {
-      driftOffsets(phaseAt(clock.ms), offsets);
-      t.layers.sky.x = t.rest.sky + offsets.sky;
-      // The stars are farther than the Bodies, so they trail them a little inside the sky.
-      t.stars.x = offsets.stars - offsets.sky;
-      t.layers.far.x = t.rest.layer + offsets.far;
-      t.layers.mid.x = t.rest.layer + offsets.mid;
-      t.layers.near.x = t.rest.layer + offsets.near;
-      t.layers.ship.x = t.rest.ship + offsets.near;
-    },
+    onUpdate: place,
   });
-}
-
-function twinkleTweens(scene: Scene, twinklers: readonly GameObjects.Graphics[]): Tweens.Tween[] {
-  return twinklers.map((star, index) =>
-    scene.tweens.add({
-      targets: star,
-      alpha: 0.15,
-      duration: 1400 + (index % 7) * 300,
-      delay: (index % 11) * 400,
-      ease: 'Sine.easeInOut',
-      yoyo: true,
-      repeat: -1,
-    }),
-  );
+  return {
+    tween,
+    seek: (ms) => {
+      tween.pause();
+      clock.ms = ms;
+      place();
+    },
+  };
 }
 
 /** The lights come on for a moment, then go dark for a longer one. Returns a function that stops them. */

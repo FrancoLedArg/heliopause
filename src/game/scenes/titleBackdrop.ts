@@ -1,11 +1,11 @@
 import { BlendModes, type GameObjects, type Scene, type Tweens } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
-import { generateStars, starLayer } from './starfield.ts';
+import { prefersReducedMotion } from '../lib/motion.ts';
+import { generateStars, starLayer, twinkle, TWINKLE_EVERY } from './starfield.ts';
 import {
   flybyLane,
   nextFlybyDelayMs,
   orbitPose,
-  prefersReducedMotion,
   type Orbit,
   type OrbitPose,
 } from './titleMotion.ts';
@@ -15,7 +15,6 @@ const STARFIELD_SEED = 1977; // Voyager launch year: same sky on every load.
 const LAYER_COUNT = 3;
 /** Milliseconds for a layer to drift one screen width: the nearest layer is the fastest. */
 const LAYER_DRIFT_MS: readonly number[] = [320_000, 200_000, 120_000];
-const TWINKLE_EVERY = 14;
 
 const PLANET_HOME = { x: 560, y: 372 };
 const ORBIT_MS = 150_000;
@@ -146,19 +145,7 @@ function addParallaxStarfield(
     target.fillStyle(paletteNumber(star.color), star.alpha);
     target.fillRect(star.x, star.y, star.size, star.size);
     target.fillRect(star.x + area.width, star.y, star.size, star.size);
-    if (twinkles) {
-      tweens.push(
-        scene.tweens.add({
-          targets: target,
-          alpha: 0.15,
-          duration: 1400 + (index % 7) * 300,
-          delay: (index % 11) * 400,
-          ease: 'Sine.easeInOut',
-          yoyo: true,
-          repeat: -1,
-        }),
-      );
-    }
+    if (twinkles) tweens.push(twinkle(scene, target, index));
   });
   if (reducedMotion) return;
   layers.forEach((layer, index) => {

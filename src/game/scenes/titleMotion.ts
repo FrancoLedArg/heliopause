@@ -55,8 +55,3 @@ export const FLYBY_LANES: readonly number[] = [24, 44, 252, 300, 334];
 export function flybyLane(random: () => number): number {
   return FLYBY_LANES[Math.floor(random() * FLYBY_LANES.length)] ?? 24;
 }
-
-/** True when the player asked their system for less motion. Read once per scene; tests stub `matchMedia`. */
-export function prefersReducedMotion(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
