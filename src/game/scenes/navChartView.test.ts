@@ -13,6 +13,7 @@ import {
   routeEnds,
   TOOLTIP_SIZE,
   tooltipHeight,
+  tooltipKindExtra,
   type ChartLayout,
   type ChartNode,
   type LabelContext,
@@ -627,5 +628,17 @@ describe('the route line', () => {
       focusedId: moon.id,
       selectedId: undefined,
     });
+  });
+});
+
+describe('the Body tooltip height', () => {
+  it('is taller by one line when the Body type wraps, and by the same line with a reason', () => {
+    const [short, long] = ['Moon of Zymir', 'Moon of Praespraethaen Prime'];
+    expect(tooltipKindExtra(short)).toBe(0);
+    expect(tooltipKindExtra(long)).toBe(9);
+    expect(tooltipHeight(undefined, 9)).toBe(TOOLTIP_SIZE.h + 9);
+    expect(tooltipHeight('Too far for this Spacecraft', 9)).toBe(
+      tooltipHeight('Too far for this Spacecraft') + 9,
+    );
   });
 });
