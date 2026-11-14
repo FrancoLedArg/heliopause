@@ -6,9 +6,13 @@ AI-generated pixel art (see AI-USAGE.md): the game shows a visible
 Native 640x360, nearest-neighbour. Only kit palette colours are used.
 Light comes from the top-left; every sprite gets a 1px `void` outline.
 
-Usage:  python3 -I gen_sprites.py <out_dir> [preview_png [surfaces_preview_png [chassis_preview_png]]]
-Needs Pillow and numpy.
+Usage:  python3 -I gen_sprites.py <out_dir> [preview_png [surfaces_preview_png [chassis_preview_png [chassis_art_json]]]]
+Needs Pillow and numpy. The Chassis ships are drawn by `gen_ships.py` beside this file;
+`chassis_art_json` is where the game's ship data (frame sizes, pivots, nozzle exits) goes
+(`src/game/assets/chassisArt.json`); run `pnpm exec prettier --write` on it and on the atlas
+JSON afterwards, as the repo's format check expects.
 """
+import importlib.util
 import json
 import math
 import random
@@ -17,6 +21,11 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw
+
+# `python3 -I` leaves the script's folder off the import path, so load the ship drawing by file.
+_spec = importlib.util.spec_from_file_location("gen_ships", Path(__file__).with_name("gen_ships.py"))
+SHIPS = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(SHIPS)
 
 # ------------------------------------------------------------------ palette
 PALETTE = {
@@ -771,312 +780,46 @@ def surface_preview(surfaces, ship, path):
 
 
 # ------------------------------------------------------------------ chassis
-# Chassis sprites (ticket #21): three original voxel-style ships plus the thruster
-# plume. Each ship is a small grid of cubes rendered with a fixed oblique projection
-# (viewer above, to the side and in front of the nose) by ray-marching the grid, so
-# the top, side and nose faces get different shades and edges catch the light. The
-# `flight` frame pitches the same model nose-up. Nothing is traced or taken from any
-# third-party model; the shapes below are our own boxes and cylinders.
+# Chassis sprites (tickets #21, #135): the three interim upright ships from `gen_ships.py`
+# (a port of the shipwright mockup) plus the thruster plume.
 #
-#   chassis_<id>  288x64  frames landed, landed_lit, flight (96x64 each)
-#                 landed: feet on the bottom row, lights off; landed_lit: lights on
-#                 and a faint engine glow; flight: legs retracted, nose up-right
+#   chassis_<id>  frames landed, landed_lit (104x126 each, the ship's lowest row on the bottom row)
+#                 and flight (the ship turned toward the Transfer heading, its own size), side by side
 #   fx_thruster   48x24   three flicker frames (16x24), nozzle at the top centre,
 #                 plume pointing down; recolour or rotate at runtime
-#   Everything in this section is self-contained (functions named `chassis_*`, `_vox*`).
+#   chassis art data (JSON): frame sizes, base-centre pivots and nozzle exits, for the game
 
-CHASSIS_FRAME = (96, 64)
-CHASSIS_FEET_ROW = 63  # last opaque row of a landed frame (the outline under the feet): it touches the bottom edge
-VOX = 4  # pixels per voxel edge
-DEPTH_X, DEPTH_Y = 0.45, 0.85  # screen shift per voxel of depth (away from the viewer): a high 3/4 view
-FLIGHT_PITCH = math.radians(24)
-
-# Material ramps, dark -> bright (face level 0..4).
-VOX_RAMPS = {
-    "hull": ("gm2", "gm3", "gm4", "gm5", "gm6"),
-    "pale": ("gm3", "gm4", "gm5", "gm6", "wh2"),
-    "dark": ("gm0", "gm1", "gm2", "gm3", "gm4"),
-    "tank": ("gm4", "wh0", "wh1", "wh2", "wh3"),
-    "amber": ("am0", "am1", "am2", "am3", "am4"),
-    "glass": ("cy0", "cy1", "cy2", "cy3", "cy4"),
-    "nozzle": ("ink", "gm0", "gm1", "gm2", "gm3"),
-    "crimson": ("rd0", "rd1", "rd2", "rd3", "rd4"),
-}
-# State-dependent ramps: lights, glowing strips and the thruster rim.
-VOX_STATE_RAMPS = {
-    "light": {
-        "off": ("gm1", "gm2", "gm3", "gm3", "gm4"),
-        "on": ("cy2", "cy3", "cy4", "cy4", "wh3"),
-    },
-    "beacon": {
-        "off": ("am0", "am0", "am1", "am1", "am1"),
-        "on": ("am2", "am3", "am4", "am4", "wh3"),
-    },
-    "strip": {
-        "off": ("cy0", "cy0", "cy1", "cy1", "cy2"),
-        "on": ("cy1", "cy2", "cy3", "cy4", "cy4"),
-    },
-    "glow": {
-        "off": ("am0", "am0", "am1", "am1", "am2"),
-        "on": ("am1", "am2", "am3", "am4", "wh3"),
-    },
-}
-VOX_MATS = ["hull", "pale", "dark", "tank", "amber", "glass", "nozzle", "light", "beacon", "strip", "glow", "crimson"]
-VOX_LIGHT = np.array([-0.45, -0.35, 0.82])
-VOX_LIGHT = VOX_LIGHT / np.linalg.norm(VOX_LIGHT)
+CHASSIS_FRAME = (SHIPS.W, SHIPS.H)  # the standing frame; the flight frame has its own size
+CHASSIS_FEET_ROW = SHIPS.H - 1  # the lowest opaque row of a standing frame
 
 
-class _Vox:
-    """A sparse voxel model. x is the ship's length (nose at +x), y its width (the
-    near side is -y), z up; z=0 is the ground."""
-
-    def __init__(self):
-        self.cells = {}
-
-    def box(self, x0, x1, y0, y1, z0, z1, mat):
-        for x in range(x0, x1):
-            for y in range(y0, y1):
-                for z in range(z0, z1):
-                    self.cells[(x, y, z)] = mat
-        return self
-
-    def sym(self, x0, x1, y0, y1, z0, z1, mat):
-        """A box and its mirror image across the ship's centre plane (y -> -y)."""
-        self.box(x0, x1, y0, y1, z0, z1, mat)
-        return self.box(x0, x1, -y1, -y0, z0, z1, mat)
-
-    def cyl_x(self, x0, x1, cy, cz, r, mat):
-        """A cylinder along x, centred on the voxel-corner point (cy, cz)."""
-        for y in range(int(cy - r) - 1, int(cy + r) + 2):
-            for z in range(int(cz - r) - 1, int(cz + r) + 2):
-                if (y + 0.5 - cy) ** 2 + (z + 0.5 - cz) ** 2 <= r * r:
-                    for x in range(x0, x1):
-                        self.cells[(x, y, z)] = mat
-        return self
-
-    def put(self, x, y, z, mat):
-        self.cells[(x, y, z)] = mat
-        return self
-
-    def grid(self):
-        xs, ys, zs = zip(*self.cells)
-        lo = (min(xs), min(ys), min(zs))
-        hi = (max(xs) + 1, max(ys) + 1, max(zs) + 1)
-        g = np.zeros((hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]), dtype=np.int8)
-        for (x, y, z), m in self.cells.items():
-            g[x - lo[0], y - lo[1], z - lo[2]] = VOX_MATS.index(m) + 1
-        return g
-
-
-def _vox_ramp(mat, state):
-    if mat in VOX_STATE_RAMPS:
-        return VOX_STATE_RAMPS[mat]["on" if state in ("on", "flight") else "off"]
-    return VOX_RAMPS[mat]
-
-
-def _vox_render(model, state, pitch=0.0, canvas=(160, 128)):
-    """Ray-march the model into a transparent canvas; returns a Spr (no outline yet).
-
-    Screen = (x + 0.45y, -z - 0.85y) voxel units: far things (larger y) sit up and to the
-    right, so the near side face, the top and the nose face (+x) are the visible ones.
-    `pitch` tilts the nose up around the model's centre.
-    """
-    grid = model.grid()
-    nx, ny, nz = grid.shape
-    cx, cz = nx / 2.0, nz / 2.0
-    cw, ch = canvas
-    s = Spr(cw, ch)
-    gy, gx = np.mgrid[0:ch, 0:cw]
-    sx = ((gx + 0.5) - cw / 2.0).ravel() / VOX
-    sy = ((gy + 0.5) - ch / 2.0).ravel() / VOX
-    cs, sn = math.cos(pitch), math.sin(pitch)
-    n = sx.size
-    hit = np.zeros(n, dtype=bool)
-    got = np.zeros((n, 9))  # mat, i, j, k, axis, sign, mx, yh, mz
-    prev = np.full((n, 3), -999, dtype=np.int64)
-    for t in range(int((ny + 0.04) / 0.02)):
-        y = -0.02 + t * 0.02
-        yc = y - ny / 2.0
-        dx = sx - DEPTH_X * yc
-        dz = -sy - DEPTH_Y * yc
-        mx = cx + dx * cs + dz * sn
-        mz = cz - dx * sn + dz * cs
-        i = np.floor(mx).astype(np.int64)
-        j = np.full(n, math.floor(y), dtype=np.int64)
-        k = np.floor(mz).astype(np.int64)
-        inside = (i >= 0) & (i < nx) & (j >= 0) & (j < ny) & (k >= 0) & (k < nz)
-        m = np.zeros(n, dtype=np.int8)
-        m[inside] = grid[i[inside], j[inside], k[inside]]
-        new = (m > 0) & ~hit
-        for q in np.nonzero(new)[0]:
-            di, dj, dk = i[q] - prev[q, 0], j[q] - prev[q, 1], k[q] - prev[q, 2]
-            cand = []  # (penetration past the crossed boundary, axis, face sign); smallest wins
-            if dk:
-                cand.append((mz[q] - k[q] if dk > 0 else k[q] + 1 - mz[q], 2, -1 if dk > 0 else 1))
-            if dj:
-                cand.append((y - j[q] if dj > 0 else j[q] + 1 - y, 1, -1 if dj > 0 else 1))
-            if di:
-                cand.append((mx[q] - i[q] if di > 0 else i[q] + 1 - mx[q], 0, -1 if di > 0 else 1))
-            _, axis, sign = min(cand) if cand else (0, 2, 1)
-            got[q] = (m[q], i[q], j[q], k[q], axis, sign, mx[q], y, mz[q])
-        hit |= new
-        prev[:, 0], prev[:, 1], prev[:, 2] = i, j, k
-        if hit.all():
-            break
-
-    def filled(a, b, c):
-        return 0 <= a < nx and 0 <= b < ny and 0 <= c < nz and grid[a, b, c] > 0
-
-    for q in np.nonzero(hit)[0]:
-        mat_i, i, j, k, axis, sign, mx, yh, mz = got[q]
-        i, j, k, axis, sign = int(i), int(j), int(k), int(axis), int(sign)
-        normal = [0, 0, 0]
-        normal[axis] = sign
-        # light is fixed in the world: rotate the face normal by the pitch
-        wnx = normal[0] * cs - normal[2] * sn
-        wnz = normal[0] * sn + normal[2] * cs
-        lum = wnx * VOX_LIGHT[0] + normal[1] * VOX_LIGHT[1] + wnz * VOX_LIGHT[2]
-        level = 3 if lum > 0.6 else 2 if lum > 0.22 else 1
-        pos = (mx - i, yh - j, mz - k)
-        lighten = darken = False
-        for a in (0, 1, 2):
-            if a == axis:
-                continue
-            e = 0.3 if a == 1 else 0.24
-            d = -1 if pos[a] < e else 1 if pos[a] > 1 - e else 0
-            if not d:
-                continue
-            off = [0, 0, 0]
-            off[a] = d
-            if filled(i + off[0] + normal[0], j + off[1] + normal[1], k + off[2] + normal[2]):
-                darken = True  # a concave corner: a shadow in the crease
-            elif not filled(i + off[0], j + off[1], k + off[2]):
-                dirw = (off[0] * cs - off[2] * sn, off[1], off[0] * sn + off[2] * cs)
-                if sum(dirw[c] * VOX_LIGHT[c] for c in range(3)) > 0:
-                    lighten = True  # a convex edge facing the light
-        level = max(0, min(4, level + int(lighten) - int(darken)))
-        s.a[q // cw, q % cw] = col(_vox_ramp(VOX_MATS[int(mat_i) - 1], state)[level])
-    return s
-
-
-# --- the three designs
-def _gear(v, legs, feet, nozzles):
-    """Hover nozzles (dark bell, amber outlet on the lowest layer so it faces the ground)
-    and, when landed, thin struts on flat pads standing beside them, fore and aft.
-    feet: (x0, x1, y0, y1) of each strut; its pad reaches one voxel further out."""
-    for x0, x1, y0, y1 in nozzles:
-        v.sym(x0, x1, y0, y1, 2, 3, "nozzle")
-        v.sym(x0, x1, y0, y1, 1, 2, "glow")
-    if legs:
-        for x0, x1, y0, y1 in feet:
-            v.sym(x0, x1, y0, y1, 1, 3, "dark")
-            v.sym(x0 - 1, x1 + 1, y0, y1 + 1, 0, 1, "hull")
-
-
-def chassis_scout(legs=True):
-    """Small and nimble: a short pale dart with swept delta wings, a bubble canopy, a dorsal fin and red canards."""
-    v = _Vox()
-    v.box(1, 9, -1, 1, 3, 5, "pale")  # fuselage
-    v.box(9, 11, -1, 1, 3, 4, "pale")  # nose
-    v.box(5, 9, -1, 1, 5, 6, "glass")  # bubble canopy
-    v.box(6, 9, -1, 1, 6, 7, "glass")
-    v.box(3, 5, -1, 1, 5, 6, "dark")  # canopy frame
-    v.sym(2, 8, 1, 3, 3, 4, "hull")  # swept delta wings
-    v.sym(1, 5, 3, 4, 3, 4, "hull")
-    v.sym(8, 10, 1, 2, 3, 4, "crimson")  # canards
-    v.box(1, 3, 0, 1, 5, 8, "pale")  # dorsal fin
-    for x in range(3, 9):
-        v.put(x, -1, 4, "strip")  # glowing flank
-    v.put(1, 3, 4, "light")
-    v.put(1, -4, 4, "light")
-    v.put(1, 0, 8, "beacon")
-    _gear(v, legs, [(1, 2, 3, 4), (6, 7, 1, 2)], [(3, 5, 1, 3)])
-    return v
-
-
-def chassis_hauler(legs=True):
-    """Bulky: two fat tanks slung beside a spine, a boxy cab, a hover nozzle under each tank on four stout feet."""
-    v = _Vox()
-    v.box(1, 15, -1, 1, 3, 6, "dark")  # spine
-    for cy in (-3.0, 3.0):
-        v.cyl_x(2, 13, cy, 5.0, 2.0, "tank")
-        v.cyl_x(4, 5, cy, 5.0, 2.0, "amber")  # hazard bands
-        v.cyl_x(10, 11, cy, 5.0, 2.0, "amber")
-    v.box(0, 2, -3, 3, 3, 7, "dark")  # rear engine block
-    v.box(13, 17, -2, 2, 3, 6, "hull")  # cab
-    v.box(15, 17, -2, 2, 5, 6, "glass")  # windscreen
-    v.box(14, 17, -2, 2, 3, 4, "amber")
-    v.box(14, 15, 0, 1, 6, 8, "dark")  # mast
-    v.put(14, 0, 8, "beacon")
-    v.put(16, -2, 6, "light")
-    v.put(16, 1, 6, "light")
-    v.put(0, -3, 7, "light")
-    v.put(0, 2, 7, "light")
-    _gear(v, legs, [(3, 4, 3, 4), (11, 12, 3, 4)], [(6, 9, 2, 4)])
-    return v
-
-
-def chassis_lancer(legs=True):
-    """Long and sleek: a needle fuselage, a low canopy, swept blades with red-capped tip fins and a glowing flank."""
-    v = _Vox()
-    v.box(2, 15, -1, 1, 3, 5, "dark")  # needle fuselage
-    v.box(15, 18, -1, 1, 3, 4, "dark")  # nose
-    v.box(15, 17, -1, 1, 4, 5, "dark")
-    v.box(11, 15, -1, 1, 5, 6, "glass")  # low canopy
-    v.box(5, 11, -1, 1, 5, 6, "hull")  # dorsal spine
-    v.box(1, 4, 0, 1, 5, 6, "hull")  # dorsal fin
-    for x in range(4, 15):
-        v.put(x, -1, 4, "strip")  # glowing flank
-    v.sym(2, 10, 1, 3, 3, 4, "hull")  # swept blades
-    v.sym(0, 7, 3, 4, 3, 4, "hull")
-    v.sym(1, 4, 3, 4, 4, 5, "hull")  # tip fins
-    v.sym(1, 4, 3, 4, 5, 6, "crimson")
-    v.sym(10, 13, 1, 2, 3, 4, "hull")  # fore sponsons
-    v.put(1, 3, 6, "light")
-    v.put(1, -4, 6, "light")
-    v.put(1, 0, 6, "beacon")
-    _gear(v, legs, [(0, 1, 3, 4), (11, 12, 1, 2)], [(3, 6, 1, 3)])
-    return v
-
-
-CHASSIS_DESIGNS = {"scout": chassis_scout, "hauler": chassis_hauler, "lancer": chassis_lancer}
-
-
-def _bbox(spr):
-    ys, xs = np.nonzero(spr.a[:, :, 3])
-    return xs.min(), ys.min(), xs.max(), ys.max()
-
-
-def _chassis_frame(design, state, pitch, legs, landed):
-    """Render one 96x64 frame: outlined, landed ones standing on the bottom row."""
-    shot = _vox_render(design(legs=legs), state, pitch).outline()
-    x0, y0, x1, y1 = _bbox(shot)
-    w, h = CHASSIS_FRAME
-    ox = (w - (x1 - x0 + 1)) // 2 - x0
-    oy = (CHASSIS_FEET_ROW - y1) if landed else (h - (y1 - y0 + 1)) // 2 - y0
-    if x1 - x0 + 1 > w or y1 - y0 + 1 > h or y0 + oy < 0:
-        raise ValueError(f"chassis frame does not fit {w}x{h}: {x1 - x0 + 1}x{y1 - y0 + 1}")
-    frame = Spr(w, h)
-    return frame.blit(shot, ox, oy)
+def _frame_spr(frame):
+    spr = Spr(frame.w, frame.h)
+    for y, row in enumerate(frame.grid):
+        for x, key in enumerate(row):
+            if key:
+                spr.px(x, y, key)
+    return spr
 
 
 def build_chassis():
     """{'chassis_<id>': (sheet Spr, {frame name: (x, y, w, h)}), 'fx_thruster': ...}"""
     out = {}
-    w, h = CHASSIS_FRAME
-    for cid, design in CHASSIS_DESIGNS.items():
-        frames = [
-            ("landed", _chassis_frame(design, "off", 0.0, True, True)),
-            ("landed_lit", _chassis_frame(design, "on", 0.0, True, True)),
-            ("flight", _chassis_frame(design, "flight", FLIGHT_PITCH, False, False)),
-        ]
-        sheet = Spr(w * len(frames), h)
+    for cid, ship in SHIPS.build_ships().items():
+        frames = [(name, _frame_spr(ship[name])) for name in ("landed", "landed_lit", "flight")]
+        sheet = Spr(sum(fr.w for _, fr in frames), max(fr.h for _, fr in frames))
         rects = {}
-        for n, (name, fr) in enumerate(frames):
-            sheet.blit(fr, n * w, 0)
-            rects[name] = (n * w, 0, w, h)
+        x = 0
+        for name, fr in frames:
+            sheet.blit(fr, x, 0)
+            rects[name] = (x, 0, fr.w, fr.h)
+            x += fr.w
         out[f"chassis_{cid}"] = (sheet, rects)
     return out
+
+
+def chassis_art_json():
+    return json.dumps(SHIPS.art_data(SHIPS.build_ships()), indent=2) + "\n"
 
 
 # --- thruster plume
@@ -1176,28 +919,31 @@ def chassis_scene(assets, surfaces, key, x_feet=525, ground_drop=24):
 
 
 def chassis_preview(assets, surfaces, path):
-    """Every frame of every Chassis at 4x with the same frames at 1x under them, the
+    """Every frame of every Chassis at 2x with the same frames at 1x under them, the
     thruster plume, and each Chassis standing on the Rocky surface."""
-    pad, label_h = 12, 12
-    w, h = CHASSIS_FRAME
+    pad, label_h, zoom = 12, 12, 2
     names = [k for k in assets if k.startswith("chassis_")]
-    width = pad + 3 * (w * 4 + pad)
-    block = label_h + h * 4 + 4 + h + pad + 4
+    row_w = max(sum(r[2] * zoom + pad for r in assets[k][1].values()) for k in names)
+    row_h = max(r[3] for k in names for r in assets[k][1].values())
+    scene_w, scene_h = 260, 200
+    width = max(pad + row_w, pad + 3 * (scene_w + pad))
+    block = label_h + row_h * zoom + 4 + row_h + pad + 4
     height = pad + len(names) * block + label_h + THRUSTER_H * 4 + 4 + THRUSTER_H + pad * 2
-    height += label_h + 190 + pad + 22
+    height += label_h + scene_h + pad + 22
     sheet = Image.new("RGBA", (width, height), col("void"))
     d = ImageDraw.Draw(sheet)
     y = pad
     for key in names:
         spr, rects = assets[key]
-        d.text((pad, y), f"{key}: landed / landed_lit / flight  (4x, then 1x)", fill=col("wh1"))
+        d.text((pad, y), f"{key}: landed / landed_lit / flight  (2x, then 1x)", fill=col("wh1"))
         y += label_h
-        for n, name in enumerate(rects):
-            x = pad + n * (w * 4 + pad)
-            img = _crop(spr, rects[name])
-            sheet.alpha_composite(_backed(img, 4), (x, y))
-            sheet.alpha_composite(_backed(img, 1), (x, y + h * 4 + 4))
-        y += h * 4 + 4 + h + pad + 4
+        x = pad
+        for name, rect in rects.items():
+            img = _crop(spr, rect)
+            sheet.alpha_composite(_backed(img, zoom), (x, y))
+            sheet.alpha_composite(_backed(img, 1), (x, y + row_h * zoom + 4))
+            x += rect[2] * zoom + pad
+        y += row_h * zoom + 4 + row_h + pad + 4
     spr, rects = assets["fx_thruster"]
     d.text((pad, y), "fx_thruster: three flicker frames (4x, then 1x)", fill=col("wh1"))
     y += label_h
@@ -1210,8 +956,8 @@ def chassis_preview(assets, surfaces, path):
     d.text((pad, y), "landed_lit standing on surface_rocky at the scene placement (1x, scene crop)", fill=col("wh1"))
     y += label_h
     for n, key in enumerate(names):
-        crop = chassis_scene(assets, surfaces, key).crop((330, 150, 640, 340))
-        sheet.alpha_composite(crop, (pad + n * (310 + pad // 2 + 2), y))
+        crop = chassis_scene(assets, surfaces, key).crop((640 - scene_w, 340 - scene_h, 640, 340))
+        sheet.alpha_composite(crop, (pad + n * (scene_w + pad), y))
     d.text((pad, height - 14), "HELIOPAUSE Chassis sprites and thruster plume - AI-generated art", fill=col("cy3"))
     sheet.save(path)
 
@@ -1237,4 +983,6 @@ if __name__ == "__main__":
         (out / f"{key}.json").write_text(chassis_atlas_json(f"{key}.png", sheet, rects))
     if len(sys.argv) > 4:
         chassis_preview(chassis, surfaces, sys.argv[4])
+    if len(sys.argv) > 5:
+        Path(sys.argv[5]).write_text(chassis_art_json())
     print("\n".join(f"{n} {s.w}x{s.h}" for n, (s, _) in chassis.items()))
