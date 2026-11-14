@@ -16,9 +16,9 @@ _Avoid_: Restart, retry, new game
 One randomly generated star and the Bodies orbiting it. Escaping it leads to the next, harder Star System in the same Run.
 _Avoid_: Solar system, level, map
 
-**Home Planet**:
-The small rocky planet, close to its star and with at least one Moon, where the Spacecraft starts in each Star System.
-_Avoid_: Start, spawn, Earth
+**Starting Moon**:
+The randomly chosen Moon where the Spacecraft is marooned at the start of each Star System, knowing nothing but where it stands and one nearby Body.
+_Avoid_: Home Planet, start, spawn, Earth
 
 **Stranded**:
 A Run's end when no Hop could have any Success Chance, even after removing every removable Component.
@@ -33,7 +33,7 @@ Leaving a Star System by making the Jump, which wins that Star System.
 _Avoid_: Win, exit
 
 **Jump**:
-Firing the Jump Drive at the Heliopause, which carries the Spacecraft to the next Star System's Home Planet and burns the Jump Drive out.
+Firing the Jump Drive at the Heliopause, which carries the Spacecraft to the next Star System's Starting Moon and burns the Jump Drive out.
 _Avoid_: Warp, hyperspace, FTL
 
 **Heliopause**:
@@ -66,6 +66,14 @@ _Avoid_: Gas planet, jovian
 A natural Body orbiting a planet.
 _Avoid_: Satellite
 
+**Detected**:
+A Body whose position and distance the player knows, but not what it is. Shown as a blip.
+_Avoid_: Spotted, blip (as a state), unknown
+
+**Surveyed**:
+A Body whose type, gravity and resources the player knows, from landing on it or from a level-2 Radar.
+_Avoid_: Scanned, revealed, explored
+
 ## The craft
 
 **Spacecraft**:
@@ -77,7 +85,7 @@ The starting design of the Spacecraft, picked at New Run. It sets the Spacecraft
 _Avoid_: Hull, frame, model, class
 
 **Component**:
-A part installed on the Spacecraft in a Slot, with its own mass and Materials cost. Kinds so far: Engine, Fuel Tank, Drill (each with levels) and the Jump Drive.
+A part installed on the Spacecraft in a Slot, with its own mass and Materials cost. Kinds so far: Engine, Fuel Tank, Drill, Radar (each with levels) and the Jump Drive.
 _Avoid_: Module, part, upgrade, item
 
 **Slot**:
@@ -99,6 +107,14 @@ _Avoid_: Super engine, warp drive, hyperdrive
 **Drill**:
 The Component that increases how much a Body yields when the Spacecraft lands on it.
 _Avoid_: Miner, extractor, harvester
+
+**Radar**:
+The Component that Detects every Body within its range, and at level 2 also Surveys them. The only way to find the Heliopause.
+_Avoid_: Sensor, scanner, telescope
+
+**Comms**:
+The Spacecraft's built-in communications system, not a Component: after every landing it Detects the nearest Body not yet Detected.
+_Avoid_: Radio, antenna, beacon
 
 ## Resources
 
