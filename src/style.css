@@ -159,7 +159,7 @@ body {
 
 .title-menu__panel {
   position: absolute;
-  top: 168px;
+  top: 168px; /* TITLE_PANEL_TOP in game/lib/titleLayout.ts */
   left: 232px;
 }
 

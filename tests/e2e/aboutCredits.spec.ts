@@ -45,3 +45,15 @@ test('Esc leaves a panel and keeps the opener focused; links open in a new tab',
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Credits' })).toBeFocused();
 });
+
+test('About opens by keyboard and Esc returns focus to it', async ({ page }) => {
+  await page.goto('/?seed=5');
+  await expect(page.getByRole('button', { name: 'New Run' })).toBeVisible();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'About' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('region', { name: 'About' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button', { name: 'About' })).toBeFocused();
+});

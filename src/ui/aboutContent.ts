@@ -56,7 +56,8 @@ export const ABOUT = {
   ai: {
     heading: 'How AI was used',
     points: [
-      'The idea and every design decision are human. AI interviewed the team and wrote the agreed decisions down as specs.',
+      'The idea, the design direction and every product decision are human. AI interviewed the team, stress-tested ideas and wrote the agreed decisions down as specs.',
+      'Real-world data was gathered by AI research agents from NASA and other primary sources, and every figure cites its source in docs/research.',
       'The code is written and reviewed by AI agents (Anthropic Claude) and checked by automated tests.',
       'The art is AI-generated, and every screen carries an "AI-generated art" label. The human sketches set the composition.',
     ],
@@ -78,12 +79,12 @@ export const ABOUT = {
         url: 'https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/ideal-rocket-equation/',
       },
       {
-        label: 'Calculating solar power in space (JPL)',
-        url: 'https://www.jpl.nasa.gov/edu/resources/lesson-plan/calculating-solar-power-in-space/',
+        label: 'Mars ascent and descent Δv (NASA NTRS, Palaszewski)',
+        url: 'https://ntrs.nasa.gov/citations/20210026187',
       },
       {
-        label: 'State-of-the-Art of Small Spacecraft Technology',
-        url: 'https://www.nasa.gov/smallsat-institute/sst-soa',
+        label: 'Astrodynamic parameters (NASA/JPL Solar System Dynamics)',
+        url: 'https://ssd.jpl.nasa.gov/astro_par.html',
       },
       {
         label: 'Voyager interstellar mission',
@@ -113,6 +114,14 @@ export const CREDITS: { heading: string; groups: readonly CreditGroup[]; back: s
           name: 'React 19',
           detail: 'MIT licence',
           link: { label: 'react.dev', url: 'https://react.dev/' },
+        },
+        {
+          name: 'eventemitter3',
+          detail: 'MIT licence, used inside Phaser',
+          link: {
+            label: 'github.com/primus/eventemitter3',
+            url: 'https://github.com/primus/eventemitter3',
+          },
         },
         {
           name: 'Silkscreen and VT323 fonts',

@@ -17,7 +17,7 @@ describe('About and Credits content', () => {
   });
 
   it('points GitHub links at the main branch of this repository', () => {
-    const github = allLinks().filter(({ url }) => url.includes('github.com'));
+    const github = allLinks().filter(({ url }) => url.includes('github.com/FrancoLedArg'));
     expect(github.length).toBeGreaterThan(0);
     for (const { url } of github) {
       expect(url).toMatch(/^https:\/\/github\.com\/FrancoLedArg\/heliopause\/blob\/main\//);

@@ -25,6 +25,7 @@ function ExternalLink({ link }: { link: ContentLink }) {
 
 interface InfoShellProps extends InfoPanelProps {
   id: string;
+  backLabel: string;
   title: string;
   children: ReactNode;
 }
@@ -33,7 +34,7 @@ interface InfoShellProps extends InfoPanelProps {
  * Full-screen title-level panel: a kit plate with a scrolling body and a Back action under it. Esc
  * also goes back. The caller restores focus to the button that opened it.
  */
-function InfoShell({ id, title, onBack, children }: InfoShellProps) {
+function InfoShell({ id, title, backLabel, onBack, children }: InfoShellProps) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') onBack();
@@ -60,7 +61,7 @@ function InfoShell({ id, title, onBack, children }: InfoShellProps) {
       </div>
       <div className="info-panel__actions">
         <KitButton width={BACK_WIDTH} autoFocus onClick={onBack}>
-          Back
+          {backLabel}
         </KitButton>
       </div>
     </section>
@@ -70,7 +71,7 @@ function InfoShell({ id, title, onBack, children }: InfoShellProps) {
 /** What the game is, who made it, how AI was used and which NASA resources it draws on. */
 export function AboutPanel({ onBack }: InfoPanelProps) {
   return (
-    <InfoShell id="about" title={ABOUT.heading} onBack={onBack}>
+    <InfoShell id="about" title={ABOUT.heading} backLabel={ABOUT.back} onBack={onBack}>
       {ABOUT.summary.map((sentence) => (
         <p key={sentence}>{sentence}</p>
       ))}
@@ -81,7 +82,7 @@ export function AboutPanel({ onBack }: InfoPanelProps) {
       <ul>
         {ABOUT.team.members.map((member) => (
           <li key={member.name} className={member.placeholder ? 'info-placeholder' : undefined}>
-            {member.name}: {member.role}
+            {member.placeholder ? member.name : `${member.name}: ${member.role}`}
           </li>
         ))}
       </ul>
@@ -124,7 +125,7 @@ function CreditItem({ entry }: { entry: CreditEntry }) {
 /** Libraries, tools and art with their licences, and the research the game stands on. */
 export function CreditsPanel({ onBack }: InfoPanelProps) {
   return (
-    <InfoShell id="credits" title={CREDITS.heading} onBack={onBack}>
+    <InfoShell id="credits" title={CREDITS.heading} backLabel={CREDITS.back} onBack={onBack}>
       {CREDITS.groups.map((group) => (
         <section key={group.heading}>
           <h2>{group.heading}</h2>

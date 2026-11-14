@@ -1,9 +1,9 @@
 import { formatBuildLabel } from '../game/lib/buildLabel.ts';
+import { TITLE_PANEL_HEIGHT as PANEL_HEIGHT } from '../game/lib/titleLayout.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 
 const PANEL_WIDTH = 176;
-const PANEL_HEIGHT = 128;
 const BUTTON_WIDTH = 144;
 
 /** The title menu's buttons, so a screen can hand focus back to the one that opened it. */
@@ -19,7 +19,7 @@ interface TitleMenuProps {
   focus?: TitleButton | undefined;
 }
 
-/** Title screen panels: the logo, the New Run action and the build label. */
+/** Title screen panels: the logo, the New Run, About and Credits actions and the build label. */
 export function TitleMenu({ starting, onNewRun, onAbout, onCredits, focus }: TitleMenuProps) {
   return (
     <section className="title-menu" aria-labelledby="title-logo">
@@ -43,6 +43,7 @@ export function TitleMenu({ starting, onNewRun, onAbout, onCredits, focus }: Tit
         <KitButton
           width={BUTTON_WIDTH}
           className="title-menu__about"
+          disabled={starting}
           autoFocus={focus === 'about'}
           onClick={onAbout}
         >
@@ -51,6 +52,7 @@ export function TitleMenu({ starting, onNewRun, onAbout, onCredits, focus }: Tit
         <KitButton
           width={BUTTON_WIDTH}
           className="title-menu__credits"
+          disabled={starting}
           autoFocus={focus === 'credits'}
           onClick={onCredits}
         >
