@@ -3,9 +3,17 @@
  * Reads the hook payload on stdin; exit 2 blocks the command and shows stderr to the agent.
  * Fails closed: if the guard itself breaks, the command is blocked.
  */
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import os from 'node:os';
 import { guard } from './guard.ts';
+
+function isDirectory(dir: string): boolean {
+  try {
+    return statSync(dir).isDirectory();
+  } catch {
+    return false;
+  }
+}
 
 function main(): number {
   try {
@@ -18,7 +26,7 @@ function main(): number {
     const tmpDir = os.tmpdir();
     const scratchDirs = ['/tmp', '/private/tmp', tmpDir];
     const cwd = payload.cwd ?? projectDir;
-    const reason = guard(command, { projectDir, cwd, scratchDirs, tmpDir });
+    const reason = guard(command, { projectDir, cwd, scratchDirs, tmpDir, isDirectory });
     if (!reason) return 0;
     process.stderr.write(`Blocked by the Bash guard: ${reason}. See docs/agents/workflow.md.\n`);
     return 2;

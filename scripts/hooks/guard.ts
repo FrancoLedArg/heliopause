@@ -16,6 +16,15 @@ export interface GuardContext {
   scratchDirs: readonly string[];
   /** Value of $TMPDIR, so `rm -r "$TMPDIR/x"` resolves to a real path. */
   tmpDir: string;
+  /** Whether a path is an existing directory (injected so tests stay pure). */
+  isDirectory: (dir: string) => boolean;
+}
+
+/** Replace `$CLAUDE_PROJECT_DIR` and `$TMPDIR` (also `${…}`) with their real values. */
+function expandKnownVars(word: string, context: GuardContext): string {
+  return word.replace(/\$\{?(CLAUDE_PROJECT_DIR|TMPDIR)\}?(?![A-Za-z0-9_])/g, (_, name: string) =>
+    name === 'TMPDIR' ? context.tmpDir : context.projectDir,
+  );
 }
 
 const WRAPPERS: Record<string, { flagsWithArg: string; positionalArgs: number }> = {
@@ -221,7 +230,25 @@ function checkGh(args: readonly string[]): string | null {
   return null;
 }
 
-function checkRm(args: readonly string[], context: GuardContext): string | null {
+/**
+ * A glob segment that may match every entry of its directory: `*`, `**`, `.*`, `?*`,
+ * `.[!.]*`. Deliberately conservative: it also accepts `?` and `[ab]`, which match only
+ * some entries, so over-blocking is fine; do not tighten it into a gap.
+ */
+const MATCH_ALL_SEGMENT = /^(?:\.|\*|\?|\[[^\]]*\])+$/;
+const GLOB_CHARS = /[*?[]/;
+const isMatchAll = (segment: string): boolean =>
+  GLOB_CHARS.test(segment) && MATCH_ALL_SEGMENT.test(segment);
+
+/**
+ * `cwd` is where relative operands resolve; null after a `cd` to a place the guard
+ * cannot resolve (`~`, `$HOME`, an unknown variable), which blocks relative deletes.
+ */
+function checkRm(
+  args: readonly string[],
+  context: GuardContext,
+  cwd: string | null,
+): string | null {
   let recursive = false;
   const operands: string[] = [];
   let options = true;
@@ -234,26 +261,32 @@ function checkRm(args: readonly string[], context: GuardContext): string | null 
   if (!recursive) return null;
 
   const roots = [context.projectDir, ...context.scratchDirs].map((dir) => path.resolve(dir));
-  type KnownVar = 'CLAUDE_PROJECT_DIR' | 'TMPDIR';
-  const known: Record<KnownVar, string> = {
-    CLAUDE_PROJECT_DIR: context.projectDir,
-    TMPDIR: context.tmpDir,
-  };
   for (const operand of operands) {
     const outside = `recursive delete outside the repo (${operand})`;
     if (operand.startsWith('~')) return outside;
     if (operand.split('/').includes('..')) return outside;
-    const resolved = operand.replace(
-      /\$\{?(CLAUDE_PROJECT_DIR|TMPDIR)\}?(?![A-Za-z0-9_])/g,
-      (_, name: KnownVar) => known[name],
-    );
+    const resolved = expandKnownVars(operand, context);
     if (resolved.includes('$')) {
       return `recursive delete of an unresolved path (${operand}); use a literal path`;
     }
-    // Only a match-all glob (`*`, `.*`, `**`) empties its whole directory, so judge that
-    // directory. Any other pattern (`dist*`) matches entries inside it and resolves as a child.
-    const matchAll = /^\.?\*+$/.test(path.basename(resolved));
-    const target = path.resolve(context.cwd, matchAll ? path.dirname(resolved) : resolved);
+    if (cwd === null && !path.isAbsolute(resolved)) {
+      return `recursive delete after a cd to an unresolved directory (${operand})`;
+    }
+    // A glob whose segments all match every entry (`*`, `**/*`, `?*`, `.[!.]*`) empties the
+    // directory before its first glob segment, so judge that directory. Any other pattern
+    // (`dist*`) matches entries inside it and resolves as a child.
+    const segments = resolved.split('/');
+    const firstGlob = segments.findIndex((segment) => GLOB_CHARS.test(segment));
+    const matchAll =
+      firstGlob !== -1 &&
+      segments
+        .slice(firstGlob)
+        .filter((segment) => segment !== '')
+        .every(isMatchAll);
+    const base = matchAll
+      ? segments.slice(0, firstGlob).join('/') || (resolved.startsWith('/') ? '/' : '.')
+      : resolved;
+    const target = path.resolve(cwd ?? '/', base);
     // Strictly inside a root, and never a root itself (e.g. all of $TMPDIR or the project).
     const inside =
       !roots.includes(target) && roots.some((root) => target.startsWith(root + path.sep));
@@ -262,20 +295,43 @@ function checkRm(args: readonly string[], context: GuardContext): string | null 
   return null;
 }
 
+/**
+ * Directory after `cd args`, or null when it cannot be resolved (`~`, `$HOME`, `-`, unknown
+ * vars, a missing directory). Known limitation: a `cd` inside a subshell or `bash -c` leaks
+ * into later commands, because `parseShell` drops grouping.
+ */
+function nextCwd(
+  cwd: string | null,
+  args: readonly string[],
+  context: GuardContext,
+): string | null {
+  const target = args.find((arg) => arg !== '--' && !/^-[LPe@]+$/.test(arg));
+  if (target === undefined || target === '-' || target.startsWith('~')) return null;
+  const resolved = expandKnownVars(target, context);
+  if (/[$*?[]/.test(resolved)) return null;
+  if (cwd === null && !path.isAbsolute(resolved)) return null;
+  const next = path.resolve(cwd ?? '/', resolved);
+  // A failed `cd` leaves the shell where it was, so an unknown target is unresolved.
+  return context.isDirectory(next) ? next : null;
+}
+
 /** Why `script` is blocked, or null when it may run. */
 export function guard(script: string, context: GuardContext): string | null {
+  // Follows `cd` within the command line so later `rm` operands resolve against it.
+  let cwd: string | null = context.cwd;
   for (const command of parseShell(script)) {
     const { words, env } = unwrap(command);
     const [head, ...args] = words;
     if (head === undefined) continue;
     const name = path.basename(head);
+    if (name === 'cd') cwd = nextCwd(cwd, args, context);
     const reason =
       name === 'git'
         ? checkGit(args, env)
         : name === 'gh'
           ? checkGh(args)
           : name === 'rm'
-            ? checkRm(args, context)
+            ? checkRm(args, context, cwd)
             : null;
     if (reason) return reason;
   }
