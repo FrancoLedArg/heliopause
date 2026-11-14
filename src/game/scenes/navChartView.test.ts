@@ -3,6 +3,7 @@ import { currentBody, listBodies, startRun, type Run } from '../sim/index.ts';
 import {
   CHART,
   chartReducer,
+  crossSegments,
   dashedSegments,
   initialChartState,
   layoutChart,
@@ -110,6 +111,23 @@ describe('the Nav Chart layout', () => {
         expect(x).toBeLessThanOrEqual(CHART.width);
         expect(y).toBeGreaterThanOrEqual(0);
         expect(y).toBeLessThanOrEqual(CHART.height);
+      }
+    }
+  });
+
+  it('crosses a Depleted Body with an X that stays inside its sprite', () => {
+    const layout = layoutChart(newRun(123));
+    for (const node of layout.nodes) {
+      const [a, b] = crossSegments(node);
+      // Two diagonals through the centre, a shape cue that does not depend on colour.
+      expect(a.from[0] + a.to[0]).toBe(2 * node.x);
+      expect(a.from[1] + a.to[1]).toBe(2 * node.y);
+      expect(b.from[0] + b.to[0]).toBe(2 * node.x);
+      expect(b.from[1] + b.to[1]).toBe(2 * node.y);
+      expect(a.from[0]).not.toBe(a.to[0]);
+      expect(a.from[1]).not.toBe(a.to[1]);
+      for (const [x, y] of [a.from, a.to, b.from, b.to]) {
+        expect(Math.hypot(x - node.x, y - node.y)).toBeLessThanOrEqual(node.radius);
       }
     }
   });

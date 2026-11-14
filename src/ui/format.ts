@@ -1,6 +1,6 @@
 // How quantities read on screen: real units, rounded for readability (spec #12, story 23).
 // Parameters take the simulation's unit types, so one unit cannot be shown where another is meant.
-import { findBody, type Body, type Run } from '../game/sim/index.ts';
+import { findBody, isDepleted, type Body, type Run } from '../game/sim/index.ts';
 import type {
   AstronomicalUnits,
   Kilograms,
@@ -82,6 +82,11 @@ export function bodyTypeLabel(run: Run, body: Body): string {
 export function bodyCompositionLabel(body: Body): 'Icy' | 'Rocky' | undefined {
   if (!body.landable) return undefined;
   return body.composition === 'icy' ? 'Icy' : 'Rocky';
+}
+
+/** The word beside "Landable" in a Body's badge: "Depleted" once its yield is taken, else Icy or Rocky. */
+export function bodyStatusLabel(run: Run, body: Body): 'Icy' | 'Rocky' | 'Depleted' | undefined {
+  return isDepleted(run, body.id) ? 'Depleted' : bodyCompositionLabel(body);
 }
 
 /** The kind and, for a landable Body, its composition: "Moon of Cinder · Icy". For roomy places. */

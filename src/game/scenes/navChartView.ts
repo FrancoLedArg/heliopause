@@ -392,6 +392,16 @@ export interface Segment {
   readonly to: readonly [number, number];
 }
 
+/** The two diagonals of the X that marks a Depleted Body, through its centre and inside its sprite. */
+export function crossSegments(node: ChartNode): [Segment, Segment] {
+  const arm = Math.max(2, Math.floor((node.radius * 0.7) / Math.SQRT2 + 0.5));
+  const at = (dx: number, dy: number): [number, number] => [node.x + dx, node.y + dy];
+  return [
+    { from: at(-arm, -arm), to: at(arm, arm) },
+    { from: at(-arm, arm), to: at(arm, -arm) },
+  ];
+}
+
 /** The part of a circle round the star that lies on the chart, as short straight segments. */
 export function ringSegments(centre: Point, radius: number): Segment[] {
   const inside = (x: number, y: number): boolean =>

@@ -31,6 +31,16 @@ function planFor(id: BodyId, from: Run = run) {
   return result.plan;
 }
 
+describe('a Hop plan to a Depleted Body', () => {
+  it('says in words that it will yield nothing, and a plan to a fresh Body does not', () => {
+    expect(describeHopPlan(run, planFor(moon.id)).yieldNote).toBeUndefined();
+    const used = { ...run, depleted: [moon.id] };
+    const view = describeHopPlan(used, planFor(moon.id, used));
+    expect(view.yieldNote).toBe('Depleted: this Hop will yield nothing.');
+    expect(view.summary).toContain('will yield nothing');
+  });
+});
+
 describe('the Hop plan as the player reads it', () => {
   it('shows each Burn, the total, the available Δv and the Margin as the simulation planned them', () => {
     const plan = planFor(moon.id);

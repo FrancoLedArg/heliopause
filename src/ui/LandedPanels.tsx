@@ -1,4 +1,4 @@
-import { availableDeltaV, currentBody, type Run } from '../game/sim/index.ts';
+import { availableDeltaV, currentBody, isDepleted, type Run } from '../game/sim/index.ts';
 import { useEffect, useRef } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import { bodyFullLabel, formatDistanceAu, formatGravity } from './format.ts';
@@ -8,6 +8,8 @@ import { TopBar } from './TopBar.tsx';
 
 const PLATE_WIDTH = 284;
 const PLATE_HEIGHT = 62;
+/** A Depleted Body adds a row for its badge under the detail line. */
+const DEPLETED_ROW = 14;
 
 interface LandedPanelsProps {
   run: Run;
@@ -21,6 +23,8 @@ interface LandedPanelsProps {
 export function LandedPanels({ run, chartOpen, focusRequest = 0 }: LandedPanelsProps) {
   const body = currentBody(run);
   const type = bodyFullLabel(run, body);
+  const depleted = isDepleted(run, body.id);
+  const plateHeight = depleted ? PLATE_HEIGHT + DEPLETED_ROW : PLATE_HEIGHT;
 
   // Closing the Nav Chart hands focus back to the button that opened it.
   const buttonSlot = useRef<HTMLDivElement>(null);
@@ -48,13 +52,21 @@ export function LandedPanels({ run, chartOpen, focusRequest = 0 }: LandedPanelsP
           <section
             className="landed-plate"
             aria-labelledby="landed-title"
-            style={{ width: PLATE_WIDTH, height: PLATE_HEIGHT }}
+            style={{ width: PLATE_WIDTH, height: plateHeight }}
           >
-            <KitFrame frame="panel_holo" width={PLATE_WIDTH} height={PLATE_HEIGHT} />
+            <KitFrame frame="panel_holo" width={PLATE_WIDTH} height={plateHeight} />
             <h1 id="landed-title" className="landed-plate__title">
               {body.name}
             </h1>
-            <p className="landed-plate__kind">{type}</p>
+            <p className="landed-plate__kind" data-testid="landed-kind">
+              {type}
+            </p>
+            {depleted && (
+              <p className="landed-plate__depleted" data-testid="landed-depleted">
+                <KitFrame frame="badge_warning" />
+                Depleted
+              </p>
+            )}
             <p className="landed-plate__detail">
               Gravity {formatGravity(body.surfaceGravity)} ·{' '}
               {formatDistanceAu(body.distanceFromStar)} from the star

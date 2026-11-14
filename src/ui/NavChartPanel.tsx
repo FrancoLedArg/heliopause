@@ -21,9 +21,16 @@ import {
   type ChartState,
   type Direction,
 } from '../game/scenes/navChartView.ts';
-import { currentBody, findBody, planHop, type Body, type Run } from '../game/sim/index.ts';
 import {
-  bodyCompositionLabel,
+  currentBody,
+  findBody,
+  isDepleted,
+  planHop,
+  type Body,
+  type Run,
+} from '../game/sim/index.ts';
+import {
+  bodyStatusLabel,
   bodyFullLabel,
   bodyTypeLabel,
   formatDistanceAu,
@@ -162,6 +169,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
     const words = [bodyFullLabel(run, body)];
     if (body.id === here.id) words.push('you are here');
     if (!body.landable) words.push('no surface');
+    if (isDepleted(run, body.id)) words.push('Depleted, yields nothing');
     if (body.id === target?.id) words.push('target');
     return words.join(', ');
   };
@@ -261,8 +269,8 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         >
           <KitFrame frame={focused.landable ? 'badge_ok' : 'badge_lock'} />
           {focused.landable ? 'Landable' : 'No surface'}
-          {bodyCompositionLabel(focused) && (
-            <span data-testid="tip-composition">{` · ${bodyCompositionLabel(focused)}`}</span>
+          {bodyStatusLabel(run, focused) && (
+            <span data-testid="tip-composition">{` · ${bodyStatusLabel(run, focused)}`}</span>
           )}
         </p>
         {!status.valid && (
@@ -273,7 +281,12 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
       </div>
 
       <p className="nav-chart__help" data-testid="plan-explain">
-        Click a Body to set it as the target. {DELTA_V_EXPLANATION}
+        {view?.yieldNote ? (
+          <span data-testid="plan-yield">{view.yieldNote}</span>
+        ) : (
+          'Click a Body to set it as the target.'
+        )}{' '}
+        {DELTA_V_EXPLANATION}
       </p>
       <p id="nav-chart-keys" className="sr-only">
         Arrow keys look at a Body; Page Up and Page Down step through them all; Enter makes the
@@ -298,7 +311,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
             <p className="nav-chart__badge nav-chart__badge--ok">
               <KitFrame frame="badge_ok" />
               Landable
-              <span data-testid="target-composition">{` · ${bodyCompositionLabel(target)}`}</span>
+              <span data-testid="target-composition">{` · ${bodyStatusLabel(run, target)}`}</span>
             </p>
           )}
         </div>
