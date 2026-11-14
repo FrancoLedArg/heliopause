@@ -15,6 +15,7 @@ import {
 } from './landedView.ts';
 import { SceneKey } from './keys.ts';
 import { createLandedAmbient, type LandedAmbient } from './landedAmbient.ts';
+import { onLeaveRun } from './leaveRun.ts';
 import { addTwinklingStarfield, TWINKLE_EVERY, type TwinklingStarfield } from './starfield.ts';
 
 export interface LandedData {
@@ -116,6 +117,7 @@ export class Landed extends Scene {
     this.events.once(Scenes.Events.SHUTDOWN, stop);
     this.events.once(Scenes.Events.DESTROY, stop);
 
+    onLeaveRun(this);
     EventBus.emit('run-started', this.run);
     EventBus.emit('scene-ready', SceneKey.Landed);
   }

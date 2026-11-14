@@ -129,6 +129,21 @@ for (const chassis of CHASSIS) {
         await seek(scene, ms);
         const { ship, panels } = measure(scene);
         expect(ship.bottom).toBeLessThan(GAME_HEIGHT);
+        // The in-Run Menu button must be among the boxes checked, wherever the layout puts it.
+        const menu = document.querySelector('.run-menu__button');
+        expect(menu, 'the Menu button is on screen').not.toBeNull();
+        const stageRect = document.querySelector('.stage')?.getBoundingClientRect();
+        const m = menu?.getBoundingClientRect();
+        if (stageRect && m) {
+          const k = stageRect.width / GAME_WIDTH;
+          const menuBox = {
+            left: (m.left - stageRect.left) / k,
+            top: (m.top - stageRect.top) / k,
+            right: (m.right - stageRect.left) / k,
+            bottom: (m.bottom - stageRect.top) / k,
+          };
+          expect(overlaps(ship, menuBox), `Menu button vs ship at ${String(ms)} ms`).toBe(false);
+        }
         for (const [name, box] of panels) {
           expect(
             overlaps(ship, box),
