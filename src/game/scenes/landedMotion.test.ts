@@ -21,29 +21,25 @@ describe('driftSlack', () => {
 describe('driftOffsets', () => {
   it('starts with every layer centred', () => {
     const o = driftOffsets(0, newDriftOffsets());
-    expect(o).toEqual({ stars: 0, sky: 0, far: 0, mid: 0, near: 0 });
+    expect(o).toEqual({ stars: 0, sky: 0, ground: 0 });
   });
 
   it('sweeps each layer to its full range at a quarter cycle and back the other way at three quarters', () => {
     const right = driftOffsets(Math.PI / 2, newDriftOffsets());
     const left = driftOffsets((3 * Math.PI) / 2, newDriftOffsets());
-    expect(right.near).toBeCloseTo(DRIFT_RANGE.near);
-    expect(left.near).toBeCloseTo(-DRIFT_RANGE.near);
-    expect(right.far).toBeCloseTo(DRIFT_RANGE.far);
+    expect(right.ground).toBeCloseTo(DRIFT_RANGE.ground);
+    expect(left.ground).toBeCloseTo(-DRIFT_RANGE.ground);
+    expect(right.sky).toBeCloseTo(DRIFT_RANGE.sky);
   });
 
   it('moves nearer layers further than farther ones (parallax)', () => {
     const o = driftOffsets(Math.PI / 2, newDriftOffsets());
-    expect(o.near).toBeGreaterThan(o.mid);
-    expect(o.mid).toBeGreaterThan(o.far);
-    expect(o.far).toBeGreaterThan(o.sky);
+    expect(o.ground).toBeGreaterThan(o.sky);
     expect(o.sky).toBeGreaterThan(o.stars);
   });
 
   it('never moves a layer past the slack it has, so no edge shows', () => {
-    expect(DRIFT_RANGE.near).toBeLessThan(driftSlack(SURFACE_WIDTH));
-    expect(DRIFT_RANGE.mid).toBeLessThan(driftSlack(SURFACE_WIDTH));
-    expect(DRIFT_RANGE.far).toBeLessThan(driftSlack(SURFACE_WIDTH));
+    expect(DRIFT_RANGE.ground).toBeLessThan(driftSlack(SURFACE_WIDTH));
     expect(DRIFT_RANGE.sky).toBeLessThan(driftSlack(SKY_WIDTH));
   });
 

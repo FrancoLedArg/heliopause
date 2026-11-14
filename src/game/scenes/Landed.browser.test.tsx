@@ -1,11 +1,21 @@
 import { act } from 'react';
+import { GameObjects } from 'phaser';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { GameUI } from '../../ui/GameUI.tsx';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
 import { DRIFT_PERIOD_MS } from './landedMotion.ts';
-import { SHIP_PLACEMENT, SHIP_SWEEP_X, SKY_WIDTH, SURFACE_WIDTH } from './landedView.ts';
+import {
+  GROUND_HEIGHT,
+  GROUND_TOP,
+  SHIP_FOOTPRINT_HALF_WIDTH,
+  SHIP_PLACEMENT,
+  SHIP_SWEEP_X,
+  SKY_WIDTH,
+  SURFACE_WIDTH,
+} from './landedView.ts';
+import { groundTexture, SKY_X } from './landscape.ts';
 import { homePlanet, startRun, type ChassisId, type Run } from '../sim/index.ts';
 import { SceneKey } from './keys.ts';
 import type { Landed } from './Landed.ts';
@@ -160,26 +170,23 @@ function landedRun(): Run {
   return { ...fresh, status: { kind: 'landed', bodyId: homePlanet(fresh.starSystem).id } };
 }
 
-it('drifts the layers at different speeds, the Spacecraft with the ground, and never shows a layer edge', async () => {
+it('drifts the ground further than the sky, the Spacecraft with the ground, and never shows a layer edge', async () => {
   const scene = await landOn(landedRun());
-  const { sky, far, mid, near, ship } = scene.layers;
+  const { sky, ground, ship } = scene.layers;
   expect(scene.reducedMotion).toBe(false);
-  const rest = near.x;
+  const rest = ground.x;
   for (const ms of [DRIFT_PERIOD_MS / 4, (3 * DRIFT_PERIOD_MS) / 4]) {
     await seek(scene, ms);
-    // Parallax: the nearer the layer, the further it has moved from centre.
-    expect(Math.abs(near.x - rest)).toBeGreaterThan(Math.abs(mid.x - rest));
-    expect(Math.abs(mid.x - rest)).toBeGreaterThan(Math.abs(far.x - rest));
-    expect(Math.abs(far.x - rest)).toBeGreaterThan(0);
+    // Parallax: the ground, nearest, has moved further from centre than the sky.
+    expect(Math.abs(ground.x - rest)).toBeGreaterThan(Math.abs(sky.x - SKY_X));
+    expect(Math.abs(sky.x - SKY_X)).toBeGreaterThan(0);
     // The ship rides the ground it stands on, inside its swept span.
-    expect(ship.x - SHIP_PLACEMENT.x).toBeCloseTo(near.x - rest);
+    expect(ship.x - SHIP_PLACEMENT.x).toBeCloseTo(ground.x - rest);
     expect(ship.x).toBeGreaterThanOrEqual(SHIP_SWEEP_X.min);
     expect(ship.x).toBeLessThanOrEqual(SHIP_SWEEP_X.max);
     // No layer edge shows: each still covers the whole 640 px screen.
-    for (const layer of [far, mid, near]) {
-      expect(layer.x).toBeLessThanOrEqual(0);
-      expect(layer.x + SURFACE_WIDTH).toBeGreaterThanOrEqual(GAME_WIDTH);
-    }
+    expect(ground.x).toBeLessThanOrEqual(0);
+    expect(ground.x + SURFACE_WIDTH).toBeGreaterThanOrEqual(GAME_WIDTH);
     expect(sky.x).toBeLessThanOrEqual(0);
     expect(sky.x + SKY_WIDTH).toBeGreaterThanOrEqual(GAME_WIDTH);
   }
@@ -190,9 +197,70 @@ it('holds everything still when the player prefers reduced motion', async () => 
     (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
   );
   const scene = await landOn(landedRun());
-  const { far, mid, near, ship } = scene.layers;
-  const before = [far.x, mid.x, near.x, ship.x];
+  const { ground, ship } = scene.layers;
+  const before = [ground.x, ship.x];
   await pause(1000);
   expect(scene.reducedMotion).toBe(true);
-  expect([far.x, mid.x, near.x, ship.x]).toEqual(before);
+  expect([ground.x, ship.x]).toEqual(before);
+});
+
+for (const where of ['Home Planet', 'Moon'] as const) {
+  it(`draws the ${where}'s ground as one flat strip with the Spacecraft on its top edge`, async () => {
+    const fresh = startRun(2026, 'scout');
+    const home = homePlanet(fresh.starSystem);
+    const bodyId = where === 'Moon' ? home.moons[0]?.id : home.id;
+    if (!bodyId) throw new Error('no body to land on');
+    const scene = await landOn({ ...fresh, status: { kind: 'landed', bodyId } });
+    const { ground, ship } = scene.layers;
+    // One strip: a single image, as wide as the layer, level, running to the bottom of the screen.
+    const images = ground.list.filter(
+      (o): o is GameObjects.Image => o instanceof GameObjects.Image,
+    );
+    expect(images).toHaveLength(1);
+    const [strip] = images;
+    if (!strip) throw new Error('no ground strip');
+    expect(ground.y).toBe(GROUND_TOP);
+    expect(ground.y).toBe(ship.y);
+    expect(strip.width).toBe(SURFACE_WIDTH);
+    expect(ground.y + strip.height).toBe(GAME_HEIGHT);
+    // The old far and mid ground layers are gone.
+    expect(scene.layers).not.toHaveProperty('far');
+    expect(scene.layers).not.toHaveProperty('mid');
+    // The whole Spacecraft, shadow included, stays inside the footprint the pebbles keep clear of.
+    for (const ms of DRIFT_SAMPLES) {
+      await seek(scene, ms);
+      const b = ship.getBounds();
+      expect(b.left).toBeGreaterThanOrEqual(ship.x - SHIP_FOOTPRINT_HALF_WIDTH);
+      expect(b.right).toBeLessThanOrEqual(ship.x + SHIP_FOOTPRINT_HALF_WIDTH);
+      // Its base rests on the top edge: no gap below it, nothing sunk into the ground beyond its shadow.
+      expect(b.bottom).toBeLessThanOrEqual(GROUND_TOP + 6);
+    }
+  });
+}
+
+it('paints the stand-in strip for every surface kind: Moon, Rocky and Icy', async () => {
+  const scene = await landOn(landedRun());
+  const topLeft: number[] = [];
+  for (const kind of ['moon', 'rocky', 'icy'] as const) {
+    const key = groundTexture(scene, kind);
+    const source = scene.textures.get(key).getSourceImage();
+    expect(source.width).toBe(SURFACE_WIDTH);
+    expect(source.height).toBe(GROUND_HEIGHT);
+    const canvas = document.createElement('canvas');
+    canvas.width = SURFACE_WIDTH;
+    canvas.height = GROUND_HEIGHT;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('no 2d context');
+    context.drawImage(source as CanvasImageSource, 0, 0);
+    const top = context.getImageData(0, 0, SURFACE_WIDTH, 1).data;
+    for (let x = 0; x < SURFACE_WIDTH; x++) {
+      // The surface line is opaque and one colour along the whole strip.
+      expect(top[x * 4 + 3]).toBe(255);
+      expect(top[x * 4]).toBe(top[0]);
+    }
+    topLeft.push(top[0] ?? -1);
+    // Opaque to the bottom row, so no sky shows through.
+    expect(context.getImageData(0, GROUND_HEIGHT - 1, SURFACE_WIDTH, 1).data[3]).toBe(255);
+  }
+  expect(new Set(topLeft).size).toBe(3);
 });

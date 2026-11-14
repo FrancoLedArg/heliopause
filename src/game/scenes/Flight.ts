@@ -53,8 +53,8 @@ const STAND_IN_NOZZLES: Nozzles = { hover: { x: 0, y: -2 }, rear: { x: -18, y: -
 /** The `flight` frame is pitched 24° nose-up, so its rearward plume points 24° below the horizontal, to the left. */
 const REAR_PLUME_ANGLE = 66;
 
-/** How the ground parts move as the camera climbs: the sky barely, the near ground fully. */
-const SCROLL_FACTOR = { sky: 0.12, far: 0.35, mid: 0.65, near: 1 } as const;
+/** How the landscape moves as the camera climbs: the sky barely, the ground fully. */
+const SCROLL_FACTOR = { sky: 0.12, ground: 1 } as const;
 /** The camera follows the Spacecraft at this share of its movement, so it visibly rises yet stays on screen. */
 const FOLLOW = 0.82;
 
@@ -507,9 +507,7 @@ export class Flight extends Scene {
   private buildGround(run: Run): LandscapeLayers {
     const { layers } = buildLandscape(this, run);
     layers.sky.setScrollFactor(SCROLL_FACTOR.sky);
-    layers.far.setScrollFactor(SCROLL_FACTOR.far);
-    layers.mid.setScrollFactor(SCROLL_FACTOR.mid);
-    layers.near.setScrollFactor(SCROLL_FACTOR.near);
+    layers.ground.setScrollFactor(SCROLL_FACTOR.ground);
     return layers;
   }
 
