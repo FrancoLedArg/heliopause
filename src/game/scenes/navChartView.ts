@@ -38,6 +38,46 @@ export interface ChartLayout {
   readonly heliopauseRadius: number;
 }
 
+/** A box on the chart, in chart pixels. */
+export interface Rect {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/** Silkscreen at 8 px: measured advance per character, rounded up (gameplay tuning, kept generous). */
+export const LABEL = { charWidth: 6, height: 8 } as const;
+
+/** Pixels between a Body's sprite and the ring or square round it. */
+export const MARK_GAP = 3;
+/** Pixels between a Body's sprite and the corner brackets that show it has focus. */
+export const BRACKET_GAP = 6;
+/** Length of each arm of a focus bracket, in pixels. */
+export const BRACKET_ARM = 4;
+
+const circleTouchesBox = (c: Point & { radius: number }, r: Rect, margin: number): boolean => {
+  const dx = Math.max(r.x - c.x, 0, c.x - (r.x + r.w));
+  const dy = Math.max(r.y - c.y, 0, c.y - (r.y + r.h));
+  return Math.hypot(dx, dy) < c.radius + margin;
+};
+
+const boxesTouch = (a: Rect, b: Rect, margin: number): boolean =>
+  a.x < b.x + b.w + margin &&
+  b.x < a.x + a.w + margin &&
+  a.y < b.y + b.h + margin &&
+  b.y < a.y + a.h + margin;
+
+const insideBox = (r: Rect): boolean =>
+  r.x >= 0 && r.y >= 0 && r.x + r.w <= CHART.width && r.y + r.h <= CHART.height;
+
+/** Pixels from a box to the edge of a round sprite; 0 when they touch. */
+const edgeDistance = (box: Rect, c: Point & { readonly radius: number }): number => {
+  const dx = Math.max(box.x - c.x, 0, c.x - (box.x + box.w));
+  const dy = Math.max(box.y - c.y, 0, c.y - (box.y + box.h));
+  return Math.max(0, Math.hypot(dx, dy) - c.radius);
+};
+
 /** The star sits near the left edge so the system opens out to the right. */
 const STAR: ChartLayout['star'] = { x: 34, y: CHART.height / 2, radius: SPRITE_SIZE.star / 2 };
 /** Gameplay tuning: the first orbit ring, clear of the star and the Home Planet's Moons. */
@@ -48,15 +88,21 @@ const MIN_HELIOPAUSE = 328;
 const DISTANCE_EXPONENT = 0.4;
 /** Pixels kept clear between two Bodies (or a Body and the star). */
 const GAP = 3;
-/** Moons hang on a small ring round their planet: gap, then a little growth per extra Moon. */
-const MOON_RING_GAP = 20;
+/**
+ * Moons hang on a small ring round their planet: a gap, then a little growth per extra Moon. Round a
+ * planet with a surface the gap is wider, so a Hop between it and its Moon (either way, even on a
+ * diagonal) leaves a run of dashes visible past the "you" ring and the target's focus brackets. Nothing
+ * hops to or from a Gas Giant, so its Moons sit closer.
+ */
+const MOON_RING_GAP = { landable: 30, gasGiant: 20 } as const;
 const MOON_RING_GROWTH = 3;
 const ANGLE_STEP = (2 * Math.PI) / 180;
 
 const spriteRadius = (body: Body): number => SPRITE_SIZE[body.kind] / 2;
 
-function moonRing(planetRadius: number, index: number): number {
-  return planetRadius + MOON_RING_GAP + index * MOON_RING_GROWTH;
+function moonRing(planet: Planet, index: number): number {
+  const gap = planet.landable ? MOON_RING_GAP.landable : MOON_RING_GAP.gasGiant;
+  return spriteRadius(planet) + gap + index * MOON_RING_GROWTH;
 }
 
 /** How far round its planet a ring of Moons is turned when the first try overlaps something. */
@@ -66,55 +112,30 @@ const MOON_TURNS = 8;
  * Lays the Star System out as a chart: the star at the left, each planet on its own orbit ring (farther
  * from the star means a larger ring), and Moons beside their planet. A planet's angle follows its
  * orbit angle, nudged round its ring (and its Moons turned round it) until every sprite clears the chart
- * edge and every other Body. The same Star System always gives the same chart.
+ * edge and every other Body, and every Body keeps room for its label (see `placeCluster`). The same Star
+ * System always gives the same chart.
  */
 export function layoutChart(run: Run): ChartLayout {
   const system = run.starSystem;
   const planets = [...system.planets].sort(
     (a, b) => a.distanceFromStar - b.distanceFromStar || a.id.localeCompare(b.id),
   );
-  const nodes: ChartNode[] = [];
-  const rings = new Map<BodyId, number>();
-  let previousRing = 0;
-
-  for (const planet of planets) {
+  const firstRing = (planet: Planet, previousRing: number): number => {
     const fraction = (planet.distanceFromStar / system.heliopauseRadius) ** DISTANCE_EXPONENT;
-    let ring = Math.max(
+    return Math.max(
       Math.round(INNER_RING + (MIN_HELIOPAUSE - INNER_RING) * fraction),
       previousRing + 1,
     );
+  };
 
-    // Walk the planet outward until some angle on its ring (and some turn of its Moons) is free.
-    let cluster: ChartNode[] | undefined;
-    for (; cluster === undefined; ring += 2) {
-      if (ring > CHART.width) throw new Error(`Nav Chart has no room for ${planet.name}`);
-      const widest = Math.asin(Math.min(1, CHART.height / 2 / ring));
-      const home = (wrapAngle(planet.orbitAngle) / Math.PI) * widest;
-      for (let step = 0; cluster === undefined && step * ANGLE_STEP <= widest * 2; step += 1) {
-        for (const sign of step === 0 ? [1] : [1, -1]) {
-          const angle = home + sign * step * ANGLE_STEP;
-          if (Math.abs(angle) > widest) continue;
-          const at = {
-            x: Math.round(STAR.x + ring * Math.cos(angle)),
-            y: Math.round(STAR.y + ring * Math.sin(angle)),
-          };
-          for (let turn = 0; turn < MOON_TURNS; turn += 1) {
-            const candidate = clusterAt(planet, at, (turn * 2 * Math.PI) / MOON_TURNS);
-            if (fits(candidate, nodes)) {
-              cluster = candidate;
-              break;
-            }
-          }
-          if (cluster) break;
-        }
-      }
-    }
-    ring -= 2;
-    previousRing = ring;
-    rings.set(planet.id, ring);
-    nodes.push(...cluster);
-  }
+  // Leaving room for labels can walk planets so far out that a later one has nowhere to go; then the
+  // chart is laid out with every planet at its first free spot instead.
+  const placements =
+    placePlanets(planets, firstRing, true) ?? placePlanets(planets, firstRing, false);
+  if (!placements) throw new Error(`Nav Chart has no room for ${system.name}`);
 
+  const nodes = placements.flatMap((p) => p.cluster);
+  const rings = new Map(placements.map((p) => [p.planet.id, p.ring]));
   return {
     star: STAR,
     nodes,
@@ -123,8 +144,204 @@ export function layoutChart(run: Run): ChartLayout {
       if (ring === undefined) throw new Error(`Nav Chart has no orbit ring for ${planetId}`);
       return ring;
     },
-    heliopauseRadius: Math.max(MIN_HELIOPAUSE, previousRing + 30),
+    heliopauseRadius: Math.max(MIN_HELIOPAUSE, (placements.at(-1)?.ring ?? 0) + 30),
   };
+}
+
+/**
+ * Places the planets in order out from the star. With `labelRoom`, each takes the first spot that leaves
+ * every Body room for its label; when there is none, the planet before it is moved to let it in, or it
+ * takes the spot that leaves the fewest Bodies without room. Without, each takes the first spot that
+ * fits. `undefined` when some planet has no spot at all.
+ */
+function placePlanets(
+  planets: readonly Planet[],
+  firstRing: (planet: Planet, previousRing: number) => number,
+  labelRoom: boolean,
+): Placement[] | undefined {
+  const placements: Placement[] = [];
+
+  /** Tries the planet before at its next few roomy spots, keeping the first that leaves `planet` one too. */
+  const movePlanetBefore = (before: Placement, planet: Planet): Placement[] | undefined => {
+    const placed = placements.slice(0, -1).flatMap((p) => p.cluster);
+    const others = roomyClusters(before.planet, before.firstRing, placed);
+    others.next(); // where it is now
+    for (let tries = 0; tries < MOVE_BACK_TRIES; tries += 1) {
+      const other = others.next();
+      if (other.done) return undefined;
+      const next = roomyClusters(planet, firstRing(planet, other.value.ring), [
+        ...placed,
+        ...other.value.cluster,
+      ]).next();
+      if (!next.done) return [other.value, next.value];
+    }
+    return undefined;
+  };
+
+  for (const planet of planets) {
+    const before = placements.at(-1);
+    const start = firstRing(planet, before?.ring ?? 0);
+    const placed = placements.flatMap((p) => p.cluster);
+    if (!labelRoom) {
+      const first = clusters(planet, start, placed).next();
+      if (first.done) return undefined;
+      placements.push(first.value);
+      continue;
+    }
+    const roomy = roomyClusters(planet, start, placed).next();
+    if (!roomy.done) {
+      placements.push(roomy.value);
+      continue;
+    }
+    const moved = before && movePlanetBefore(before, planet);
+    if (moved) {
+      placements.splice(-1, 1, ...moved);
+      continue;
+    }
+    const found = leastCrampedCluster(planet, start, placed);
+    if (!found) return undefined;
+    placements.push(found);
+  }
+  return placements;
+}
+
+/** Where one planet and its Moons went: the ring it sits on, and the ring its search started from. */
+interface Placement {
+  readonly planet: Planet;
+  readonly cluster: ChartNode[];
+  readonly ring: number;
+  readonly firstRing: number;
+}
+
+/** How many other spots the planet before is tried at when a planet finds no room. */
+const MOVE_BACK_TRIES = 24;
+
+/**
+ * Every spot for a planet and its Moons that fits on the chart, walking outward from `firstRing` over the
+ * angles on each ring and the turns of its Moons.
+ */
+function* clusters(
+  planet: Planet,
+  firstRing: number,
+  placed: readonly ChartNode[],
+  /** Seen first with the planet alone: `false` skips every turn of its Moons there. */
+  worth: (cluster: readonly ChartNode[]) => boolean = () => true,
+): Generator<Placement> {
+  for (let ring = firstRing; ring <= CHART.width; ring += 2) {
+    const widest = Math.asin(Math.min(1, CHART.height / 2 / ring));
+    const home = (wrapAngle(planet.orbitAngle) / Math.PI) * widest;
+    for (let step = 0; step * ANGLE_STEP <= widest * 2; step += 1) {
+      for (const sign of step === 0 ? [1] : [1, -1]) {
+        const angle = home + sign * step * ANGLE_STEP;
+        if (Math.abs(angle) > widest) continue;
+        const at = {
+          x: Math.round(STAR.x + ring * Math.cos(angle)),
+          y: Math.round(STAR.y + ring * Math.sin(angle)),
+        };
+        const alone = [{ body: planet, ...at, radius: spriteRadius(planet) }];
+        if (!fits(alone, placed) || !worth(alone)) continue;
+        for (let turn = 0; turn < MOON_TURNS; turn += 1) {
+          const cluster = clusterAt(planet, at, (turn * 2 * Math.PI) / MOON_TURNS);
+          if (fits(cluster, placed) && worth(cluster)) yield { planet, cluster, ring, firstRing };
+        }
+      }
+    }
+  }
+}
+
+/** The spots where every Body of the cluster, and every Body near it, keeps room for its label. */
+function roomyClusters(
+  planet: Planet,
+  firstRing: number,
+  placed: readonly ChartNode[],
+): Generator<Placement> {
+  const cramped = crampedBodies(placed);
+  // Moons only take room away, so a planet without room on its own rules out every turn of its Moons.
+  return clusters(planet, firstRing, placed, (cluster) => cramped(cluster, 1) === 0);
+}
+
+/** When no spot leaves room for every label: the spot that leaves the fewest Bodies without. */
+function leastCrampedCluster(
+  planet: Planet,
+  firstRing: number,
+  placed: readonly ChartNode[],
+): Placement | undefined {
+  const cramped = crampedBodies(placed);
+  let best: { placement: Placement; cramped: number } | undefined;
+  for (const placement of clusters(planet, firstRing, placed)) {
+    const count = cramped(placement.cluster, best?.cramped ?? Infinity);
+    if (!best || count < best.cramped) best = { placement, cramped: count };
+  }
+  return best?.placement;
+}
+
+/** Pixels between a Body's sprite and the label room kept for it: clear of the focus brackets. */
+const ROOM_GAP = BRACKET_GAP + 2;
+
+/**
+ * Counts, for a new cluster, how many of its Bodies and of the Bodies already `placed` have no spot left
+ * for their label (name over a "target" note, the widest a label gets on two lines) beside them: on the
+ * chart and nearer to them than to any other Body. Counting stops at `enough`.
+ */
+function crampedBodies(
+  placed: readonly ChartNode[],
+): (cluster: readonly ChartNode[], enough: number) => number {
+  // A placed Body's spots against the other placed Bodies stay the same whatever cluster is tried.
+  const free = new Map<ChartNode, Rect[]>();
+  const freeSpots = (node: ChartNode): Rect[] => {
+    const known = free.get(node);
+    if (known) return known;
+    const spots = roomSpots(node, placed);
+    free.set(node, spots);
+    return spots;
+  };
+  const keeps = (box: Rect, node: ChartNode, others: readonly ChartNode[]): boolean => {
+    const mine = edgeDistance(box, node);
+    return others.every((o) => o === node || edgeDistance(box, o) >= mine);
+  };
+
+  return (cluster, enough) => {
+    let cramped = 0;
+    const all = [...placed, ...cluster];
+    for (const node of cluster) {
+      if (roomSpots(node, all).length === 0) cramped += 1;
+      if (cramped >= enough) return cramped;
+    }
+    for (const node of placed) {
+      const spots = freeSpots(node);
+      if (spots.length === 0) continue; // it had none before this cluster either
+      if (!spots.some((box) => keeps(box, node, cluster))) cramped += 1;
+      if (cramped >= enough) return cramped;
+    }
+    return cramped;
+  };
+}
+
+/** The spots beside a Body (right, left, below, above) that are on the chart and nearer it than any other. */
+function roomSpots(node: ChartNode, all: readonly ChartNode[]): Rect[] {
+  const w = Math.max(node.body.name.length, 'target'.length) * LABEL.charWidth;
+  const h = 2 * LABEL.height + 1;
+  const out = node.radius + ROOM_GAP;
+  const spots: Rect[] = [
+    { x: node.x + out, y: node.y - h / 2, w, h },
+    { x: node.x - out - w, y: node.y - h / 2, w, h },
+    { x: node.x - w / 2, y: node.y + out, w, h },
+    { x: node.x - w / 2, y: node.y - out - h, w, h },
+    { x: node.x - 2, y: node.y + out, w, h },
+    { x: node.x + 2 - w, y: node.y + out, w, h },
+    { x: node.x - 2, y: node.y - out - h, w, h },
+    { x: node.x + 2 - w, y: node.y - out - h, w, h },
+  ];
+  // Every spot is ROOM_GAP from its own Body, so only a Body that close to a spot can be nearer to it.
+  const reach = out + w + ROOM_GAP + STAR.radius;
+  const nearby = [STAR, ...all].filter(
+    (o) => o !== node && Math.abs(o.x - node.x) < reach && Math.abs(o.y - node.y) < reach,
+  );
+  return spots.filter((box) => {
+    if (!insideBox(box)) return false;
+    const mine = edgeDistance(box, node);
+    return nearby.every((o) => edgeDistance(box, o) >= mine);
+  });
 }
 
 /** An angle turned into the range -π to π, so a planet's orbit angle spreads planets over the whole chart height. */
@@ -139,7 +356,7 @@ function clusterAt(planet: Planet, at: Point, turn: number): ChartNode[] {
   const [first] = planet.moons;
   const moons = planet.moons.map((moon, index): ChartNode => {
     const angle = (first?.orbitAngle ?? 0) + turn + (index * 2 * Math.PI) / planet.moons.length;
-    const distance = moonRing(own, index);
+    const distance = moonRing(planet, index);
     return {
       body: moon,
       x: Math.round(at.x + distance * Math.cos(angle)),
@@ -154,7 +371,7 @@ function clusterAt(planet: Planet, at: Point, turn: number): ChartNode[] {
 function fits(cluster: readonly ChartNode[], placed: readonly ChartNode[]): boolean {
   return cluster.every(
     (n) =>
-      n.x - n.radius >= 0 &&
+      n.x - n.radius >= STAR.x &&
       n.x + n.radius <= CHART.width &&
       n.y - n.radius >= 0 &&
       n.y + n.radius <= CHART.height &&
@@ -191,22 +408,20 @@ export function ringSegments(centre: Point, radius: number): Segment[] {
 }
 
 /**
- * The ends of the route line: from the edge of the "you" ring to the edge of the target square, so even
- * a short Hop (a planet to its Moon) shows a clear run of dashes between the two marks.
+ * The ends of the route line: from just outside the "you" ring to the edge of the box the focus brackets
+ * draw round the target (which holds the target square), so the dashes are never hidden under a mark.
  */
 export function routeEnds(from: ChartNode, to: ChartNode): [Point, Point] {
   const length = Math.hypot(to.x - from.x, to.y - from.y);
   const [ux, uy] = [(to.x - from.x) / length, (to.y - from.y) / length];
-  const start = from.radius + MARK_GAP;
-  const end = to.radius + MARK_GAP + 1;
+  const start = from.radius + MARK_GAP + 1;
+  // Along the route, a square's edge is farther from its centre than its half-size, most on a diagonal.
+  const end = (to.radius + BRACKET_GAP) / Math.max(Math.abs(ux), Math.abs(uy));
   return [
     { x: from.x + ux * start, y: from.y + uy * start },
     { x: to.x - ux * end, y: to.y - uy * end },
   ];
 }
-
-/** Pixels between a Body's sprite and the ring or square round it. */
-export const MARK_GAP = 3;
 
 /** A line from `a` to `b` cut into dashes of `dash` pixels with `gap` pixels between them. */
 export function dashedSegments(a: Point, b: Point, dash: number, gap: number): Segment[] {
@@ -319,14 +534,6 @@ function choose(run: Run, state: ChartState, id: BodyId): ChartState {
   return targetStatus(run, id).valid ? { ...state, selectedId: id } : state;
 }
 
-/** A box on the chart, in chart pixels. */
-export interface Rect {
-  readonly x: number;
-  readonly y: number;
-  readonly w: number;
-  readonly h: number;
-}
-
 /** What the labels depend on: where the Spacecraft is, the chosen target and the Body in focus. */
 export interface LabelContext {
   readonly hereId: BodyId;
@@ -343,123 +550,266 @@ export interface PlacedLabel {
   readonly box: Rect;
 }
 
-/** Silkscreen at 8 px: measured advance per character, rounded up (gameplay tuning, kept generous). */
-export const LABEL = { charWidth: 6, height: 8 } as const;
-
 /** The label text: the Body's name, then "you" or "target" where that applies. */
 export function labelText(body: Body, context: LabelContext): string {
   if (body.id === context.hereId) return `${body.name} · you`;
   if (body.id === context.targetId) return `${body.name} · target`;
   return body.name;
 }
-
-const circleTouchesBox = (c: Point & { radius: number }, r: Rect, margin: number): boolean => {
-  const dx = Math.max(r.x - c.x, 0, c.x - (r.x + r.w));
-  const dy = Math.max(r.y - c.y, 0, c.y - (r.y + r.h));
-  return Math.hypot(dx, dy) < c.radius + margin;
-};
-
-const boxesTouch = (a: Rect, b: Rect, margin: number): boolean =>
-  a.x < b.x + b.w + margin &&
-  b.x < a.x + a.w + margin &&
-  a.y < b.y + b.h + margin &&
-  b.y < a.y + a.h + margin;
-
-const clampBox = (box: Rect): Rect => ({
-  ...box,
-  x: Math.min(Math.max(box.x, 0), CHART.width - box.w),
-  y: Math.min(Math.max(box.y, 0), CHART.height - box.h),
-});
-
-/** Pixels a label keeps from any Body: room for the focus brackets and the ring or square round it. */
-const BODY_CLEARANCE = 6;
-
-/** Angles to try round a Body, best first: below, above, right, left, then the corners and in between. */
-const SPOT_ANGLES = [90, 270, 0, 180, 45, 135, 315, 225, 60, 120, 240, 300, 20, 160, 200, 340];
-
-/** Spots for a box of `w` x `h` round a Body, nearest first: the box's nearest edge `d` pixels off the Body. */
-function spotsAround(node: ChartNode, w: number, h: number): Rect[] {
-  const spots: Rect[] = [];
-  for (const d of [3, 8, 16, 26, 40, 56, 76]) {
-    for (const degrees of SPOT_ANGLES) {
-      const angle = (degrees * Math.PI) / 180;
-      const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
-      const reach = node.radius + d;
-      const cx = node.x + cos * (reach + (w / 2) * Math.abs(cos));
-      const cy = node.y + sin * (reach + (h / 2) * Math.abs(sin));
-      spots.push({ x: cx - w / 2, y: cy - h / 2, w, h });
-    }
-  }
-  return spots.map(clampBox).map((box) => ({ ...box, x: Math.round(box.x), y: Math.round(box.y) }));
+/**
+ * What a Body takes up on the chart, its marks included: the sprite (or the ring round it: "you", or a
+ * Gas Giant's dots), the target square, and the four corner brackets when it has focus.
+ */
+interface Footprint {
+  readonly circle: Point & { readonly radius: number };
+  readonly boxes: readonly Rect[];
 }
 
+function footprint(node: ChartNode, context: LabelContext): Footprint {
+  const ringed = node.body.id === context.hereId || node.body.kind === 'gas-giant';
+  const boxes: Rect[] = [];
+  if (node.body.id === context.targetId) {
+    const half = node.radius + MARK_GAP + 1;
+    boxes.push({ x: node.x - half, y: node.y - half, w: 2 * half, h: 2 * half });
+  }
+  if (node.body.id === context.focusedId) boxes.push(...bracketArms(node));
+  const radius = node.radius + (ringed ? MARK_GAP + 1 : 0);
+  return { circle: { x: node.x, y: node.y, radius }, boxes };
+}
+
+/** The focus brackets' arms, each a 1 px line, as boxes. */
+function bracketArms(node: ChartNode): Rect[] {
+  const half = node.radius + BRACKET_GAP;
+  const arms: Rect[] = [];
+  for (const [sx, sy] of CORNERS) {
+    const [cx, cy] = [node.x + sx * half, node.y + sy * half];
+    arms.push({
+      x: Math.min(cx, cx - sx * BRACKET_ARM) - 0.5,
+      y: cy - 0.5,
+      w: BRACKET_ARM + 1,
+      h: 1,
+    });
+    arms.push({
+      x: cx - 0.5,
+      y: Math.min(cy, cy - sy * BRACKET_ARM) - 0.5,
+      w: 1,
+      h: BRACKET_ARM + 1,
+    });
+  }
+  return arms;
+}
+
+const CORNERS = [
+  [1, 1],
+  [-1, 1],
+  [1, -1],
+  [-1, -1],
+] as const;
+
+const touches = (f: Footprint, box: Rect, margin: number): boolean =>
+  circleTouchesBox(f.circle, box, margin) || f.boxes.some((b) => boxesTouch(b, box, margin));
+
+/** Gaps tried between a label and the edge of its Body's sprite; the marks round it rule out the nearest. */
+const LABEL_GAPS = [1, 2, 3, 4, 6, 8, 10, 13, 17, 22, 30, 40];
+/** Where along its width a label below or above a Body may sit, as a fraction of that width left of centre. */
+const SLIDES = Array.from({ length: 9 }, (_, i) => i / 8);
+
+/** Spots for a box of `w` x `h` round a Body: below and above (slid along), right and left, and the corners. */
+function spotsAround(node: ChartNode, w: number, h: number): Rect[] {
+  const spots: Rect[] = [];
+  for (const gap of LABEL_GAPS) {
+    const out = node.radius + gap;
+    // Slid along, and just past centre either way (where the layout keeps room for a label).
+    for (const x of [...SLIDES.map((s) => node.x - s * w), node.x - 2, node.x + 2 - w]) {
+      spots.push({ x, y: node.y + out, w, h });
+      spots.push({ x, y: node.y - out - h, w, h });
+    }
+    for (const slide of [0.5, 0.25, 0.75, 0, 1]) {
+      spots.push({ x: node.x + out, y: node.y - slide * h, w, h });
+      spots.push({ x: node.x - out - w, y: node.y - slide * h, w, h });
+    }
+    for (const corner of [out * Math.SQRT1_2, out]) {
+      for (const [sx, sy] of CORNERS) {
+        spots.push({
+          x: sx > 0 ? node.x + corner : node.x - corner - w,
+          y: sy > 0 ? node.y + corner : node.y - corner - h,
+          w,
+          h,
+        });
+      }
+    }
+  }
+  return spots.map((box) => ({ ...box, x: Math.round(box.x), y: Math.round(box.y) }));
+}
+
+/** A spot a label could take, and how far it is from what it names. */
+interface LabelOption {
+  readonly lines: readonly string[];
+  readonly box: Rect;
+  /** Pixels from the box to the edge of its own Body (or, for the Heliopause, to its ring). */
+  readonly d: number;
+}
+
+/** Spots already worked out for a Body and a label text; they depend on nothing else. */
+const optionCache = new WeakMap<ChartNode, Map<string, LabelOption[]>>();
+/** How far each spot strays toward another Body (see `placeLabels`); it depends only on the chart. */
+const strays = new WeakMap<LabelOption, number>();
+
+/** One-line and two-line spots (name over its "you" / "target" note) round a Body together, nearest first. */
+function labelOptions(node: ChartNode, text: string): readonly LabelOption[] {
+  const known = optionCache.get(node) ?? new Map<string, LabelOption[]>();
+  optionCache.set(node, known);
+  const cached = known.get(text);
+  if (cached) return cached;
+  const shapes: { lines: string[]; w: number; h: number }[] = [
+    { lines: [text], w: text.length * LABEL.charWidth, h: LABEL.height },
+  ];
+  if (text !== node.body.name) {
+    const note = text.slice(node.body.name.length + 3);
+    shapes.push({
+      lines: [node.body.name, note],
+      w: Math.max(node.body.name.length, note.length) * LABEL.charWidth,
+      h: 2 * LABEL.height + 1,
+    });
+  }
+  const options = shapes
+    .flatMap(({ lines, w, h }) =>
+      spotsAround(node, w, h).map((box) => ({ lines, box, d: edgeDistance(box, node) })),
+    )
+    .sort((a, b) => a.d - b.d);
+  known.set(text, options);
+  return options;
+}
+
+/** Pixels a label keeps from other Bodies' footprints when it can; 1 px is the least it ever keeps. */
+const ROOMY = 4;
+/** How much nearer (in pixels) a cramped spot must be to win over a roomy one. */
+const CRAMPED_COST = 3;
+/** Planet and Heliopause labels are only worth drawing right beside what they name. */
+const OPTIONAL_REACH = 8;
+/** Pixels a label may sit nearer another Body than its own and still read as its own. */
+const STRAY_LEEWAY = 2;
+/** How much worse than straying a label is when it covers another label or a mark, per thing covered. */
+const NOWHERE_CLEAR = 1000;
+
 /**
- * Where each label goes. Every label sits beside its own Body, on a spot that touches no other label and no
- * Body. The Spacecraft's Body, the target and the focused Body always get a label (they take the
- * least-bad spot if every clear one is taken); the Heliopause and the other planets are drawn only
- * when a clear spot exists. Same chart and focus, same labels.
+ * Where each label goes. Every label sits beside its own Body, no more than `STRAY_LEEWAY` nearer any
+ * other Body (or the star), and touches no other label, Body or mark. The nearest such spot wins, a roomy
+ * one if it is as near as a cramped one. The Spacecraft's Body and the target always get a label (on the
+ * spot that strays least if no good one is free, which the layout makes rare). The focused Body gets one
+ * when a good spot is free; its tooltip names it either way. The Heliopause and the other planets are
+ * drawn only within `OPTIONAL_REACH` of what they name. Same chart and focus, same labels.
  */
 export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedLabel[] {
-  const bodies = [layout.star, ...layout.nodes];
-  const placed: PlacedLabel[] = [];
-  const clear = (box: Rect, margin: number = BODY_CLEARANCE): boolean =>
-    placed.every((l) => !boxesTouch(l.box, box, 1)) &&
-    bodies.every((b) => !circleTouchesBox(b, box, margin));
-  const clashes = (box: Rect): number => placed.filter((l) => boxesTouch(l.box, box, 1)).length;
+  const marks = new Map(layout.nodes.map((n) => [n, footprint(n, context)]));
+  const star: Footprint = { circle: layout.star, boxes: [] };
+  let placed: PlacedLabel[] = [];
 
-  interface Option {
-    readonly lines: readonly string[];
-    readonly box: Rect;
-  }
-  const place = (
-    id: PlacedLabel['id'],
-    text: string,
-    kind: PlacedLabel['kind'],
-    options: readonly Option[],
-    required: boolean,
-  ): void => {
-    // Roomy spots first; a required label settles for any spot that touches nothing.
-    const free =
-      options.find((o) => clear(o.box)) ??
-      (required ? options.find((o) => clear(o.box, 1)) : undefined);
-    const pick =
-      free ??
-      (required ? [...options].sort((a, b) => clashes(a.box) - clashes(b.box))[0] : undefined);
-    if (pick) placed.push({ id, text, kind, lines: pick.lines, box: pick.box });
+  /** On the chart, clear of the labels so far and of every footprint (its own Body's by just 1 px). */
+  const fits = (box: Rect, own: ChartNode | undefined, margin: number): boolean =>
+    insideBox(box) &&
+    placed.every((l) => !boxesTouch(l.box, box, margin === 1 ? 1 : 2)) &&
+    !touches(star, box, margin) &&
+    layout.nodes.every((n) => !touches(marks.get(n) ?? star, box, n === own ? 1 : margin));
+  /** How much nearer a box is to some other Body (or the star) than to its own; 0 when its own is nearest. */
+  const stray = (option: LabelOption, own: ChartNode): number => {
+    const known = strays.get(option);
+    if (known !== undefined) return known;
+    // Only a Body nearer than its own matters, so a cheap bound skips most of them.
+    const { box, d: mine } = option;
+    let nearest = Math.min(mine, edgeDistance(box, layout.star));
+    for (const n of layout.nodes) {
+      if (n === own) continue;
+      const dx = Math.max(box.x - n.x, 0, n.x - (box.x + box.w));
+      const dy = Math.max(box.y - n.y, 0, n.y - (box.y + box.h));
+      if (Math.max(dx, dy) - n.radius >= nearest) continue;
+      nearest = Math.min(nearest, Math.max(0, Math.hypot(dx, dy) - n.radius));
+    }
+    const by = mine - nearest;
+    strays.set(option, by);
+    return by;
   };
 
-  /** One-line spots round a Body first; then, for a name with a note, the same on two lines. */
-  const optionsFor = (node: ChartNode, text: string, name: string): Option[] => {
-    const oneLine = spotsAround(node, text.length * LABEL.charWidth, LABEL.height).map((box) => ({
-      lines: [text],
-      box,
-    }));
-    if (text === name) return oneLine;
-    const note = text.slice(name.length + 3);
-    const width = Math.max(name.length, note.length) * LABEL.charWidth;
-    const twoLines = spotsAround(node, width, 2 * LABEL.height + 1).map((box) => ({
-      lines: [name, note],
-      box,
-    }));
-    return [...oneLine, ...twoLines];
+  /** The nearest option that fits, preferring a roomy one unless a cramped one is clearly nearer. */
+  const nearestFit = (
+    options: readonly LabelOption[],
+    own: ChartNode | undefined,
+    ok: (option: LabelOption) => boolean,
+    maxD = Infinity,
+  ): LabelOption | undefined => {
+    let best: { option: LabelOption; cost: number } | undefined;
+    for (const option of options) {
+      if (option.d > maxD || (best && option.d >= best.cost)) break;
+      if (!ok(option) || !fits(option.box, own, 1)) continue;
+      const cost = option.d + (fits(option.box, own, ROOMY) ? 0 : CRAMPED_COST);
+      if (!best || cost < best.cost) best = { option, cost };
+    }
+    return best?.option;
   };
 
-  const shown = new Set<BodyId>();
-  const labelFor = (id: BodyId | undefined, kind: PlacedLabel['kind']): void => {
-    if (id === undefined || shown.has(id)) return;
-    const node = layout.nodes.find((n) => n.body.id === id);
-    if (!node) return;
-    shown.add(id);
+  /**
+   * Places a label, and says how far it strays: 0 when it found a spot nearer its own Body than any other.
+   * A required label with no such spot takes the one that strays least.
+   */
+  const labelFor = (node: ChartNode, kind: PlacedLabel['kind']): number => {
     const text = labelText(node.body, context);
-    place(id, text, kind, optionsFor(node, text, node.body.name), true);
+    // The focused Body's tooltip, beside it, names it too, so its label can be left out when it has no good spot.
+    const required = kind === 'here' || kind === 'target';
+    const options = labelOptions(node, text);
+    const maxD = kind === 'planet' ? OPTIONAL_REACH : Infinity;
+    const near = nearestFit(options, node, (option) => stray(option, node) <= STRAY_LEEWAY, maxD);
+    if (near) {
+      placed.push({ id: node.body.id, text, kind, lines: near.lines, box: near.box });
+      return 0;
+    }
+    if (!required) return 0;
+    let least: { option: LabelOption; by: number } | undefined;
+    for (const option of options) {
+      if (!fits(option.box, node, 1)) continue;
+      const by = stray(option, node);
+      if (!least || by < least.by) least = { option, by };
+    }
+    if (!least) {
+      // Nowhere clear at all: the nearest spot on the chart that covers the fewest labels and marks.
+      const covers = (box: Rect): number =>
+        placed.filter((l) => boxesTouch(l.box, box, 0)).length +
+        [star, ...marks.values()].filter((f) => touches(f, box, 0)).length;
+      for (const option of options) {
+        if (!insideBox(option.box)) continue;
+        const by = NOWHERE_CLEAR * covers(option.box);
+        if (!least || by < least.by) least = { option, by };
+      }
+    }
+    if (!least) return Infinity;
+    placed.push({ id: node.body.id, text, kind, lines: least.option.lines, box: least.option.box });
+    return least.by;
   };
-  labelFor(context.hereId, 'here');
-  labelFor(context.targetId, 'target');
-  labelFor(context.focusedId, 'focused');
+
+  // The Spacecraft's Body, the target and the focused Body, each labelled once. One label can take
+  // another's only good spot, so when the usual order (here, target, focus) leaves one straying, the
+  // other orders are tried and the first that strays least wins.
+  const required: [ChartNode, PlacedLabel['kind']][] = [];
+  for (const [id, kind] of [
+    [context.hereId, 'here'],
+    [context.targetId, 'target'],
+    [context.focusedId, 'focused'],
+  ] as const) {
+    const node = layout.nodes.find((n) => n.body.id === id);
+    if (node && !required.some(([n]) => n === node)) required.push([node, kind]);
+  }
+  let best: { labels: PlacedLabel[]; strays: number } | undefined;
+  for (const order of orders(required)) {
+    placed = [];
+    const strays = order.reduce((sum, [node, kind]) => sum + labelFor(node, kind), 0);
+    if (!best || strays < best.strays) best = { labels: placed, strays };
+    if (strays === 0) break;
+  }
+  placed = best?.labels ?? [];
+  const shown = new Set(required.map(([node]) => node.body.id));
 
   // The Heliopause label hangs just inside its ring, wherever there is room along it.
   const w = 'heliopause'.length * LABEL.charWidth;
-  const ringOptions: Option[] = [];
+  const ringOptions: LabelOption[] = [];
   for (const dy of [0, -14, 14, -28, 28, -42, 42, -56, 56, -70, 70, -84, 84]) {
     const ringX = layout.star.x + Math.sqrt(layout.heliopauseRadius ** 2 - dy * dy);
     const box = {
@@ -468,20 +818,32 @@ export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedL
       w,
       h: LABEL.height,
     };
-    if (insideBox(box)) ringOptions.push({ lines: ['Heliopause'], box });
+    ringOptions.push({ lines: ['Heliopause'], box, d: Math.abs(dy) / 100 });
   }
-  place('heliopause', 'Heliopause', 'heliopause', ringOptions, false);
+  const ring = nearestFit(ringOptions, undefined, () => true);
+  if (ring) {
+    placed.push({
+      id: 'heliopause',
+      text: 'Heliopause',
+      kind: 'heliopause',
+      lines: ring.lines,
+      box: ring.box,
+    });
+  }
 
   for (const node of layout.nodes) {
-    if (node.body.kind === 'moon' || shown.has(node.body.id)) continue;
-    const text = labelText(node.body, context);
-    place(node.body.id, text, 'planet', optionsFor(node, text, node.body.name), false);
+    if (node.body.kind !== 'moon' && !shown.has(node.body.id)) labelFor(node, 'planet');
   }
   return placed;
 }
 
-const insideBox = (r: Rect): boolean =>
-  r.x >= 0 && r.y >= 0 && r.x + r.w <= CHART.width && r.y + r.h <= CHART.height;
+/** Every order of a few items, the given order first. */
+function orders<T>(items: readonly T[]): T[][] {
+  if (items.length <= 1) return [[...items]];
+  return items.flatMap((first, i) =>
+    orders([...items.slice(0, i), ...items.slice(i + 1)]).map((rest) => [first, ...rest]),
+  );
+}
 
 /** Width of the Body tooltip, and its height with and without the line saying why a Body is not a target. */
 export const TOOLTIP_SIZE = { w: 150, h: 58, hWithReason: 86 } as const;

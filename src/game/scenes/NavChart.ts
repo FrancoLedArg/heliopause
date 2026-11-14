@@ -4,11 +4,14 @@ import { EventBus } from '../EventBus.ts';
 import { currentBody, type BodyId, type Run } from '../sim/index.ts';
 import { bodySprite } from './landedView.ts';
 import {
+  BRACKET_ARM,
+  BRACKET_GAP,
   CHART,
   chartReducer,
   dashedSegments,
   initialChartState,
   layoutChart,
+  MARK_GAP,
   ringSegments,
   routeEnds,
   type ChartCommand,
@@ -151,13 +154,13 @@ export class NavChart extends Scene {
 
     // Gas Giants carry a dotted ring: no surface to land on (shape, not just colour).
     for (const node of this.layout.nodes) {
-      if (node.body.kind === 'gas-giant') this.dottedRing(node, node.radius + 3);
+      if (node.body.kind === 'gas-giant') this.dottedRing(node, node.radius + MARK_GAP);
     }
 
     const here = at(currentBody(this.run).id);
     if (here) {
       g.lineStyle(1, paletteNumber('am3'));
-      g.strokeCircle(here.x, here.y, here.radius + 3);
+      g.strokeCircle(here.x, here.y, here.radius + MARK_GAP);
     }
 
     const target =
@@ -168,15 +171,15 @@ export class NavChart extends Scene {
         g.lineBetween(...from, ...to);
       }
       g.strokeRect(
-        target.x - target.radius - 3,
-        target.y - target.radius - 3,
-        2 * target.radius + 6,
-        2 * target.radius + 6,
+        target.x - target.radius - MARK_GAP,
+        target.y - target.radius - MARK_GAP,
+        2 * (target.radius + MARK_GAP),
+        2 * (target.radius + MARK_GAP),
       );
     }
 
     const focus = at(this.chartState.focusedId);
-    if (focus) this.cornerBrackets(focus, focus.radius + 6);
+    if (focus) this.cornerBrackets(focus, focus.radius + BRACKET_GAP);
   }
 
   /** Dots round a Body, 2 px each: bright enough to read over the dark chart. */
@@ -197,7 +200,7 @@ export class NavChart extends Scene {
   /** The focus mark: four pale corner brackets round a Body. */
   private cornerBrackets(node: ChartNode, half: number): void {
     const g = this.marks;
-    const arm = 4;
+    const arm = BRACKET_ARM;
     g.lineStyle(1, paletteNumber('wh3'));
     for (const [sx, sy] of [
       [-1, -1],

@@ -12,6 +12,10 @@ import {
   placeTooltip,
   routeEnds,
   TOOLTIP_SIZE,
+  type ChartLayout,
+  type ChartNode,
+  type LabelContext,
+  type PlacedLabel,
   type Rect,
   ringSegments,
   stepFocus,
@@ -26,6 +30,16 @@ function homeMoon(run: Run) {
   const moon = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId)?.moons[0];
   if (!moon) throw new Error('Home Planet has no Moon');
   return moon;
+}
+
+/** One layout per seed, shared by the sweeps below so each is only worked out once. */
+const layouts = new Map<number, ChartLayout>();
+function layoutFor(seed: number): ChartLayout {
+  const known = layouts.get(seed);
+  if (known) return known;
+  const layout = layoutChart(newRun(seed));
+  layouts.set(seed, layout);
+  return layout;
 }
 
 describe('the Nav Chart layout', () => {
@@ -46,7 +60,7 @@ describe('the Nav Chart layout', () => {
 
   it('keeps every Body, drawn at 1x, inside the chart and clear of the star and of each other', () => {
     for (const seed of SEEDS) {
-      const { nodes, star } = layoutChart(newRun(seed));
+      const { nodes, star } = layoutFor(seed);
       for (const node of nodes) {
         expect(node.x - node.radius, `seed ${seed} ${node.body.name}`).toBeGreaterThanOrEqual(0);
         expect(node.x + node.radius).toBeLessThanOrEqual(CHART.width);
@@ -149,7 +163,7 @@ describe('moving between Bodies with the arrow keys', () => {
   it('reaches every Body from the Spacecraft with the arrows and the step keys, whatever the seed', () => {
     for (const seed of SEEDS) {
       const run = newRun(seed);
-      const layout = layoutChart(run);
+      const layout = layoutFor(seed);
       const seen = new Set([currentBody(run).id]);
       const queue = [currentBody(run).id];
       for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
@@ -265,64 +279,175 @@ function focusSample<T>(ids: readonly T[], seed: number): T[] {
   );
 }
 
-describe('Body labels on the Nav Chart', () => {
-  it('never overlap each other or a Body, stay on the chart, and always show here, target and focus', () => {
-    for (const seed of SEEDS) {
-      const run = newRun(seed);
-      const layout = layoutChart(run);
-      const here = currentBody(run).id;
-      const targetId = homeMoon(run).id;
-      for (const focused of focusSample(
-        layout.nodes.map((n) => n.body.id),
-        seed,
-      )) {
-        for (const target of [undefined, targetId]) {
-          const labels = placeLabels(layout, {
-            hereId: here,
-            targetId: target,
-            focusedId: focused,
-          });
-          const where = `seed ${seed}, focus ${focused}, target ${target ?? 'none'}`;
-          for (const id of [here, target, focused]) {
-            if (id !== undefined) {
-              expect(
-                labels.some((l) => l.id === id),
-                `${where}: label for ${id}`,
-              ).toBe(true);
-            }
-          }
-          for (const [i, a] of labels.entries()) {
-            expect(insideChart(a.box), `${where}: ${a.text} inside`).toBe(true);
-            for (const b of labels.slice(i + 1)) {
-              expect(overlaps(a.box, b.box), `${where}: ${a.text} / ${b.text}`).toBe(false);
-            }
-            for (const n of [...layout.nodes, { ...layout.star }]) {
-              expect(touchesCircle(a.box, n), `${where}: ${a.text} on a Body`).toBe(false);
-            }
-          }
-        }
-      }
+/** Pixels from a box to the edge of a round sprite; 0 when they touch. */
+const edgeDistance = (r: Rect, c: { x: number; y: number; radius: number }): number => {
+  const dx = Math.max(r.x - c.x, 0, c.x - (r.x + r.w));
+  const dy = Math.max(r.y - c.y, 0, c.y - (r.y + r.h));
+  return Math.max(0, Math.hypot(dx, dy) - c.radius);
+};
+
+interface ChartCase {
+  readonly where: string;
+  readonly layout: ChartLayout;
+  readonly context: LabelContext;
+  readonly labels: readonly PlacedLabel[];
+}
+
+function chartCase(seed: number, context: LabelContext): ChartCase {
+  const layout = layoutFor(seed);
+  return {
+    where: `seed ${seed}, focus ${context.focusedId}, target ${context.targetId ?? 'none'}`,
+    layout,
+    context,
+    labels: placeLabels(layout, context),
+  };
+}
+
+/** Works a list out the first time it is asked for, then hands back the same list. */
+function once<T>(make: () => T): () => T {
+  let made: { value: T } | undefined;
+  return () => (made ??= { value: make() }).value;
+}
+
+/**
+ * Chart states to check labels on: each seed's sampled focus, with no target, the Home Moon, and one
+ * other valid target that changes with the focus, so targets all over the chart get a turn.
+ */
+const sampledCases = once(() =>
+  SEEDS.flatMap((seed) => {
+    const run = newRun(seed);
+    const ids = layoutFor(seed).nodes.map((n) => n.body.id);
+    const moon = homeMoon(run).id;
+    const others = ids.filter((id) => id !== moon && targetStatus(run, id).valid);
+    return focusSample(ids, seed).flatMap((focusedId, i) =>
+      [undefined, moon, others[(seed + i) % others.length]].map((targetId) =>
+        chartCase(seed, { hereId: currentBody(run).id, targetId, focusedId }),
+      ),
+    );
+  }),
+);
+
+const REVIEW_SEEDS = [5, 74, 123, 135, 2024];
+
+/** Every focus with every valid target (or none), on the seeds the reviews looked at. */
+const reviewCases = once(() =>
+  REVIEW_SEEDS.flatMap((seed) => {
+    const run = newRun(seed);
+    const ids = layoutFor(seed).nodes.map((n) => n.body.id);
+    const targets = [undefined, ...ids.filter((id) => targetStatus(run, id).valid)];
+    return ids.flatMap((focusedId) =>
+      targets.map((targetId) =>
+        chartCase(seed, { hereId: currentBody(run).id, targetId, focusedId }),
+      ),
+    );
+  }),
+);
+
+/** What is wrong with the labels of one chart state: overlaps, Bodies covered, no "you" or "target" label. */
+function labelClashes({ where, layout, context, labels }: ChartCase): string[] {
+  const problems: string[] = [];
+  for (const id of [context.hereId, context.targetId]) {
+    if (id !== undefined && !labels.some((l) => l.id === id)) problems.push(`${where}: no ${id}`);
+  }
+  for (const [i, a] of labels.entries()) {
+    if (!insideChart(a.box)) problems.push(`${where}: ${a.text} off the chart`);
+    for (const b of labels.slice(i + 1)) {
+      if (overlaps(a.box, b.box)) problems.push(`${where}: ${a.text} over ${b.text}`);
     }
+    for (const n of [...layout.nodes, layout.star]) {
+      if (touchesCircle(a.box, n)) problems.push(`${where}: ${a.text} on a Body`);
+    }
+  }
+  return problems;
+}
+
+/** Labels that sit nearer another Body (or the star) than their own, by more than 2 px. */
+function strayLabels({ where, layout, labels }: ChartCase): string[] {
+  const problems: string[] = [];
+  for (const label of labels) {
+    if (label.id === 'heliopause') continue;
+    const own = layout.nodes.find((n) => n.body.id === label.id);
+    if (!own) throw new Error(`no node for ${label.id}`);
+    const mine = edgeDistance(label.box, own);
+    const nearest = Math.min(
+      ...[layout.star, ...layout.nodes.filter((n) => n !== own)].map((n) =>
+        edgeDistance(label.box, n),
+      ),
+    );
+    if (mine > nearest + 2) {
+      problems.push(`${where}: ${label.text} is ${mine} px from its Body, ${nearest} from another`);
+    }
+  }
+  return problems;
+}
+
+/** Planet labels more than 8 px from their planet, and a Heliopause label off its ring. */
+function farLabels({ where, layout, labels }: ChartCase): string[] {
+  const problems: string[] = [];
+  for (const label of labels) {
+    if (label.kind === 'heliopause') {
+      const { x, y, w, h } = label.box;
+      const inside = [
+        [x, y],
+        [x + w, y],
+        [x, y + h],
+        [x + w, y + h],
+      ].map(
+        ([cx = 0, cy = 0]) =>
+          layout.heliopauseRadius - Math.hypot(cx - layout.star.x, cy - layout.star.y),
+      );
+      const fromRing = Math.min(...inside);
+      if (fromRing > 8 || fromRing < 0) problems.push(`${where}: Heliopause ${fromRing} px`);
+    } else if (label.kind === 'planet') {
+      const own = layout.nodes.find((n) => n.body.id === label.id);
+      if (own && edgeDistance(label.box, own) > 8) problems.push(`${where}: ${label.text}`);
+    }
+  }
+  return problems;
+}
+
+describe('Body labels on the Nav Chart', () => {
+  it('never overlap each other or a Body, stay on the chart, and always show where the Spacecraft is and the target', () => {
+    expect(sampledCases().flatMap(labelClashes).join('\n')).toBe('');
   });
 
-  it('sit nearest their own Body', () => {
-    const run = newRun(123);
-    const layout = layoutChart(run);
-    const labels = placeLabels(layout, {
-      hereId: currentBody(run).id,
-      targetId: undefined,
-      focusedId: currentBody(run).id,
-    });
-    for (const label of labels) {
-      if (label.id === 'heliopause') continue;
-      const own = layout.nodes.find((n) => n.body.id === label.id);
-      const centre = { x: label.box.x + label.box.w / 2, y: label.box.y + label.box.h / 2 };
-      const distance = (n: { x: number; y: number; radius: number }): number =>
-        Math.hypot(centre.x - n.x, centre.y - n.y) - n.radius;
-      if (!own) throw new Error(`no node for ${label.id}`);
-      const nearest = Math.min(...layout.nodes.map(distance));
-      expect(distance(own) - nearest).toBeLessThanOrEqual(24);
-    }
+  it('never overlap anything for any target on the review seeds', () => {
+    expect(reviewCases().flatMap(labelClashes).join('\n')).toBe('');
+  });
+
+  it('keep Cequyntaen-4 off the Bodies on seed 135 with a far Moon as the target', () => {
+    const layout = layoutFor(135);
+    const id = (wanted: string) => {
+      const node = layout.nodes.find((n) => n.body.id === wanted);
+      if (!node) throw new Error(`seed 135 has no ${wanted}`);
+      return node.body.id;
+    };
+    const context = {
+      hereId: currentBody(newRun(135)).id,
+      focusedId: id('planet-7-moon-3'),
+      targetId: id('planet-5-moon-1'),
+    };
+    const seed135 = chartCase(135, context);
+    expect(seed135.labels.map((l) => l.text)).toContain('Cequyntaen-4');
+    expect(labelClashes(seed135)).toEqual([]);
+    expect(strayLabels(seed135)).toEqual([]);
+  });
+
+  it('sit nearer their own Body than any other', () => {
+    expect(sampledCases().flatMap(strayLabels).join('\n')).toBe('');
+    expect(reviewCases().flatMap(strayLabels).join('\n')).toBe('');
+  });
+
+  it('label the focused Body too, unless no spot beside it is free (its tooltip names it then)', () => {
+    const cases = sampledCases();
+    const unlabelled = cases.filter(
+      ({ context, labels }) => !labels.some((l) => l.id === context.focusedId),
+    );
+    expect(unlabelled.length / cases.length).toBeLessThan(0.01);
+  });
+
+  it('draw a planet or the Heliopause only right beside it', () => {
+    expect(sampledCases().flatMap(farLabels).join('\n')).toBe('');
   });
 
   it('writes the name, plus where the Spacecraft is and what the target is', () => {
@@ -341,7 +466,7 @@ describe('Body labels on the Nav Chart', () => {
 describe('the Body tooltip', () => {
   it('sits on the chart beside the focused Body without covering it', () => {
     for (const seed of SEEDS) {
-      const layout = layoutChart(newRun(seed));
+      const layout = layoutFor(seed);
       for (const node of layout.nodes) {
         const box = placeTooltip(layout, node.body.id);
         expect(insideChart(box), `seed ${seed}`).toBe(true);
@@ -355,15 +480,43 @@ describe('the Body tooltip', () => {
 });
 
 describe('the route line', () => {
-  it('leaves a clearly visible run between the "you" ring and the target square, even for a planet and its Moon', () => {
+  /**
+   * How much of the route shows between the marks: the part of the line from the "you" Body to the target
+   * that lies outside the amber ring (radius + 3, plus its 1 px stroke) and outside the box the focus
+   * brackets draw round the target (half-size radius + 6), the widest mark a target carries.
+   */
+  function visibleRun(from: ChartNode, to: ChartNode): number {
+    const length = Math.hypot(to.x - from.x, to.y - from.y);
+    const [ux, uy] = [(to.x - from.x) / length, (to.y - from.y) / length];
+    const ring = from.radius + 3 + 1;
+    const brackets = (to.radius + 6) / Math.max(Math.abs(ux), Math.abs(uy));
+    return length - ring - brackets;
+  }
+
+  function homeHop(seed: number): [ChartNode, ChartNode] {
+    const run = newRun(seed);
+    const layout = layoutFor(seed);
+    const from = layout.nodes.find((n) => n.body.id === currentBody(run).id);
+    const to = layout.nodes.find((n) => n.body.id === homeMoon(run).id);
+    if (!from || !to) throw new Error('missing node');
+    return [from, to];
+  }
+
+  it('leaves at least 6 px of dashes between the "you" ring and the focused target, for every Home Planet and its Moon', () => {
     for (const seed of SEEDS) {
-      const run = newRun(seed);
-      const layout = layoutChart(run);
-      const from = layout.nodes.find((n) => n.body.id === currentBody(run).id);
-      const to = layout.nodes.find((n) => n.body.id === homeMoon(run).id);
-      if (!from || !to) throw new Error('missing node');
+      expect(visibleRun(...homeHop(seed)), `seed ${seed}`).toBeGreaterThanOrEqual(6);
+    }
+  });
+
+  it('runs from just outside the "you" ring to just outside the target\'s focus brackets', () => {
+    for (const seed of [5, 74, 123, 2024]) {
+      const [from, to] = homeHop(seed);
       const [a, b] = routeEnds(from, to);
-      expect(Math.hypot(b.x - a.x, b.y - a.y), `seed ${seed}`).toBeGreaterThanOrEqual(6);
+      expect(Math.hypot(a.x - from.x, a.y - from.y), `seed ${seed}`).toBeCloseTo(
+        from.radius + 4,
+        5,
+      );
+      expect(Math.max(Math.abs(b.x - to.x), Math.abs(b.y - to.y))).toBeCloseTo(to.radius + 6, 5);
     }
   });
 });
