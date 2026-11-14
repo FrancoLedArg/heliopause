@@ -1,7 +1,9 @@
 // The simulation module's public interface: pure TypeScript game rules, no Phaser or React.
 // The UI and tests use only what is exported here.
 export { findBody, generateStarSystem, homePlanet, listBodies } from './starSystem.ts';
-export { currentBody, startRun } from './run.ts';
+export { currentBody, startRun, STARTING_MATERIALS } from './run.ts';
+export { collectYield, isDepleted } from './gather.ts';
+export type { Collection, Landing } from './gather.ts';
 export type { Run, RunStatus } from './run.ts';
 export { BURNS, flyHop, launchHop, marginShare, planHop } from './hop.ts';
 export type {
