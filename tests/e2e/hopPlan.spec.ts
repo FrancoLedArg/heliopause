@@ -1,6 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
 import { listBodies, planHop, startRun } from '../../src/game/sim/index.ts';
-import { LOW_SUCCESS_BELOW } from '../../src/ui/hopPlanView.ts';
 
 const SEED = 123;
 const run = startRun(SEED, 'scout');
@@ -22,8 +21,8 @@ const moonChance = (() => {
   return result.plan.successChance;
 })();
 
-async function openNavChart(page: Page): Promise<void> {
-  await page.goto(`/?seed=${SEED}&chassis=scout`);
+async function openNavChart(page: Page, chassis = 'scout'): Promise<void> {
+  await page.goto(`/?seed=${SEED}&chassis=${chassis}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
@@ -62,10 +61,18 @@ test('the Hop plan for the Home Planet Moon shows three Burns, totals and a Succ
   await expect(page.getByTestId('plan-available')).toContainText('m/s');
   await expect(page.getByTestId('plan-basis')).toContainText('t craft + ');
   await expect(page.getByTestId('plan-basis')).toContainText('Fuel');
-  await expect(page.getByTestId('plan-margin')).toContainText('%)');
+  // The Margin is bigger than the estimate, so it shows plain Δv, with no percentage.
+  await expect(page.getByTestId('plan-margin')).toHaveText(/^\+[\d,]+ m\/s$/);
   await expect(page.getByTestId('plan-explain')).toContainText(
     'Δv is how much your speed can change',
   );
+  // Each Burn says why it costs what it does, from the Bodies' own properties.
+  const reasons = page.getByTestId('burn-reason');
+  await expect(reasons).toHaveCount(3);
+  await expect(reasons.nth(0)).toContainText('leave');
+  await expect(reasons.nth(1)).toHaveText("stay in one planet's pull");
+  await expect(reasons.nth(2)).toContainText('land in');
+  await expect(page.getByTestId('plan-summary')).toContainText(`Hop plan for ${homeMoon.name}`);
   expect(await percentOf(page)).toBeGreaterThan(0);
   await testInfo.attach('hop-plan-moon', {
     body: await page.screenshot(),
@@ -84,11 +91,10 @@ test('a far Body has a lower Success Chance, flagged in words when low; Cancel c
   const farPercent = await percentOf(page);
   expect(far.chance).toBeLessThan(moonChance);
   expect(farPercent).toBeLessThan(moonPercent);
-  if (far.chance < LOW_SUCCESS_BELOW) {
-    await expect(page.getByTestId('plan-warning')).toContainText('Low chance');
-  } else {
-    await expect(page.getByTestId('plan-warning')).toHaveCount(0);
-  }
+  // Seed 123's Thakyxy is 66% for the scout: below the low-chance line, with a thin Margin.
+  expect(far.body.name).toBe('Thakyxy');
+  await expect(page.getByTestId('plan-warning')).toHaveText('Low chance: may run dry');
+  await expect(page.getByTestId('plan-margin')).toHaveText(/^\+[\d,]+ m\/s \(\d+%\)$/);
   await testInfo.attach('hop-plan-far', {
     body: await page.screenshot(),
     contentType: 'image/png',
@@ -115,4 +121,14 @@ test('Tab reaches Cancel and Launch from the chart, and Launch is available at a
   await expect(page.getByRole('listbox', { name: 'Bodies in the Star System' })).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(page.getByRole('button', { name: 'Launch' })).toBeFocused();
+});
+
+test('a Margin below zero is signed and warned about more strongly than a low chance', async ({
+  page,
+}) => {
+  await openNavChart(page, 'hauler');
+  await target(page, 'Thakyxy');
+  await expect(page.getByTestId('plan-margin')).toHaveText(/^−[\d,]+ m\/s \(\d+%\)$/);
+  await expect(page.getByTestId('plan-warning')).toHaveText('Not enough Δv for this Hop');
+  await expect(page.getByTestId('plan-success')).toContainText('2%');
 });
