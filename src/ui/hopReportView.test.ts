@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  kilograms,
+  collectYield,
   launchHop,
   listBodies,
+  homePlanet,
   startRun,
   type ChassisId,
   type HopFlight,
@@ -76,5 +79,73 @@ describe('the Hop report', () => {
     ]);
     expect(view.rows[2]?.change).toBe('ran out');
     expect(view.why).toBe(flight.why);
+  });
+
+  describe('what landing collected', () => {
+    const run = startRun(2026, 'scout');
+    const moon = homePlanet(run.starSystem).moons[0];
+    if (!moon) throw new Error('The Home Planet has a Moon');
+    const flown = (from: Run) => {
+      const launched = launchHop(from, moon.id);
+      if (launched.kind !== 'flown') throw new Error('expected a flight');
+      return launched;
+    };
+
+    it('says how much Fuel an Icy Body gave and explains ice-to-propellant the first time', () => {
+      const view = describeReport(run, flown(run).flight);
+      expect(view.collected).toMatch(/^Collected [\d.]+ t of Fuel\.$/);
+      expect(view.note).toBe(
+        'Real missions plan to split lunar water ice into hydrogen and oxygen, so rockets could refuel on the Moon.',
+      );
+    });
+
+    it('does not repeat the explanation once Fuel has been collected in the Run', () => {
+      // Another Icy Body already gave its Fuel in this Run.
+      const elsewhere = listBodies(run.starSystem).find(
+        (body) => body.landable && body.composition === 'icy' && body.id !== moon.id,
+      );
+      if (!elsewhere) throw new Error('seed 2026 has a second Icy Body');
+      const second = { ...run, depleted: [elsewhere.id] };
+      const view = describeReport(second, flown(second).flight);
+      expect(view.collected).toMatch(/of Fuel/);
+      expect(view.note).toBeUndefined();
+    });
+
+    it('says how much Fuel was left behind when the Tank is full', () => {
+      // The Hop itself burns Fuel, so a full Tank is arranged by the landing's report.
+      const { flight } = flown(run);
+      const full = {
+        ...flight,
+        collection: {
+          kind: 'fuel' as const,
+          collected: kilograms(2_000),
+          leftBehind: kilograms(5_700),
+        },
+      };
+      const view = describeReport(run, full);
+      expect(view.collected).toMatch(
+        /^Collected [\d.]+ t of Fuel; [\d.]+ t left behind: the Tank is full\.$/,
+      );
+    });
+
+    it('says how many Materials a Rocky Body gave', () => {
+      const away = { ...run, status: { kind: 'landed', bodyId: moon.id } as const };
+      const launched = launchHop(away, run.starSystem.homePlanetId);
+      if (launched.kind !== 'flown') throw new Error('expected a flight');
+      const view = describeReport(away, launched.flight);
+      expect(view.collected).toMatch(/^Collected \d+ Materials\.$/);
+      expect(view.note).toBeUndefined();
+    });
+
+    it('says a Depleted Body had nothing left', () => {
+      const visited = { ...collectYield(run, moon.id).run, status: run.status };
+      const view = describeReport(visited, flown(visited).flight);
+      expect(view.collected).toBe('Nothing to collect: this Body is Depleted.');
+    });
+
+    it('says nothing was collected after a failed Hop', () => {
+      const { run: failedRun, flight } = hopThatEnds('fell-short', 123, 'hauler');
+      expect(describeReport(failedRun, flight).collected).toBeUndefined();
+    });
   });
 });

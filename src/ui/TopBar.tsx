@@ -1,4 +1,5 @@
-import type { Kilograms, MetersPerSecond } from '../game/sim/index.ts';
+import type { Kilograms, Materials, MetersPerSecond } from '../game/sim/index.ts';
+import { imageUrl } from '../game/assets/manifest.ts';
 import { formatDeltaV, formatFuel } from './format.ts';
 import { KitFrame } from './kit/KitFrame.tsx';
 
@@ -9,10 +10,11 @@ interface TopBarProps {
   systemName: string;
   fuel: Kilograms;
   deltaV: MetersPerSecond;
+  materials: Materials;
 }
 
-/** The top bar over every in-Run screen: the Star System, the Fuel on board and the Δv it provides. */
-export function TopBar({ systemName, fuel, deltaV }: TopBarProps) {
+/** The top bar over every in-Run screen: the Star System, the Fuel on board, the Δv it provides and the Materials in stock. */
+export function TopBar({ systemName, fuel, deltaV, materials }: TopBarProps) {
   return (
     <header className="top-bar" style={{ width: BAR_WIDTH, height: BAR_HEIGHT }}>
       <KitFrame frame="panel_holo" width={BAR_WIDTH} height={BAR_HEIGHT} />
@@ -27,6 +29,17 @@ export function TopBar({ systemName, fuel, deltaV }: TopBarProps) {
       <p className="top-bar__label top-bar__dv-label">Δv available</p>
       <p className="top-bar__value top-bar__dv" data-testid="delta-v">
         {formatDeltaV(deltaV)}
+      </p>
+      <img
+        src={imageUrl('res_materials')}
+        alt=""
+        width={32}
+        height={32}
+        className="top-bar__icon top-bar__materials-icon"
+      />
+      <p className="top-bar__label top-bar__materials-label">Materials</p>
+      <p className="top-bar__value top-bar__materials" data-testid="materials">
+        {materials}
       </p>
     </header>
   );
