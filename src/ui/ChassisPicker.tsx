@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { atlasImageUrl, hasAsset, imageUrl } from '../game/assets/manifest.ts';
 import { frameGeometry, standingExtent } from '../game/scenes/chassisArt.ts';
 import { availableDeltaV, CHASSIS_IDS, newSpacecraft, type ChassisId } from '../game/sim/index.ts';
-import { formatDeltaV, formatFuel, formatMass } from './format.ts';
+import { chassisName, formatDeltaV, formatFuel, formatMass } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 
@@ -26,8 +26,6 @@ const NOTE_TOP = CARDS_TOP + CARD_HEIGHT + NOTE_GAP;
 const ACTIONS_TOP = NOTE_TOP + NOTE_HEIGHT + ACTIONS_GAP;
 /** The stand-in Spacecraft image (until the Chassis art is in the manifest) fits this box. */
 const STAND_IN_SIZE = { width: 96, height: 64 };
-
-const NAMES: Record<ChassisId, string> = { scout: 'Scout', hauler: 'Hauler', lancer: 'Lancer' };
 
 interface ChassisPickerProps {
   /** The Chassis chosen: the Run starts with a full Spacecraft on it. */
@@ -101,7 +99,7 @@ interface ChassisCardProps {
 
 function ChassisCard({ id, selected, onSelect }: ChassisCardProps) {
   const spacecraft = newSpacecraft(id);
-  const name = NAMES[id];
+  const name = chassisName(id);
   return (
     <label
       className={selected ? 'chassis-card chassis-card--selected' : 'chassis-card'}

@@ -600,7 +600,14 @@ body {
 .landed-nav-button {
   position: absolute;
   top: 322px;
-  /* Right of the location plate (ends x 296) and below the Spacecraft, which sweeps x 425–625, y 170–302 (`SHIP_SWEEP` in landedView.ts): no panel over the ship. */
+  /* Right of the Spacecraft button, below the Spacecraft, which sweeps x 425–625, y 170–302 (`SHIP_SWEEP` in landedView.ts): no panel over the ship. */
+  left: 476px;
+}
+
+/* Left of the Nav Chart button, in the same row: right of the location plate (ends x 296), below the sweep. */
+.landed-spacecraft-button {
+  position: absolute;
+  top: 322px;
   left: 352px;
 }
 

@@ -2,7 +2,7 @@ import { Events } from 'phaser';
 import type { SceneKey } from './scenes/keys.ts';
 import type { ChartCommand, ChartState } from './scenes/navChartView.ts';
 import type { FlightMoment, Pace } from './scenes/flightPlayback.ts';
-import type { BodyId, ChassisId, HopFlight, Run, Seed } from './sim/index.ts';
+import type { BodyId, ChassisId, ComponentId, HopFlight, Run, Seed } from './sim/index.ts';
 
 /** Events crossing the React <-> Phaser boundary. Add an entry here before emitting a new event. */
 export interface GameEvents {
@@ -10,6 +10,17 @@ export interface GameEvents {
   'scene-ready': [sceneKey: SceneKey];
   /** Phaser -> React: the Run the Landed view shows (sent just before its `scene-ready`). */
   'run-started': [run: Run];
+  /**
+   * Phaser -> React: the Run changed while the Landed view stays up (a Component was installed). Unlike
+   * `run-started` it is not a new view: reports and focus stay as they are.
+   */
+  'run-updated': [run: Run];
+  /**
+   * React -> Phaser: the player installed `componentId` in Slot `slotIndex` (0-based) from the Spacecraft
+   * panel, which has already checked the install is allowed. The Landed scene applies it to its Run and
+   * answers with `run-updated`.
+   */
+  'component-install-requested': [slotIndex: number, componentId: ComponentId];
   /** React -> Phaser: the player launched a New Run; it starts from `seed` (see `chooseRunSeed`) on `chassisId`. */
   'new-run-requested': [seed: Seed, chassisId: ChassisId];
   /** React -> Phaser: the player asked to open the Nav Chart over the Landed view. */
