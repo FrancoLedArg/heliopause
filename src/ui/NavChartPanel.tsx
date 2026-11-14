@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  type CSSProperties,
+  type KeyboardEvent,
+} from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import {
   CHART,
@@ -179,6 +186,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         tabIndex={0}
         aria-label="Bodies in the Star System"
         aria-activedescendant={optionId(focused)}
+        aria-describedby="nav-chart-keys"
         onKeyDown={onChartKey}
         style={{ left: CHART.x, top: CHART.y, width: CHART.width, height: CHART.height }}
       >
@@ -243,9 +251,12 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         )}
       </div>
 
-      <p className="nav-chart__help">
-        Arrow keys or the mouse look at a Body; Enter or a click makes it the target. PgUp and PgDn
-        step through them all. Esc closes.
+      <p className="nav-chart__help" data-testid="plan-explain">
+        Click a Body to set it as the target. {DELTA_V_EXPLANATION}
+      </p>
+      <p id="nav-chart-keys" className="sr-only">
+        Arrow keys look at a Body; Page Up and Page Down step through them all; Enter makes the
+        focused Body the target; Escape closes.
       </p>
 
       <div className="nav-chart__side" style={{ left: SIDE.x, top: SIDE.y }}>
@@ -288,10 +299,19 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
               </thead>
               <tbody>
                 {view.burns.map((burn) => (
-                  <tr key={burn.label}>
-                    <th scope="row">{burn.label}</th>
-                    <td>{burn.estimate}</td>
-                  </tr>
+                  <Fragment key={burn.label}>
+                    <tr>
+                      <th scope="row">{burn.label}</th>
+                      <td>{burn.estimate}</td>
+                    </tr>
+                    <tr className="nav-chart__reason-row">
+                      <td colSpan={2}>
+                        <span className="nav-chart__reason" data-testid="burn-reason">
+                          {burn.reason}
+                        </span>
+                      </td>
+                    </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -323,20 +343,19 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
               <span className="nav-chart__success-value">{view.successChance}</span>
             </p>
             {view.warning && (
-              <p className="nav-chart__warning" data-testid="plan-warning" role="status">
+              <p className="nav-chart__warning" data-testid="plan-warning">
                 {view.warning}
               </p>
             )}
-            <p className="nav-chart__explain" data-testid="plan-explain">
-              {DELTA_V_EXPLANATION}
-            </p>
           </>
         ) : (
-          <p className="nav-chart__explain">
-            Pick a landable Body on the chart to plan a Hop. {DELTA_V_EXPLANATION}
-          </p>
+          <p className="nav-chart__explain">Pick a landable Body on the chart to plan a Hop.</p>
         )}
       </div>
+      {/* Announces each new plan; always in the page, so a change of text is what gets read out. */}
+      <p className="sr-only" role="status" data-testid="plan-summary">
+        {view?.summary ?? ''}
+      </p>
 
       <div ref={actionsRef} className="nav-chart__actions">
         <KitButton
