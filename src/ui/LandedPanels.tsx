@@ -70,16 +70,18 @@ export function LandedPanels({ run, chartOpen }: LandedPanelsProps) {
               {formatDistanceAu(body.distanceFromStar)} from the star
             </p>
           </section>
-          <KitButton
-            variant="primary"
-            width={116}
-            aria-keyshortcuts="M"
-            onClick={() => {
-              EventBus.emit('nav-chart-open-requested');
-            }}
-          >
-            Nav Chart (M)
-          </KitButton>
+          <div ref={buttonSlot} className="landed-nav-button">
+            <KitButton
+              variant="primary"
+              width={116}
+              aria-keyshortcuts="M"
+              onClick={() => {
+                EventBus.emit('nav-chart-open-requested');
+              }}
+            >
+              Nav Chart (M)
+            </KitButton>
+          </div>
         </>
       )}
     </>

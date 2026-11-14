@@ -437,7 +437,7 @@ body {
 .landed-nav-button {
   position: absolute;
   top: 322px;
-  /* In the gap between the location plate (ends x 296) and the Spacecraft (starts x 477): no panel over the ship. */
+  /* Right of the location plate (ends x 296) and below the Spacecraft, which sweeps x 429–621, y 232–302: no panel over the ship. */
   left: 352px;
 }
 

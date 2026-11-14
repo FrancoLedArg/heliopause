@@ -38,13 +38,54 @@ test('the Nav Chart opens over the Landed view, names the Spacecraft Body and cl
   await expect(page.getByText('Heliopause', { exact: true })).toBeVisible();
   await testInfo.attach('nav-chart', { body: await page.screenshot(), contentType: 'image/png' });
 
+  const opener = page.getByRole('button', { name: 'Nav Chart (M)' });
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeHidden();
   await expect(page.getByRole('heading', { name: homeName, level: 1 })).toBeVisible();
+  await expect(opener).toBeFocused();
   await page.keyboard.press('m');
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
   await page.getByRole('button', { name: 'Close' }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeHidden();
+  await expect(opener).toBeFocused();
+});
+
+test('the Nav Chart button sits between the location plate and the Spacecraft, clear of every panel', async ({
+  page,
+}) => {
+  await page.goto(`/?seed=${SEED}&chassis=scout`);
+  await page.getByRole('button', { name: 'New Run' }).click();
+  const button = page.getByRole('button', { name: 'Nav Chart (M)' });
+  await expect(button).toBeVisible();
+
+  const canvas = await page.locator('canvas').first().boundingBox();
+  if (!canvas) throw new Error('no canvas');
+  const scale = canvas.width / 640;
+  /** An element's box in the game's own 640x360 pixels. */
+  const stageBox = async (selector: string) => {
+    const box = await page.locator(selector).first().boundingBox();
+    if (!box) throw new Error(`no ${selector}`);
+    return {
+      left: (box.x - canvas.x) / scale,
+      top: (box.y - canvas.y) / scale,
+      right: (box.x + box.width - canvas.x) / scale,
+      bottom: (box.y + box.height - canvas.y) / scale,
+    };
+  };
+  const at = await stageBox('.landed-nav-button button');
+  expect(at.left).toBeCloseTo(352, 0);
+  expect(at.right).toBeCloseTo(468, 0);
+  expect(at.top).toBeCloseTo(322, 0);
+  expect(at.bottom).toBeCloseTo(346, 0);
+  for (const panel of ['.top-bar', '.landed-plate']) {
+    const other = await stageBox(panel);
+    const overlap =
+      at.left < other.right &&
+      other.left < at.right &&
+      at.top < other.bottom &&
+      other.top < at.bottom;
+    expect(overlap, `Nav Chart button overlaps ${panel}`).toBe(false);
+  }
 });
 
 test('from the keyboard: select the Home Planet Moon, and a Gas Giant says why it is not a target', async ({
