@@ -58,6 +58,9 @@ export interface PullSnapshot {
   mergeState: MergeState;
 }
 
+/** An approved PR blocked by something a Builder must fix, with the reason why. */
+export type NeedsAttention = PullSnapshot & { reason: string };
+
 export interface PipelineStatus {
   /** Specs published by the Planner that no Orchestrator has claimed yet. */
   newSpecs: IssueSnapshot[];
@@ -77,6 +80,8 @@ export interface PipelineStatus {
   behindMain: PullSnapshot[];
   /** Approved PRs whose CI is green and up to date: merge them. */
   mergeable: PullSnapshot[];
+  /** Approved PRs that cannot merge as they stand (conflict with main, or CI failing): back to their Builder. */
+  needsAttention: NeedsAttention[];
   needsTriage: IssueSnapshot[];
   assetRequests: IssueSnapshot[];
 }
@@ -85,7 +90,19 @@ const has = (item: { labels: readonly string[] }, label: Label): boolean =>
   item.labels.includes(label);
 
 const approvedAndGreen = (pull: PullSnapshot): boolean =>
-  has(pull, Label.AgentApproved) && pull.checks === 'passing';
+  has(pull, Label.AgentApproved) && pull.checks === 'passing' && !isDirty(pull);
+
+export const isDirty = (pull: PullSnapshot): boolean => pull.mergeState === 'DIRTY';
+
+/** Why an approved PR is stuck, or null when it is not. */
+export function attentionReason(pull: PullSnapshot): string | null {
+  if (!has(pull, Label.AgentApproved)) return null;
+  const reasons = [
+    ...(isDirty(pull) ? ['conflicts with main'] : []),
+    ...(pull.checks === 'failing' ? ['CI failing'] : []),
+  ];
+  return reasons.length ? reasons.join(', ') : null;
+}
 
 export const isBehind = (pull: PullSnapshot): boolean => pull.mergeState === 'BEHIND';
 
@@ -94,12 +111,13 @@ export type LeanPull = Omit<PullSnapshot, 'body'> & { closes: number[] };
 
 export type LeanStatus = Omit<
   PipelineStatus,
-  'inProgressTickets' | 'awaitingReview' | 'behindMain' | 'mergeable'
+  'inProgressTickets' | 'awaitingReview' | 'behindMain' | 'mergeable' | 'needsAttention'
 > & {
   inProgressTickets: { ticket: IssueSnapshot; pull: LeanPull | null }[];
   awaitingReview: LeanPull[];
   behindMain: LeanPull[];
   mergeable: LeanPull[];
+  needsAttention: (LeanPull & { reason: string })[];
 };
 
 /** Ticket numbers a PR closes, from `Closes #N` / `Fixes #N` / `Resolves #N` in its body. */
@@ -152,6 +170,12 @@ export function summarize(
     mergeable: pulls
       .filter((pull) => approvedAndGreen(pull) && pull.mergeState !== 'UNKNOWN' && !isBehind(pull))
       .sort((a, b) => a.number - b.number),
+    needsAttention: pulls
+      .flatMap((pull) => {
+        const reason = attentionReason(pull);
+        return reason ? [{ ...pull, reason }] : [];
+      })
+      .sort((a, b) => a.number - b.number),
     needsTriage: issues.filter((issue) => has(issue, Label.NeedsTriage)).sort(byNumber),
     assetRequests: issues.filter((issue) => has(issue, Label.Asset)).sort(byNumber),
   };
@@ -186,6 +210,10 @@ export function leanStatus(status: PipelineStatus): LeanStatus {
     awaitingReview: status.awaitingReview.map(lean),
     behindMain: status.behindMain.map(lean),
     mergeable: status.mergeable.map(lean),
+    needsAttention: status.needsAttention.map(({ reason, ...pull }) => ({
+      ...lean(pull),
+      reason,
+    })),
   };
 }
 
