@@ -16,6 +16,8 @@ it('marks a Depleted Body on the Landed plate, clear of the other lines and insi
     <LandedPanels
       run={{ ...run, status: { kind: 'landed', bodyId: body.id }, depleted: [body.id] }}
       chartOpen={false}
+      spacecraftOpen={false}
+      onOpenSpacecraft={() => undefined}
     />,
   );
   const plate = host.querySelector<HTMLElement>('.landed-plate');
@@ -29,14 +31,21 @@ it('marks a Depleted Body on the Landed plate, clear of the other lines and insi
   expect(box.top).toBeGreaterThanOrEqual(detail.getBoundingClientRect().bottom);
   expect(box.right).toBeLessThanOrEqual(frame.right - SLACK);
   expect(box.bottom).toBeLessThanOrEqual(frame.bottom - 3);
-  // Still clear of the Nav Chart button's column and the bottom of the screen.
+  // Still clear of the Nav Chart button and the credit tag below.
   expect(frame.right).toBeLessThanOrEqual(296);
-  expect(frame.bottom).toBeLessThanOrEqual(350);
+  expect(frame.bottom).toBeLessThanOrEqual(336);
   expect(mark.scrollWidth).toBeLessThanOrEqual(mark.clientWidth);
 });
 
 it('does not mark a fresh Body on the Landed plate', async () => {
   const run = startRun(123, 'scout');
-  const host = await renderUi(<LandedPanels run={run} chartOpen={false} />);
+  const host = await renderUi(
+    <LandedPanels
+      run={run}
+      chartOpen={false}
+      spacecraftOpen={false}
+      onOpenSpacecraft={() => undefined}
+    />,
+  );
   expect(host.querySelector('[data-testid="landed-depleted"]')).toBeNull();
 });

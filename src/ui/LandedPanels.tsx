@@ -8,7 +8,7 @@ import { TopBar } from './TopBar.tsx';
 
 const PLATE_WIDTH = 284;
 const PLATE_HEIGHT = 62;
-/** A Depleted Body adds a row for its badge under the detail line. */
+/** A Depleted Body adds a row for its badge under the detail line; the plate grows upward, its bottom edge fixed above the credit tag. */
 const DEPLETED_ROW = 14;
 
 interface LandedPanelsProps {
@@ -72,7 +72,11 @@ export function LandedPanels({
           <section
             className="landed-plate"
             aria-labelledby="landed-title"
-            style={{ width: PLATE_WIDTH, height: plateHeight }}
+            style={{
+              width: PLATE_WIDTH,
+              height: plateHeight,
+              top: 274 + PLATE_HEIGHT - plateHeight,
+            }}
           >
             <KitFrame frame="panel_holo" width={PLATE_WIDTH} height={plateHeight} />
             <h1 id="landed-title" className="landed-plate__title">
