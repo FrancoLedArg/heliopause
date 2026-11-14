@@ -3,9 +3,11 @@ import {
   checksFromRequired,
   cleanupSummary,
   closedIssueNumbers,
+  closeSpecSteps,
   Label,
   mergeFailureMeansBehind,
   leanStatus,
+  runStepsUntilFailure,
   summarize,
   type IssueSnapshot,
   type PullSnapshot,
@@ -309,5 +311,43 @@ describe('mergeFailureMeansBehind', () => {
     );
     expect(mergeFailureMeansBehind('gh: Not Found (HTTP 404)')).toBe(false);
     expect(mergeFailureMeansBehind('')).toBe(false);
+  });
+});
+
+describe('closeSpecSteps', () => {
+  it('comments, then closes, then relabels, so a failed close keeps in-progress', () => {
+    const steps = closeSpecSteps(50, 3);
+    expect(steps.map((step) => step.id)).toEqual(['comment', 'close', 'relabel']);
+    expect(steps[2]?.args).toEqual([
+      'issue',
+      'edit',
+      '50',
+      '--remove-label',
+      'ready-for-agent,in-progress',
+    ]);
+  });
+});
+
+describe('runStepsUntilFailure', () => {
+  const steps = closeSpecSteps(50, 3);
+
+  it('runs every step when all succeed', () => {
+    const ran: string[] = [];
+    const done = runStepsUntilFailure(steps, (step) => {
+      ran.push(step.id);
+      return true;
+    });
+    expect(ran).toEqual(['comment', 'close', 'relabel']);
+    expect(done).toEqual(['comment', 'close', 'relabel']);
+  });
+
+  it('stops at a failed close: no relabel, and close is not reported done', () => {
+    const ran: string[] = [];
+    const done = runStepsUntilFailure(steps, (step) => {
+      ran.push(step.id);
+      return step.id !== 'close';
+    });
+    expect(ran).toEqual(['comment', 'close']);
+    expect(done).toEqual(['comment']);
   });
 });
