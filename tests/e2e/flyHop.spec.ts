@@ -126,3 +126,29 @@ test('a Hop that Crashes stops on the Landing and says why, and the title is the
   await page.getByRole('button', { name: 'Back to title' }).click();
   await expect(page.getByRole('button', { name: 'New Run' })).toBeVisible();
 });
+
+test('fast-forward (F) plays the same Hop in a fraction of the time and lands with the same Fuel', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await openNavChart(page);
+  await target(page, homeMoon.name);
+  await page.getByRole('button', { name: 'Launch' }).click();
+  await expect(currentBurn(page)).toContainText('Takeoff');
+  const launched = Date.now();
+  await page.keyboard.press('f');
+  await expect(page.getByRole('button', { name: /Fast-forward/ })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  // The flight log still fills in, Burn by Burn.
+  await expect(page.getByTestId('flight-log').getByRole('row', { name: /Takeoff/ })).toContainText(
+    /m\/s.*%/,
+  );
+  await expect(page.getByRole('heading', { name: homeMoon.name, level: 1 })).toBeVisible({
+    timeout: 10_000,
+  });
+  // The full playback is about 13 s; at 4x it is well under 7 s.
+  expect(Date.now() - launched).toBeLessThan(7_000);
+  await expect(page.getByTestId('fuel')).toHaveText(formatFuel(moonHop.flight.fuelRemaining));
+});
