@@ -1,0 +1,586 @@
+{
+  "badge_alert": {
+    "w": 12,
+    "h": 12
+  },
+  "badge_info": {
+    "w": 12,
+    "h": 12
+  },
+  "badge_lock": {
+    "w": 12,
+    "h": 12
+  },
+  "badge_ok": {
+    "w": 12,
+    "h": 12
+  },
+  "badge_warning": {
+    "w": 12,
+    "h": 12
+  },
+  "bar_fill_am": {
+    "w": 8,
+    "h": 6,
+    "scale9": {
+      "left": 0,
+      "right": 2,
+      "top": 0,
+      "bottom": 0
+    },
+    "note": "3-slice; keep the bright right edge as the leading edge."
+  },
+  "bar_fill_cy": {
+    "w": 8,
+    "h": 6,
+    "scale9": {
+      "left": 0,
+      "right": 2,
+      "top": 0,
+      "bottom": 0
+    },
+    "note": "3-slice; keep the bright right edge as the leading edge."
+  },
+  "bar_fill_gr": {
+    "w": 8,
+    "h": 6,
+    "scale9": {
+      "left": 0,
+      "right": 2,
+      "top": 0,
+      "bottom": 0
+    },
+    "note": "3-slice; keep the bright right edge as the leading edge."
+  },
+  "bar_fill_rd": {
+    "w": 8,
+    "h": 6,
+    "scale9": {
+      "left": 0,
+      "right": 2,
+      "top": 0,
+      "bottom": 0
+    },
+    "note": "3-slice; keep the bright right edge as the leading edge."
+  },
+  "bar_frame": {
+    "w": 32,
+    "h": 10,
+    "scale9": {
+      "left": 4,
+      "right": 4,
+      "top": 4,
+      "bottom": 4
+    },
+    "note": "Fill area: x=2, y=2, height 6 (inset 2px each side)."
+  },
+  "bar_seg_am": {
+    "w": 4,
+    "h": 6,
+    "note": "Tile every 4px for segmented gauges."
+  },
+  "bar_seg_cy": {
+    "w": 4,
+    "h": 6,
+    "note": "Tile every 4px for segmented gauges."
+  },
+  "bar_seg_empty": {
+    "w": 4,
+    "h": 6
+  },
+  "bar_seg_gr": {
+    "w": 4,
+    "h": 6,
+    "note": "Tile every 4px for segmented gauges."
+  },
+  "bar_seg_rd": {
+    "w": 4,
+    "h": 6,
+    "note": "Tile every 4px for segmented gauges."
+  },
+  "btn_danger_disabled": {
+    "w": 96,
+    "h": 24,
+    "scale9": {
+      "left": 12,
+      "right": 12,
+      "top": 7,
+      "bottom": 8
+    },
+    "note": "Text area starts x=10; on pressed shift label +2px down."
+  },
+  "btn_danger_hover": {
+    "w": 96,
+    "h": 24,
+    "scale9": {
+      "left": 12,
+      "right": 12,
+      "top": 7,
+      "bottom": 8
+    },
+    "note": "Text area starts x=10; on pressed shift label +2px down."
+  },
+  "btn_danger_normal": {
+    "w": 96,
+    "h": 24,
+    "scale9": {
+      "left": 12,
+      "right": 12,
+      "top": 7,
+      "bottom": 8
+    },
+    "note": "Text area starts x=10; on pressed shift label +2px down."
+  },
+  "btn_danger_pressed": {
+    "w": 96,
+    "h": 24,
+    "scale9": {
+      "left": 12,
+      "right": 12,
+      "top": 7,
+      "bottom": 8
+    },
+    "note": "Text area starts x=10; on pressed shift label +2px down."
+  },
+  "btn_default_disabled": {
+    "w": 96,
+    "h": 24,
+    "scale9": {
+      "left": 12,
+      "right": 12,
+      "top": 7,
+      "bottom": 8
+    },
+    "note": "Text area starts x=10; on pressed shift label +2px down."
+  },
+  "btn_default_hover": {
+    "w": 96,
+    "h": 24,
+    "scale9": {
+      "left": 12,
+      "right": 12,
+      "top": 7,
+      "bottom": 8
+    },
+    "note": "Text area starts x=10; on pressed shift label +2px down."
+  },
+  "btn_default_normal": {
+    "w": 96,
+    "h": 24,
+    "scale9": {
+      "left": 12,
+      "right": 12,
+      "top": 7,
+      "bottom": 8
+    },
+    "note": "Text area starts x=10; on pressed shift label +2px down."
+  },
+  "btn_default_pressed": {
+    "w": 96,
+    "h": 24,
+    "scale9": {
+      "left": 12,
+      "right": 12,
+      "top": 7,
+      "bottom": 8
+    },
+    "note": "Text area starts x=10; on pressed shift label +2px down."
+  },
+  "btn_icon_disabled": {
+    "w": 24,
+    "h": 24,
+    "note": "Place a 16x16 icon at (4,3); +2px down when pressed."
+  },
+  "btn_icon_hover": {
+    "w": 24,
+    "h": 24,
+    "note": "Place a 16x16 icon at (4,3); +2px down when pressed."
+  },
+  "btn_icon_normal": {
+    "w": 24,
+    "h": 24,
+    "note": "Place a 16x16 icon at (4,3); +2px down when pressed."
+  },
+  "btn_icon_pressed": {
+    "w": 24,
+    "h": 24,
+    "note": "Place a 16x16 icon at (4,3); +2px down when pressed."
+  },
+  "btn_primary_disabled": {
+    "w": 96,
+    "h": 24,
+    "scale9": {
+      "left": 12,
+      "right": 12,
+      "top": 7,
+      "bottom": 8
+    },
+    "note": "Text area starts x=10; on pressed shift label +2px down."
+  },
+  "btn_primary_hover": {
+    "w": 96,
+    "h": 24,
+    "scale9": {
+      "left": 12,
+      "right": 12,
+      "top": 7,
+      "bottom": 8
+    },
+    "note": "Text area starts x=10; on pressed shift label +2px down."
+  },
+  "btn_primary_normal": {
+    "w": 96,
+    "h": 24,
+    "scale9": {
+      "left": 12,
+      "right": 12,
+      "top": 7,
+      "bottom": 8
+    },
+    "note": "Text area starts x=10; on pressed shift label +2px down."
+  },
+  "btn_primary_pressed": {
+    "w": 96,
+    "h": 24,
+    "scale9": {
+      "left": 12,
+      "right": 12,
+      "top": 7,
+      "bottom": 8
+    },
+    "note": "Text area starts x=10; on pressed shift label +2px down."
+  },
+  "checkbox_disabled": {
+    "w": 12,
+    "h": 12
+  },
+  "checkbox_off": {
+    "w": 12,
+    "h": 12
+  },
+  "checkbox_on": {
+    "w": 12,
+    "h": 12
+  },
+  "cursor_crosshair": {
+    "w": 16,
+    "h": 16,
+    "hotspot": [7, 7]
+  },
+  "cursor_forbidden": {
+    "w": 16,
+    "h": 16,
+    "hotspot": [7, 7]
+  },
+  "cursor_grab": {
+    "w": 16,
+    "h": 16,
+    "hotspot": [8, 8]
+  },
+  "cursor_hand": {
+    "w": 16,
+    "h": 16,
+    "hotspot": [5, 0]
+  },
+  "cursor_pointer": {
+    "w": 16,
+    "h": 16,
+    "hotspot": [0, 0]
+  },
+  "divider": {
+    "w": 32,
+    "h": 5,
+    "scale9": {
+      "left": 6,
+      "right": 6,
+      "top": 0,
+      "bottom": 0
+    },
+    "note": "3-slice: stretch horizontally only."
+  },
+  "icon_back": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_check": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_close": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_fast_forward": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_help": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_home": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_info": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_launch": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_load": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_menu": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_minus": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_pause": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_play": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_plus": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_rotate": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_save": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_settings": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_sound_off": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_sound_on": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "icon_trash": {
+    "w": 16,
+    "h": 16,
+    "note": "Light base: tint freely with setTint()."
+  },
+  "panel_holo": {
+    "w": 48,
+    "h": 48,
+    "scale9": {
+      "left": 10,
+      "right": 10,
+      "top": 10,
+      "bottom": 10
+    },
+    "note": "Semi-transparent; layer over the scene."
+  },
+  "panel_metal": {
+    "w": 48,
+    "h": 48,
+    "scale9": {
+      "left": 12,
+      "right": 12,
+      "top": 12,
+      "bottom": 12
+    },
+    "note": "Content area starts 7px in from each edge."
+  },
+  "radio_off": {
+    "w": 12,
+    "h": 12
+  },
+  "radio_on": {
+    "w": 12,
+    "h": 12
+  },
+  "res_budget": {
+    "w": 32,
+    "h": 32
+  },
+  "res_comms": {
+    "w": 32,
+    "h": 32
+  },
+  "res_crew": {
+    "w": 32,
+    "h": 32
+  },
+  "res_delta_v": {
+    "w": 32,
+    "h": 32
+  },
+  "res_fuel": {
+    "w": 32,
+    "h": 32
+  },
+  "res_heat": {
+    "w": 32,
+    "h": 32
+  },
+  "res_mass": {
+    "w": 32,
+    "h": 32
+  },
+  "res_orbit": {
+    "w": 32,
+    "h": 32
+  },
+  "res_oxygen": {
+    "w": 32,
+    "h": 32
+  },
+  "res_payload": {
+    "w": 32,
+    "h": 32
+  },
+  "res_power": {
+    "w": 32,
+    "h": 32
+  },
+  "res_radiation": {
+    "w": 32,
+    "h": 32
+  },
+  "res_science": {
+    "w": 32,
+    "h": 32
+  },
+  "res_thrust": {
+    "w": 32,
+    "h": 32
+  },
+  "res_time": {
+    "w": 32,
+    "h": 32
+  },
+  "slider_fill": {
+    "w": 8,
+    "h": 2,
+    "scale9": {
+      "left": 1,
+      "right": 1,
+      "top": 0,
+      "bottom": 0
+    },
+    "note": "Place at (1,2) inside the track."
+  },
+  "slider_knob_hover": {
+    "w": 8,
+    "h": 14,
+    "note": "Center on the track; origin (0.5, 0.5)."
+  },
+  "slider_knob_normal": {
+    "w": 8,
+    "h": 14,
+    "note": "Center on the track; origin (0.5, 0.5)."
+  },
+  "slider_knob_pressed": {
+    "w": 8,
+    "h": 14,
+    "note": "Center on the track; origin (0.5, 0.5)."
+  },
+  "slider_track": {
+    "w": 32,
+    "h": 6,
+    "scale9": {
+      "left": 3,
+      "right": 3,
+      "top": 0,
+      "bottom": 0
+    }
+  },
+  "slot_empty": {
+    "w": 36,
+    "h": 36,
+    "note": "Holds a 32x32 ship part at (2,2)."
+  },
+  "slot_hover": {
+    "w": 36,
+    "h": 36,
+    "note": "Holds a 32x32 ship part at (2,2)."
+  },
+  "slot_locked": {
+    "w": 36,
+    "h": 36,
+    "note": "Holds a 32x32 ship part at (2,2)."
+  },
+  "slot_selected": {
+    "w": 36,
+    "h": 36,
+    "note": "Holds a 32x32 ship part at (2,2)."
+  },
+  "titlebar": {
+    "w": 64,
+    "h": 14,
+    "scale9": {
+      "left": 16,
+      "right": 16,
+      "top": 0,
+      "bottom": 0
+    },
+    "note": "3-slice: stretch horizontally only."
+  },
+  "toggle_off": {
+    "w": 26,
+    "h": 12
+  },
+  "toggle_on": {
+    "w": 26,
+    "h": 12
+  },
+  "tooltip": {
+    "w": 16,
+    "h": 16,
+    "scale9": {
+      "left": 4,
+      "right": 4,
+      "top": 4,
+      "bottom": 4
+    }
+  },
+  "tooltip_warn": {
+    "w": 16,
+    "h": 16,
+    "scale9": {
+      "left": 4,
+      "right": 4,
+      "top": 4,
+      "bottom": 4
+    }
+  }
+}

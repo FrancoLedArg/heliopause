@@ -1,0 +1,3 @@
+# AI-generated art, shown with a visible watermark
+
+The game's art is AI-generated pixel art (the human's UI kit, plus sprites agents generate in the same palette and 640×360 style), replacing the earlier rule that only the human makes assets. Hand-made art for every Star System, Body and Spacecraft could not be ready by the Space Apps deadline. Space Apps rules require a visible watermark on AI-generated images, so every screen carries a permanent "AI-generated art" label, which is the watermark, and `AI-USAGE.md` says so. Any image an agent adds must use the kit palette and stay free of NASA branding.
