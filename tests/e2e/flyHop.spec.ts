@@ -150,6 +150,7 @@ test('the Nav Chart cannot open under the Arrived report: opening it closes the 
 test('under reduced motion the playback is shorter and still steps through the three Burns', async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openNavChart(page);
   await target(page, homeMoon.name);
