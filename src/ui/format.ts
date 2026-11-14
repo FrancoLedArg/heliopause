@@ -41,6 +41,11 @@ export function formatDeltaV(deltaV: MetersPerSecond | undefined): string {
     : `${WHOLE.format(deltaV)} m/s`;
 }
 
+/** Δv in the Hop plan: always whole m/s, so Burns, Needed, Available and Margin add up by eye. */
+export function formatPlanDeltaV(deltaV: MetersPerSecond): string {
+  return `${WHOLE.format(deltaV)} m/s`;
+}
+
 /** A probability (0 to 1) as a whole percent; never 100% unless certain, never 0% unless impossible. */
 export function formatPercent(probability: number): string {
   const percent = Math.round(probability * 100);

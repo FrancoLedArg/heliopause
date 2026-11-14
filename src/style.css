@@ -680,7 +680,9 @@ body {
   left: 24px;
   top: 305px;
   width: 404px;
-  font: 14px/11px var(--font-pixel-body);
+  height: 30px;
+  overflow: hidden;
+  font: 12px/10px var(--font-pixel-body);
   color: var(--gm5);
 }
 
@@ -809,6 +811,7 @@ body {
   top: 144px;
   width: 164px;
   height: 154px;
+  overflow: hidden;
   font: 14px/11px var(--font-pixel-body);
   color: var(--wh3);
 }
@@ -850,6 +853,23 @@ body {
 .nav-chart__burns td,
 .nav-chart__burns thead th:last-child {
   text-align: right;
+}
+
+.nav-chart__reason-row td {
+  height: 10px;
+  font: 12px/10px var(--font-pixel-body);
+  text-align: left;
+  color: var(--gm6);
+}
+
+/* One line each, by construction: a long Body name is cut off rather than wrapping into the totals. */
+.nav-chart__reason {
+  display: block;
+  width: 164px;
+  height: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .nav-chart__totals {
@@ -911,6 +931,9 @@ body {
 }
 
 .nav-chart__warning {
+  height: 11px;
+  white-space: nowrap;
+  overflow: hidden;
   color: var(--am3);
   line-height: 11px;
 }
