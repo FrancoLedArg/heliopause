@@ -1,10 +1,12 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
+import { GameObjects } from 'phaser';
 import { afterEach, expect, it, vi } from 'vitest';
 import { GameUI } from '../../ui/GameUI.tsx';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
 import {
+  findBody,
   homePlanet,
   launchHop,
   listBodies,
@@ -22,6 +24,7 @@ let game: Phaser.Game | undefined;
 let host: HTMLElement | undefined;
 
 afterEach(() => {
+  vi.restoreAllMocks();
   act(() => {
     root?.unmount();
   });
@@ -151,6 +154,84 @@ it('seeking to the end of an Arrived Hop hands off to the Landed view of the tar
   expect(runs).toEqual([data.after]);
   // The Flight scene let go of its listeners when it shut down.
   expect(EventBus.listenerCount('leave-run-requested')).toBe(1); // the Landed view's own
+});
+
+const wait = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+const emitters = (scene: Flight): GameObjects.Particles.ParticleEmitter[] =>
+  scene.children.list.filter(
+    (child): child is GameObjects.Particles.ParticleEmitter =>
+      child instanceof GameObjects.Particles.ParticleEmitter,
+  );
+
+it('the F key turns fast-forward on and off: the clock runs about 4x as fast and the button shows it', async () => {
+  const { scene } = await fly('scout');
+  const button = document.querySelector<HTMLButtonElement>('.fast-forward');
+  expect(button?.getAttribute('aria-pressed')).toBe('false');
+  const advance = async (): Promise<number> => {
+    const from = scene.playbackMs;
+    const started = performance.now();
+    await wait(1000);
+    return (scene.playbackMs - from) / (performance.now() - started);
+  };
+  await wait(300); // let the create frame's catch-up pass before the 1x window
+  const normal = await advance();
+  await act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
+    return Promise.resolve();
+  });
+  expect(button?.getAttribute('aria-pressed')).toBe('true');
+  // The cue is not colour alone: the rate shows while it is on.
+  expect(button?.textContent).toContain('4×');
+  const fast = await advance();
+  expect(fast / normal).toBeGreaterThan(2.8);
+  expect(fast / normal).toBeLessThan(5.2);
+  await act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
+    return Promise.resolve();
+  });
+  expect(button?.getAttribute('aria-pressed')).toBe('false');
+  expect(button?.textContent).not.toContain('4×');
+});
+
+it('Takeoff kicks up dust, and the Transfer trails sparks', async () => {
+  const { scene } = await fly('scout');
+  const { start } = transferSpan(scene);
+  scene.seek(900);
+  await act(() => wait(500));
+  expect(emitters(scene).some((e) => e.getAliveParticleCount() > 0)).toBe(true);
+  scene.seek(start + 200);
+  await act(() => wait(500));
+  const alive = emitters(scene).filter((e) => e.getAliveParticleCount() > 0);
+  expect(alive.length).toBeGreaterThan(0);
+});
+
+it('under reduced motion there are no particles and no stage fade', async () => {
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
+  );
+  const { scene } = await fly('scout');
+  expect(emitters(scene)).toHaveLength(0);
+  scene.seek(transferSpan(scene).start + 50);
+  expect(scene.cameras.main.fadeEffect.isRunning).toBe(false);
+});
+
+it('the route inset names the two Bodies and shows how far along the Hop is', async () => {
+  const { scene, data } = await fly('scout');
+  const { start, end } = transferSpan(scene);
+  const name = (id: BodyId): string | undefined => findBody(data.before.starSystem, id)?.name;
+  scene.seek((start + end) / 2);
+  await act(frame);
+  const inset = document.querySelector('[data-testid="route-inset"]');
+  expect(inset?.textContent).toContain(name(data.flight.plan.fromId) ?? '?');
+  expect(inset?.textContent).toContain(name(data.flight.plan.toId) ?? '?');
+  const bar = inset?.querySelector('[role="progressbar"]');
+  const share = Number(bar?.getAttribute('aria-valuenow'));
+  expect(share).toBeGreaterThan(30);
+  expect(share).toBeLessThan(70);
 });
 
 it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clear of the report', async () => {

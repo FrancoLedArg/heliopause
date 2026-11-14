@@ -1,6 +1,10 @@
-import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
+import { useEffect, useState } from 'react';
+import { imageUrl } from '../game/assets/manifest.ts';
+import { EventBus } from '../game/EventBus.ts';
+import { FAST_FORWARD, type FlightMoment } from '../game/scenes/flightPlayback.ts';
 import { availableDeltaV, kilograms, type HopFlight, type Run } from '../game/sim/index.ts';
 import { describeFlight } from './flightHudView.ts';
+import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import { HopReport } from './HopReport.tsx';
 import { TopBar } from './TopBar.tsx';
@@ -11,6 +15,12 @@ const LOG = { width: 300, height: 78 } as const;
 const FUEL = { width: 256, height: 44 } as const;
 const FUEL_BAR = { width: 190, height: 10, inset: 2 } as const;
 const FILL_MIN_WIDTH = 2;
+const ROUTE = { width: 156, height: 44 } as const;
+/** The key that turns the fast-forward on and off. */
+const FAST_FORWARD_KEY = 'f';
+/** The button widens to make room for the rate while it is on: a cue that is not colour. */
+const FAST_FORWARD_WIDTH = 32;
+const FAST_FORWARD_WIDTH_ON = 52;
 
 interface FlightHudProps {
   /** The Run at Launch. */
@@ -35,6 +45,24 @@ export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }:
   const fuel = moment?.fuel ?? flight.fuelAtLaunch;
   const deltaV = availableDeltaV({ ...before.spacecraft, fuelMass: kilograms(fuel) });
   const current = view.phases.find((phase) => phase.state === 'current');
+  const [fast, setFast] = useState(false);
+  const over = failed || moment?.ended === true;
+  const setSpeed = (next: boolean): void => {
+    setFast(next);
+    EventBus.emit('hop-fast-forward-requested', next);
+  };
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (over || event.key.toLowerCase() !== FAST_FORWARD_KEY || event.repeat) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      event.preventDefault();
+      setSpeed(!fast);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [fast, over]);
   // Any Fuel left shows at least the fill's 2 px leading edge, the narrowest the kit frame draws.
   const fill =
     view.fuelShare > 0
@@ -86,6 +114,56 @@ export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }:
           {current ? `${current.label} under way` : ''}
         </p>
       </section>
+
+      <section className="route-inset" aria-label="Route" data-testid="route-inset">
+        <KitFrame frame="panel_holo" width={ROUTE.width} height={ROUTE.height} />
+        <img
+          className="route-inset__body route-inset__body--from"
+          src={imageUrl(view.route.fromSprite)}
+          alt=""
+        />
+        <img
+          className="route-inset__body route-inset__body--to"
+          src={imageUrl(view.route.toSprite)}
+          alt=""
+        />
+        <div
+          className="route-inset__track"
+          role="progressbar"
+          aria-label="Route progress"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(view.route.share * 100)}
+          aria-valuetext={`${view.route.from} to ${view.route.to}, ${String(Math.round(view.route.share * 100))}% of the way`}
+        >
+          <span
+            className="route-inset__done"
+            style={{ width: `${String(Math.round(view.route.share * 96))}px` }}
+          />
+          <span
+            className="route-inset__ship"
+            style={{ left: `${String(Math.round(view.route.share * 96) - 2)}px` }}
+          />
+        </div>
+        <p className="route-inset__name route-inset__name--from">{view.route.from}</p>
+        <p className="route-inset__name route-inset__name--to">{view.route.to}</p>
+      </section>
+
+      {!over && (
+        <KitButton
+          className="fast-forward"
+          width={fast ? FAST_FORWARD_WIDTH_ON : FAST_FORWARD_WIDTH}
+          aria-pressed={fast}
+          aria-label={`Fast-forward (${FAST_FORWARD_KEY.toUpperCase()})`}
+          title={`Fast-forward ${String(FAST_FORWARD)}× (${FAST_FORWARD_KEY.toUpperCase()})`}
+          onClick={() => {
+            setSpeed(!fast);
+          }}
+        >
+          <KitFrame frame="icon_fast_forward" />
+          {fast && <span className="fast-forward__rate">{String(FAST_FORWARD)}×</span>}
+        </KitButton>
+      )}
 
       <section className="flight-log" aria-label="Flight log" data-testid="flight-log">
         <KitFrame frame="panel_holo" width={LOG.width} height={LOG.height} />

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createRng } from '../game/lib/rng.ts';
 import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
 import {
+  findBody,
   flyHop,
   homePlanet,
   kilograms,
@@ -27,6 +28,7 @@ const moment = (over: Partial<FlightMoment>): FlightMoment => ({
   fuel: run.spacecraft.fuelMass,
   logged: 0,
   ended: false,
+  route: 0,
   ...over,
 });
 
@@ -151,5 +153,16 @@ describe('the flight HUD', () => {
     const view = describeFlight(run, flight, undefined);
     expect(view.fuelShare).toBeCloseTo(run.spacecraft.fuelMass / run.spacecraft.fuelCapacity);
     expect(view.phases[0]?.state).toBe('current');
+  });
+
+  it('shows the route inset: the departure and the target Body by name, and how far along the Hop is', () => {
+    const departure = findBody(run.starSystem, plan.fromId)?.name;
+    const target = findBody(run.starSystem, plan.toId)?.name;
+    const view = describeFlight(run, flight, moment({ burn: 'transfer', route: 0.5 }));
+    expect(view.route).toMatchObject({ from: departure, to: target, share: 0.5 });
+    expect(view.route.fromSprite).toMatch(/^body_/);
+    expect(view.route.toSprite).toMatch(/^body_/);
+    // Before the first moment the Spacecraft is still at the departure Body.
+    expect(describeFlight(run, flight, undefined).route.share).toBe(0);
   });
 });
