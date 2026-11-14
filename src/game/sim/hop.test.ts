@@ -7,6 +7,7 @@ import {
   homePlanet,
   launchHop,
   listBodies,
+  marginShare,
   metersPerSecond,
   metersPerSecondSquared,
   planHop,
@@ -342,7 +343,44 @@ describe('flying a Hop', () => {
     const { from, plan: hopeless } = tight(moonPlan.totalEstimate * 0.8);
     const { flight } = flyHop(from, hopeless, createRng(3));
     expect(flight.outcome.kind).not.toBe('arrived');
-    expect(flight.why).toMatch(/needed 25% more Δv than the Fuel provides/);
+    expect(flight.why).toMatch(/The Fuel gives 20% less Δv than the plan needs/);
+  });
+
+  it('the Margin share is the Margin over the estimate: a shortfall reads as "N% less Δv"', () => {
+    // Hauler on seed 123: Viormio needs 21,347 m/s of the 20,011 m/s the Fuel gives (-6.3%).
+    const hauler = startRun(123, 'hauler');
+    const viormio = listBodies(hauler.starSystem).find((body) => body.name === 'Viormio');
+    if (!viormio) throw new Error('seed 123 has no Viormio');
+    const planned = planHop(hauler, viormio.id);
+    if (planned.kind !== 'planned') throw new Error('expected a plan');
+    expect(Math.round(marginShare(planned.plan) * 1000)).toBe(-63);
+    const { flight } = flyHop(hauler, planned.plan, createRng(1));
+    expect(flight.why).toMatch(
+      /The Fuel gives 6% less Δv than the plan needs, so it had no Margin\./,
+    );
+  });
+
+  it('an arrival that had no Margin never says it had a negative one', () => {
+    const { from, plan: short } = tight(moonPlan.totalEstimate * 0.97);
+    const { flight } = flyHop(from, short, createRng(9));
+    expect(flight.outcome.kind).toBe('arrived');
+    expect(flight.why).not.toMatch(/-\d+%/);
+    expect(flight.why).toMatch(
+      /you had no Margin \(the Fuel gave 3% less Δv than the plan needs\)/,
+    );
+  });
+
+  it('an Arrived why never says the Burns ran over by more than the Margin it had', () => {
+    for (let step = 0; step <= 8; step++) {
+      const { from, plan: sized } = tight(moonPlan.totalEstimate * (1.04 + step * 0.01));
+      for (let seed = 0; seed < 1500; seed++) {
+        const { flight } = flyHop(from, sized, createRng(seed));
+        const match = /^Arrived.*took (\d+)% more Δv than estimated; you had (\d+)% Margin/.exec(
+          flight.why,
+        );
+        if (match) expect(Number(match[1])).toBeLessThanOrEqual(Number(match[2]));
+      }
+    }
   });
 
   it('the why for a plan far short of its Δv gives the figures, not a huge percentage', () => {

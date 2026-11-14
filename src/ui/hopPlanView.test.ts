@@ -128,13 +128,20 @@ describe('the Hop plan as the player reads it', () => {
     expect(view.available).toBe('22,105 m/s');
   });
 
-  it('shows the Margin as a whole percent of the estimate, with its sign', () => {
+  it('shows the Margin as a whole percent of the available Δv, with its sign', () => {
     const plan = planFor(moon.id);
-    // Needed 7,820 m/s: +461 is 6%, and a shortfall of 1,633 is 21%.
+    // Needed 7,000 m/s: +420 is 6%, and a shortfall of 1,400 is 20%.
     const at = (margin: number) =>
-      describeHopPlan(run, { ...plan, totalEstimate: mps(7820), margin: mps(margin) }).margin;
-    expect(at(461)).toBe('+461 m/s (6%)');
-    expect(at(-1633)).toBe('−1,633 m/s (21%)');
+      describeHopPlan(run, { ...plan, totalEstimate: mps(7000), margin: mps(margin) }).margin;
+    expect(at(420)).toBe('+420 m/s (6%)');
+    expect(at(-1400)).toBe('−1,400 m/s (20%)');
+  });
+
+  it('gives the same percentage as the why text for a hauler Hop on seed 123 that is short', () => {
+    const hauler = startRun(123, 'hauler');
+    const viormio = listBodies(hauler.starSystem).find((body) => body.name === 'Viormio');
+    if (!viormio) throw new Error('seed 123 has no Viormio');
+    expect(describeHopPlan(hauler, planFor(viormio.id, hauler)).margin).toBe('−1,336 m/s (6%)');
   });
 
   it('drops the percentage once the Margin is as big as the estimate', () => {
@@ -142,9 +149,9 @@ describe('the Hop plan as the player reads it', () => {
     const view = describeHopPlan(run, {
       ...plan,
       totalEstimate: mps(7820),
-      margin: mps(14291),
+      margin: mps(7900),
     });
-    expect(view.margin).toBe('+14,291 m/s');
+    expect(view.margin).toBe('+7,900 m/s');
   });
 
   it('warns more strongly when the Fuel cannot cover even the estimate than when the chance is low', () => {

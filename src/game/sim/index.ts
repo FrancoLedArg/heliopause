@@ -3,7 +3,7 @@
 export { findBody, generateStarSystem, homePlanet, listBodies } from './starSystem.ts';
 export { currentBody, startRun } from './run.ts';
 export type { Run, RunStatus } from './run.ts';
-export { BURNS, flyHop, launchHop, planHop } from './hop.ts';
+export { BURNS, flyHop, launchHop, marginShare, planHop } from './hop.ts';
 export type {
   Burn,
   BurnResult,
