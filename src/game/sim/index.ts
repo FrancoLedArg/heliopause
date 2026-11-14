@@ -4,6 +4,8 @@ export { findBody, generateStarSystem, homePlanet, listBodies } from './starSyst
 export { currentBody, startRun, STARTING_MATERIALS } from './run.ts';
 export { collectYield, isDepleted } from './gather.ts';
 export type { Collection, Landing } from './gather.ts';
+export { install } from './install.ts';
+export type { InstallRefusal, InstallResult } from './install.ts';
 export type { Run, RunStatus } from './run.ts';
 export { BURNS, flyHop, launchHop, marginShare, planHop } from './hop.ts';
 export type {
@@ -19,6 +21,7 @@ export type {
 export {
   availableDeltaV,
   componentEffect,
+  drillMultiplier,
   fuelAfterBurning,
   newSpacecraft,
   refit,

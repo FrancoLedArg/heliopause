@@ -15,12 +15,22 @@ interface LandedPanelsProps {
   run: Run;
   /** The Nav Chart is open and covers the plate and the Nav Chart button. */
   chartOpen: boolean;
+  /** The Spacecraft panel is open and covers the plate and both buttons. */
+  spacecraftOpen: boolean;
+  /** The player pressed the Spacecraft button. */
+  onOpenSpacecraft: () => void;
   /** Counts requests to put focus on the Nav Chart button (after the Hop report closes, or a New Run). */
   focusRequest?: number;
 }
 
 /** The Landed view's panels: the top bar (Star System, Fuel, Δv, Materials) and the plate naming the Body. */
-export function LandedPanels({ run, chartOpen, focusRequest = 0 }: LandedPanelsProps) {
+export function LandedPanels({
+  run,
+  chartOpen,
+  spacecraftOpen,
+  onOpenSpacecraft,
+  focusRequest = 0,
+}: LandedPanelsProps) {
   const body = currentBody(run);
   const type = bodyFullLabel(run, body);
   const depleted = isDepleted(run, body.id);
@@ -33,6 +43,16 @@ export function LandedPanels({ run, chartOpen, focusRequest = 0 }: LandedPanelsP
     if (wasOpen.current && !chartOpen) buttonSlot.current?.querySelector('button')?.focus();
     wasOpen.current = chartOpen;
   }, [chartOpen]);
+
+  // Closing the Spacecraft panel hands focus back to the Spacecraft button.
+  const spacecraftSlot = useRef<HTMLDivElement>(null);
+  const spacecraftWasOpen = useRef(spacecraftOpen);
+  useEffect(() => {
+    if (spacecraftWasOpen.current && !spacecraftOpen) {
+      spacecraftSlot.current?.querySelector('button')?.focus();
+    }
+    spacecraftWasOpen.current = spacecraftOpen;
+  }, [spacecraftOpen]);
 
   useEffect(() => {
     if (focusRequest > 0) buttonSlot.current?.querySelector('button')?.focus();
@@ -47,7 +67,7 @@ export function LandedPanels({ run, chartOpen, focusRequest = 0 }: LandedPanelsP
         materials={run.materials}
       />
 
-      {!chartOpen && (
+      {!chartOpen && !spacecraftOpen && (
         <>
           <section
             className="landed-plate"
@@ -72,6 +92,11 @@ export function LandedPanels({ run, chartOpen, focusRequest = 0 }: LandedPanelsP
               {formatDistanceAu(body.distanceFromStar)} from the star
             </p>
           </section>
+          <div ref={spacecraftSlot} className="landed-spacecraft-button">
+            <KitButton width={116} onClick={onOpenSpacecraft}>
+              Spacecraft
+            </KitButton>
+          </div>
           <div ref={buttonSlot} className="landed-nav-button">
             <KitButton
               variant="primary"

@@ -1,15 +1,15 @@
 import { Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
-import { launchHop, type HopFlight, type Run } from '../sim/index.ts';
-import { SHIP_PLACEMENT } from './landedView.ts';
+import { install, launchHop, type HopFlight, type Run } from '../sim/index.ts';
+import { SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
 import { SceneKey } from './keys.ts';
 import type { FlightData } from './Flight.ts';
 import type { NavChartData } from './NavChart.ts';
 import { createLandedAmbient, type LandedAmbient } from './landedAmbient.ts';
 import { buildLandscape, LAYER_X, SKY_X } from './landscape.ts';
 import { onLeaveRun } from './leaveRun.ts';
-import { addSpacecraftArt } from './spacecraftArt.ts';
+import { addSpacecraftArt, shadowWidth } from './spacecraftArt.ts';
 
 export interface LandedData {
   /** The Run to show: the Spacecraft landed on its current Body. */
@@ -23,7 +23,7 @@ export class Landed extends Scene {
   private run!: Run;
   private report: LandedData['report'];
   /** The layers, back to front: ambient motion (parallax drift) moves these. */
-  layers!: Readonly<Record<'sky' | 'far' | 'mid' | 'near' | 'ship', GameObjects.Container>>;
+  layers!: Readonly<Record<'sky' | 'ground' | 'ship', GameObjects.Container>>;
   /** Whether the ambient life was left still; read once at create from `prefers-reduced-motion`. */
   reducedMotion = false;
   /** The ambient life: tests use it to seek the drift to a chosen moment. */
@@ -58,9 +58,22 @@ export class Landed extends Scene {
       const data: FlightData = { before: this.run, flight: launched.flight, after: launched.run };
       this.scene.start(SceneKey.Flight, data);
     });
+    // The Spacecraft panel asks for installs; the Run lives here, so this is where it changes.
+    const offInstall = EventBus.on('component-install-requested', (slotIndex, componentId) => {
+      const installed = install(this.run, slotIndex, componentId);
+      // The panel checks an install before it asks, so a refusal here is a programmer error.
+      if (installed.kind !== 'installed') {
+        throw new Error(
+          `Install of ${componentId} in Slot ${String(slotIndex)} refused: ${installed.reason.kind}`,
+        );
+      }
+      this.run = installed.run;
+      EventBus.emit('run-updated', this.run);
+    });
     // A destroyed game never shuts its scenes down, so unsubscribe on both events.
     const unsubscribe = (): void => {
       offOpen();
+      offInstall();
       offLaunch();
       this.events.off(Scenes.Events.SHUTDOWN, unsubscribe);
       this.events.off(Scenes.Events.DESTROY, unsubscribe);
@@ -103,8 +116,18 @@ export class Landed extends Scene {
     setLights: (on: boolean) => void;
   } {
     const container = this.add.container(SHIP_PLACEMENT.x, SHIP_PLACEMENT.baseY);
-    container.add(this.add.ellipse(0, 2, 72, 8, paletteNumber('void'), 0.45));
-    const art = addSpacecraftArt(this, this.run.spacecraft.chassisId);
+    const { chassisId } = this.run.spacecraft;
+    container.add(
+      this.add.ellipse(
+        0,
+        SHIP_SHADOW.dy,
+        shadowWidth(chassisId),
+        SHIP_SHADOW.height,
+        paletteNumber('void'),
+        0.45,
+      ),
+    );
+    const art = addSpacecraftArt(this, chassisId);
     container.add([...art.objects]);
     return {
       container,

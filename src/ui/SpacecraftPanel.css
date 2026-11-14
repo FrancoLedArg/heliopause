@@ -1,0 +1,339 @@
+/* ---- Spacecraft panel (wireframe v2, Spec B): 624×284 at (8, 52), modal over the Landed view ---- */
+
+.spacecraft-panel {
+  position: absolute;
+  /* Takes every click: the Landed view under it is covered and out of play while it is open. */
+  pointer-events: auto;
+}
+
+.spacecraft-panel > * {
+  position: absolute;
+}
+
+.spacecraft-panel > .kit-frame:first-child {
+  inset: 0;
+}
+
+.spacecraft-panel__titlebar {
+  left: 8px;
+  top: 8px;
+  height: 14px;
+}
+
+.spacecraft-panel__title,
+.spacecraft-panel__chassis {
+  position: absolute;
+  top: 3px;
+  margin: 0;
+  white-space: nowrap;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+}
+
+.spacecraft-panel__title {
+  left: 22px;
+  color: var(--wh2);
+}
+
+.spacecraft-panel__chassis {
+  right: 22px;
+  color: var(--cy3);
+}
+
+.spacecraft-panel__left,
+.spacecraft-panel__right {
+  top: 30px;
+}
+
+.spacecraft-panel__left > *,
+.spacecraft-panel__right > * {
+  position: absolute;
+}
+
+.spacecraft-panel__left {
+  left: 14px;
+  width: 228px;
+  height: 242px;
+}
+
+.spacecraft-panel__right {
+  left: 252px;
+  width: 360px;
+  height: 242px;
+}
+
+.spacecraft-panel__label {
+  margin: 0;
+  white-space: nowrap;
+  font: 8px/10px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm6);
+}
+
+/* ---- Slots ---- */
+
+.spacecraft-panel__left > .spacecraft-panel__label:first-child {
+  left: 0;
+  top: 0;
+}
+
+.spacecraft-panel__slots {
+  left: 0;
+  top: 12px;
+  display: flex;
+  gap: 14px;
+}
+
+.slot-button {
+  position: relative;
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--wh3);
+}
+
+.slot-button__face {
+  position: absolute;
+  inset: 0;
+  visibility: hidden;
+}
+
+.slot-button__face--empty {
+  visibility: visible;
+}
+
+.slot-button:hover .slot-button__face--hover,
+.slot-button--selected .slot-button__face--selected {
+  visibility: visible;
+}
+
+.slot-button:focus-visible {
+  outline: 1px solid var(--cy3);
+  outline-offset: 2px;
+}
+
+.slot-button__code {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font: 8px/8px var(--font-pixel);
+}
+
+.slot-button__number {
+  position: absolute;
+  top: 38px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font: 8px/8px var(--font-pixel);
+  color: var(--gm5);
+}
+
+.slot-button--selected .slot-button__number {
+  color: var(--cy3);
+}
+
+.spacecraft-panel__slot-caption {
+  left: 0;
+  top: 62px;
+  width: 228px;
+  font: 12px/12px var(--font-pixel-body);
+  color: var(--wh2);
+}
+
+/* ---- Mass bar and figures ---- */
+
+.spacecraft-panel__mass {
+  left: 0;
+  top: 82px;
+  width: 228px;
+  height: 28px;
+}
+
+.spacecraft-panel__mass-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+  font: 12px/12px var(--font-pixel-body);
+  color: var(--wh2);
+}
+
+.spacecraft-panel__bar {
+  position: absolute;
+  left: 0;
+  top: 15px;
+  height: 10px;
+}
+
+.spacecraft-panel__bar > .kit-frame {
+  position: absolute;
+}
+
+.spacecraft-panel__bar-fill {
+  left: 2px;
+  top: 2px;
+}
+
+.spacecraft-panel__figures {
+  left: 0;
+  top: 116px;
+  width: 228px;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 3px;
+  font: 12px/12px var(--font-pixel-body);
+}
+
+.spacecraft-panel__figures dt {
+  color: var(--gm5);
+}
+
+.spacecraft-panel__figures dd {
+  margin: 0;
+  color: var(--wh2);
+  text-align: right;
+}
+
+/* The before-you-pay preview (#109) goes here; for now, what the highlighted Component is for. */
+.spacecraft-panel__preview {
+  left: 0;
+  top: 164px;
+  width: 228px;
+  height: 78px;
+}
+
+.spacecraft-panel__preview > * {
+  position: absolute;
+  left: 0;
+  width: 228px;
+}
+
+.spacecraft-panel__preview > .spacecraft-panel__label {
+  top: 0;
+}
+
+.spacecraft-panel__about {
+  top: 14px;
+  font: 12px/12px var(--font-pixel-body);
+  color: var(--wh2);
+}
+
+/* ---- Catalogue ---- */
+
+.spacecraft-panel__catalogue-head {
+  left: 0;
+  top: 0;
+  width: 360px;
+  height: 12px;
+}
+
+.spacecraft-panel__catalogue-head > * {
+  position: absolute;
+  top: 0;
+}
+
+.spacecraft-panel__catalogue-head > .spacecraft-panel__label {
+  left: 0;
+}
+
+.spacecraft-panel__target {
+  right: 0;
+  white-space: nowrap;
+  font: 12px/10px var(--font-pixel-body);
+  color: var(--cy3);
+}
+
+.spacecraft-panel__catalogue {
+  left: 0;
+  top: 14px;
+  width: 360px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.spacecraft-panel__row {
+  position: relative;
+  width: 360px;
+  height: 31px;
+  margin-bottom: 2px;
+  box-sizing: border-box;
+  border: 1px solid var(--gm3);
+  background: var(--ink);
+}
+
+.spacecraft-panel__row:focus-within {
+  border-color: var(--cy3);
+}
+
+.spacecraft-panel__row-head {
+  position: absolute;
+  left: 5px;
+  top: 3px;
+  width: 280px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+  line-height: 10px;
+}
+
+.spacecraft-panel__row-name {
+  font: 8px/10px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--wh2);
+}
+
+.spacecraft-panel__row-stats {
+  font: 12px/10px var(--font-pixel-body);
+  color: var(--gm6);
+}
+
+.spacecraft-panel__row-tag {
+  font: 12px/10px var(--font-pixel-body);
+  color: var(--am3);
+}
+
+.spacecraft-panel__row-effect {
+  position: absolute;
+  left: 5px;
+  top: 15px;
+  width: 280px;
+  white-space: nowrap;
+  font: 12px/12px var(--font-pixel-body);
+  color: var(--wh3);
+}
+
+.spacecraft-panel__row--costly .spacecraft-panel__row-effect {
+  color: var(--gm5);
+}
+
+.spacecraft-panel .spacecraft-panel__install {
+  position: absolute;
+  right: 3px;
+  top: 3px;
+}
+
+.spacecraft-panel__status {
+  left: 0;
+  top: 218px;
+  width: 250px;
+  height: 24px;
+  overflow: hidden;
+  font: 12px/12px var(--font-pixel-body);
+  color: var(--gr3);
+}
+
+.spacecraft-panel__status--refused {
+  color: var(--am3);
+}
+
+.spacecraft-panel__close {
+  left: 264px;
+  top: 218px;
+}

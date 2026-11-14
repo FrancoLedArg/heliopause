@@ -125,6 +125,21 @@ export function componentEffect(chassisId: ChassisId, id: ComponentId): Componen
 }
 
 /**
+ * The factor on every Body's yield from the Drills on this Spacecraft: 1 with none. The best Drill
+ * sets it and further Drills add only mass (the same rule as the Engine, so a Slot spent on a second
+ * Drill is a choice with a price, not a way to multiply without limit).
+ */
+export function drillMultiplier(spacecraft: Spacecraft): number {
+  let best = 1;
+  for (const slot of spacecraft.slots) {
+    if (slot === null) continue;
+    const effect = componentEffect(spacecraft.chassisId, slot);
+    if (effect.kind === 'drill') best = Math.max(best, effect.yieldMultiplier);
+  }
+  return best;
+}
+
+/**
  * The boundary where a list of Slots becomes a Spacecraft's Loadout, the only cast: callers are
  * `newSpacecraft` and `refit`, which derive the figures that go with it.
  */

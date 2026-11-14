@@ -58,7 +58,11 @@ export interface FuelTank extends ComponentEntry {
   readonly baseFuelCapacity: Kilograms;
 }
 
-/** Multiplies what a Body yields when the Spacecraft lands on it. */
+/**
+ * Multiplies what a Body yields when the Spacecraft lands on it. Stacking: the best Drill sets the
+ * multiplier and further Drills add only mass (see `drillMultiplier`). A multiplied Materials yield
+ * rounds to the nearest whole Material, a half up; Fuel is still capped at the Tank's capacity.
+ */
 export interface Drill extends ComponentEntry {
   readonly kind: 'drill';
   readonly yieldMultiplier: number;
@@ -134,7 +138,7 @@ export const COMPONENTS = {
     cost: materials(25),
     yieldMultiplier: 1.5,
     explanation:
-      'Digs into every Body you land on so it yields half as much again, but you carry its mass on every Hop.',
+      'Digs into every Body you land on so it yields half as much again, but you carry its mass on every Hop, and only your best Drill counts.',
     provenance: { kind: 'gameplay-tuning' },
   },
   'drill-2': {

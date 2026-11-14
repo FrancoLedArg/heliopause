@@ -14,7 +14,7 @@ import type { TwinklingStarfield } from './starfield.ts';
 import { twinkle } from './starfield.ts';
 
 const MOTE_COUNT = 22;
-/** Dust hugs the ground: low on the screen, over the mid and near layers. It blows in screen space, so the camera's drift does not move it. */
+/** Dust hugs the ground: low on the screen, over the ground. It blows in screen space, so the camera's drift does not move it. */
 const DUST_Y = { min: 272, max: 346 } as const;
 const DUST_SPEED = { min: 9, max: 26 } as const;
 const LIGHTS_ON_MS = 700;
@@ -22,7 +22,7 @@ const LIGHTS_OFF_MS = 1500;
 
 export interface AmbientTargets {
   /** The scene's layers, back to front. */
-  readonly layers: Readonly<Record<'sky' | 'far' | 'mid' | 'near' | 'ship', GameObjects.Container>>;
+  readonly layers: Readonly<Record<'sky' | 'ground' | 'ship', GameObjects.Container>>;
   /** Where each layer rests when the camera is centred. */
   readonly rest: { readonly sky: number; readonly layer: number; readonly ship: number };
   readonly starfield: TwinklingStarfield;
@@ -95,10 +95,8 @@ function driftTween(
     t.layers.sky.x = t.rest.sky + offsets.sky;
     // The stars are farther than the Bodies, so they trail them a little inside the sky.
     t.starfield.container.x = offsets.stars - offsets.sky;
-    t.layers.far.x = t.rest.layer + offsets.far;
-    t.layers.mid.x = t.rest.layer + offsets.mid;
-    t.layers.near.x = t.rest.layer + offsets.near;
-    t.layers.ship.x = t.rest.ship + offsets.near;
+    t.layers.ground.x = t.rest.layer + offsets.ground;
+    t.layers.ship.x = t.rest.ship + offsets.ground;
   };
   const tween = scene.tweens.add({
     targets: clock,

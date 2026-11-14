@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { currentBody, listBodies, startRun, type Run } from '../sim/index.ts';
 import {
   CHART,
@@ -427,6 +427,13 @@ function farLabels({ where, layout, labels }: ChartCase): string[] {
 }
 
 describe('Body labels on the Nav Chart', () => {
+  // Building the 150 sampled charts takes ~1 s warm and over 4 s on a loaded machine, so it is done
+  // once up front under its own generous limit instead of inside the first test's 5 s default.
+  beforeAll(() => {
+    sampledCases();
+    reviewCases();
+  }, 60_000);
+
   it('never overlap each other or a Body, stay on the chart, and always show where the Spacecraft is and the target', () => {
     expect(sampledCases().flatMap(labelClashes).join('\n')).toBe('');
   });
@@ -536,6 +543,11 @@ describe('the Body tooltip', () => {
 
   const nodeOf = (layout: ChartLayout, id: string | undefined) =>
     layout.nodes.find((n) => n.body.id === id);
+
+  // Same as the label cases: built once, under its own limit, not inside the first test's 5 s default.
+  beforeAll(() => {
+    tooltipCases();
+  }, 60_000);
 
   it('sits on the chart and never covers the focused Body, the star, where the Spacecraft is or the target', () => {
     const problems = tooltipCases().flatMap(({ where, layout, context, labels, box }) => {

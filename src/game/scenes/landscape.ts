@@ -1,12 +1,14 @@
 import type { GameObjects, Scene } from 'phaser';
 import { paletteNumber, type PaletteColor } from '../../ui/kit/palette.ts';
 import { hasAsset } from '../assets/manifest.ts';
-import { createRng, type Rng } from '../lib/rng.ts';
-import { stringSeed } from '../lib/stringSeed.ts';
 import { currentBody, type Run } from '../sim/index.ts';
+import { groundShades, RAMP_SHADES } from './groundArt.ts';
 import {
+  GROUND_HEIGHT,
+  GROUND_TOP,
   SKY_WIDTH,
   SURFACE_WIDTH,
+  pebbles,
   skyBodies,
   surfaceKind,
   type SurfaceKind,
@@ -14,47 +16,49 @@ import {
 import { addTwinklingStarfield, TWINKLE_EVERY, type TwinklingStarfield } from './starfield.ts';
 
 /**
- * The landscape is built from separate layers, each wider than the 640 px screen and in its own
- * Container, so the ambient drift can scroll them at different speeds (parallax) and the flight can
- * let the ground fall away beneath the Spacecraft. Sizes and y positions match the surface art from #22.
+ * The landscape is two layers, each wider than the 640 px screen and in its own Container: the sky,
+ * and one flat ground strip. The ambient drift scrolls them at different speeds (parallax) and the
+ * flight lets the ground fall away beneath the Spacecraft.
+ *
+ * What the generated ground art (#132) must provide: texture key `surface_<kind>` (`surface_moon`,
+ * `surface_rocky`, `surface_icy`), 800 x 64 px (`SURFACE_WIDTH` x `GROUND_HEIGHT`), fully opaque,
+ * its top row the level surface line (drawn at y `GROUND_TOP`, the Spacecraft's base line), no
+ * pebbles (the code places those), and its left edge continuing seamlessly from its right edge so
+ * it repeats without a seam. Replacing the stand-in then needs only manifest entries.
  */
 const LAYER_WIDTH = SURFACE_WIDTH;
-/** Where the ground layers and the sky rest, centred on the 640 px screen. */
+/** Where the ground strip and the sky rest, centred on the 640 px screen. */
 export const LAYER_X = (640 - LAYER_WIDTH) / 2;
 export const SKY_X = (640 - SKY_WIDTH) / 2;
-const FAR = { y: 90, height: 200 } as const;
-const MID = { y: 180, height: 160 } as const;
-const NEAR = { y: 240, height: 120 } as const;
 
 const STAR_COUNT = 150;
 
+type Ramp = readonly [
+  PaletteColor,
+  PaletteColor,
+  PaletteColor,
+  PaletteColor,
+  PaletteColor,
+  PaletteColor,
+  PaletteColor,
+];
+
 interface SurfacePalette {
-  readonly far: PaletteColor;
-  readonly mid: PaletteColor;
-  readonly near: PaletteColor;
-  readonly rim: PaletteColor;
-  readonly speck: PaletteColor;
+  /** The seven shades of the ground, darkest (mortar) to brightest (the surface line). */
+  readonly ramp: Ramp;
   /** Dust motes: light enough to read against this ground. */
   readonly dust: PaletteColor;
 }
 
 /** Stand-in colours for each surface, all from the kit palette. */
 const PALETTES: Record<SurfaceKind, SurfacePalette> = {
-  rocky: { far: 'am0', mid: 'am1', near: 'am0', rim: 'am3', speck: 'am1', dust: 'am2' },
-  moon: { far: 'gm1', mid: 'gm2', near: 'gm3', rim: 'gm6', speck: 'gm4', dust: 'gm5' },
-  icy: { far: 'cy0', mid: 'cy1', near: 'cy2', rim: 'cy4', speck: 'cy3', dust: 'cy4' },
+  rocky: { ramp: ['rd0', 'rd0', 'rd1', 'am0', 'am1', 'am2', 'am3'], dust: 'am2' },
+  moon: { ramp: ['gm0', 'gm1', 'gm2', 'gm3', 'gm4', 'gm5', 'gm6'], dust: 'gm5' },
+  icy: { ramp: ['scr2', 'cy0', 'cy1', 'cy2', 'wh1', 'wh2', 'wh3'], dust: 'cy4' },
 };
 
-/** The limb curve in screen pixels: steep at lower left, flattening to upper right. */
-function limbY(layerX: number): number {
-  const t = layerX / LAYER_WIDTH;
-  return 140 + 110 * (1 - t) ** 2;
-}
-
 /** The layers of a landscape, back to front. */
-export type LandscapeLayers = Readonly<
-  Record<'sky' | 'far' | 'mid' | 'near', GameObjects.Container>
->;
+export type LandscapeLayers = Readonly<Record<'sky' | 'ground', GameObjects.Container>>;
 
 export interface Landscape {
   readonly layers: LandscapeLayers;
@@ -66,32 +70,18 @@ export interface Landscape {
 
 /**
  * The view from the surface of the Body `run` is landed on: its sky (stars, the star and the nearby
- * Bodies) and its ground, far to near. The generated surface art when the manifest has it, a painted
- * stand-in otherwise. The same Run always draws the same landscape.
+ * Bodies) and its ground, one flat strip whose top edge is the Spacecraft's base line. The generated
+ * surface art when the manifest has it, a painted stand-in otherwise, with pebbles placed on top by
+ * code either way. The same Run always draws the same landscape.
  */
 export function buildLandscape(scene: Scene, run: Run): Landscape {
   const kind = surfaceKind(currentBody(run));
   const palette = PALETTES[kind];
   const { container: sky, field } = buildSky(scene, run);
-  const layer = (
-    key: string,
-    area: { readonly y: number; readonly height: number },
-    paint: (graphics: GameObjects.Graphics, p: SurfacePalette, rng: Rng) => void,
-  ): GameObjects.Container => {
-    const container = scene.add.container(LAYER_X, area.y);
-    if (hasAsset(key)) {
-      container.add(scene.add.image(0, 0, key).setOrigin(0, 0));
-    } else {
-      const graphics = scene.add.graphics();
-      paint(graphics, palette, createRng(run.seed ^ stringSeed(key)));
-      container.add(graphics);
-    }
-    return container;
-  };
-  const far = layer(`surface_${kind}_far`, FAR, paintFar);
-  const mid = layer(`surface_${kind}_mid`, MID, paintMid);
-  const near = layer(`surface_${kind}`, NEAR, paintNear);
-  return { layers: { sky, far, mid, near }, starfield: field, dustColor: palette.dust };
+  const ground = scene.add.container(LAYER_X, GROUND_TOP);
+  ground.add(scene.add.image(0, 0, groundTexture(scene, kind)).setOrigin(0, 0));
+  ground.add(paintPebbles(scene, run, palette));
+  return { layers: { sky, ground }, starfield: field, dustColor: palette.dust };
 }
 
 function buildSky(
@@ -114,61 +104,45 @@ function buildSky(
   return { container, field };
 }
 
-/** Far layer stand-in: the Body's limb, a big curve with a bright rim line. */
-function paintFar(graphics: GameObjects.Graphics, palette: SurfacePalette, rng: Rng): void {
-  graphics.fillStyle(paletteNumber(palette.far));
-  fillBelow(graphics, FAR.height, (x) => limbY(x) - FAR.y);
-  graphics.fillStyle(paletteNumber(palette.rim));
-  for (let x = 0; x < LAYER_WIDTH; x += STEP) {
-    graphics.fillRect(x, Math.round(limbY(x) - FAR.y), STEP, 1);
+/**
+ * The texture key of the ground strip: the generated art when the manifest has it, else the
+ * stand-in, painted once into a texture every scene run shares (so a frame draws one image).
+ */
+export function groundTexture(scene: Scene, kind: SurfaceKind): string {
+  const palette = PALETTES[kind];
+  const key = `surface_${kind}`;
+  if (hasAsset(key)) return key;
+  const standIn = `${key}_standin`;
+  if (scene.textures.exists(standIn)) return standIn;
+  const canvas = scene.textures.createCanvas(standIn, SURFACE_WIDTH, GROUND_HEIGHT);
+  if (!canvas) throw new Error(`Could not create the ${standIn} texture`);
+  const rgb = palette.ramp.map((color) => paletteNumber(color));
+  const image = canvas.context.createImageData(SURFACE_WIDTH, GROUND_HEIGHT);
+  const shades = groundShades();
+  for (let i = 0; i < shades.length; i++) {
+    const color = rgb[Math.min(shades[i] ?? 0, RAMP_SHADES - 1)] ?? 0;
+    image.data[i * 4] = (color >> 16) & 0xff;
+    image.data[i * 4 + 1] = (color >> 8) & 0xff;
+    image.data[i * 4 + 2] = color & 0xff;
+    image.data[i * 4 + 3] = 255;
   }
-  graphics.fillStyle(paletteNumber(palette.mid));
-  for (let i = 0; i < 40; i++) {
-    const x = rng.int(0, LAYER_WIDTH - 3);
-    graphics.fillRect(x, Math.round(limbY(x) - FAR.y) + rng.int(4, 40), rng.int(2, 3), 1);
-  }
+  canvas.context.putImageData(image, 0, 0);
+  canvas.refresh();
+  return standIn;
 }
 
-/** Mid layer stand-in: rolling ridges that follow the limb's curve. */
-function paintMid(graphics: GameObjects.Graphics, palette: SurfacePalette, rng: Rng): void {
-  graphics.fillStyle(paletteNumber(palette.mid));
-  // A random walk, so the ridge rolls instead of jittering column to column.
-  let drift = 0;
-  fillBelow(graphics, MID.height, (x) => {
-    drift = Math.max(-8, Math.min(8, drift + rng.int(-2, 2)));
-    return limbY(x) + 34 - MID.y + drift;
-  });
-}
-
-/** Near layer stand-in: the ground the Spacecraft stands on, with specks and hatch strokes. */
-function paintNear(graphics: GameObjects.Graphics, palette: SurfacePalette, rng: Rng): void {
-  const top = (x: number): number => 22 + 40 * (1 - x / LAYER_WIDTH) ** 2;
-  graphics.fillStyle(paletteNumber(palette.near));
-  fillBelow(graphics, NEAR.height, top);
-  graphics.fillStyle(paletteNumber(palette.speck));
-  for (let i = 0; i < 110; i++) {
-    const x = rng.int(0, LAYER_WIDTH - 3);
-    graphics.fillRect(x, rng.int(Math.round(top(x)) + 6, NEAR.height - 2), rng.int(1, 3), 1);
+/** The Body's pebbles, resting on the ground's top edge: one small Graphics, in the ground's own coordinates. */
+function paintPebbles(scene: Scene, run: Run, palette: SurfacePalette): GameObjects.Graphics {
+  const graphics = scene.add.graphics();
+  const lit = paletteNumber(palette.ramp[5]);
+  const body = paletteNumber(palette.ramp[3]);
+  for (const pebble of pebbles(run)) {
+    graphics.fillStyle(body);
+    graphics.fillRect(pebble.x, -pebble.height, pebble.width, pebble.height);
+    // Lit on the upper left: a bright top edge and left edge.
+    graphics.fillStyle(lit);
+    graphics.fillRect(pebble.x, -pebble.height, pebble.width, 1);
+    graphics.fillRect(pebble.x, -pebble.height, 1, pebble.height);
   }
-  graphics.lineStyle(1, paletteNumber(palette.speck), 0.6);
-  for (let i = 0; i < 14; i++) {
-    const x = rng.int(40, LAYER_WIDTH - 40);
-    const y = rng.int(60, NEAR.height - 8);
-    graphics.lineBetween(x, y + 6, x + 5, y);
-  }
-}
-
-/** Width of one stand-in column: the skyline steps in whole pixels, like the pixel art it stands in for. */
-const STEP = 4;
-
-/** Fills a layer from `skyline(x)` down to `bottom`, column by column (concave polygons fill badly). */
-function fillBelow(
-  graphics: GameObjects.Graphics,
-  bottom: number,
-  skyline: (x: number) => number,
-): void {
-  for (let x = 0; x < LAYER_WIDTH; x += STEP) {
-    const y = Math.min(Math.max(Math.round(skyline(x)), 0), bottom);
-    graphics.fillRect(x, y, STEP, bottom - y);
-  }
+  return graphics;
 }
