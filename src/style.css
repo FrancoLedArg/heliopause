@@ -707,7 +707,7 @@ body {
   overflow-wrap: anywhere;
 }
 
-/* The Body type wraps onto a second line rather than clip (the tooltip grows by --tip-shift). */
+/* The Body type wraps onto a second line rather than clip (the tooltip grows a line; the lines under it move down 9 px). */
 .nav-chart__tip-kind {
   top: 17px;
   font: 8px/9px var(--font-pixel);
@@ -717,19 +717,31 @@ body {
 }
 
 .nav-chart__tip-fact {
-  top: calc(27px + var(--tip-shift, 0px));
+  top: 27px;
   font: 14px/11px var(--font-pixel-body);
   color: var(--gm6);
 }
 
 .nav-chart__tooltip .nav-chart__badge {
-  top: calc(40px + var(--tip-shift, 0px));
+  top: 40px;
 }
 
 .nav-chart__tip-verdict {
-  top: calc(55px + var(--tip-shift, 0px));
+  top: 55px;
   font: 14px/11px var(--font-pixel-body);
   color: var(--wh2);
+}
+
+.nav-chart__tooltip--wrapped-kind .nav-chart__tip-fact {
+  top: 36px;
+}
+
+.nav-chart__tooltip--wrapped-kind .nav-chart__badge {
+  top: 49px;
+}
+
+.nav-chart__tooltip--wrapped-kind .nav-chart__tip-verdict {
+  top: 64px;
 }
 
 .nav-chart__badge {
@@ -798,7 +810,7 @@ body {
 
 .nav-chart--long-target .nav-chart__plan {
   top: 150px;
-  height: 148px;
+  height: 152px;
 }
 
 /* Kind and gravity wrap onto a second line rather than clip: the longest Moon of the longest-named

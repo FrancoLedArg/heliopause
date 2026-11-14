@@ -30,7 +30,7 @@ import { DELTA_V_EXPLANATION, describeHopPlan } from './hopPlanView.ts';
 const PANEL = { x: 8, y: 52, width: 432, height: 284 } as const;
 const SIDE = { x: 444, y: 52, width: 188, height: 284 } as const;
 const TITLEBAR_HEIGHT = 14;
-/** The target name is 16 px Silkscreen, about 10 px a character across 164 px; longer wraps. */
+/** The target name is 16 px Silkscreen, 9 to 13 px a character across 164 px; longer wraps. */
 const LONG_TARGET_NAME = 12;
 
 const ARROWS: Partial<Record<string, Direction>> = {
@@ -230,16 +230,13 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
       ))}
 
       <div
-        className="nav-chart__tooltip"
-        data-testid="inspect"
-        style={
-          {
-            ...at(tooltip),
-            width: TOOLTIP_SIZE.w,
-            height: tipHeight,
-            '--tip-shift': `${String(kindExtra)}px`,
-          } as CSSProperties
+        className={
+          kindExtra > 0
+            ? 'nav-chart__tooltip nav-chart__tooltip--wrapped-kind'
+            : 'nav-chart__tooltip'
         }
+        data-testid="inspect"
+        style={{ ...at(tooltip), width: TOOLTIP_SIZE.w, height: tipHeight }}
       >
         <KitFrame
           frame={status.valid ? 'tooltip' : 'tooltip_warn'}

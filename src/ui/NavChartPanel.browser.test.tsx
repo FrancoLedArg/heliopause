@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { listBodies, startRun, type BodyId } from '../game/sim/index.ts';
+import { homePlanet, kilograms, listBodies, startRun, type BodyId } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
 
@@ -107,7 +107,45 @@ it('shows the whole target subtitle for a Moon of the longest-named planet, insi
   }
 });
 
-// Seed 4171 has the longest name in 20,000 seeds (20 characters) on a Moon whose planet is also long.
+// The tallest the side panel gets: a 21-character target name (two lines, so the plan moves down) with
+// the strongest warning (a Margin below zero, here from almost no Fuel). Baselines differ by platform,
+// so the last line keeps real room inside the plan and the plan stays clear of the buttons.
+it('keeps the tallest plan, with a 21-character target and a Margin warning, clear of its box and the buttons', async () => {
+  const base = startRun(123, 'scout');
+  const home = homePlanet(base.starSystem);
+  const moon = home.moons[0];
+  if (!moon) throw new Error('no moon');
+  const name = 'Quaexquaexquaex Minor';
+  const planets = base.starSystem.planets.map((planet) =>
+    planet.id === home.id
+      ? { ...planet, moons: planet.moons.map((m) => (m.id === moon.id ? { ...m, name } : m)) }
+      : planet,
+  );
+  const run = {
+    ...base,
+    starSystem: { ...base.starSystem, planets },
+    spacecraft: { ...base.spacecraft, fuelMass: kilograms(1) },
+  };
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
+  );
+  expect(byTestId(host, 'plan-warning').textContent).not.toBe('');
+  const targetName = host.querySelector<HTMLElement>('.nav-chart__target-name');
+  const plan = byTestId(host, 'hop-plan');
+  const buttons = host.querySelector<HTMLElement>('.nav-chart__actions');
+  if (!targetName || !buttons || !plan.lastElementChild) throw new Error('missing plan parts');
+  expect(targetName.textContent.toLowerCase()).toBe(name.toLowerCase());
+  expect(plan.scrollHeight).toBeLessThanOrEqual(plan.clientHeight);
+  expect(plan.lastElementChild.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    plan.getBoundingClientRect().bottom - 6,
+  );
+  expect(plan.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    buttons.getBoundingClientRect().top,
+  );
+});
+
+// Seed 4171 has the longest names in 20,000 seeds: Thirthiothux Minor (18 characters), a Moon of
+// Praespraethaen Prime (20).
 // Every line a name or subtitle appears on must show it whole, inside its frame, with slack for the
 // fonts CI draws, which are a little wider than the ones on a dev machine.
 const SLACK = 6;

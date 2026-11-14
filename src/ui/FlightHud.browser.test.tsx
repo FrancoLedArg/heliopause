@@ -6,7 +6,7 @@ import { FlightHud } from './FlightHud.tsx';
 
 afterEach(cleanUp);
 
-// The route inset is 70 px wide for each name, so the longest names (20 characters) are cut off with
+// The route inset is 70 px wide for each name, so the longest names (up to 21 characters with an epithet) are cut off with
 // an ellipsis. The full name must still be there for the pointer (title) and for assistive technology.
 it('gives the clipped route names of the longest-named Bodies their full name', async () => {
   const run = startRun(123, 'scout');
@@ -41,6 +41,14 @@ it('gives the clipped route names of the longest-named Bodies their full name', 
   const names = [...inset.querySelectorAll<HTMLElement>('.route-inset__name')];
   expect(names.map((n) => n.textContent)).toEqual([fromName, toName]);
   expect(names.map((n) => n.title)).toEqual([fromName, toName]);
+  // The title only helps if the pointer reaches the name: the stage's UI layer ignores the pointer.
+  for (const name of names) {
+    expect(name.scrollWidth).toBeGreaterThan(name.clientWidth);
+    const box = name.getBoundingClientRect();
+    expect(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2)).toBe(
+      name,
+    );
+  }
   // The progress bar's accessible name already carries both in full.
   expect(inset.querySelector('[role="progressbar"]')?.getAttribute('aria-valuetext')).toContain(
     `${fromName} to ${toName}`,
