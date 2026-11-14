@@ -5,7 +5,15 @@ import type {
   MetersPerSecond,
   MetersPerSecondSquared,
 } from '../game/sim/index.ts';
-import { formatDeltaV, formatDistanceAu, formatFuel, formatGravity, formatMass } from './format.ts';
+import { CHASSIS_IDS, homePlanet, listBodies, startRun } from '../game/sim/index.ts';
+import {
+  bodyTypeLabel,
+  formatDeltaV,
+  formatDistanceAu,
+  formatFuel,
+  formatGravity,
+  formatMass,
+} from './format.ts';
 
 // Test fixtures: casts build the branded quantities the simulation would produce.
 const g = (v: number) => v as MetersPerSecondSquared;
@@ -39,5 +47,27 @@ describe('numbers shown to the player', () => {
     expect(formatDeltaV(dv(320.4))).toBe('320 m/s');
     expect(formatDeltaV(dv(12_500))).toBe('12.5 km/s');
     expect(formatDeltaV(undefined)).toBe('—');
+  });
+});
+
+describe('Body type label', () => {
+  const run = startRun(123, CHASSIS_IDS[0]);
+  const bodies = listBodies(run.starSystem);
+
+  it('says Icy or Rocky for every landable Body, as text', () => {
+    const home = homePlanet(run.starSystem);
+    expect(bodyTypeLabel(run, home)).toBe('Home Planet · Rocky');
+    expect(bodyTypeLabel(run, home.moons[0] ?? home)).toBe(`Icy Moon of ${home.name}`);
+    for (const body of bodies) {
+      if (!body.landable || body.id === home.id) continue;
+      const word = body.composition === 'icy' ? 'Icy' : 'Rocky';
+      expect(bodyTypeLabel(run, body)).toMatch(new RegExp(`^${word} (planet|Moon of )`));
+    }
+  });
+
+  it('names a Gas Giant without a resource type', () => {
+    for (const body of bodies.filter((b) => b.kind === 'gas-giant')) {
+      expect(bodyTypeLabel(run, body)).toBe('Gas Giant');
+    }
   });
 });

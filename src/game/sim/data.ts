@@ -109,6 +109,23 @@ export const GENERATION_TUNING = {
   moonDistanceFromPlanet: { min: kilometers(150_000), max: kilometers(1_900_000) },
 } as const satisfies Record<string, TuningRange | Record<string, TuningRange>>;
 
+/**
+ * Gameplay tuning for what a landable Body is made of. Not real-world figures: the real ice line
+ * (research ticket #110) can replace `iceLineAu` once it lands.
+ */
+export const BODY_TUNING = {
+  /**
+   * Tuning stand-in for the ice line: the distance from the star where half the landable Bodies are
+   * Icy. The chance of an Icy Body is d / (d + iceLineAu), so it rises steadily with distance.
+   */
+  iceLineAu: 2.7,
+  /** Base yield by type, before any Drill multiplier: Fuel for an Icy Body, Materials for a Rocky one. */
+  baseYield: {
+    icy: { min: 20, max: 60 },
+    rocky: { min: 10, max: 30 },
+  },
+} as const satisfies Record<string, number | Record<string, TuningRange>>;
+
 /** Real-world figures behind the Hop rules. Each cites its source. */
 export const SOURCED_CONSTANTS = {
   /** g0 in the rocket equation: Δv = Isp × g0 × ln(wet mass / dry mass). */

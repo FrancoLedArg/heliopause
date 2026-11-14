@@ -1,5 +1,6 @@
 import { createRng, type Rng } from '../lib/rng.ts';
-import { GENERATION_TUNING, SOURCED_RANGES, type Range } from './data.ts';
+import { stringSeed } from '../lib/stringSeed.ts';
+import { BODY_TUNING, GENERATION_TUNING, SOURCED_RANGES, type Range } from './data.ts';
 import {
   astronomicalUnits,
   kilometers,
@@ -40,6 +41,16 @@ interface BodyBase {
   readonly distanceFromStar: AstronomicalUnits;
 }
 
+/** What a landable Body is made of: an Icy Body yields Fuel, a Rocky Body yields Materials. */
+export type BodyComposition = 'icy' | 'rocky';
+
+interface LandableBase extends BodyBase {
+  readonly landable: true;
+  readonly composition: BodyComposition;
+  /** Fuel (Icy) or Materials (Rocky) the first landing yields, before any Drill multiplier. */
+  readonly baseYield: number;
+}
+
 interface PlanetBase extends BodyBase {
   /** Fixed position on its orbit around the star: Bodies do not move. */
   readonly orbitAngle: Radians;
@@ -47,9 +58,8 @@ interface PlanetBase extends BodyBase {
   readonly moons: readonly Moon[];
 }
 
-export interface RockyPlanet extends PlanetBase {
+export interface RockyPlanet extends PlanetBase, LandableBase {
   readonly kind: 'rocky-planet';
-  readonly landable: true;
 }
 
 /** A planet with no surface: never landable, but home to Moons. */
@@ -58,9 +68,8 @@ export interface GasGiant extends PlanetBase {
   readonly landable: false;
 }
 
-export interface Moon extends BodyBase {
+export interface Moon extends LandableBase {
   readonly kind: 'moon';
-  readonly landable: true;
   readonly planetId: BodyId;
   readonly distanceFromPlanet: Kilometers;
   /** Fixed position on its orbit around its planet: Bodies do not move. */
@@ -131,19 +140,29 @@ export function generateStarSystem(seed: Seed): StarSystem {
     const id = bodyId(`planet-${index + 1}`);
     const isHome = index === homeIndex;
     const moonCount = sampleInt(rng, GENERATION_TUNING.moonCount[planet.kind]);
-    return {
-      ...planet,
+    const shared = {
       id,
       name: nextName(),
       orbitAngle: randomAngle(rng),
-      // The Home Planet always has a Moon: the obvious first Hop.
-      moons: generateMoons(
+    };
+    // The Home Planet always has a Moon: the obvious first Hop.
+    const moonsFor = (forced: BodyComposition | undefined) =>
+      generateMoons(
         rng,
         nextName,
         id,
         planet.distanceFromStar,
         isHome ? Math.max(1, moonCount) : moonCount,
-      ),
+        seed,
+        forced,
+      );
+    if (planet.kind === 'gas-giant') return { ...planet, ...shared, moons: moonsFor(undefined) };
+    return {
+      ...planet,
+      ...shared,
+      ...rollResource(seed, id, planet.distanceFromStar, isHome ? 'rocky' : undefined),
+      // The Home Planet's Moons are Icy, so the first Hop pays off with Fuel.
+      moons: moonsFor(isHome ? 'icy' : undefined),
     };
   });
 
@@ -172,6 +191,8 @@ function generateMoons(
   planetId: BodyId,
   distanceFromStar: AstronomicalUnits,
   count: number,
+  seed: Seed,
+  forced: BodyComposition | undefined,
 ): Moon[] {
   return spreadOrbits(rng, count, GENERATION_TUNING.moonDistanceFromPlanet).map(
     (distanceFromPlanet, index) => ({
@@ -184,8 +205,29 @@ function generateMoons(
       distanceFromPlanet: kilometers(distanceFromPlanet),
       orbitAngle: randomAngle(rng),
       ...sampleBodySize(rng, SOURCED_RANGES.moon),
+      ...rollResource(seed, bodyId(`${planetId}-moon-${index + 1}`), distanceFromStar, forced),
     }),
   );
+}
+
+/**
+ * A landable Body's type and base yield. Drawn from a stream of its own (seed and Body id), so adding
+ * or tuning it never shifts the sequence that names, orbits and sizes come from.
+ */
+function rollResource(
+  seed: Seed,
+  id: BodyId,
+  distanceFromStar: AstronomicalUnits,
+  forced: BodyComposition | undefined,
+): { composition: BodyComposition; baseYield: number } {
+  const rng = createRng(seed ^ stringSeed(`${id}:resource`));
+  const roll = rng.next();
+  const icyChance = distanceFromStar / (distanceFromStar + BODY_TUNING.iceLineAu);
+  const composition = forced ?? (roll < icyChance ? 'icy' : 'rocky');
+  return {
+    composition,
+    baseYield: Math.round(sampleFloat(rng, BODY_TUNING.baseYield[composition])),
+  };
 }
 
 /** The Body with this id, or `undefined` when the Star System has none (e.g. a stale selection). */

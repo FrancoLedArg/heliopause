@@ -63,17 +63,21 @@ export function formatMarginShare(share: number): string {
   return percent < 100 ? `${percent}%` : '';
 }
 
-/** What kind of Body this is, in the player's words: "Moon of Cinder", "Home Planet · Rocky", "Gas Giant". */
+const capitalised = (word: string): string => word.charAt(0).toUpperCase() + word.slice(1);
+
+/** What kind of Body this is, in the player's words: "Icy Moon of Cinder", "Home Planet · Rocky", "Gas Giant" (no resource type: it has no surface). */
 export function bodyTypeLabel(run: Run, body: Body): string {
   switch (body.kind) {
     case 'moon': {
       const planet = findBody(run.starSystem, body.planetId);
       if (!planet) throw new Error(`Moon ${body.id} has no planet`);
-      return `Moon of ${planet.name}`;
+      return `${capitalised(body.composition)} Moon of ${planet.name}`;
     }
     case 'gas-giant':
       return 'Gas Giant';
     case 'rocky-planet':
-      return body.id === run.starSystem.homePlanetId ? 'Home Planet · Rocky' : 'Rocky planet';
+      return body.id === run.starSystem.homePlanetId
+        ? `Home Planet · ${capitalised(body.composition)}`
+        : `${capitalised(body.composition)} planet`;
   }
 }
