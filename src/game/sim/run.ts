@@ -21,6 +21,8 @@ export interface Run {
   readonly starSystem: StarSystem;
   readonly spacecraft: Spacecraft;
   readonly status: RunStatus;
+  /** How many Hops the Run has flown: each Hop draws its Burns from its own stream of the seed. */
+  readonly hopsFlown: number;
 }
 
 /**
@@ -34,6 +36,7 @@ export function startRun(seed: Seed, chassisId: ChassisId): Run {
     starSystem,
     spacecraft: newSpacecraft(chassisId),
     status: { kind: 'landed', bodyId: starSystem.homePlanetId },
+    hopsFlown: 0,
   });
 }
 

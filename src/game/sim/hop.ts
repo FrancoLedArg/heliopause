@@ -1,4 +1,5 @@
-import type { Rng } from '../lib/rng.ts';
+import { createRng, type Rng } from '../lib/rng.ts';
+import { stringSeed } from '../lib/stringSeed.ts';
 import { DISPERSION, SOURCED_CONSTANTS } from './data.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
 import { availableDeltaV, fuelAfterBurning } from './spacecraft.ts';
@@ -203,8 +204,30 @@ export function flyHop(
       : { kind: 'ended', outcome: outcome.kind };
   return deepFreeze({
     flight,
-    run: { ...run, spacecraft: { ...run.spacecraft, fuelMass: fuelRemaining }, status },
+    run: {
+      ...run,
+      spacecraft: { ...run.spacecraft, fuelMass: fuelRemaining },
+      status,
+      hopsFlown: run.hopsFlown + 1,
+    },
   });
+}
+
+/** Launching either flies the Hop, or explains why the target cannot be chosen. */
+export type LaunchResult =
+  | { readonly kind: 'flown'; readonly flight: HopFlight; readonly run: Run }
+  | Extract<HopPlanResult, { kind: 'invalid-target' }>;
+
+/**
+ * Launches a Hop to `targetId`: plans it exactly as the player saw it, then flies it with Burns drawn
+ * from the Run's seed and how many Hops it has flown, so the same Run always flies the same Hop and
+ * a seed replays a whole Run. The outcome is settled here, before any playback.
+ */
+export function launchHop(run: Run, targetId: BodyId): LaunchResult {
+  const planned = planHop(run, targetId);
+  if (planned.kind !== 'planned') return planned;
+  const rng = createRng(run.seed ^ stringSeed(`hop:${String(run.hopsFlown)}`));
+  return { kind: 'flown', ...flyHop(run, planned.plan, rng) };
 }
 
 const BURN_NAMES: Readonly<Record<Burn, string>> = {
