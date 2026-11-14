@@ -85,6 +85,13 @@ describe('guard allows ordinary agent work', () => {
     'cd "$CLAUDE_PROJECT_DIR/dist" && rm -rf assets',
     'cd dist && cd .. && rm -rf dist',
     'cd dist && rm -rf */',
+    'mkdir -p nonexistent-out && cd nonexistent-out && cd .. && rm -rf dist',
+    'mkdir -p /tmp/nonexistent-x && cd /tmp/nonexistent-x && rm -rf y',
+    'mkdir nonexistent-out && cd nonexistent-out && rm -rf y',
+    'mkdir -p nonexistent-a/b && cd nonexistent-a/b && rm -rf y',
+    '(cd dist && rm -rf assets) && pnpm build',
+    'echo "$(cd dist && pwd)" && rm -rf dist',
+    "bash -c 'cd dist && pwd' && rm -rf dist",
     'if pnpm test; then echo ok; fi',
     'echo $((1 + 2))',
   ])('%s', (script) => {
@@ -203,7 +210,22 @@ describe('guard blocks', () => {
     'rm -rf ./*/',
     'rm -rf **/',
     'cd nonexistent-dir; rm -rf *',
+    '(cd dist && pnpm build) && rm -rf *',
+    '(cd dist && cd ..) && cd dist && rm -rf ../x',
+    'x=$(cd dist && pwd); rm -rf *',
+    "bash -c 'cd dist' && rm -rf *",
+    '(cd ~) && cd nonexistent-dir && rm -rf *',
+    'mkdir nonexistent-a/b && cd nonexistent-a/b && rm -rf y',
+    'cd ~ && (cd /tmp && ls) && rm -rf .cache',
+    'cd ~ && echo "$(cd /tmp && pwd)" && rm -rf .cache',
+    'cd "$WORKDIR" && (cd "$CLAUDE_PROJECT_DIR" && pnpm build) && rm -rf build',
   ])('%s', (script) => {
     expect(check(script)).not.toBeNull();
+  });
+});
+
+describe('guard messages', () => {
+  it('tells the agent how to proceed after an unresolved cd', () => {
+    expect(check('cd nonexistent-dir; rm -rf dist')).toMatch(/use an absolute path/);
   });
 });
