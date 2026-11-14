@@ -153,10 +153,6 @@
   height: 28px;
 }
 
-.spacecraft-panel__mass-icon {
-  display: none;
-}
-
 .spacecraft-panel__mass-label {
   position: absolute;
   left: 0;
@@ -317,7 +313,7 @@
   color: var(--gm5);
 }
 
-.spacecraft-panel__install {
+.spacecraft-panel .spacecraft-panel__install {
   position: absolute;
   right: 3px;
   top: 3px;

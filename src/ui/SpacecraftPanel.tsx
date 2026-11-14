@@ -188,7 +188,6 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
           aria-valuenow={Math.round(bar.fraction * 100)}
           aria-valuetext={bar.label}
         >
-          <KitFrame frame="res_mass" className="spacecraft-panel__mass-icon" />
           <p className="spacecraft-panel__mass-label" data-testid="mass-label">
             {bar.label}
           </p>
