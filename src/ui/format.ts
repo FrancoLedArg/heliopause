@@ -54,6 +54,15 @@ export function formatPercent(probability: number): string {
   return `${percent}%`;
 }
 
+/**
+ * A Margin share as a whole percent of the estimate, or an empty string once it is 100% or more (a
+ * percentage in the hundreds says little). The sign is the caller's, so this is the size only.
+ */
+export function formatMarginShare(share: number): string {
+  const percent = Math.round(Math.abs(share) * 100);
+  return percent < 100 ? `${percent}%` : '';
+}
+
 /** What kind of Body this is, in the player's words: "Moon of Cinder", "Home Planet · Rocky", "Gas Giant". */
 export function bodyTypeLabel(run: Run, body: Body): string {
   switch (body.kind) {
