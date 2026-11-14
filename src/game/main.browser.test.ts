@@ -27,3 +27,24 @@ it('boots through to the Title scene', async () => {
   expect(game.scene.isActive(SceneKey.Title)).toBe(true);
   expect(container.querySelector('canvas')).not.toBeNull();
 });
+
+it('removes the build label test hook when the Title scene shuts down', async () => {
+  const container = document.createElement('div');
+  document.body.append(container);
+
+  const ready = new Promise<void>((resolve) => {
+    const off = EventBus.on('scene-ready', () => {
+      off();
+      resolve();
+    });
+  });
+  game = startGame(container);
+  await ready;
+
+  const canvas = container.querySelector('canvas');
+  expect(canvas?.dataset['buildLabel']).toMatch(/^v\d+\.\d+\.\d+ · /);
+
+  game.scene.stop(SceneKey.Title);
+
+  expect(canvas?.dataset['buildLabel']).toBeUndefined();
+});
