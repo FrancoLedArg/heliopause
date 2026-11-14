@@ -1,0 +1,1484 @@
+<title>Heliopause v1 Screens</title>
+<meta name="claude:viewport-fit-sides" content="cover" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400&family=Silkscreen&family=VT323&display=swap"
+/>
+<!--
+  HOW TO EDIT
+  Every screen is drawn at the game's native 640x360 and shown scaled up.
+  - Elements are absolutely positioned in native pixels (left/top/right in px).
+  - data-frame="<atlas frame>" draws a UI kit frame from public/assets/ui/heliopause_ui.png;
+    data-w / data-h stretch nine-slice frames (panels, buttons, bars, tooltips).
+  - .bd elements are stand-ins for sprites: --x/--y centre, --s size, data-key = sprite key.
+  - .mk elements are the numbered callouts; their text lives in the <ol class="callouts"> under each screen.
+  - The shared Star System map and top bar are <template> blocks reused by several screens.
+  The atlas is inlined as a data URI at the bottom so this file works on its own.
+-->
+<style>
+  /* Layout: one column of full-width screen plates, each followed by its numbered callouts. Single dark look taken from the UI kit palette. */
+  :root {
+    color-scheme: dark;
+    --void: #070a12;
+    --ink: #0c111c;
+    --plate: #121826;
+    --line: #283246;
+    --line-2: #3a465c;
+    --fg: #d2dce8;
+    --muted: #8090a8;
+    --cy: #46dcec;
+    --cy-dim: #11667e;
+    --am: #ffb43c;
+    --rd: #ff7a6e;
+    --gr: #7ceaa0;
+    --vi: #b48cff;
+    --display: 'Chakra Petch', 'Arial Narrow', system-ui, sans-serif;
+    --body: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+    --pix: 'Silkscreen', 'Courier New', monospace;
+    --pixbody: 'VT323', 'IBM Plex Mono', ui-monospace, monospace;
+  }
+  body {
+    background: var(--void);
+    color: var(--fg);
+    font: 15px/1.6 var(--body);
+  }
+  .page {
+    max-width: 1312px;
+    margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 40px 72px;
+    display: grid;
+    gap: 56px;
+  }
+  header {
+    display: grid;
+    gap: 14px;
+    max-width: 72ch;
+  }
+  .eyebrow {
+    font: 500 12px/1 var(--mono);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--cy);
+  }
+  h1 {
+    font: 600 clamp(32px, 5vw, 48px)/1.05 var(--display);
+    margin: 0;
+    text-wrap: balance;
+    letter-spacing: 0.01em;
+  }
+  h2 {
+    font: 600 24px/1.2 var(--display);
+    margin: 0;
+    text-wrap: balance;
+  }
+  h3 {
+    font: 600 17px/1.2 var(--display);
+    margin: 0;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  p {
+    margin: 0;
+  }
+  .lede {
+    color: var(--muted);
+  }
+  .lede strong {
+    color: var(--fg);
+    font-weight: 500;
+  }
+  .toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    align-items: center;
+    font: 13px/1.4 var(--mono);
+    color: var(--muted);
+  }
+  .toolbar label {
+    display: inline-flex;
+    gap: 8px;
+    align-items: center;
+    cursor: pointer;
+    color: var(--fg);
+  }
+  .toolbar input {
+    accent-color: var(--am);
+    width: 16px;
+    height: 16px;
+  }
+  .toolbar input:focus-visible {
+    outline: 2px solid var(--cy);
+    outline-offset: 2px;
+  }
+  .legend-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .chip {
+    display: inline-grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--am);
+    color: var(--void);
+    font: 600 11px/1 var(--mono);
+    flex: none;
+  }
+
+  section {
+    display: grid;
+    gap: 18px;
+  }
+  .sec-head {
+    display: grid;
+    gap: 6px;
+    max-width: 72ch;
+  }
+  .sec-head p {
+    color: var(--muted);
+  }
+  .variant {
+    display: grid;
+    gap: 14px;
+  }
+
+  .screen-wrap {
+    width: fit-content;
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    background: var(--ink);
+  }
+  .stage {
+    width: 640px;
+    height: 360px;
+    zoom: 2;
+  }
+  .screen {
+    position: relative;
+    width: 640px;
+    height: 360px;
+    overflow: hidden;
+    background: var(--void);
+    color: #d2dce8;
+  }
+  .screen * {
+    box-sizing: border-box;
+  }
+  .screen canvas.px,
+  .screen img {
+    image-rendering: pixelated;
+    display: block;
+  }
+  [data-frame] {
+    position: absolute;
+  }
+  [data-frame] > canvas.px {
+    position: absolute;
+    inset: 0;
+  }
+  .a {
+    position: absolute;
+    white-space: nowrap;
+  }
+  .t8 {
+    font: 8px/8px var(--pix);
+    letter-spacing: 0;
+  }
+  .t16 {
+    font: 16px/16px var(--pix);
+  }
+  .t11 {
+    font: 11px/11px var(--pixbody);
+  }
+  .t10 {
+    font: 10px/10px var(--pixbody);
+  }
+  .t22 {
+    font: 22px/22px var(--pixbody);
+  }
+  .cyan {
+    color: #46dcec;
+  }
+  .amber {
+    color: #ffb43c;
+  }
+  .red {
+    color: #ff7a6e;
+  }
+  .green {
+    color: #7ceaa0;
+  }
+  .dim {
+    color: #8090a8;
+  }
+  .faint {
+    color: #56647c;
+  }
+  .pale {
+    color: #b8c4d4;
+  }
+  .violet {
+    color: #b48cff;
+  }
+  .wrap {
+    white-space: normal;
+  }
+  .btnlabel {
+    position: absolute;
+    inset: 0 0 2px 0;
+    display: grid;
+    place-items: center;
+    font: 8px/8px var(--pix);
+    color: #f4f8ff;
+  }
+  svg.layer {
+    position: absolute;
+    inset: 0;
+    width: 640px;
+    height: 360px;
+    overflow: visible;
+  }
+  .stars {
+    position: absolute;
+    inset: 0;
+  }
+  .stars i {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+  }
+  .dimmed {
+    position: absolute;
+    inset: 0;
+    opacity: 0.32;
+  }
+
+  /* Sprite stand-ins: replace with the real sprite of the same key. */
+  .bd {
+    position: absolute;
+    width: calc(var(--s) * 1px);
+    height: calc(var(--s) * 1px);
+    left: calc(var(--x) * 1px - var(--s) * 0.5px);
+    top: calc(var(--y) * 1px - var(--s) * 0.5px);
+    border-radius: 50%;
+    background: var(--c);
+    box-shadow:
+      inset calc(var(--s) * -0.18px) calc(var(--s) * -0.14px) 0 rgba(7, 10, 18, 0.45),
+      0 0 0 1px #070a12;
+  }
+  .bd::after {
+    content: attr(data-key);
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 50%;
+    transform: translateX(-50%);
+    font: 9px/9px var(--pixbody);
+    color: #56647c;
+    white-space: nowrap;
+  }
+  .bd.nokey::after {
+    content: none;
+  }
+  .bd.kr::after {
+    top: 50%;
+    left: calc(100% + 3px);
+    transform: translateY(-50%);
+  }
+  .bd.star {
+    box-shadow:
+      0 0 0 3px rgba(255, 180, 60, 0.25),
+      0 0 0 7px rgba(224, 122, 34, 0.12),
+      inset -6px -5px 0 rgba(224, 122, 34, 0.6);
+  }
+  .bd.gas {
+    background: repeating-linear-gradient(170deg, var(--c) 0 5px, var(--c2) 5px 9px);
+  }
+  .bd.ringed::before {
+    content: '';
+    position: absolute;
+    left: -30%;
+    right: -30%;
+    top: 42%;
+    height: 16%;
+    border: 2px solid #aaf6ff;
+    border-radius: 50%;
+    transform: rotate(-12deg);
+    opacity: 0.8;
+  }
+  .ship {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: calc(var(--x) * 1px - 8px);
+    top: calc(var(--y) * 1px - 8px);
+    transform: rotate(calc(var(--r, 0) * 1deg));
+  }
+  .ship::before {
+    content: '';
+    position: absolute;
+    inset: 3px 1px 3px 3px;
+    background: #f4f8ff;
+    clip-path: polygon(0 0, 100% 50%, 0 100%, 22% 50%);
+  }
+  .ship.flame::before {
+    inset: 4px 3px 4px 0;
+    background: #e07a22;
+    clip-path: polygon(100% 0, 0 50%, 100% 100%);
+  }
+  .ship::after {
+    content: attr(data-key);
+    position: absolute;
+    top: 18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font: 9px/9px var(--pixbody);
+    color: #56647c;
+    white-space: nowrap;
+  }
+  .ship.nokey::after {
+    content: none;
+  }
+  .sel {
+    position: absolute;
+    border: 1px solid #46dcec;
+    width: 20px;
+    height: 20px;
+    left: calc(var(--x) * 1px - 10px);
+    top: calc(var(--y) * 1px - 10px);
+    box-shadow: 0 0 0 1px #070a12;
+  }
+
+  .ai-label {
+    position: absolute;
+    left: 6px;
+    bottom: 5px;
+    padding: 2px 4px 3px;
+    background: #0c111c;
+    border: 1px solid #3a465c;
+    font: 8px/8px var(--pix);
+    color: #8090a8;
+  }
+
+  .mk {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    margin: -6px 0 0 -6px;
+    border-radius: 50%;
+    background: #ffb43c;
+    color: #070a12;
+    font: 7px/12px var(--mono);
+    font-weight: 600;
+    text-align: center;
+    box-shadow: 0 0 0 1px #070a12;
+    z-index: 5;
+  }
+  .no-marks .mk {
+    display: none;
+  }
+
+  ol.callouts {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px 32px;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  }
+  ol.callouts li {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    color: var(--muted);
+  }
+  ol.callouts li b {
+    color: var(--fg);
+    font-weight: 500;
+  }
+  code {
+    font: 13px/1.4 var(--mono);
+    color: var(--cy);
+  }
+  footer {
+    color: var(--muted);
+    font-size: 13px;
+    border-top: 1px solid var(--line);
+    padding-top: 18px;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .blink {
+      animation: blink 1.2s steps(2, start) infinite;
+    }
+    @keyframes blink {
+      to {
+        visibility: hidden;
+      }
+    }
+  }
+</style>
+
+<!-- Shared top bar: Fuel and Δv available. Values are filled per screen with data-fuel / data-dv on the placeholder. -->
+<template id="tpl-topbar">
+  <div data-frame="panel_holo" data-w="624" data-h="40" style="left: 8px; top: 6px"></div>
+  <div class="a t8 dim" style="left: 22px; top: 15px">STAR SYSTEM</div>
+  <div class="a t8 cyan" style="left: 22px; top: 27px">VELKA</div>
+  <div class="a t8 faint" style="left: 74px; top: 27px">· <span data-slot="hop">HOP 0</span></div>
+  <div data-frame="res_fuel" style="left: 300px; top: 10px"></div>
+  <div class="a t8 dim" style="left: 336px; top: 15px">FUEL</div>
+  <div class="a t11 amber" style="left: 336px; top: 26px" data-slot="fuel">12.0 t</div>
+  <div data-frame="res_delta_v" style="left: 440px; top: 10px"></div>
+  <div class="a t8 dim" style="left: 476px; top: 15px">DELTA-V AVAILABLE</div>
+  <div class="a t11 cyan" style="left: 476px; top: 26px" data-slot="dv">5,050 m/s</div>
+</template>
+
+<!-- Shared Star System map. Bodies stay fixed in v1. Centre of the star: (40,200). -->
+<template id="tpl-map">
+  <div class="stars" data-seed="7"></div>
+  <svg class="layer" viewBox="0 0 640 360" aria-hidden="true">
+    <g fill="none" stroke="#283246" stroke-width="1">
+      <circle cx="40" cy="200" r="70" />
+      <circle cx="40" cy="200" r="120" />
+      <circle cx="40" cy="200" r="190" />
+      <circle cx="40" cy="200" r="260" />
+      <circle cx="40" cy="200" r="330" />
+      <circle cx="40" cy="200" r="420" />
+    </g>
+    <circle
+      cx="40"
+      cy="200"
+      r="575"
+      fill="none"
+      stroke="#8150d0"
+      stroke-width="1"
+      stroke-dasharray="4 3"
+    />
+  </svg>
+  <div class="a t8 violet" style="left: 528px; top: 212px">HELIOPAUSE</div>
+  <div class="a t10 faint" style="left: 528px; top: 222px">escape beyond here</div>
+  <div class="bd star" data-key="body_star" style="--x: 40; --y: 200; --s: 64; --c: #ffe696"></div>
+  <div class="bd" data-key="body_rocky_0" style="--x: 101; --y: 165; --s: 24; --c: #a2481a"></div>
+  <div class="a t10 amber" style="left: 84px; top: 188px">CINDER · HOME</div>
+  <div class="bd kr" data-key="body_moon_0" style="--x: 121; --y: 149; --s: 12; --c: #8090a8"></div>
+  <div class="bd" data-key="body_rocky_1" style="--x: 153; --y: 241; --s: 24; --c: #56647c"></div>
+  <div
+    class="bd gas"
+    data-key="body_gas_0"
+    style="--x: 223; --y: 151; --s: 48; --c: #e07a22; --c2: #a2481a"
+  ></div>
+  <div class="bd kr" data-key="body_moon_1" style="--x: 257; --y: 126; --s: 12; --c: #d2dce8"></div>
+  <div class="bd" data-key="body_moon_2" style="--x: 254; --y: 182; --s: 12; --c: #ffb43c"></div>
+  <div class="bd" data-key="body_rocky_2" style="--x: 276; --y: 306; --s: 24; --c: #aaf6ff"></div>
+  <div
+    class="bd gas ringed"
+    data-key="body_gas_1"
+    style="--x: 350; --y: 90; --s: 48; --c: #1ca4bc; --c2: #11667e"
+  ></div>
+  <div class="bd kr" data-key="body_moon_3" style="--x: 388; --y: 66; --s: 12; --c: #5a2410"></div>
+  <div class="bd" data-key="body_rocky_3" style="--x: 458; --y: 237; --s: 24; --c: #4e2a8c"></div>
+</template>
+
+<div class="page">
+  <header>
+    <div class="eyebrow">Heliopause · Spec A · Fly a Hop</div>
+    <h1>v1 Screens</h1>
+    <p class="lede">
+      The four screens of the first playable slice, in the order a player meets them: look at the
+      <strong>Star System</strong>, plan a <strong>Hop</strong>, watch it fly, read the report.
+      Drawn at the game's native 640×360 with the real UI kit. Planets, Moons, the star and the
+      <strong>Spacecraft</strong> are stand-ins labelled with the sprite key that replaces them.
+      Every number is an example, not tuned gameplay.
+    </p>
+    <p class="lede">
+      To change a layout, edit <code>docs/design/v1-screens.html</code>: positions are native
+      pixels, and the comment at the top of the file explains the parts.
+    </p>
+    <div class="toolbar">
+      <label for="toggle-marks"
+        ><input type="checkbox" id="toggle-marks" checked /> Show callouts</label
+      >
+      <span class="legend-chip"
+        ><span class="chip">1</span> numbered callouts match the notes under each screen</span
+      >
+    </div>
+  </header>
+
+  <!-- 1 · STAR SYSTEM MAP -->
+  <section aria-labelledby="s1">
+    <div class="sec-head">
+      <h2 id="s1">1 · Star System map</h2>
+      <p>
+        Where every Run starts. The player sees the whole Star System, picks a target and opens the
+        Hop plan.
+      </p>
+    </div>
+    <div class="screen-wrap">
+      <div class="stage">
+        <div
+          class="screen"
+          role="img"
+          aria-label="Star System map with the star at left, orbit rings, planets and Moons, the Spacecraft on the Home Planet and the Home Planet's Moon selected"
+        >
+          <div data-use="tpl-map"></div>
+          <svg class="layer" viewBox="0 0 640 360" aria-hidden="true">
+            <path
+              d="M107 156 Q112 140 117 146"
+              fill="none"
+              stroke="#46dcec"
+              stroke-width="1"
+              stroke-dasharray="2 2"
+            />
+            <line x1="150" y1="119" x2="125" y2="144" stroke="#46dcec" stroke-width="1" />
+          </svg>
+          <div class="sel" style="--x: 121; --y: 149"></div>
+          <div class="ship nokey" data-key="spacecraft" style="--x: 99; --y: 149; --r: -40"></div>
+          <div data-use="tpl-topbar"></div>
+
+          <div data-frame="tooltip" data-w="132" data-h="62" style="left: 136px; top: 56px"></div>
+          <div class="a t8 cyan" style="left: 143px; top: 63px">CINDER-A · MOON</div>
+          <div class="a t11 pale" style="left: 143px; top: 75px">Gravity 1.4 m/s²</div>
+          <div class="a t11 pale" style="left: 143px; top: 86px">0.31 AU from star</div>
+          <div data-frame="badge_ok" style="left: 142px; top: 99px"></div>
+          <div class="a t8 green" style="left: 158px; top: 101px">LANDABLE</div>
+
+          <div
+            data-frame="tooltip_warn"
+            data-w="124"
+            data-h="52"
+            style="left: 274px; top: 142px"
+          ></div>
+          <div class="a t8 amber" style="left: 281px; top: 149px">MAELSTROM</div>
+          <div class="a t10 dim" style="left: 281px; top: 159px">Gas Giant · 1.1 AU</div>
+          <div data-frame="badge_warning" style="left: 280px; top: 173px"></div>
+          <div class="a t11 amber" style="left: 296px; top: 174px">No surface: can't land</div>
+          <div class="a t10 dim" style="left: 296px; top: 184px">Land on its 2 Moons</div>
+
+          <div class="a t11 dim" style="left: 186px; top: 338px">Select a Body to plan a Hop</div>
+          <div
+            data-frame="btn_primary_normal"
+            data-w="112"
+            data-h="24"
+            style="left: 516px; top: 326px"
+          >
+            <span class="btnlabel">PLAN HOP</span>
+          </div>
+          <div class="ai-label">AI-GENERATED ART</div>
+
+          <span class="mk" style="left: 300px; top: 8px">1</span>
+          <span class="mk" style="left: 66px; top: 174px">2</span>
+          <span class="mk" style="left: 100px; top: 304px">3</span>
+          <span class="mk" style="left: 88px; top: 142px">4</span>
+          <span class="mk" style="left: 133px; top: 140px">5</span>
+          <span class="mk" style="left: 268px; top: 58px">6</span>
+          <span class="mk" style="left: 398px; top: 144px">7</span>
+          <span class="mk" style="left: 612px; top: 140px">8</span>
+          <span class="mk" style="left: 516px; top: 326px">9</span>
+          <span class="mk" style="left: 110px; top: 345px">10</span>
+        </div>
+      </div>
+    </div>
+    <ol class="callouts">
+      <li>
+        <span class="chip">1</span
+        ><span
+          ><b>Top bar.</b> Fuel on board in tonnes, and the Δv it buys right now. Δv shrinks when
+          the Spacecraft gets heavier.</span
+        >
+      </li>
+      <li>
+        <span class="chip">2</span
+        ><span
+          ><b>The star</b> (<code>body_star</code>). The closer a Body sits to it, the deeper in its
+          gravity and the harder to climb away from.</span
+        >
+      </li>
+      <li>
+        <span class="chip">3</span
+        ><span
+          ><b>Orbit rings.</b> Bodies stay fixed on their rings in v1. No orbital motion or launch
+          windows yet.</span
+        >
+      </li>
+      <li>
+        <span class="chip">4</span
+        ><span
+          ><b>Home Planet and Spacecraft.</b> A small rocky planet close to its star, with at least
+          one Moon. The marker (<code>spacecraft</code>) shows where the Spacecraft is.</span
+        >
+      </li>
+      <li>
+        <span class="chip">5</span
+        ><span
+          ><b>Selected target.</b> Cyan brackets and a dashed line show the Hop being considered.
+          The first obvious Hop is the Home Planet's Moon.</span
+        >
+      </li>
+      <li>
+        <span class="chip">6</span
+        ><span
+          ><b>Body info.</b> Gravity, distance from the star, and whether it can be landed on. Shown
+          for the selected Body.</span
+        >
+      </li>
+      <li>
+        <span class="chip">7</span
+        ><span
+          ><b>Gas Giant info.</b> Gas Giants have no surface, so they are never a Hop target, but
+          their Moons are.</span
+        >
+      </li>
+      <li>
+        <span class="chip">8</span
+        ><span
+          ><b>Heliopause.</b> The dashed outer edge. Crossing it is how a Star System is escaped
+          (Spec C).</span
+        >
+      </li>
+      <li>
+        <span class="chip">9</span
+        ><span
+          ><b>Plan Hop.</b> Opens the Hop plan for the selected Body. Disabled when the selection is
+          a Gas Giant or the current Body.</span
+        >
+      </li>
+      <li>
+        <span class="chip">10</span
+        ><span
+          ><b>AI-generated art label.</b> Always visible on every screen, as the Space Apps rules
+          require.</span
+        >
+      </li>
+    </ol>
+  </section>
+
+  <!-- 2 · HOP PLAN -->
+  <section aria-labelledby="s2">
+    <div class="sec-head">
+      <h2 id="s2">2 · Hop plan</h2>
+      <p>
+        The decision screen. The player compares what the Hop costs with what the Spacecraft has,
+        reads the Success Chance and decides whether to launch.
+      </p>
+    </div>
+    <div class="screen-wrap">
+      <div class="stage">
+        <div
+          class="screen"
+          role="img"
+          aria-label="Hop plan panel over the dimmed map, listing Takeoff, Transfer and Landing Δv, totals, margin, Fuel on board, an 87 percent Success Chance, and Launch and Cancel buttons"
+        >
+          <div class="dimmed"><div data-use="tpl-map"></div></div>
+          <div data-use="tpl-topbar"></div>
+
+          <div
+            data-frame="panel_metal"
+            data-w="340"
+            data-h="284"
+            style="left: 150px; top: 50px"
+          ></div>
+          <div data-frame="titlebar" data-w="320" data-h="14" style="left: 160px; top: 60px"></div>
+          <div class="a t8 pale" style="left: 182px; top: 63px">HOP PLAN</div>
+          <div class="a t8 cyan" style="right: 186px; top: 63px">CINDER → CINDER-A</div>
+
+          <div class="a t8 dim" style="left: 168px; top: 86px">BURN</div>
+          <div class="a t8 dim" style="left: 232px; top: 86px">WHY IT COSTS</div>
+          <div class="a t8 dim" style="right: 168px; top: 86px">EST. Δv</div>
+
+          <div class="a t11 pale" style="left: 168px; top: 100px">Takeoff</div>
+          <div class="a t11 dim" style="left: 232px; top: 100px">
+            Leave Cinder, gravity 6.1 m/s²
+          </div>
+          <div class="a t11 pale" style="right: 168px; top: 100px">3,100 m/s</div>
+          <div class="a t11 pale" style="left: 168px; top: 115px">Transfer</div>
+          <div class="a t11 dim" style="left: 232px; top: 115px">Travel out to Cinder-A</div>
+          <div class="a t11 pale" style="right: 168px; top: 115px">680 m/s</div>
+          <div class="a t11 pale" style="left: 168px; top: 130px">Landing</div>
+          <div class="a t11 dim" style="left: 232px; top: 130px">
+            Slow down onto Cinder-A, 1.4 m/s²
+          </div>
+          <div class="a t11 pale" style="right: 168px; top: 130px">1,050 m/s</div>
+
+          <div data-frame="divider" data-w="304" data-h="5" style="left: 168px; top: 146px"></div>
+
+          <div class="a t8 dim" style="left: 168px; top: 158px">Δv NEEDED</div>
+          <div class="a t11 pale" style="right: 168px; top: 157px">4,830 m/s</div>
+          <div class="a t8 dim" style="left: 168px; top: 171px">Δv AVAILABLE</div>
+          <div class="a t11 cyan" style="right: 168px; top: 170px">5,050 m/s</div>
+          <div class="a t8 dim" style="left: 168px; top: 184px">MARGIN</div>
+          <div class="a t11 amber" style="right: 168px; top: 183px">+220 m/s (+4.6%)</div>
+
+          <div
+            data-frame="bar_frame"
+            data-w="304"
+            data-h="10"
+            style="left: 168px; top: 197px"
+          ></div>
+          <div
+            data-frame="bar_fill_am"
+            data-w="286"
+            data-h="6"
+            style="left: 170px; top: 199px"
+          ></div>
+          <div class="a t10 faint" style="left: 168px; top: 209px">needed, out of available</div>
+
+          <div data-frame="res_fuel" style="left: 166px; top: 222px"></div>
+          <div class="a t8 dim" style="left: 202px; top: 228px">FUEL ON BOARD</div>
+          <div class="a t11 amber" style="left: 202px; top: 239px">12.0 t</div>
+
+          <div class="a t8 dim" style="left: 340px; top: 228px">SUCCESS CHANCE</div>
+          <div data-frame="badge_ok" style="left: 340px; top: 241px"></div>
+          <div class="a t22 green" style="left: 356px; top: 237px">87%</div>
+
+          <div
+            class="a t11 pale wrap"
+            style="left: 168px; top: 262px; width: 304px; line-height: 12px"
+          >
+            Δv is how much the Spacecraft can change its speed. Every burn spends some. A heavier
+            Spacecraft gets less Δv from the same Fuel.
+          </div>
+
+          <div
+            data-frame="btn_default_normal"
+            data-w="96"
+            data-h="24"
+            style="left: 168px; top: 302px"
+          >
+            <span class="btnlabel">CANCEL</span>
+          </div>
+          <div
+            data-frame="btn_primary_normal"
+            data-w="96"
+            data-h="24"
+            style="left: 376px; top: 302px"
+          >
+            <span class="btnlabel">LAUNCH</span>
+          </div>
+          <div class="ai-label">AI-GENERATED ART</div>
+
+          <span class="mk" style="left: 484px; top: 60px">1</span>
+          <span class="mk" style="left: 160px; top: 115px">2</span>
+          <span class="mk" style="left: 484px; top: 171px">3</span>
+          <span class="mk" style="left: 166px; top: 222px">4</span>
+          <span class="mk" style="left: 334px; top: 224px">5</span>
+          <span class="mk" style="left: 160px; top: 268px">6</span>
+          <span class="mk" style="left: 478px; top: 302px">7</span>
+          <span class="mk" style="left: 60px; top: 120px">8</span>
+        </div>
+      </div>
+    </div>
+    <ol class="callouts">
+      <li>
+        <span class="chip">1</span
+        ><span><b>Route.</b> From the Body the Spacecraft is on to the selected target.</span>
+      </li>
+      <li>
+        <span class="chip">2</span
+        ><span
+          ><b>Three burns.</b> Takeoff costs more on strong gravity, Transfer costs more with
+          distance, Landing costs more on strong gravity again. Each shows its estimated Δv and
+          why.</span
+        >
+      </li>
+      <li>
+        <span class="chip">3</span
+        ><span
+          ><b>Totals and margin.</b> Δv needed against Δv available, and the spare left over. The
+          bar shows the same comparison.</span
+        >
+      </li>
+      <li>
+        <span class="chip">4</span
+        ><span
+          ><b>Fuel on board.</b> The resource being spent. The Δv numbers are how its cost
+          reads.</span
+        >
+      </li>
+      <li>
+        <span class="chip">5</span
+        ><span
+          ><b>Success Chance.</b> Each burn's real cost lands up to 10% above or below its estimate.
+          This is the true chance that the Fuel covers it all. Icon, colour and number
+          together.</span
+        >
+      </li>
+      <li>
+        <span class="chip">6</span
+        ><span
+          ><b>Δv in plain words.</b> One line, always visible, so a player who has never heard of Δv
+          can read the screen.</span
+        >
+      </li>
+      <li>
+        <span class="chip">7</span
+        ><span
+          ><b>Cancel or Launch.</b> Launch commits to the Hop. There is no verdict, so the player
+          decides whether 87% is good enough.</span
+        >
+      </li>
+      <li>
+        <span class="chip">8</span
+        ><span><b>Map behind.</b> Dimmed, so the route stays in context.</span>
+      </li>
+    </ol>
+  </section>
+
+  <!-- 3 · HOP PLAYBACK -->
+  <section aria-labelledby="s3">
+    <div class="sec-head">
+      <h2 id="s3">3 · Hop playback</h2>
+      <p>
+        After Launch the Hop plays out by itself, one burn at a time. The player watches and reads
+        the flight log.
+      </p>
+    </div>
+    <div class="screen-wrap">
+      <div class="stage">
+        <div
+          class="screen"
+          role="img"
+          aria-label="Hop playback: the Spacecraft halfway along an arc from Cinder to Cinder-A, phase indicator on Transfer, Fuel bar at 41 percent, and a flight log"
+        >
+          <div class="stars" data-seed="21"></div>
+          <div
+            data-use="tpl-topbar"
+            data-fuel="4.9 t"
+            data-dv="1,850 m/s"
+            data-hop="HOP 1 · IN FLIGHT"
+          ></div>
+
+          <svg class="layer" viewBox="0 0 640 360" aria-hidden="true">
+            <path
+              d="M150 200 Q330 80 495 145"
+              fill="none"
+              stroke="#3a465c"
+              stroke-width="1"
+              stroke-dasharray="3 3"
+            />
+            <path
+              d="M150 200 Q330 80 495 145"
+              fill="none"
+              stroke="#46dcec"
+              stroke-width="1"
+              pathLength="100"
+              stroke-dasharray="55 100"
+            />
+          </svg>
+          <div
+            class="bd"
+            data-key="body_rocky_0 (shown 4×)"
+            style="--x: 110; --y: 236; --s: 96; --c: #a2481a"
+          ></div>
+          <div class="a t10 amber" style="left: 164px; top: 262px">CINDER</div>
+          <div
+            class="bd"
+            data-key="body_moon_0 (shown 3×)"
+            style="--x: 520; --y: 150; --s: 36; --c: #8090a8"
+          ></div>
+          <div class="a t10 cyan" style="left: 500px; top: 190px">CINDER-A</div>
+          <div
+            class="ship flame nokey"
+            data-key="spacecraft_flame"
+            style="--x: 328; --y: 126; --r: -6"
+          ></div>
+          <div
+            class="ship"
+            data-key="spacecraft + spacecraft_flame"
+            style="--x: 343; --y: 124; --r: -6"
+          ></div>
+
+          <div
+            data-frame="panel_holo"
+            data-w="300"
+            data-h="26"
+            style="left: 170px; top: 52px"
+          ></div>
+          <div data-frame="badge_ok" style="left: 182px; top: 59px"></div>
+          <div class="a t8 green" style="left: 197px; top: 61px">TAKEOFF</div>
+          <div class="a t8 faint" style="left: 248px; top: 61px">→</div>
+          <div class="a t8 cyan" style="left: 262px; top: 61px">
+            <span class="blink">●</span> TRANSFER
+          </div>
+          <div class="a t8 faint" style="left: 334px; top: 61px">→</div>
+          <div class="a t8 faint" style="left: 348px; top: 61px">LANDING</div>
+
+          <div
+            data-frame="panel_metal"
+            data-w="252"
+            data-h="46"
+            style="left: 12px; top: 302px"
+          ></div>
+          <div data-frame="res_fuel" style="left: 20px; top: 309px"></div>
+          <div class="a t8 dim" style="left: 58px; top: 313px">FUEL</div>
+          <div class="a t11 amber" style="right: 388px; top: 312px">4.9 t of 12.0 t</div>
+          <div data-frame="bar_frame" data-w="190" data-h="10" style="left: 58px; top: 326px"></div>
+          <div data-frame="bar_fill_am" data-w="76" data-h="6" style="left: 60px; top: 328px"></div>
+
+          <div
+            data-frame="panel_holo"
+            data-w="344"
+            data-h="78"
+            style="left: 284px; top: 272px"
+          ></div>
+          <div class="a t8 dim" style="left: 296px; top: 282px">FLIGHT LOG</div>
+          <div class="a t11 green" style="left: 296px; top: 295px">
+            TAKEOFF est 3,100 actual 3,160 m/s +2%
+          </div>
+          <div class="a t11 cyan" style="left: 296px; top: 308px">TRANSFER est 680 burning…</div>
+          <div class="a t11 faint" style="left: 296px; top: 321px">LANDING est 1,050</div>
+          <div class="a t10 dim" style="left: 296px; top: 334px">
+            Margin so far: 160 m/s of 220 planned
+          </div>
+          <div class="ai-label" style="bottom: auto; top: 84px">AI-GENERATED ART</div>
+
+          <span class="mk" style="left: 170px; top: 52px">1</span>
+          <span class="mk" style="left: 343px; top: 110px">2</span>
+          <span class="mk" style="left: 440px; top: 118px">3</span>
+          <span class="mk" style="left: 12px; top: 302px">4</span>
+          <span class="mk" style="left: 284px; top: 272px">5</span>
+        </div>
+      </div>
+    </div>
+    <ol class="callouts">
+      <li>
+        <span class="chip">1</span
+        ><span
+          ><b>Phase indicator.</b> Takeoff → Transfer → Landing. A finished burn shows a check, the
+          current one blinks, and the next is dimmed.</span
+        >
+      </li>
+      <li>
+        <span class="chip">2</span
+        ><span
+          ><b>Spacecraft in flight.</b> Moves along the arc. The engine plume
+          (<code>spacecraft_flame</code>) shows only while a burn is running.</span
+        >
+      </li>
+      <li>
+        <span class="chip">3</span
+        ><span
+          ><b>Path.</b> The solid part is flown and the dashed part is still ahead. The two Bodies
+          are shown large in this view.</span
+        >
+      </li>
+      <li>
+        <span class="chip">4</span><span><b>Fuel bar.</b> Drains as each burn spends Fuel.</span>
+      </li>
+      <li>
+        <span class="chip">5</span
+        ><span
+          ><b>Flight log.</b> Each burn's actual Δv against its estimate as it finishes, and how
+          much margin is left. These lines become the report.</span
+        >
+      </li>
+    </ol>
+  </section>
+
+  <!-- 4 · HOP REPORT -->
+  <section aria-labelledby="s4">
+    <div class="sec-head">
+      <h2 id="s4">4 · Hop report</h2>
+      <p>
+        Every Hop ends here. The report compares each burn's estimate with what really happened and
+        explains the outcome in plain words. Three variants: Arrived, Fell Short, Crashed.
+      </p>
+    </div>
+
+    <div class="variant">
+      <h3>Arrived</h3>
+      <div class="screen-wrap">
+        <div class="stage">
+          <div
+            class="screen"
+            role="img"
+            aria-label="Hop report, Arrived: per-burn estimate versus actual, 145 m/s margin left, explanation, and Continue button"
+          >
+            <div class="dimmed"><div data-use="tpl-map"></div></div>
+            <div data-use="tpl-topbar" data-fuel="0.3 t" data-dv="145 m/s" data-hop="HOP 1"></div>
+            <div data-use="tpl-report" data-variant="arrived"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="variant">
+      <h3>Fell Short</h3>
+      <div class="screen-wrap">
+        <div class="stage">
+          <div
+            class="screen"
+            role="img"
+            aria-label="Hop report, Fell Short: the Fuel ran out 90 m/s before the end of the Transfer, explanation, and New Run button"
+          >
+            <div class="dimmed"><div data-use="tpl-map"></div></div>
+            <div data-use="tpl-topbar" data-fuel="0.0 t" data-dv="0 m/s" data-hop="HOP 4"></div>
+            <div data-use="tpl-report" data-variant="fellshort"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="variant">
+      <h3>Crashed</h3>
+      <div class="screen-wrap">
+        <div class="stage">
+          <div
+            class="screen"
+            role="img"
+            aria-label="Hop report, Crashed: the Landing needed 57 m/s more than was left, explanation, and New Run button"
+          >
+            <div class="dimmed"><div data-use="tpl-map"></div></div>
+            <div data-use="tpl-topbar" data-fuel="0.0 t" data-dv="0 m/s" data-hop="HOP 1"></div>
+            <div data-use="tpl-report" data-variant="crashed"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <ol class="callouts">
+      <li>
+        <span class="chip">1</span
+        ><span
+          ><b>Outcome.</b> Arrived in green, Fell Short or Crashed in red. Always with an icon and
+          the word, never colour alone.</span
+        >
+      </li>
+      <li>
+        <span class="chip">2</span
+        ><span
+          ><b>Estimate against actual.</b> Every burn, with the difference in percent. A burn that
+          never happened says so.</span
+        >
+      </li>
+      <li>
+        <span class="chip">3</span
+        ><span
+          ><b>Margin left, or shortfall.</b> How much spare Δv was left, or how much was
+          missing.</span
+        >
+      </li>
+      <li>
+        <span class="chip">4</span
+        ><span
+          ><b>Why.</b> One or two plain sentences naming the burn that decided the outcome, with the
+          numbers.</span
+        >
+      </li>
+      <li>
+        <span class="chip">5</span
+        ><span><b>Lesson.</b> A short mission-design takeaway, such as why margins matter.</span>
+      </li>
+      <li>
+        <span class="chip">6</span
+        ><span
+          ><b>Next step.</b> Continue returns to the map on the new Body. New Run starts a fresh
+          Star System (Spec C replaces it with the full end-of-Run screen).</span
+        >
+      </li>
+    </ol>
+  </section>
+
+  <footer>
+    Wireframe for Spec A. Art: Heliopause UI kit v1, AI-generated. Sprite stand-ins are replaced by
+    the sprites with matching keys. Example numbers follow the agreed rule that each burn's real
+    cost lands within 10% of its estimate.
+  </footer>
+</div>
+
+<!-- Report panel, filled per variant from REPORTS in the script below. -->
+<template id="tpl-report">
+  <div data-frame="panel_metal" data-w="420" data-h="296" style="left: 110px; top: 50px"></div>
+  <div data-frame="titlebar" data-w="400" data-h="14" style="left: 120px; top: 60px"></div>
+  <div class="a t8 pale" style="left: 142px; top: 63px">HOP REPORT</div>
+  <div class="a t8 cyan" style="right: 142px; top: 63px" data-r="route"></div>
+  <div data-r="badge" style="left: 128px; top: 84px"></div>
+  <div class="a t16" style="left: 146px; top: 82px" data-r="title"></div>
+
+  <div class="a t8 dim" style="left: 128px; top: 108px">BURN</div>
+  <div class="a t8 dim" style="right: 300px; top: 108px">EST.</div>
+  <div class="a t8 dim" style="right: 212px; top: 108px">ACTUAL</div>
+  <div class="a t8 dim" style="right: 128px; top: 108px">DIFF</div>
+  <div data-r="rows"></div>
+  <div data-frame="divider" data-w="384" data-h="5" style="left: 128px; top: 166px"></div>
+  <div data-r="total"></div>
+
+  <div class="a t8 dim" style="left: 128px; top: 192px" data-r="marginLabel"></div>
+  <div class="a t11" style="right: 128px; top: 191px" data-r="margin"></div>
+
+  <div data-r="whybox" style="left: 124px; top: 208px"></div>
+  <div class="a t8" style="left: 132px; top: 215px" data-r="whyhead">WHY</div>
+  <div
+    class="a t11 pale wrap"
+    style="left: 132px; top: 226px; width: 376px; line-height: 12px"
+    data-r="why"
+  ></div>
+  <div
+    class="a t11 dim wrap"
+    style="left: 128px; top: 276px; width: 384px; line-height: 12px"
+    data-r="lesson"
+  ></div>
+
+  <div data-frame="btn_primary_normal" data-w="104" data-h="24" style="left: 408px; top: 312px">
+    <span class="btnlabel" data-r="button"></span>
+  </div>
+  <div class="ai-label">AI-GENERATED ART</div>
+
+  <span class="mk" style="left: 128px; top: 80px">1</span>
+  <span class="mk" style="left: 120px; top: 130px">2</span>
+  <span class="mk" style="left: 120px; top: 194px">3</span>
+  <span class="mk" style="left: 516px; top: 210px">4</span>
+  <span class="mk" style="left: 120px; top: 280px">5</span>
+  <span class="mk" style="left: 516px; top: 312px">6</span>
+</template>
+
+<script>
+  /* UI kit atlas (public/assets/ui/heliopause_ui.png), inlined. */
+  const ATLAS_SRC =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAIACAYAAABtmrL7AAA77klEQVR4Xu3dD9BW1X0n8Ev+FBYpo4CYYQwljDEsiyy1aIlh1BpDGYYmGetQS8W1LrWRdS3jZDORcY1xHM24jstSlqaUuC5SYpksownLUEosOMhQRcqiyxLjICEOExGJS4HFNs27873P+3s4z3nOueece8+9z32e+/3MPPO8f57n3vvc5/5+59xzzz0nSYiIiKh5Rrg+8qZzQ0P3b/6h62WleuqWz1uXv+74+8nSSeOTRaNHWD/LyNHjhkrdwJw+PHfKuf+hV9vv2j5uV6d+3F8fyzp2Efx3Tv304azXVGHdnL3T8q4HB+mXFi9rv33Pzm1di7ruxvl5F1/ICxvXDPkcNOr2wzvHjhZar83lk6d0/Ctr+7Bfbzj4ZsfrX31iVSnbdc3X7utY7q6ZV1r3G7brN+Yu6Hj9qZMnStmucRMmdiz3td1bM7fr2ZPvd7wehVcZUCCqlkwYb90uawkkwT/yi4v/toyNjOWar913j60GIMGvB8zy559t7/wzy5bH2pRgCLgXNq6xlhxyMB84uDd42THMmjkHB3XX9mG7Rt9+bzL04tYYqwk24qYFybkNq43b9alps5Mzp08l586c7lju6DFjS//bxElTkrcP7zNuF5KlHph/vPwbfxf84T38+cpv/qb6MiSaXTOvNB5nxgSgBv+H39/4W7Kwubv3Tts9d85h/dljm0qB5GRLADhIX9j+UvL0M88lB/e/Usr6i1q56ql0+0xJQJLXli3PFV1NIQsX3taxfVLyvzK/N7Umce22bR0HtSTLY0cOlx7oWclk2sxrO5ImtktK/rtnXlPou8hr7cFX07cumTC+Kwl8RF+oLfgBwW96rhsJHgTXji2b6rZ5bbJ9qOL36nx60PSi5DclhH7RkQCygr9fSPCj1McD1bK6ku3DM5NAfFVU+/s5+KHdCDgIwe8L52m9gPNTG1PjJOXH4PfTTgC9vtRXFQT/R8eOq2p1HbDurCSgK6u1P4RpG8pq7Q9h2gZp7e9V8GO9pisOaIR79YlVaPDraJyrChobr/nafcZ1d7UB9Bu0S/gmr14GPyDx9Kr20RS9DH69/aEf9H0C8NXr4BdMAuViI2CYxiSAOtE7qlA5elUb6CeZPQGJ+lVI8L93/EjXxzx7+mT6t4vGTkiffZfXb5gAaOD4Biteh+DXu1qr0Enr0klTvU8t+g0TAA2UkOBX2wvQYUx/780LF6X7JqRdYUyPrjDlxTYAGighwary7dDjm2D6BWsAA2zE1NZNlENHena7htGYh7+V/v3Mw18vde+7glXO81HNN5G/43VoC3Atrx8xAdBA8g1WnysyuCPSd3n9hglgAEnJL+pSE5CSX5RVE8gTrIcPdt8xijv7hO+pRb9hGwANFN/gx+tUarCD/rvKdx39gDWAASTn/HUp+YWc85dV8oNvSZ232+4gBT8wAdDACg3WrFIfQpfXD5gABljdWv/1mkCZfIMVDXw+fJfXb5gAaOD4BmtIDz/fU4t+w0ZAGii+wV/F6/oBEwANFN+SuuzX9QsmABpYVZTyvl2I64oJgAYSg98PEwANnF4Fv965qB8wAdBA6WXw5+1c1EtMADWmz9XXC6Zt0Ofq6wXTNmCuvrIb91wJRp8vEDAlmD5dV5Wwbn1aMsEEQAPLFawi9uv6CRMADaTYQe27vH7DBEADxzdYy3hdv2FX4Jr68NypES9sXJPOdd/L6cH1mYuxXbtmXtnz6cH16a6xXa/t3ppOD37i+NGOb7WMQDe1NWA8QH06dWzXkgnj0+nBZZZeUYfpwZkAakwOan3U2rKmDNMb/EzTlgO2K9mwOj2oVWVNGaY3+Nnmusd2vX14X5o0VZiuyzRYZ9G/6Q1+evALSZpLT77fsV226bpis+0vYAKoOakJVLGZr2krSQPdQg7qKrZr14bVHatxbRdqAlVs19uB+ws1gSq2a1fAdjEB9IGsA76XuF1h6ri/2AhI1GBMAEQN1k4AT93y+WTu7r2tgeQHEFqH//n0qZ5/slkz5xjnkCfqhUbVAHqdBBj8VDcD0QiI2ktrFjc3JIG3D+/zmhAiNlyOIqqTvk0AI7+4+G8//P7G33rmyI+nLRo9wnq5ygRJgMFIlPTnKUBW8A9fN09mXn1tsnLVU+lzXcn2nTl9Kp2muo6XiWiw9V0NwKfkVzvPYNrniZOm1PJbfPqZ59Ltw+STDH7qBWMCQJD1YmN8+Fb7JQmgG+3B/d3zvlVB+qQjAZl+3nP6FIOfeqp97rzp3NDQuuOdfZVVu+fOqcUc06Hn/CNHj0uTwJ6d23q6o01Y7ade60oAtpFD7t/8w15va6u1P7DBD5AEer7xBqz2ExEREVH1gq6f96t5b51snwJsv2JCIz4zkY9GBUPZicDW1tDUc33uj/prVAIQkghi1AZCGxjLTgayPWWvx0WuvpjYRhoqi+k76vX+qYtGJABTwMdIAvqB9f6pC5dRj7zzbvs7vmbm9I7vu6yDD9vz7PCwU0smjC9tPb6wPfrwXLZhs8qCbXj14KFk6uWXtVexacuu5J47bql8/5gSEZR1PPiIngBsH1L06sPGTgLyOdWgN1ETwb4Dh9MDr6wvXRLAHy//RnJuw+qe7Wuo8jjAukzHlQQ/6AkAspKAbZl5YXkPPLbG+PbHVyzr2XcVNQHgQ55/69HuD7l/Y/q3n+w5nnxm5Qc9+7C2JBB6KuAb/KAmACgrCUjwS2cu9OfoRS1A9o1e6gqUvhJ8MRJhesxtmp6MWnSo67jKmwCylpmHBP/2rVuMb5+3YGHPkkC08QBMwf/sXY+mj+TqxekH/7XrJiU/Wn6xs3SICUGvB77aGAj671lCgt/mz9ZvTv/lKiXF5Rt2DKkP9Np07SPUAqomAYfgd8E+wMN3H5gUDVTT+osuU2cK/mNHDqcPgcSA2kGRfZFXlASgBr8EPZ6XPP1g+kj/tvpI+oCqk4Aa5FLa52kDiBH8IiQJvHP7zSPUh94bUi/9AUNpoz2gqoMK65HPFKJoEqgzPfgl8NEFHA+U/JIIepUECicAPfhBAl8suXdq+oCX9p9Pn//i+lGlHpzYLjwwJnqRoBcxg1/82/seSn8sK0h7UQugFlPwS+CjvQIPnPtLIoBeJIFCCcAW/OIPrl/RcTxUlQSkGodzQzxMAaae97vaAHyDf9qMa7oeC+YvzIwJVxJwVf9Npb+ouhZQNQQRzv1t37Huokf+JDly0xcyNzN0maHUxkpTw+W61U+GLrKQzPEAQksmlPx68CMJ/OXKGe2/X3/1qHYtwBe2I9fVA7Q9DDdAuoK8CAQ+nL2pc0aaf3xjf/p3SQKPfCv8y0XVX90236HPBGsBZvv2HbD8p1nM4wEM3z2HzJoF2TeLGviAqwChsC3Dl9rShq8xowKG/xoO/rLogf/nK7+ZBhxK3pfvuLO92p9P/ET680Nf/2r6nCcRmJhKf5meS6bTwvPSld/EFYF8SXRAzZ49K/1k3xnQz+erKwFI9bltuAXfrFXiS4Of7g+Wv5H+CYkgT/CbnDnfagG3JQJsP+7//9yqo2mnE8hVexim1oLGjxvfvu6P4FdLfFvwq9RE8MVbb2//C6cB31n1SP6azjAEP67/A4JeLglWVQu4af9dya+NmnThI49uXf1R3bQ/vBZkk151mHV1MmrR/kLfsSrmMnGOrzPVqk2vq0pHAugKfggtRYdfL6U/kkCs4FchEehJQIIfk2fG6HEmXxYu0cg1XDUJCJ/gjy3r3F/HWkC15DgsAjNDFym4fBUfE3D/xrRxL60FDLf0g5T+OrkKEAKdRxYtvKHjLehgc/Ctnw3NvOIT6Tly7OBXIfhfvu9o8rlVrbEF1dI/JPiHhq/9YnqS739vQ0ctoCgp/eWgQZUflwGrrgXklbudJ6cq2gDyDkWnT29epq4EgNIaHXaKQg0ASeCxRePai8oT/CZq7zokAfS1R7U/VskfAtVrNPap5/wmEvyD7MWrn0727VYa13b/o+Hj3tfxt9a5+C0JepCOuuLBoFIPye6aA/vT0wA8h5SYtjaAIstUCyIEP6YPzzP8PMaQnLlwUSW1AGMNAB120FqPRICfpWTXfwY1Ycj/pcofM/ilFqB3ra0q+KX0B/XcX1r6s5iC/9SZD3LXAvTqv176Aw5ktRZQ1WnAV5be1t4Vav97IV2BBfrjo7H5J6ufTJ9HLToUFMh1lTf4BUaLrkJXPwAppfEsPffUXnzqz+jMg779CHgkDJD3CCzHVvL/0UvnnY03OJDlBhr94Kkq+HUXvbg1Dfy8wQ/jxlwc9RTAh9oYKB2lbO9z/T+q4YbmMtqK6uL/PHKuLpvSoSsBICjx8CVJACQJSNBnVfl9gt/k2+uea/8Zfc5xbzka/PDz09/b6ewjH0KqlFi+PHz6uQNKfd9qP64AgE8V1qf0F8O1gPZAr2rHIFS5bR1opIOX6zKwzeFJlyUL9rauAGWR0l/l26kHpMX+mgPhVwHQBmBqByiyTGmHyjr3l0SAZ3mY4DQAp7WmqwYxdSUA9NPHlyCJwJUQJFmgJuB7jh8a/FILkC9MTwIIStxlB2UlAZC+7lu3bUkuOfEz6/dgCvxxT367/fpelP6iXQtwXd1x/T9D0AjScqPYva0+EiG1gOHzda/EqUMbgLQDqIos0wUB/y8fGt1+mfqzSRWnAcauwKjGSyJACW9KCJIY8D/1NS6hwW+jJgEJ/ipgXVnrswX/qa9+pfDmhZT+wlYLkE5ceomrXgp2dfQqIi39TbeOJ0lQLcBWa0pLco+7Ek18amJZbOf/CHj1VKAOpwVdjYBqG0Cyv3X3HhICgtxEbSfAa1ynD3l3Lt73nVWPDEnfeUASMGVx1ALuuvXGaGMdYN04oHDQSi0AvfmkZx86+GRV9yX4UfKD2gkopPofS1Udg2yygh9CagEm+K7UOxOvemdvkryD+75vSq7CG556NNl3f6sTG153zx23FG54VKv/SAAuUvpnJYEqrgYUbgPIInc9qc+uHeNaHgJGgga2bdtRZJHeJHFJgyQgCeCB0wEJbhP8T6r9eYM/T+kvfGsBeumfN1nnsn9j+/IzCqGQtoAsafAbfLD83lybmZcEvBr4+imBSdmnAV01AFT9cflPr/7ZagB6iZ9e0hke+acMUhpLEkBDiSSB+fNvbq+yjI4lak1ArYlIUKNzj4ka9CJWyZ+3kajMWsDWORdu/tKZGv7UEaOEfjUpiu0vRllMDK7z/6p0lMg4mJAAkIH1fgC280EEvHr9X95b1tBf2Ea1a67099eVWXpJ0KlJIERo8Nu6/dqmcbPR537EWAnS0q+2CYBpiK0sUu2ePWta+2WmfgDoSp2uU7lTE6TarzYk52kvUqv/f7h/c1rtTw0H/+s7Wzew7TjWasS9eGXr3okig4Tq1f88nX+yYIr7skZSjtoGIHyvBsSgjjqL0VXKnnBTvT8AN3GEJgEEPxIY3lu0lpI1mauP0bffm4xatLo9boIIDf4QOOcetQidf1rjRMYMfhi+YpS2Abx+14rkqqcfa6+njOBXnTl9Kn3EVuZpQFcCkCq9rcrv4moEDJWniqu/p6zaAJKP2h5hSwbqa/CekEEfbKV/DOgXsGv47sGiJPB8W971hr6yCg0JeiElfxnGjB1XuAegybkzp8vY3FSt2wCkuq97bv3Txh2CL2Dp8PVk1eMrlhVu5TVBVe9T02a3/6UGukp9Td7qodznH5taC4AipX96DX3mdGcSQOn8mTtuyWxXipa0129Idtx4oW1ISNW/KL3zT97vN0uZVwOs9wJIY6Cc3/u2Ach9BDHZAt5Ef20ZVTKByz24SxBwr8C4uZ0jAtmEbJP06Y+5P8skScBnHXptU34vGvx6beTmnTvS9oi1V1yV3P3W6x1dyouc+6vKvoNvx/HWcRZbX7QBhATMICoaED5wEw5eF2Ndocv4o5fGRVu3MNVGEPyqGMGP9eDefZ99XFTofvXRdV1ezp+LtgHE2tg8bQC6WNsCaiNgyLm8Do2VsQKO7NTjB0PL4SqEmiSavu+sO0APPN9+ADGDra5iJCUGf/WKXnUhIiIiGgyNPwdqkqr6R1D/YAJoiPRGH+3221FXPDiwbTah7TRlt125tqfs9dsUHxWYaq8j+IcH+ijlZpthroNdlHXQY/3Dk8l4Gz8u/sQp6n5A928TGW7+td1b25cSy9ovJn2dALIOtKydqL6vyp3dc0rw57nRxiX0EnIZ1/+FPnhslmPPX5b5/zz0HoIuuKtVhhJ7+/C+UnquDkwCkAPthoNvtj/Tob2dc729d/ciY+cS6VsPuJlm18wrc+3srOSTVxnJqF36FxjiywfWI5eK1Tki24zrb/WFQCKI/dnVEaNCHHtjaGjyjIDp5zKoYwO6+oyU0YXYR1+1AZgCX2dIBOlL5F5+TJYhkABMQ2q72O5RKAp3CMYMBFPwo+ofs/RXS31j4KssSUi2Sb6novsRZLv+xaTWtPQ2/6+kDllYv3oPyG133GXcBDkFUBPA24f3RT0OsuQ+BXCVgDEPZPlCUeLr98C7bom9dO2m5OxLLyXJhtUd3TXxPj1Z+JDgP/SGe9RbX9NnzHCWEKGqKPmdpb4njD3xF8OvjVUbkISPxT71rSfTmaUuH57FWRf7WDVx1QBwI1sv5EoA6cFlmDlYvcXzMyuTaNU6rM8U/CFw1xsmzpSEgeBPE0OAfgl+m9ilv5CS/1f/Veve+3/43yu89uqvLmnd4PLGPb+Sa9r4EK42gS1PDg0t/Gqcqj8gqeBcXrbRoxGw/XGqSEjCOCpwlnbJghFdtJmD1SnFcDehq5bgI0bwi4/Nui4dBQfVfgl+JAWfHd5PwV9l6a8HP0gi6KBV/yX4YcaftaYQS2sC14+Kctzorp+/MPNwixn8AseVz7GV9/UxBCWAjstJHop+ma7gd1X/db8y4+o0CSDo5eHzBQ1C8Mcs/aXqbwr+vKpIAr2CYyxrCvAYM1nn5Z0AQoNfFE0CIULO6X2zs1zOqfs5f9101AIySn/qLa82ANs5v/7F2sZzf3zcpOSBJKxNQEp/m9DSX4VaQHJgT1AbRd6pnk327NzW/jOGexo9ZmyUo8BW9Vdb2W2nZT41ISij9BeoBaA9AFpzTMS/PEidvBKA7tm7Hs3cjziXK2uMtwXDdZYFl49PbnnnwiU9W+kf2tBng0szsVw6fGmqiuAHzO685OnFmZsfOjW3D9QC/uHZKR0vVc/9m8J12RjjRKInoG8SjikzAVxy90NpKybOl1PDVTmZLlxlK/1PvnHh8oYs7+drHwm61iul/WYt6OV336q/z2y+NrjqIQevHNR5fxexSn4vjmvweQ4+Y2OfwrSf8LesJIBawJrf9PpEmRB06AOAS4BZ0n4Cx8Nqp4PE2AaAQA0JVt8RXiXw1eUXlRX8sUp/yBvstmQRk63q7xKzYVCnf27TPiwbgv/+r7cmHe0VaUNyQS0gxlWzUF0JQA18V0mNwM+ax00t/QWWqSaC0A3OcvjWz7cfevAXKf1F0ZJfrw5D0SGf8wZ/YR5di00lfRWnAFL6+0ItoIzg8w1+0YskYDwFMAV+VqCrfM/9sQ5JNjYo3afPmdX173apf+vn2/9D8E/73g/T3xH8P131zeST933DuuxQsYIfAXDx+E+0g7/IaUCR4I9R+psSmg8cS9LYl+fY8VGH0r8fdCUATBaxfe0jXtvuCvYJM1qzpJhqAuCzro4q/q2ft1b5JfhNYpT++rDoRX+HIsFfRIzg92E63zcFPriOJV+hpb+I3RYQWvoL3D/Q87sB5711cmj7FROcDXVo7Td9ebaAV6tZ6p18vhDkKOmFHvRS7VdL/xjBD+qNHUXFGOZcSn/bFRlTQy1UFfxCTQK24I9FbfhTz/192wFiJQFshzplXagqk0BXDQCBjwSABzYcv6OFGH37cW3WFvTCFPwPnDreOviUO/GWTBifq+XZVtKXGfyx4I4wfeKSvJcC8Z3g0p1t29LLfh7n6VVAEsg6hYxV+sOGr7yanEh2pc95/O5DF4YNbwJjG4CU/moiSHfu8OP2e2d27RtT4G/buTN93Q1JkvbBD4Wgvuj66zPfpjb2lVHy67L6A7hqCbGCX9gu3dkatKou/W0NfmpNIFbw4zP/j0feT05M2ZVMPIojLh8s43cfyj86kOuav27eAts9CneVNqWdKrMfgH4aILWCDasPBu1dLEc9KO/f3Gqsy5Ie3MO38JqSgN7Kj+AHeYbLbvod4yp+cWBPrtqHwJ2FunZfiQBltAG4egPmud6vwvtbI/kcsZ5m+MoK/jxjFry2+38ln5ySpM95vPbmjjxv69o/mIvSVRi4VDUmQFBPQEkIOMjQvTcLqv3qwYafl0wYn2vcM5/r+dLiH+ucPwsaL0VZk3bGVFbJj2q9egcoSFVfbu4xaXX2+WW0j4jjccW8F5NP3v5B8tMNF3cs9w8f/dfJf3swLCH89pQVyV8ffSx3zzz9VuA8cLp9x4Ue46UJSgACHxB9+7O2ylTShJY+Ugswlbg638BH6Q9qjSR0u9QrE6id+CQom7xtAL7KCH6pBWAQj+uTVvtOTCGlvwS/jSn4fZJCjCSwfv6kIWkz60iU6m30SjuNJE/UjO7YdtzZCB+D992AOrmbzvYcY+MAy0f12hTg+Js8fEjwozESD1yJQHKxnTPbIODVR15q8GOuwNBE1EutJHDeWI3PKv3Fsr8zH3ohwa+ylf4moTWCvBDEcprj6kfTi+CHXDWAqqWBcWBPZo3DRc77JdjzDgkGec73TaQNIFbw6+f/ZZT+JjjIpaSrklr661V/kEBHia/+7qtoLQCQBNYnrZpA+5QJpT5qAcOlf6+Cv28SAKhJIL2d15OU+mrpKo2QIVV3uYRXpHHHdBkwVvDrqgj+Cw2CSXtMP5CbeWylvOn8HyV/+3vukd+48uYoDYFZ9HYTV82gbNGq6lWSUjwrEZgCX+hV/qyqt/ToijkegHQEih38auegvFXpvLDuIlPKh57+uM79i9CvBvz10ceCt09naw/oZenfVzUAVftgyTgtyDqgsv5nE6P3nip28PdaR23g+lYPUZcipT7W99j2m9LW/9jUmkCM4AfTqUCvgx/6sgZQtdBGQh95klCWXpb+Ot/9FWMflFkTeGz7TVG2UaXWBKDKFn+TvmgE7LUYB2pVqq76m1S5v6QmUMb+rfJzEBXmW/JSb6EWcHTF1CE893ZLiIiIqJlq3wjIam21bOe9/B6qVVX7Q+5GQNcBEeMDYB1FOt5QGNutzukVhuW3hy2Mchu1EjfeVyNXAvC55xm3RBZJAhL8sa+/k5ltcFIJ/t87EWfyEsoWs8OZj1wJQGDK48lTp3Ws59iRwz7rzSTBf+THBzpeN/GyyYWXTf4k+Ef+6XMdb5r92Xn+C6Fay3U3IEp2THaI3mzqiCYIfvytSC83veRH0DPw45F56F3z0Uvwf25fa2DXD3+wNn1QcYiTyydPaT/3Uu4aAJJAOjDIimVd21+k6k81tf3FJJl3U003jvIKTgBq49+XFl8I/neOHW1vA+Y5k18kGeB9TAxE9RKUAOTOuOkzZqSfQp0yG1UaQCKQIZFPnTyRjnGOvz/w2JrCDYNEFJd3G4C0/Evwg/qzybgJE9v3z2/fuiVNAq7Lh0RUHa8agO2yn+n8H/RJEXAt/7XdW9P/sSZAVB/OBGAKfgn8j469MPX3yC9emH/+tQ2r0//Nmjmn/UmZBIjqJ/MUwBb8CG41+Ofu3tvxydKBNr+4ODlwsPPvl06amtYEkEDYIEjUe9YEIA1+KgSuGvhi6aTx6Vj5H35/Y/oQSALHjh/pWAaSABHVg3cjoC34TdREYEoCRFQP3gmAiAaPMQGo1X9c6w8p/VVyOqDXAnAawMuBRL3HGgBRg1kTgNq112XBR5Jk8+XNmledaBB41QCk5V+/3OdDnUk3jxPvHksfFIeMr6COs4CxAM6ePpm5AtwSPPJ37o6zEQ2HW+hRwMqzGO46X+neyewIpNcCds+90LFHNXHKp9Nfz677RHLR0p91/K/I9Nm8Dbh8EvwfHzk6+acPzxlXaLv//9tnOr9rcvvKmE8YXyTBf9HYCc5kHJOzJ2AIBD+SAOiJIJRthBqKCyW/BL+pcxYOTJtFfhVIUp03708MxybBX2UnOeugoGilV/v06736XKQ2gCsAuBowbszF7bdkDRjCqwPVsgU/v4dq9SL4IbMGgOyPO/rykBqA2jPQFw5Kqgaq/bYSBwclVQM1sSpLfuE8BZAq4ORJU7u69fpSS38ftnNRii/roHM1DFI8vQh+yJwXwDQst963X+AKgamRUA/+IuMFElFczolBQpKAjsFPVG/OBABIAqa7+E6d+cD46UxVfpb8RPXjlQCykoAPBj9RPXn1BAQ0UiCQQzH4ierLuwYg1OvDtsE91ETRq9ZNInILTgAqW2cRBj0RERERERFR7WTeDFS7rR1gbDehXjDeC2AaEpzK88LGNeUtnChDVwKQ4A8ZEozyw1zxWWxXWqgcTauJdSQACf7n/2ptx96d+ulZ5extcgY/b8mtThPvfmwnAAn+g/tfSff4hz9Ym7y+YnUy+/WD1X0DAwrj72H8N5T2eM4aZUfg+0Dwjx4zdkD3Sr3ge5EJbJvE2hX4P9/+YJP2Q61I8J85+0F7UFQOjEpl8L4XgKqhl/yoiX3472+rZuUDDuNMjhk7rv1MCRMAUZOxBkDUYEwARA3GBEDUYEwARA3GBEDUYEwARA3GBEDUYEwARA3GBEDUYEwARA1mnRz06//3RJK8bp8bnvyh/znuAJRngbsE88y1QBSLMQHY7v+/+8TxWOttjLUTJxk/qwS/zAtP1AtdCQAHps1To0b1Yhv7m2V/ouSX4M8ahWbk79zd35+/RjC2Ao5veRYyFkDTRgOC9qCgHHqqWrbg9xkI5KeLrqt2YwfAJzftMX6KJgd/VwLg8FPVwfBTphJHEsC0mddWtzENhlGAmljyC9YAesR20LEmVq0mBz8RERE1FWcGqgmeEtRD004JrDMDfWra7Hp8Iw3w9uF9xk+J9oAbDr7ZgD1QD7tmXlmPDamQcWYgBH9WfwCKByPVmkjwX/ytlfFWRlYyH0bTdM0MhOA/8uMDHfth4mWTm7ZfekqCf+evT+/YjtmfndfT7aLB074ZCAedWvIj6Bn48eA+AJBnGwn+M8uWpy/Z8O676YOKw8xMl0+e0n4mzgtQe+uOv1/7baT+xduBiRqMCYCowZgAiBqMCYCowZgAiBqMCYCowZgAiBqMCYCowZgAiBqMCYCowZgAiBqMCYCowawzA51491iDd0t8Mr6COs4CxgLA6MBZcEvwzvib00gYAvydY0fbzwKzNtkGZRl0xgTA24DLJ8H/8ZGjk3/68Jxxhbb7/4/dcWf5GzhgJq9/xviJJPibOkNTVwKwjVBDcaHkl+A3jUOHA9NmzFNPxN2YBrDNd4WS32eGpkHFeQF6xBb8nBegWk0OfuioAeCgpGqg2m8bgZYzNFXHNkNTU3QkANu5KMWXNfy0q2GQ4mnaMOBEREREyvTgOjZGVYtVUeoF68xAX1q8rBfb00gvbFzTyM9NvWecGQjBjx5TVD6MVZ+FNbFqNa0m1jUzEIL/+b9a27HXp356VrXfAqUQ/LwkWJ0mXn1pJwAcbAh+mSMNs9Hcv/mHyYl7Flf3DQwo9P9HP3SU9njO6uUnJPhHjxk7oHulXvC9vLZ7a702qgLWuwH/ePk3Klg9mUjwnzn7QXpTljyIYuPtwDWjl/yoid3494dqtpX9Cfe5YG5GeSbODUjUaKwBEDUYEwBRgzEBEDUYEwBRgzEBEDUYEwBRgzEBEDUYEwBRgzEBEDUYEwBRg1lnBjr73W+nDyoO/c9xB6A8C9wl+N7xI8VXQJSTMQHY7v9/d/acnKtprsv27TV+eAn+ps5IQ/XQlQDUuet0F73YvPulizpjWQBKfp9JKW6/7LKim0DDMLYCjm95FjIWQNNGAwLODNQjtuD3GQhk+rZtPdrq/nVo/nzjxjc5+LsSAIefqo5tRhpJANNmXlvdxjQYRgFqYskvWAPoEdtBx0FAq9Xk4CciIqKmap8C6FgVrRZPCeqhaacE1pmBPjVtdj2+kQZ4+/A+46dEEj6/aXoD9kA9jFrUvMFXjTMDIfiz+gNQPBih1kSC//eevzHeyshK5sNomq6ZgRD8R358oGM/TLxsctP2S09J8I/8/TeTJMGjZfZn5/V0u2jwtG8GwkGnlvwIegZ+PLgPAOTZRoL/c6umpC/58EcPpw8qDjMzXT55SvuZOC9A/e3fWP9tpL7F24GJGowJgKjBmACIGowJgKjBmACIGowJgKjBmACIGowJgKjBmACIGowJgKjBmACIGowJgKjBrDMDnXj3WIN3S3wyvoI6zgLGAsDowFlatwTzbsAYMAT4O8eOtp8FZm2yDcoy6IwJgLcBl0+C/+MjRyf/9OE54wpt9/9vnL2n/A0cMIv3XWf8RBL8TZ2hqSsB2EaoobhQ8kvwm8ahw4FpM3/bFXE3phHM+xMlv88MTYOK8wL0iC34ORhrtZoc/NBRA8BBSdVAtd82Ai1naKqObYampuhIALZzUYova/hpV8MgxdO0YcCJiIiIlOnBdWyMqharovVVRiyYvu+q1qOyzgz0pcXL6vuNDJgXNq4ZsE80OGS4/JhMnY6wnhsOXpgDIoZdM690LsY4MxCCHz2mqHwYqz5LGaUC2aklsz5XRgymfjYS/Bd/a2WMVaR8ZzrqmhkIwf/8X63t2JCpn54VbcPIHw4MXhKsjnr1pYzgN5HgP7NseXKmuo/a1k4A2BAEv2QOzEbzk9VPJlf+aS82a7Cg/z/6oaO0x3NWLz8hwT96zNjB2hk1he/ltd1ba7p15bHeDfjsXY+Wt1bKJMF/5uwH6U1Z8iCKjbcD14xe8qdzA37X3ZhDbjj/xtyM8kycG5Co0VgDIGowJgCiBmMCIGowJgCiBmMCIGowJgCiBmMCIGowJgCiBmMCIGowJgCiBrPODLT05V8kycu8EzAG9D/HHYDyLHCX4HvHj8RYBVEuxgRgu/9/xcQ3cq2kyR47McP48SX4mzojTRP5TAWnO3bHndZdNXn9M8b/hUx11pUA1LnrdCtOT2ri91bQKeP7UfL7TEox8jOcFzAWjK2A41uehYwFYBqnL+ZMWepsUDrbGBFjnnrC+vHNR1bSMduRC2cG6hFb8PsMBPLTlaN6tNX965PLzxs33hb8ZQzFZpoNqoz1+BQsoiMBcPip6thmpJEEMG3mtdVtTINhFCDbCL2xZ8oyzQZVxrBvIbMdsQbQI7ZhwMsoEciuyu+hLkOBExERUdO1TwFUZVRD6zDzjXyuZ0++nyyZMD79yHm2y7R/8iwnFtmekG3Ae0JeT/HY4qvI95H3+7RODBJTHWa+0WdekVlYds280jsQ5Is7v/z25PWdhzp20TUH9g/lTShFYJveP/V+smnLruSeO27x/iyQ96DxVfby+5F8Xybjx40P+v6ELDPP+40Tg8ScFShr5htbJizC1tCiBHyy9OT76bRJ+BsePkkA24rABz344dVZV6fPSARFMnkeW3+Z511J8mfrNwcnDV9FDspYXDUjn//bjqc833FW8AMSeWgQq8vM837rxCBlK+vyh05KIQS5/j+ZOw1fZlZppQf/NQf2d61HEgCefZOAegDafi7zexiz4IZSkoDrQI/F9Z0hIMAUVOo2Zv1f/1/exKbvk/HjWqegEvjqz75JwLSfQ5NAT24GkuBHj6xYD9N1c6n2y4GiZ238LsGPmoCrRiIlvwS7vB/PpqSQBetCWwRK4ayfXdtkSngh71m0sJUEQt7j+lwSeALL1h+ZC/EgB3/WduO0SAJMfZ0aOPIaG3wW2Xb1Nba/m9iCX0lQHW+TZYfuZzWJ+H6flScANfjLJMGvQ7CiAdBUhTMlASn9EfxqkCMJqDtZTQL6/0xB6vvZQ4NTTSqmA9ckVhKwlUg4oPWH7wHqE1Am+D7uueOWriSgBz9e46rOy7br22z7uyprn2TJSgKmZep8kghUngCqJtV82wEnf8+aSlk9589KAj6wPgR1FfRkkLXOoknA56D04UoMIaW3KQlIqTvcaOoMfpVesxEhtQGVnAbYlps3+enblbXfBzYB4OBfOml8+iwPKRHPb5re/ln9v7w+i17dd5X2Jjj3xpe+4CNJGnhZP9sOAleg6HxqEnmTQMzg9y35fANYkoDOp+Q3yUoCWdtuU1bw+yaBgU0AqOavO9663i8POWcftehQ+2f1//J6lxhJIC8Em1qyy3LyJBKTvEnAdS4dwhRIearuZbB9Tvw9dB+EBj+SeOg68PqsGufAJgAhl/9s53nyd3mdL1MS8HVma6txysVWyuH9EqixyQHmU2MQelW7CFPDXZHg199rWr4v+T508vfQWgVOAdSrAVlkH2MdIfD6rPdYRwTqd9hhuPSnB7aUoEsmdHe6QDuA6UoBLuuhqq9f4htOAun/QOkLkJlw0GFnzMnWKUCo4QNhKFm/OU0Ci4YvdWVxVZfxfyzLdIBjf7kayUDfLhFSYunLkEtaec/bTYkjNbzvfC+ZyWfQA0n9e9Y+kv2ry6oBmPabXLHSl2O7pKgmaNvxMbAJQA5K6eRjOmeWv0my8DnQJQmoOxQNgxL8vtJawMIbrC/PCloJlLxJRNUOeqVh0mc/mJiSgK30yaqRIUGqQQquJKbLqjXoy8+67q4mRTUA9b/bvkhbYiySsGMa6AQgSUC9JKi29vt2B7aV9CZIBq4AihXAriTiChy8X6qtCAppWwjtUqwyHfCu/aHTlxEa/MJWQqvLzxOIodsTkgRCl13UwCcASQJyOiBBr3YN9jlAJQlgeabSXi4P+ixLIAA3Wb5B1/lkyEFlo6/Dt23CxTfAsqjLcO0Lk/b7LTd8+f7fdEqYJ0H6fF9VBz90DAjypcXLkoP7X3F9v0Fk8EvZkWV1BMoa101Ilb8OdwP6XMbzSSaufgW24DGd26vLyhN0Ot/2gywxllEnWd+Xzz43vV89zdJb/F3LbFQCGESxEgnoy/JJQBTO9p357m+f71y4ltmIU4BB5vqCQ8RcFtkV3c9F36/KcSGKiAYFEwBRg3mfArw7e451N122b6/xf5z6iqjevGcGuujFrdZPYptBUJ39hojqp9R5AUwzlLguA07fts26lw7Nn2/8n88lQCLqVurMQKYZSiQBxJz5xja7CxFlK7UGYLpcEXIN01fMyyJERERERIMtc9jpol0Wdertt4O9W6nOBvE4zNuN2xqI6v3UOgxAEHrerS4vz/spW+ybZvIeUL5c2+vTVhR6DELs49D1OXzpywlZrilWfWPM2BEoK/jBdyQVoS/P9/0xayA+B5Qqz8EVyhZkocEn+xcDW2Abim675YDyGjBFZTuI1e21NRSro+V87eH/Yty131n1iNc2uUp81/9tXJ/Dl74cn+X6HM/qa2zHhHFuQH2oItPwxb5BnBc23jaYYTqii4XPAeXDd3aWvGxBJglW5bstykQTXoFRJttBrH7uPMfQEw//SbrZSAo+79dK/K7jRv+/b/J0FZK+9OVI0GJsANvn81m3IYaNn61rbsCsccp0oV+Ayue9NlmjnNoGazCNsTaoZN/i8/ke0DGpB2iZ8w9KsnQlSBmTTz+21d9Djg9TAKq1Hd8ahWk5w99d6x7/9ZutcWIbZ9Ak67N19AMICX6thLIeaOqHvOWd1lxtmy9vTYWUdZ6SVQPIkjUARuYbNbbA8al6qbKW41PTcu0nyCoRfM8F9c9l2zbh87n0EW5s26lvo/462ymA1AZc+8inxHQdi+p3qu8bCUa1pmwa3cdnHyNhYoBWdVmmbfP5TCLrszlvBnKNOFpHajaOKWSnKzvfu1pZBp/agM/n8qlSqssxBb86rj0OcsDr8Pe7br3R+vHVQA9hS9amU1pJpHhWk5vPvlFLa/lMekHksxzA+3xGeo7FmQCkSlKEZEgp+WUnhZADxgU7D+tTDyjfna9yVSv7SS/aBvQAUMfgAznIQ8e595VV2xBIBLJv1ASX57tXA9c1DFcZUEtS20d8k6YzARThqsb7nh/6Br8wHVQh53iDpi6fXR0XUt3HWe0Urm3POjbU97qOIdd6XJBAZBlF2reqVmoC6AXbhApZVw5MbAdl0QOlar7j1+ufSw+YfvvcthqHWqNVS3210NC/e9e+kVOb9jLWbzYWbq7lhPJpCHR9bx0JwGeBOtsKXKW/cNUCXJlbV2b1Sz+ofGSVbmWS78Vnf5g+l34eqteqshKkzFNoqkrr7QQ+9u07YHzZ7NmzMt9uq3HYGrtNn8n4nQ831Ok1Tnm/FDbq8nyWA2pNIossz9Ve4Pr+2wmgvYHah1MbAdVzJrCNY64Gv5oVVfJ3JABXEigqZhuA6SCpG99SX6U3fJk+k+uz68eQ2gApJPhsx46JK9CzmBKO2gAJWQkL9M+tziwk9GD32X+m5ajfnW8yKKKjBmBKArZs6fMFSvbBl/CHox7sTADKfHJZ1/VdVRhfsZYTk22b8m5rSKlfFlMS0PkcO6q8NQCh7pc04IfnU7QVTi62wjKUaTmyTRL8rhK8KGOmkhLcVv32+QL1jhHnN03v2FaZoht/tF22C73mbsrWInRZrtIuBn2b8jSSyf4brkVl7gNfptO30APRtAzhWlbWe22ylin7GftXrRHI9XH1/9YVGMh2uj6Pi74c3+X61Gxd/UAybwbK6IobHCDY2B8tvzjdF59Z+UHw+ymbLYnmZUtOIWxJ1ye52t5r47NMNVlC0cCV5fmuO4v+/fl8nz6J0vUZeTswNU7eEr+OXIkyRnIiIiKiQdN1CjDvrZNDrz6xyutzXvO1+5LtV0wwnkYMbZk79OzqI17LWXLv1GTEwt25TkcGhauq5ntOXvbrYrF9XleVNq+s/Zu3rSLv+4Tvd2V7vXAdO1k6gu6Sux8aOvvdb/888x2ai37/K5f8fO0jHctZP3/S0NKXfxG0nHWf+9gld2w7br0qganLB9kLG9dkBsUDj63p+PiPr1jW9XocUL6vu3TS1I7lYRIX/UCSA1RfpgrbMfTR8A6lI/75F8b1jb793uCv+dyG1c5tBFOg4DOe3/p0a53bX2yv+/Wdh5JrDuzP/E4wzTysO956hkN7DyTv3b3IGZS+35Ua/H93dk/66/feuzAT17a9rySv3/acc3027YBDyb/z16cHBa248e8PXSI1AZT8I3//zVzL+fC7V16i1wTylAifmjY7+CDqtZlXX2tMAnKgHHrjjY5NnD5jRkcSkNdt37ql43XzFizseh2Cf8zYcR2vk2nc9EuRCH59mSpZ/ke15bn84uzpjiSA7Ufw/+Mb+11v7fCLA3u8txH0Dk/t4E+S5OycL6WvueiRP0kTAJiSALZVgh8WDM+widvdkQDAlQTk+3p4+W1pDD688rkhU1IHvFaCH/QEsHPef3Ve7rNpTw7qW+03Ud/rW+030d+LDy4l/8dHjk7QlwAP/Gz7vV8d3P9Kgs9qS3h7dm7reKxb/aTxox47crjjYXsdAl59XHejedYlF9vyXWZ/dp7rJdGYtrGj5M/w+LhJHd+JHvw2SGZ5Ci+dHvw6BD+MXzo71/rC624VkeBHYMA/PDslff7VJUczf6+Ttw/vC94cJIEXNq7pura89N6vdizLFni+r8N0aqEOH2x9FxBzZqeYcm8jqv/DNQAp/X2g+r9u+IVS+rtIYkCJr/4Mruv/aun/9bH/Jn3Pjdv/nWuVVrVNACau4Jf/18l/OPpUujn/acr96bP0iERPSLjh4Jvp866ZV6bPKOlN9FMAm6zquurUyRMdv18+uZVgXXZOnZzceOSY9WXjxrQ6e50684H1Zx+fW/9M+rKX77jT+rPNt4/8KPnK1M+4V6Oc84dQz/lBxrkISam2Ni20BekQ9Aj2b53+7+1/xQh+6JsE0I/BHxMODDnvXDJhfKI34gnMk3jp2k3przgPtb0OtRN1eWiDoE47jv0s1y45+9JL3u/bsaX1Xd28cJHzPZIE9OA/vuMt53tt+iYBgM9pgJSsdSElv9C3T0r+fpFV+gNKfmH72QdKfmH72car9Nek1f6dX2j/1Tf402r/rZ9vvy8k+CXwJQlkQemPwI8Z/NA3CcAn+Osm5tUIVBm/d99/TD8ifradKvzG3AVJMlx9njx3QdogaIJte2jub6f/8t3Oup73q0K2UT/Xn/ri36SLWnvFVZmHku1cPzT4feFSH2xLXkkb/eScv0jJL9pXAfpB008DKB5cDsQlPpcHTh3vutcfp1Yu6Jvg20Enq/qPZeA6v7AF//vr9nmvT9U3NQC16qxXo+tW7S+DrcTX2Up8HS4BZpFbZ9FSjb4AtqsO6ECU1joCoa2iaxCNDavTvgAXXX99wNKWJ4/fvci5jaAH5HASGMKlvpRW8uvBL/C+9+5e1O609EntnN8n+E2NfTbDSWAIl/pM8gY/1DoB/M1HPpIks+cko2fPCTggkuTdoFfX0IbVXRvle3nP93U+lwHVJJAFwRzKVDqmf9uweggBFAqJypXQTP/HOh9IkuARkGRbbcvMsy2u97y/bl+u9WWpdQL4wi9/6V3yDZJzyofBgfb4imVpF1+1FNa77oa87r3jrQNe7fxj64rsW42Nper1Qd515n1fXmWsr7ZdgWP0oupntn75wvdmmqKvo8HWFzcDEVE5+uZ2YCIiIiIiiiFzVODzbz2armPUFQ86WyBdjXa+jVG62O8ToaOx5H2fa7/EZhv0IvZ6fKjbgnEirO+5enEyYtKy9FjEuBS21y2dND5ZNHpE+roHTzxjfd2tl85JZo2Ylr5uaMV99vXOuykZceOXW687vmYo2b8xXbU6JsWmc0NDcvOPOvrV5VfMbi/3nbf2tePowNDhIblj79GJd7b/PrTz+SG5+WjEY6uscVc152XAZ+9qJYEsOMgvGjvB9bKuW1zxPtdoMqbbI/O+DyQgu0fEaV0acyWckPep4xlURb+V2GdflUX97n6y57hxNb923XAnnGG2brbT53ROAybdY3Xz53Te1GS7tfeqGzvnqfiJZXyF+zf/0LjdZ4x/TZKlPzAPp/f6ivC+DVUwJoB0sASU/vs3puP1LXl6MWoBxvHPJfhHjxnrs73tZciB+bGLst+HkWPUAynv+yT4JYDVG1VAbs803YuPdYa+T4I/pMdXDKbxBFz7uCz/7OhtSL2XeS8A+t7j4VMLcJk4ye9+c92Xf+9u16K7PHPkx5nv04Mftmy50N/aRt43d/fe9OHzPtRwqnz4dhkmgq4agFr6C1ctoE4Q/Dhnaw1LcYGU4qbgF0gCegmqv08CH/Dz7rlzjO+rk1kzw7pSx6J2EX5p/3njYpdc1/ln6x112imA9U447RTAdlvvVUnnKYBt+0Lv8LNtl+/txVVztgGIGLWA2BDsd079dHuxEvwIyoULb4u9unbwozFKGoYkCdQV2jRe2721542A295SOzhfsG35G8lfKuNn2AYFxZgAS3f8oP3GM/vMbQqrvvxkcuvL32u/bsfpC+MTqHas3pz8z3k3tf9k277QQUpt22Xbjl7rSACm0l/UsRaAIJQkoAa/Dfq++1T1dfr79CGh6s7WsFmljW99YG353jjpwo08Z/dssb5u0egL/zq95w3r62aNuDA419bT71hfN+LGL7d3gW37bNvzgdLyr7JtV9Z29FJmGwAG4ZCBOKButQCU9JIE8Izfy2RaftnrJCpTuwZgKv31ATjqWAtIA3D4XDwLSkG08OMc31YLwGmDflec/j6sT9oBJPiz3vfljNF7ymCa4IPIxrsNQNStFgChpTACVk8CPm0G8j51fVnvk+RR5eFXh+o+9Y8LPZWOrxnyDe4lTz/Y7rkF0hcg61IfRqE13eKKS2RZl/pM96lLX4DQ98m24lkfllmu17s6AoW+j6jO2gkgtMuq6351nSuwbGK/T1TVFZiIiIiIqF66rpFiinB9uu+ymNaVdTcYqHdkEVExHVcBEJDXfO2+5NUkKT0J2NblO8EiERXXTgASkOjmmgwngbDx2f2hfzUSjbouqXW8c/vN1p5bRBRX16CgaQ3giVXBfaBD/cqMq9MkgHVVdcpBRA6oCbheE0uV6yIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIqP/Dxzlktr4kf1cAAAAAElFTkSuQmCC';
+  const FRAMES = {
+    badge_alert: { x: 190, y: 328, w: 12, h: 12 },
+    badge_info: { x: 204, y: 328, w: 12, h: 12 },
+    badge_lock: { x: 218, y: 328, w: 12, h: 12 },
+    badge_ok: { x: 232, y: 328, w: 12, h: 12 },
+    badge_warning: { x: 2, y: 346, w: 12, h: 12 },
+    bar_fill_am: { x: 154, y: 346, w: 8, h: 6 },
+    bar_fill_cy: { x: 164, y: 346, w: 8, h: 6 },
+    bar_fill_gr: { x: 174, y: 346, w: 8, h: 6 },
+    bar_fill_rd: { x: 184, y: 346, w: 8, h: 6 },
+    bar_frame: { x: 86, y: 346, w: 32, h: 10 },
+    bar_seg_am: { x: 194, y: 346, w: 4, h: 6 },
+    bar_seg_cy: { x: 200, y: 346, w: 4, h: 6 },
+    bar_seg_empty: { x: 206, y: 346, w: 4, h: 6 },
+    bar_seg_gr: { x: 212, y: 346, w: 4, h: 6 },
+    bar_seg_rd: { x: 218, y: 346, w: 4, h: 6 },
+    btn_danger_disabled: { x: 36, y: 120, w: 96, h: 24 },
+    btn_danger_hover: { x: 134, y: 120, w: 96, h: 24 },
+    btn_danger_normal: { x: 2, y: 154, w: 96, h: 24 },
+    btn_danger_pressed: { x: 100, y: 154, w: 96, h: 24 },
+    btn_default_disabled: { x: 2, y: 180, w: 96, h: 24 },
+    btn_default_hover: { x: 100, y: 180, w: 96, h: 24 },
+    btn_default_normal: { x: 2, y: 206, w: 96, h: 24 },
+    btn_default_pressed: { x: 100, y: 206, w: 96, h: 24 },
+    btn_icon_disabled: { x: 198, y: 258, w: 24, h: 24 },
+    btn_icon_hover: { x: 224, y: 258, w: 24, h: 24 },
+    btn_icon_normal: { x: 2, y: 284, w: 24, h: 24 },
+    btn_icon_pressed: { x: 28, y: 284, w: 24, h: 24 },
+    btn_primary_disabled: { x: 2, y: 232, w: 96, h: 24 },
+    btn_primary_hover: { x: 100, y: 232, w: 96, h: 24 },
+    btn_primary_normal: { x: 2, y: 258, w: 96, h: 24 },
+    btn_primary_pressed: { x: 100, y: 258, w: 96, h: 24 },
+    checkbox_disabled: { x: 16, y: 346, w: 12, h: 12 },
+    checkbox_off: { x: 30, y: 346, w: 12, h: 12 },
+    checkbox_on: { x: 44, y: 346, w: 12, h: 12 },
+    cursor_crosshair: { x: 54, y: 284, w: 16, h: 16 },
+    cursor_forbidden: { x: 72, y: 284, w: 16, h: 16 },
+    cursor_grab: { x: 90, y: 284, w: 16, h: 16 },
+    cursor_hand: { x: 108, y: 284, w: 16, h: 16 },
+    cursor_pointer: { x: 126, y: 284, w: 16, h: 16 },
+    divider: { x: 2, y: 360, w: 32, h: 5 },
+    icon_back: { x: 144, y: 284, w: 16, h: 16 },
+    icon_check: { x: 162, y: 284, w: 16, h: 16 },
+    icon_close: { x: 180, y: 284, w: 16, h: 16 },
+    icon_fast_forward: { x: 198, y: 284, w: 16, h: 16 },
+    icon_help: { x: 216, y: 284, w: 16, h: 16 },
+    icon_home: { x: 234, y: 284, w: 16, h: 16 },
+    icon_info: { x: 2, y: 310, w: 16, h: 16 },
+    icon_launch: { x: 20, y: 310, w: 16, h: 16 },
+    icon_load: { x: 38, y: 310, w: 16, h: 16 },
+    icon_menu: { x: 56, y: 310, w: 16, h: 16 },
+    icon_minus: { x: 74, y: 310, w: 16, h: 16 },
+    icon_pause: { x: 92, y: 310, w: 16, h: 16 },
+    icon_play: { x: 110, y: 310, w: 16, h: 16 },
+    icon_plus: { x: 128, y: 310, w: 16, h: 16 },
+    icon_rotate: { x: 146, y: 310, w: 16, h: 16 },
+    icon_save: { x: 164, y: 310, w: 16, h: 16 },
+    icon_settings: { x: 182, y: 310, w: 16, h: 16 },
+    icon_sound_off: { x: 200, y: 310, w: 16, h: 16 },
+    icon_sound_on: { x: 218, y: 310, w: 16, h: 16 },
+    icon_trash: { x: 236, y: 310, w: 16, h: 16 },
+    panel_holo: { x: 2, y: 2, w: 48, h: 48 },
+    panel_metal: { x: 52, y: 2, w: 48, h: 48 },
+    radio_off: { x: 58, y: 346, w: 12, h: 12 },
+    radio_on: { x: 72, y: 346, w: 12, h: 12 },
+    res_budget: { x: 2, y: 52, w: 32, h: 32 },
+    res_comms: { x: 36, y: 52, w: 32, h: 32 },
+    res_crew: { x: 70, y: 52, w: 32, h: 32 },
+    res_delta_v: { x: 104, y: 52, w: 32, h: 32 },
+    res_fuel: { x: 138, y: 52, w: 32, h: 32 },
+    res_heat: { x: 172, y: 52, w: 32, h: 32 },
+    res_mass: { x: 206, y: 52, w: 32, h: 32 },
+    res_orbit: { x: 2, y: 86, w: 32, h: 32 },
+    res_oxygen: { x: 36, y: 86, w: 32, h: 32 },
+    res_payload: { x: 70, y: 86, w: 32, h: 32 },
+    res_power: { x: 104, y: 86, w: 32, h: 32 },
+    res_radiation: { x: 138, y: 86, w: 32, h: 32 },
+    res_science: { x: 172, y: 86, w: 32, h: 32 },
+    res_thrust: { x: 206, y: 86, w: 32, h: 32 },
+    res_time: { x: 2, y: 120, w: 32, h: 32 },
+    slider_fill: { x: 36, y: 360, w: 8, h: 2 },
+    slider_knob_hover: { x: 104, y: 328, w: 8, h: 14 },
+    slider_knob_normal: { x: 114, y: 328, w: 8, h: 14 },
+    slider_knob_pressed: { x: 124, y: 328, w: 8, h: 14 },
+    slider_track: { x: 120, y: 346, w: 32, h: 6 },
+    slot_empty: { x: 102, y: 2, w: 36, h: 36 },
+    slot_hover: { x: 140, y: 2, w: 36, h: 36 },
+    slot_locked: { x: 178, y: 2, w: 36, h: 36 },
+    slot_selected: { x: 216, y: 2, w: 36, h: 36 },
+    titlebar: { x: 38, y: 328, w: 64, h: 14 },
+    toggle_off: { x: 134, y: 328, w: 26, h: 12 },
+    toggle_on: { x: 162, y: 328, w: 26, h: 12 },
+    tooltip: { x: 2, y: 328, w: 16, h: 16 },
+    tooltip_warn: { x: 20, y: 328, w: 16, h: 16 },
+  };
+  /* [left, right, top, bottom] slice widths, from the kit's heliopauseUI.ts */
+  const NINE = {
+    bar_fill_am: [0, 2, 0, 0],
+    bar_fill_cy: [0, 2, 0, 0],
+    bar_fill_gr: [0, 2, 0, 0],
+    bar_fill_rd: [0, 2, 0, 0],
+    bar_frame: [4, 4, 4, 4],
+    btn_danger_disabled: [12, 12, 7, 8],
+    btn_danger_hover: [12, 12, 7, 8],
+    btn_danger_normal: [12, 12, 7, 8],
+    btn_danger_pressed: [12, 12, 7, 8],
+    btn_default_disabled: [12, 12, 7, 8],
+    btn_default_hover: [12, 12, 7, 8],
+    btn_default_normal: [12, 12, 7, 8],
+    btn_default_pressed: [12, 12, 7, 8],
+    btn_primary_disabled: [12, 12, 7, 8],
+    btn_primary_hover: [12, 12, 7, 8],
+    btn_primary_normal: [12, 12, 7, 8],
+    btn_primary_pressed: [12, 12, 7, 8],
+    divider: [6, 6, 0, 0],
+    panel_holo: [10, 10, 10, 10],
+    panel_metal: [12, 12, 12, 12],
+    slider_fill: [1, 1, 0, 0],
+    slider_track: [3, 3, 0, 0],
+    titlebar: [16, 16, 0, 0],
+    tooltip: [4, 4, 4, 4],
+    tooltip_warn: [4, 4, 4, 4],
+  };
+
+  /* Report variants. Numbers follow the rule that each burn lands within ±10% of its estimate. */
+  const REPORTS = {
+    arrived: {
+      route: 'CINDER → CINDER-A',
+      badge: 'badge_ok',
+      title: 'ARRIVED',
+      tone: 'green',
+      rows: [
+        ['Takeoff', '3,100', '3,160', '+2%'],
+        ['Transfer', '680', '655', '−4%'],
+        ['Landing', '1,050', '1,090', '+4%'],
+      ],
+      total: ['Total', '4,830', '4,905', '+2%'],
+      marginLabel: 'MARGIN LEFT',
+      margin: '145 m/s of 220 planned',
+      marginTone: 'amber',
+      whybox: 'tooltip',
+      whyTone: 'cyan',
+      why: 'Takeoff and Landing both ran a little over the estimate. Your 220 m/s margin absorbed it, and the Spacecraft landed on Cinder-A with 145 m/s to spare.',
+      lesson: 'Margin is spare Δv carried on purpose. This Hop used a third of it.',
+      button: 'CONTINUE',
+    },
+    fellshort: {
+      route: 'CINDER-A → TIDE',
+      badge: 'badge_alert',
+      title: 'FELL SHORT',
+      tone: 'red',
+      rows: [
+        ['Takeoff', '1,000', '1,060', '+6%'],
+        ['Transfer', '3,600', '3,760', 'ran out'],
+        ['Landing', '150', '—', 'not flown'],
+      ],
+      total: ['Total', '4,750', '4,820', 'spent all'],
+      marginLabel: 'SHORTFALL',
+      margin: '90 m/s missing',
+      marginTone: 'red',
+      whybox: 'tooltip_warn',
+      whyTone: 'amber',
+      why: 'Takeoff took 6% more Δv than estimated and the Transfer needed 7% more. You launched with a 70 m/s margin (1.5%), so the Fuel ran out 90 m/s before the end of the Transfer.',
+      lesson:
+        'The plan showed a 38% Success Chance: most of these Hops fail. Carry more margin or pick a closer target.',
+      button: 'NEW RUN',
+    },
+    crashed: {
+      route: 'CINDER → CINDER-A',
+      badge: 'badge_alert',
+      title: 'CRASHED',
+      tone: 'red',
+      rows: [
+        ['Takeoff', '3,100', '3,240', '+5%'],
+        ['Transfer', '680', '712', '+5%'],
+        ['Landing', '1,050', '1,098 of 1,155', '+10%'],
+      ],
+      total: ['Total', '4,830', '5,050', 'spent all'],
+      marginLabel: 'SHORTFALL',
+      margin: '57 m/s missing at touchdown',
+      marginTone: 'red',
+      whybox: 'tooltip_warn',
+      whyTone: 'amber',
+      why: 'Every burn ran over. Takeoff and Transfer left 1,098 m/s for the Landing, but it needed 1,155 m/s, 10% over its estimate. The Spacecraft hit Cinder-A 57 m/s too fast.',
+      lesson:
+        'This Hop had an 87% Success Chance. About 13 in 100 end like this: margin lowers the risk, it never removes it.',
+      button: 'NEW RUN',
+    },
+  };
+
+  const el = (cls, style, text) => {
+    const d = document.createElement('div');
+    d.className = cls;
+    d.setAttribute('style', style);
+    if (text != null) d.textContent = text;
+    return d;
+  };
+
+  function fillReport(host, r) {
+    host.querySelector('[data-r="route"]').textContent = r.route;
+    const badge = host.querySelector('[data-r="badge"]');
+    badge.dataset.frame = r.badge;
+    const title = host.querySelector('[data-r="title"]');
+    title.textContent = r.title;
+    title.classList.add(r.tone);
+    const rows = host.querySelector('[data-r="rows"]');
+    r.rows.forEach((row, i) => {
+      const y = 122 + i * 14;
+      rows.before(el('a t11 pale', `left:128px;top:${y}px`, row[0]));
+      rows.before(el('a t11 dim', `right:300px;top:${y}px`, row[1]));
+      rows.before(el('a t11 pale', `right:212px;top:${y}px`, row[2]));
+      const diffTone = /ran out|not flown/.test(row[3])
+        ? 'red'
+        : row[3].startsWith('+')
+          ? 'amber'
+          : 'green';
+      rows.before(el('a t11 ' + diffTone, `right:128px;top:${y}px`, row[3]));
+    });
+    rows.remove();
+    const total = host.querySelector('[data-r="total"]');
+    const t = r.total;
+    total.before(el('a t8 dim', 'left:128px;top:177px', t[0].toUpperCase()));
+    total.before(el('a t11 dim', 'right:300px;top:176px', t[1]));
+    total.before(el('a t11 pale', 'right:212px;top:176px', t[2]));
+    total.before(
+      el('a t11 ' + (r.tone === 'green' ? 'amber' : 'red'), 'right:128px;top:176px', t[3]),
+    );
+    total.remove();
+    host.querySelector('[data-r="marginLabel"]').textContent = r.marginLabel;
+    const m = host.querySelector('[data-r="margin"]');
+    m.textContent = r.margin;
+    m.classList.add(r.marginTone);
+    const box = host.querySelector('[data-r="whybox"]');
+    box.dataset.frame = r.whybox;
+    box.dataset.w = 392;
+    box.dataset.h = 62;
+    host.querySelector('[data-r="whyhead"]').classList.add(r.whyTone);
+    host.querySelector('[data-r="why"]').textContent = r.why;
+    host.querySelector('[data-r="lesson"]').textContent = r.lesson;
+    host.querySelector('[data-r="button"]').textContent = r.button;
+  }
+
+  function expandTemplates() {
+    document.querySelectorAll('[data-use]').forEach((ph) => {
+      const tpl = document.getElementById(ph.dataset.use);
+      const frag = tpl.content.cloneNode(true);
+      const holder = document.createElement('div');
+      holder.appendChild(frag);
+      if (ph.dataset.fuel) holder.querySelector('[data-slot="fuel"]').textContent = ph.dataset.fuel;
+      if (ph.dataset.dv) holder.querySelector('[data-slot="dv"]').textContent = ph.dataset.dv;
+      if (ph.dataset.hop) holder.querySelector('[data-slot="hop"]').textContent = ph.dataset.hop;
+      if (ph.dataset.variant) fillReport(holder, REPORTS[ph.dataset.variant]);
+      ph.replaceWith(...holder.childNodes);
+    });
+  }
+
+  function seededStars() {
+    const colours = ['#9eacc0', '#56647c', '#aaf6ff', '#d2dce8', '#3a465c'];
+    document.querySelectorAll('.stars').forEach((s) => {
+      let seed = Number(s.dataset.seed || 1) * 9301 + 49297;
+      const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      for (let i = 0; i < 110; i++) {
+        const dot = document.createElement('i');
+        dot.style.left = Math.floor(rnd() * 640) + 'px';
+        dot.style.top = Math.floor(rnd() * 360) + 'px';
+        dot.style.background = colours[Math.floor(rnd() * colours.length)];
+        s.appendChild(dot);
+      }
+    });
+  }
+
+  function drawFrames(img) {
+    document.querySelectorAll('[data-frame]').forEach((node) => {
+      const f = FRAMES[node.dataset.frame];
+      if (!f) return;
+      const w = Number(node.dataset.w) || f.w;
+      const h = Number(node.dataset.h) || f.h;
+      node.style.width = w + 'px';
+      node.style.height = h + 'px';
+      const c = document.createElement('canvas');
+      c.width = w;
+      c.height = h;
+      c.className = 'px';
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      const n = NINE[node.dataset.frame];
+      if (!n || (w === f.w && h === f.h)) {
+        ctx.drawImage(img, f.x, f.y, f.w, f.h, 0, 0, w, h);
+      } else {
+        const [l, r, t, b] = n;
+        const sx = [0, l, f.w - r, f.w],
+          dx = [0, l, w - r, w];
+        const sy = [0, t, f.h - b, f.h],
+          dy = [0, t, h - b, h];
+        for (let i = 0; i < 3; i++)
+          for (let j = 0; j < 3; j++) {
+            const sw = sx[i + 1] - sx[i],
+              sh = sy[j + 1] - sy[j];
+            const dw = dx[i + 1] - dx[i],
+              dh = dy[j + 1] - dy[j];
+            if (sw > 0 && sh > 0 && dw > 0 && dh > 0) {
+              ctx.drawImage(img, f.x + sx[i], f.y + sy[j], sw, sh, dx[i], dy[j], dw, dh);
+            }
+          }
+      }
+      node.prepend(c);
+    });
+  }
+
+  function fit() {
+    document.querySelectorAll('.stage').forEach((s) => {
+      const avail = s.parentElement.parentElement.clientWidth - 2;
+      s.style.zoom = Math.min(2, Math.max(0.4, avail / 640));
+    });
+  }
+
+  expandTemplates();
+  seededStars();
+  fit();
+  window.addEventListener('resize', fit);
+  const img = new Image();
+  img.onload = () => drawFrames(img);
+  img.src = ATLAS_SRC;
+
+  const toggle = document.getElementById('toggle-marks');
+  const applyMarks = () => document.body.classList.toggle('no-marks', !toggle.checked);
+  try {
+    const saved = localStorage.getItem('hp-marks');
+    if (saved !== null) toggle.checked = saved === '1';
+  } catch (e) {}
+  applyMarks();
+  toggle.addEventListener('change', () => {
+    applyMarks();
+    try {
+      localStorage.setItem('hp-marks', toggle.checked ? '1' : '0');
+    } catch (e) {}
+  });
+</script>
