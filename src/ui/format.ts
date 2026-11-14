@@ -1,5 +1,6 @@
 // How quantities read on screen: real units, rounded for readability (spec #12, story 23).
 // Parameters take the simulation's unit types, so one unit cannot be shown where another is meant.
+import { findBody, type Body, type Run } from '../game/sim/index.ts';
 import type {
   AstronomicalUnits,
   Kilograms,
@@ -38,4 +39,19 @@ export function formatDeltaV(deltaV: MetersPerSecond | undefined): string {
   return deltaV >= KM_PER_S_FROM
     ? `${(deltaV / 1000).toFixed(1)} km/s`
     : `${WHOLE.format(deltaV)} m/s`;
+}
+
+/** What kind of Body this is, in the player's words: "Moon of Cinder", "Home Planet · Rocky", "Gas Giant". */
+export function bodyTypeLabel(run: Run, body: Body): string {
+  switch (body.kind) {
+    case 'moon': {
+      const planet = findBody(run.starSystem, body.planetId);
+      if (!planet) throw new Error(`Moon ${body.id} has no planet`);
+      return `Moon of ${planet.name}`;
+    }
+    case 'gas-giant':
+      return 'Gas Giant';
+    case 'rocky-planet':
+      return body.id === run.starSystem.homePlanetId ? 'Home Planet · Rocky' : 'Rocky planet';
+  }
 }

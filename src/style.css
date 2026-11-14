@@ -585,3 +585,218 @@ body {
   top: 90px;
   left: 16px;
 }
+
+/* ---- Landed: Nav Chart button ---- */
+
+.landed-nav-button {
+  position: absolute;
+  top: 322px;
+  /* Right of the location plate (ends x 296) and below the Spacecraft, which sweeps x 429–621, y 232–302: no panel over the ship. */
+  left: 352px;
+}
+
+/* ---- Nav Chart panel (wireframe v2 section 2) ---- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.nav-chart {
+  position: absolute;
+  inset: 0;
+}
+
+.nav-chart > * {
+  position: absolute;
+}
+
+/* Mouse clicks fall through to the chart in the canvas below; only the Close button takes them. */
+.nav-chart > *:not(.nav-chart__close) {
+  pointer-events: none;
+}
+
+.nav-chart__titlebar {
+  height: 14px;
+}
+
+.nav-chart__title {
+  position: absolute;
+  top: 3px;
+  left: 22px;
+  margin: 0;
+  white-space: nowrap;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--wh2);
+}
+
+.nav-chart__system {
+  position: absolute;
+  top: 3px;
+  right: 22px;
+  white-space: nowrap;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--cy3);
+}
+
+.nav-chart__chart:focus-visible {
+  outline: 1px solid var(--cy3);
+  outline-offset: 2px;
+}
+
+.nav-chart__label {
+  display: flex;
+  flex-direction: column;
+  white-space: nowrap;
+  font: 8px/9px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm6);
+  text-shadow: 0 1px 0 var(--void);
+}
+
+.nav-chart__label--heliopause {
+  color: var(--vi3);
+}
+
+.nav-chart__label--here {
+  color: var(--am3);
+}
+
+.nav-chart__label--target {
+  color: var(--cy3);
+}
+
+.nav-chart__label--focused {
+  color: var(--wh3);
+}
+
+.nav-chart__help {
+  left: 24px;
+  top: 305px;
+  width: 404px;
+  font: 14px/11px var(--font-pixel-body);
+  color: var(--gm5);
+}
+
+/* The tooltip for the focused Body, on the chart (wireframe callout 4). */
+.nav-chart__tooltip-frame {
+  position: absolute;
+  inset: 0;
+}
+
+.nav-chart__tooltip > :not(.nav-chart__tooltip-frame) {
+  position: absolute;
+  left: 7px;
+  right: 7px;
+  margin: 0;
+}
+
+.nav-chart__tip-name {
+  top: 6px;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--cy3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-chart__tip-kind {
+  top: 17px;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-chart__tip-fact {
+  top: 27px;
+  font: 14px/11px var(--font-pixel-body);
+  color: var(--gm6);
+}
+
+.nav-chart__tooltip .nav-chart__badge {
+  top: 40px;
+}
+
+.nav-chart__tip-verdict {
+  top: 55px;
+  font: 14px/11px var(--font-pixel-body);
+  color: var(--wh2);
+}
+
+.nav-chart__badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font: 8px/12px var(--font-pixel);
+  text-transform: uppercase;
+}
+
+.nav-chart__badge--ok {
+  color: var(--gr3);
+}
+
+.nav-chart__badge--warn {
+  color: var(--am3);
+}
+
+/* The Hop plan's target block: wireframe y 82 to 145, the rest of the panel is for ticket #30. */
+.nav-chart__target {
+  left: 456px;
+  top: 82px;
+  width: 164px;
+  height: 61px;
+}
+
+.nav-chart__target > p {
+  margin: 0;
+}
+
+.nav-chart__target-label {
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.nav-chart__target-name {
+  margin-top: 2px;
+  font: 16px/16px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--cy3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-chart__target-kind {
+  margin-top: 2px;
+  font: 14px/11px var(--font-pixel-body);
+  color: var(--gm6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-chart__target .nav-chart__badge {
+  margin-top: 2px;
+}
+
+.nav-chart__divider {
+  position: absolute;
+  left: 0;
+  top: 56px;
+}
+
+.nav-chart__close {
+  left: 456px;
+  top: 304px;
+}

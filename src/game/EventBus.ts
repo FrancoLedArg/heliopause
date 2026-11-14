@@ -1,6 +1,7 @@
 import { Events } from 'phaser';
 import type { SceneKey } from './scenes/keys.ts';
-import type { ChassisId, Run, Seed } from './sim/index.ts';
+import type { ChartCommand, ChartState } from './scenes/navChartView.ts';
+import type { BodyId, ChassisId, Run, Seed } from './sim/index.ts';
 
 /** Events crossing the React <-> Phaser boundary. Add an entry here before emitting a new event. */
 export interface GameEvents {
@@ -10,6 +11,23 @@ export interface GameEvents {
   'run-started': [run: Run];
   /** React -> Phaser: the player launched a New Run; it starts from `seed` (see `chooseRunSeed`) on `chassisId`. */
   'new-run-requested': [seed: Seed, chassisId: ChassisId];
+  /** React -> Phaser: the player asked to open the Nav Chart over the Landed view. */
+  'nav-chart-open-requested': [];
+  /** React -> Phaser: the player asked to close the Nav Chart. */
+  'nav-chart-close-requested': [];
+  /** React -> Phaser: a key press on the Nav Chart (move between Bodies, select). */
+  'nav-chart-command': [command: ChartCommand];
+  /**
+   * Phaser -> React: what the Nav Chart shows now (focused Body, chosen target), or `undefined` once it
+   * is closed. For drawing the chart panel.
+   */
+  'nav-chart-state': [state: ChartState | undefined];
+  /**
+   * Phaser -> React: the Hop target changed. THE event the Hop plan (#30) reads: it carries only valid
+   * targets, and `undefined` when the target is cleared (the chart was closed). `nav-chart-state`'s
+   * `selectedId` is the same value and is only for the chart panel's own display.
+   */
+  'nav-target-selected': [targetId: BodyId | undefined];
   /** React -> Phaser: the player confirmed leaving the Run from the in-Run Menu; go back to the Title scene. */
   'leave-run-requested': [];
 }

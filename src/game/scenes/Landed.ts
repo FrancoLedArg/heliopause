@@ -14,6 +14,7 @@ import {
   type SurfaceKind,
 } from './landedView.ts';
 import { SceneKey } from './keys.ts';
+import type { NavChartData } from './NavChart.ts';
 import { createLandedAmbient, type LandedAmbient } from './landedAmbient.ts';
 import { onLeaveRun } from './leaveRun.ts';
 import { addTwinklingStarfield, TWINKLE_EVERY, type TwinklingStarfield } from './starfield.ts';
@@ -97,6 +98,25 @@ export class Landed extends Scene {
     });
     const ship = this.buildShip();
     this.layers = { sky, far, mid, near, ship: ship.container };
+
+    // The Nav Chart runs as its own scene over this one, which keeps running (dimmed) beneath it.
+    const offOpen = EventBus.on('nav-chart-open-requested', () => {
+      if (this.scene.isActive(SceneKey.NavChart)) return;
+      const data: NavChartData = { run: this.run };
+      this.scene.launch(SceneKey.NavChart, data);
+    });
+    // A destroyed game never shuts its scenes down, so unsubscribe on both events.
+    const unsubscribe = (): void => {
+      offOpen();
+      this.events.off(Scenes.Events.SHUTDOWN, unsubscribe);
+      this.events.off(Scenes.Events.DESTROY, unsubscribe);
+    };
+    this.events.once(Scenes.Events.SHUTDOWN, unsubscribe);
+    this.events.once(Scenes.Events.DESTROY, unsubscribe);
+    // Leaving the Landed view takes an open Nav Chart with it (on destroy the chart is destroyed anyway).
+    this.events.once(Scenes.Events.SHUTDOWN, () => {
+      this.scene.stop(SceneKey.NavChart);
+    });
 
     const ambient = createLandedAmbient(this, {
       layers: this.layers,

@@ -1,5 +1,14 @@
-import { availableDeltaV, currentBody, findBody, type Run } from '../game/sim/index.ts';
-import { formatDeltaV, formatDistanceAu, formatFuel, formatGravity } from './format.ts';
+import { availableDeltaV, currentBody, type Run } from '../game/sim/index.ts';
+import { useEffect, useRef } from 'react';
+import { EventBus } from '../game/EventBus.ts';
+import {
+  bodyTypeLabel,
+  formatDeltaV,
+  formatDistanceAu,
+  formatFuel,
+  formatGravity,
+} from './format.ts';
+import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 
 const BAR_WIDTH = 624;
@@ -9,19 +18,22 @@ const PLATE_HEIGHT = 62;
 
 interface LandedPanelsProps {
   run: Run;
+  /** The Nav Chart is open and covers the plate and the Nav Chart button. */
+  chartOpen: boolean;
 }
 
 /** The Landed view's panels: the top bar (Star System, Fuel, Δv) and the plate naming the Body. */
-export function LandedPanels({ run }: LandedPanelsProps) {
+export function LandedPanels({ run, chartOpen }: LandedPanelsProps) {
   const body = currentBody(run);
-  const parent = body.kind === 'moon' ? findBody(run.starSystem, body.planetId) : undefined;
-  if (body.kind === 'moon' && !parent) throw new Error(`Moon ${body.id} has no planet`);
-  const type =
-    body.kind === 'moon'
-      ? `Moon of ${parent?.name ?? ''}`
-      : body.id === run.starSystem.homePlanetId
-        ? 'Home Planet · Rocky'
-        : 'Rocky planet';
+  const type = bodyTypeLabel(run, body);
+
+  // Closing the Nav Chart hands focus back to the button that opened it.
+  const buttonSlot = useRef<HTMLDivElement>(null);
+  const wasOpen = useRef(chartOpen);
+  useEffect(() => {
+    if (wasOpen.current && !chartOpen) buttonSlot.current?.querySelector('button')?.focus();
+    wasOpen.current = chartOpen;
+  }, [chartOpen]);
 
   return (
     <>
@@ -41,21 +53,37 @@ export function LandedPanels({ run }: LandedPanelsProps) {
         </p>
       </header>
 
-      <section
-        className="landed-plate"
-        aria-labelledby="landed-title"
-        style={{ width: PLATE_WIDTH, height: PLATE_HEIGHT }}
-      >
-        <KitFrame frame="panel_holo" width={PLATE_WIDTH} height={PLATE_HEIGHT} />
-        <h1 id="landed-title" className="landed-plate__title">
-          {body.name}
-        </h1>
-        <p className="landed-plate__kind">{type}</p>
-        <p className="landed-plate__detail">
-          Gravity {formatGravity(body.surfaceGravity)} · {formatDistanceAu(body.distanceFromStar)}{' '}
-          from the star
-        </p>
-      </section>
+      {!chartOpen && (
+        <>
+          <section
+            className="landed-plate"
+            aria-labelledby="landed-title"
+            style={{ width: PLATE_WIDTH, height: PLATE_HEIGHT }}
+          >
+            <KitFrame frame="panel_holo" width={PLATE_WIDTH} height={PLATE_HEIGHT} />
+            <h1 id="landed-title" className="landed-plate__title">
+              {body.name}
+            </h1>
+            <p className="landed-plate__kind">{type}</p>
+            <p className="landed-plate__detail">
+              Gravity {formatGravity(body.surfaceGravity)} ·{' '}
+              {formatDistanceAu(body.distanceFromStar)} from the star
+            </p>
+          </section>
+          <div ref={buttonSlot} className="landed-nav-button">
+            <KitButton
+              variant="primary"
+              width={116}
+              aria-keyshortcuts="M"
+              onClick={() => {
+                EventBus.emit('nav-chart-open-requested');
+              }}
+            >
+              Nav Chart (M)
+            </KitButton>
+          </div>
+        </>
+      )}
     </>
   );
 }
