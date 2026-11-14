@@ -33,8 +33,6 @@ const SHIP_SCALE = 4;
 // The `spacecraft` sprite points right; its tail sits 5px past the centre, so stood upright
 // (rotated -90°) its base is 5px below its middle.
 const SHIP_STAND_IN_BASE_OFFSET = 5 * SHIP_SCALE;
-/** Until the Run carries its Chassis (#36), every Spacecraft is a scout. */
-const DEFAULT_CHASSIS = 'scout';
 
 const STAR_COUNT = 150;
 
@@ -168,7 +166,7 @@ export class Landed extends Scene {
     const container = this.add.container(SHIP_X, SHIP_BASE_Y);
     const shadow = this.add.ellipse(0, 2, 72, 8, paletteNumber('void'), 0.45);
     container.add(shadow);
-    const chassis = `chassis_${DEFAULT_CHASSIS}`;
+    const chassis = `chassis_${this.run.spacecraft.chassisId}`;
     if (hasAsset(chassis)) {
       container.add(this.add.image(0, 0, chassis, 'landed').setOrigin(0.5, 1));
     } else {

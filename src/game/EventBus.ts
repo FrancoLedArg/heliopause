@@ -1,6 +1,6 @@
 import { Events } from 'phaser';
 import type { SceneKey } from './scenes/keys.ts';
-import type { Run, Seed } from './sim/index.ts';
+import type { ChassisId, Run, Seed } from './sim/index.ts';
 
 /** Events crossing the React <-> Phaser boundary. Add an entry here before emitting a new event. */
 export interface GameEvents {
@@ -8,8 +8,8 @@ export interface GameEvents {
   'scene-ready': [sceneKey: SceneKey];
   /** Phaser -> React: the Run the Landed view shows (sent just before its `scene-ready`). */
   'run-started': [run: Run];
-  /** React -> Phaser: the player chose New Run; the Run starts from `seed` (see `chooseRunSeed`). */
-  'new-run-requested': [seed: Seed];
+  /** React -> Phaser: the player launched a New Run; it starts from `seed` (see `chooseRunSeed`) on `chassisId`. */
+  'new-run-requested': [seed: Seed, chassisId: ChassisId];
 }
 
 class TypedEventBus {
