@@ -23,9 +23,9 @@ export interface GameEvents {
    */
   'nav-chart-state': [state: ChartState | undefined];
   /**
-   * Phaser -> React: the Hop target changed. THE event the Hop plan (#30) reads: it carries only valid
+   * Phaser -> React: the Hop target changed. A Hop target was chosen or cleared: it carries only valid
    * targets, and `undefined` when the target is cleared (the chart was closed). `nav-chart-state`'s
-   * `selectedId` is the same value and is only for the chart panel's own display.
+   * `selectedId` is the same value; the Hop plan (#30) reads `selectedId`, since it arrives with the rest of the panel's state.
    */
   'nav-target-selected': [targetId: BodyId | undefined];
   /**

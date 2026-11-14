@@ -280,7 +280,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         {view ? (
           <>
             <table className="nav-chart__burns">
-              <thead>
+              <thead className="sr-only">
                 <tr>
                   <th scope="col">Burn</th>
                   <th scope="col">Est. Δv</th>
@@ -341,7 +341,14 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
       <div ref={actionsRef} className="nav-chart__actions">
         <KitButton
           width={76}
-          onClick={target ? cancelPlan : requestClose}
+          onClick={
+            target
+              ? () => {
+                  cancelPlan();
+                  chartRef.current?.focus();
+                }
+              : requestClose
+          }
           aria-keyshortcuts={target ? undefined : 'Escape'}
         >
           {target ? 'Cancel' : 'Close'}

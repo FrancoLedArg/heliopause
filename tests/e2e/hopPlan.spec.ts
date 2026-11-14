@@ -96,6 +96,7 @@ test('a far Body has a lower Success Chance, flagged in words when low; Cancel c
 
   await page.getByRole('button', { name: 'Cancel' }).click();
   await expect(page.getByTestId('target')).toContainText('None chosen');
+  await expect(page.getByRole('listbox', { name: 'Bodies in the Star System' })).toBeFocused();
   await expect(page.getByTestId('hop-plan')).toContainText('Pick a landable Body');
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
 });

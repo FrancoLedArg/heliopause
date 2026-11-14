@@ -12,9 +12,8 @@ const BURN_LABEL: Record<Burn, string> = {
   landing: 'Landing',
 };
 
-/** One line of plain language: what Δv is, and why a heavier craft gets less of it. */
-export const DELTA_V_EXPLANATION =
-  'Δv is how much your speed can change. A heavier craft gets less from the same Fuel.';
+/** One line of plain language: what Δv is, and the Available line shows the mass and Fuel behind it. */
+export const DELTA_V_EXPLANATION = 'Δv is how much your speed can change.';
 
 export interface HopPlanView {
   readonly burns: readonly { readonly label: string; readonly estimate: string }[];
