@@ -1,6 +1,7 @@
 import { createRng, type Rng } from '../lib/rng.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
 import { DISPERSION, SOURCED_CONSTANTS } from './data.ts';
+import { collectYield, type Collection } from './gather.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
 import { availableDeltaV, fuelAfterBurning } from './spacecraft.ts';
 import {
@@ -136,7 +137,10 @@ export interface HopFlight {
   readonly burns: readonly BurnResult[];
   /** The Fuel on board before Takeoff. */
   readonly fuelAtLaunch: Kilograms;
+  /** The Fuel left by the Hop itself: what landing then collected is in `collection`. */
   readonly fuelRemaining: Kilograms;
+  /** What landing on the target collected; `null` when the Hop did not arrive. */
+  readonly collection: Collection | null;
   readonly deltaVRemaining: MetersPerSecond;
   /** Plain language: what the Burns cost against their estimates, and why the Hop ended as it did. */
   readonly why: string;
@@ -195,6 +199,7 @@ export function flyHop(
     burns,
     fuelAtLaunch: run.spacecraft.fuelMass,
     fuelRemaining,
+    collection: null,
     deltaVRemaining: remaining,
     why: explain(plan, outcome, burns, target.name),
   };
@@ -202,15 +207,15 @@ export function flyHop(
     outcome.kind === 'arrived'
       ? { kind: 'landed', bodyId: target.id }
       : { kind: 'ended', outcome: outcome.kind };
-  return deepFreeze({
-    flight,
-    run: {
-      ...run,
-      spacecraft: { ...run.spacecraft, fuelMass: fuelRemaining },
-      status,
-      hopsFlown: run.hopsFlown + 1,
-    },
-  });
+  const flown: Run = {
+    ...run,
+    spacecraft: { ...run.spacecraft, fuelMass: fuelRemaining },
+    status,
+    hopsFlown: run.hopsFlown + 1,
+  };
+  if (outcome.kind !== 'arrived') return deepFreeze({ flight, run: flown });
+  const landed = collectYield(flown, target.id);
+  return deepFreeze({ flight: { ...flight, collection: landed.collection }, run: landed.run });
 }
 
 /** Launching either flies the Hop, or explains why the target cannot be chosen. */

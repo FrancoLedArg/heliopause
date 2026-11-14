@@ -2,9 +2,12 @@
 
 AI-generated pixel art (see AI-USAGE.md): the game shows a visible
 "AI-generated art" watermark wherever these sprites appear.
+Exception: the particle sprites fx_dust, fx_smoke and fx_spark are NOT
+AI-generated. Their pixel grids (FX_GRIDS) were designed by the human
+(issue #98) and are encoded verbatim; the script only turns them into PNGs.
 
 Native 640x360, nearest-neighbour. Only kit palette colours are used.
-Light comes from the top-left; every sprite gets a 1px `void` outline.
+Light comes from the top-left; every sprite gets a 1px `void` outline, except the fx_dust, fx_smoke and fx_spark particles, which have none.
 
 Usage:  python3 -I gen_sprites.py <out_dir> [preview_png [surfaces_preview_png [chassis_preview_png [chassis_art_json]]]]
 Needs Pillow and numpy. The Chassis ships are drawn by `gen_ships.py` beside this file;
@@ -450,6 +453,49 @@ def materials():
     return s
 
 
+# ------------------------------------------------------------------ particle sprites
+# Human-designed grids (issue #98, version A). '1'-'4' are kit wh0-wh3, '.' is
+# transparent. Light from the upper left. Code tints them: dust and smoke per
+# surface, sparks amber am4. Do not edit the grids to "improve" them.
+FX_GRIDS = {
+    "fx_dust": [
+        "..32..",
+        ".3432.",
+        "343321",
+        "233221",
+        ".2221.",
+        "..11..",
+    ],
+    "fx_smoke": [
+        "...2332...",
+        "..344432..",
+        ".34444332.",
+        "3444443332",
+        "3444433322",
+        "2344333221",
+        "2333332221",
+        ".23322211.",
+        "..222111..",
+        "...1..1...",
+    ],
+    "fx_spark": [
+        ".3.",
+        "343",
+        ".3.",
+    ],
+}
+FX_KEYS = {".": None, "1": "wh0", "2": "wh1", "3": "wh2", "4": "wh3"}
+
+
+def fx_sprite(grid):
+    s = Spr(len(grid[0]), len(grid))
+    for y, row in enumerate(grid):
+        assert len(row) == s.w, row
+        for x, ch in enumerate(row):
+            s.px(x, y, FX_KEYS[ch])
+    return s
+
+
 # ------------------------------------------------------------------ build
 def build():
     sprites = {"body_star": star()}
@@ -462,6 +508,8 @@ def build():
     sprites["spacecraft"] = spacecraft()
     sprites["spacecraft_flame"] = flame()
     sprites["res_materials"] = materials()
+    for name, grid in FX_GRIDS.items():
+        sprites[name] = fx_sprite(grid)
     return sprites
 
 

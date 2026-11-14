@@ -9,6 +9,13 @@ import {
   type Seed,
   type StarSystem,
 } from './starSystem.ts';
+import { materials, type Materials } from './units.ts';
+
+/**
+ * The Materials a New Run starts with: enough for the cheapest Component (a Fuel Tank, 20) and for
+ * a Drill (25), so the first design decision has more than one option.
+ */
+export const STARTING_MATERIALS: Materials = materials(25);
 
 /** Where the Run stands: landed on a Body and free to plan a Hop, or ended by a failed Hop. */
 export type RunStatus =
@@ -23,6 +30,13 @@ export interface Run {
   readonly status: RunStatus;
   /** How many Hops the Run has flown: each Hop draws its Burns from its own stream of the seed. */
   readonly hopsFlown: number;
+  /**
+   * The raw stock Components are paid in. `Materials` is also the unit of a Rocky Body's yield:
+   * landing on one adds its yield here.
+   */
+  readonly materials: Materials;
+  /** The Bodies the Spacecraft has landed on in this Run: each gave up its yield and yields no more. */
+  readonly depleted: readonly BodyId[];
 }
 
 /**
@@ -37,6 +51,8 @@ export function startRun(seed: Seed, chassisId: ChassisId): Run {
     spacecraft: newSpacecraft(chassisId),
     status: { kind: 'landed', bodyId: starSystem.homePlanetId },
     hopsFlown: 0,
+    materials: STARTING_MATERIALS,
+    depleted: [],
   });
 }
 
