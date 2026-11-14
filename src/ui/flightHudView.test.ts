@@ -109,6 +109,35 @@ describe('the flight HUD', () => {
     expect(view.log[2]).toMatchObject({ state: 'waiting', actual: '—' });
   });
 
+  it('reads every Δv in whole m/s, like the Hop plan, even above 10 km/s', () => {
+    const long: HopFlight = {
+      ...flight,
+      outcome: { kind: 'fell-short', burn: 'transfer', shortfall: metersPerSecond(889) },
+      burns: [
+        flight.burns[0] ?? { status: 'not-flown', burn: 'takeoff', estimated: metersPerSecond(1) },
+        {
+          status: 'ran-out',
+          burn: 'transfer',
+          estimated: metersPerSecond(14_100),
+          actual: metersPerSecond(14_812),
+          delivered: metersPerSecond(13_923),
+        },
+        { status: 'not-flown', burn: 'landing', estimated: metersPerSecond(1_580) },
+      ],
+    };
+    const view = describeFlight(
+      run,
+      long,
+      moment({ burn: 'transfer', logged: 2, thrusting: false, fuel: kilograms(0) }),
+    );
+    expect(view.log[1]).toMatchObject({
+      estimate: '14,100 m/s',
+      actual: '13,923 of 14,812 m/s',
+      change: 'ran out',
+    });
+    expect(view.log[2]).toMatchObject({ estimate: '1,580 m/s' });
+  });
+
   it('reads the Fuel as tonnes of capacity, with the bar filled to the share left', () => {
     const half = kilograms(run.spacecraft.fuelCapacity / 2);
     const view = describeFlight(run, flight, moment({ fuel: half }));
