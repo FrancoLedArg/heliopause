@@ -234,7 +234,8 @@ function checkRm(args: readonly string[], context: GuardContext): string | null 
   if (!recursive) return null;
 
   const roots = [context.projectDir, ...context.scratchDirs].map((dir) => path.resolve(dir));
-  const known: Record<'CLAUDE_PROJECT_DIR' | 'TMPDIR', string> = {
+  type KnownVar = 'CLAUDE_PROJECT_DIR' | 'TMPDIR';
+  const known: Record<KnownVar, string> = {
     CLAUDE_PROJECT_DIR: context.projectDir,
     TMPDIR: context.tmpDir,
   };
@@ -244,14 +245,15 @@ function checkRm(args: readonly string[], context: GuardContext): string | null 
     if (operand.split('/').includes('..')) return outside;
     const resolved = operand.replace(
       /\$\{?(CLAUDE_PROJECT_DIR|TMPDIR)\}?(?![A-Za-z0-9_])/g,
-      (_, name: 'CLAUDE_PROJECT_DIR' | 'TMPDIR') => known[name],
+      (_, name: KnownVar) => known[name],
     );
     if (resolved.includes('$')) {
       return `recursive delete of an unresolved path (${operand}); use a literal path`;
     }
-    // A glob in the last segment (`*`, `dist/*`) deletes inside its directory, so judge that.
-    const glob = /[*?[]/.test(path.basename(resolved));
-    const target = path.resolve(context.cwd, glob ? path.dirname(resolved) : resolved);
+    // Only a match-all glob (`*`, `.*`, `**`) empties its whole directory, so judge that
+    // directory. Any other pattern (`dist*`) matches entries inside it and resolves as a child.
+    const matchAll = /^\.?\*+$/.test(path.basename(resolved));
+    const target = path.resolve(context.cwd, matchAll ? path.dirname(resolved) : resolved);
     // Strictly inside a root, and never a root itself (e.g. all of $TMPDIR or the project).
     const inside =
       !roots.includes(target) && roots.some((root) => target.startsWith(root + path.sep));
