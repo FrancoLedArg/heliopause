@@ -1,6 +1,13 @@
 # Assets
 
-The human makes every image, sprite, sound and font. Agents write code that _uses_ assets and never produce asset files themselves (Space Apps rules also require a visible watermark on AI-generated media, which we avoid entirely).
+Art is AI-generated pixel art in the human's UI kit style (ADR 0004). The human supplies the UI kit and any art they make; agents may generate sprites in the same style when an asset request asks for it. Space Apps rules require a visible watermark on AI-generated images: every screen shows a permanent "AI-generated art" label, and `AI-USAGE.md` lists what was generated.
+
+## Style
+
+- Native resolution 640×360, scaled with nearest-neighbour (`pixelArt: true`). The kit's guide: `docs/design/ui-kit/README.md`; its preview: `docs/design/ui-kit/preview_sheet.png`.
+- Only colours from `public/assets/ui/palette.json`. Gunmetal frames, cyan for interactive parts, amber for primary actions and resources, red for danger.
+- Generated sprites come from a re-runnable script in `docs/design/sprites/`; regenerate rather than hand-edit output.
+- No NASA logos, insignia, flags or mission identifiers.
 
 ## How code uses assets
 
@@ -10,7 +17,7 @@ The human makes every image, sprite, sound and font. Agents write code that _use
 
 ## Asset requests
 
-When a ticket needs an asset the manifest does not list, the Builder opens one issue per asset (or one per coherent set, like a spritesheet):
+When a ticket needs an asset the manifest does not list, the Builder opens one issue per asset (the human, or an agent with the generator script, then fulfils it) (or one per coherent set, like a spritesheet):
 
 ```
 gh issue create --label asset --label ready-for-human --title "Asset: <key>" --body-file <file>
