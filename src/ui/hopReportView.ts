@@ -2,6 +2,7 @@
 // the simulation's plain-language why. Every figure comes from the flight; nothing is recomputed here.
 import {
   BURNS,
+  drillMultiplier,
   type Collection,
   findBody,
   marginShare,
@@ -69,7 +70,7 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
         rows,
         margin: `Margin left: ${formatDeltaV(flight.deltaVRemaining)} of Δv (${planned})`,
         ...(flight.collection && {
-          collected: describeCollection(flight.collection),
+          collected: describeCollection(flight.collection, drillMultiplier(before.spacecraft)),
           ...(flight.collection.kind === 'fuel' &&
             !hadFuelBefore(before) && { note: ICE_TO_PROPELLANT }),
         }),
@@ -137,15 +138,19 @@ function hadFuelBefore(run: Run): boolean {
   });
 }
 
-/** What a landing collected, as one line for the player. */
-function describeCollection(collection: Collection): string {
+/**
+ * What a landing collected, as one line for the player. The Drill, when there is one, is named
+ * inside the "Collected" clause: the report has no room for another line.
+ */
+function describeCollection(collection: Collection, drill: number): string {
+  const by = drill > 1 ? ` (Drill ×${String(drill)})` : '';
   switch (collection.kind) {
     case 'fuel':
       return collection.leftBehind > 0
-        ? `Collected ${formatFuel(collection.collected)} of Fuel; ${formatFuel(collection.leftBehind)} left behind: the Tank is full.`
-        : `Collected ${formatFuel(collection.collected)} of Fuel.`;
+        ? `Collected ${formatFuel(collection.collected)} of Fuel${by}; ${formatFuel(collection.leftBehind)} left behind: the Tank is full.`
+        : `Collected ${formatFuel(collection.collected)} of Fuel${by}.`;
     case 'materials':
-      return `Collected ${String(collection.collected)} Materials.`;
+      return `Collected ${String(collection.collected)} Materials${by}.`;
     case 'depleted':
       return 'Nothing to collect: this Body is Depleted.';
   }

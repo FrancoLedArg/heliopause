@@ -259,13 +259,18 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                   </span>
                 )}
               </p>
-              <p className="spacecraft-panel__row-effect" data-testid="component-effect">
+              <p
+                id={`${titleId}-effect-${row.id}`}
+                className="spacecraft-panel__row-effect"
+                data-testid="component-effect"
+              >
                 {row.effect}
               </p>
               <KitButton
                 width={64}
                 className="spacecraft-panel__install"
                 aria-label={`Install ${componentLabel(row.id)}, ${row.mass}, ${row.cost}`}
+                aria-describedby={`${titleId}-effect-${row.id}`}
                 onFocus={() => {
                   setAboutId(row.id);
                 }}

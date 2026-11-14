@@ -10,9 +10,11 @@ import {
   launchHop,
   listBodies,
   materials,
+  refit,
   startRun,
   STARTING_MATERIALS,
   type Run,
+  type Slot,
 } from './index.ts';
 import { homeMoon, landedOn } from './testing.ts';
 
@@ -153,5 +155,94 @@ describe('Fuel left behind in a real Run', () => {
     if (collection?.kind !== 'fuel') throw new Error('Expected Fuel collected');
     expect(collection.leftBehind).toBeGreaterThan(0);
     expect(second.run.spacecraft.fuelMass).toBe(second.run.spacecraft.fuelCapacity);
+  });
+});
+
+describe('a Drill multiplies yields', () => {
+  const base = startRun(2026, 'scout');
+  const moon = homeMoon(base);
+  const home = homePlanet(base.starSystem);
+  const withSlots = (run: Run, slots: readonly Slot[]): Run => ({
+    ...run,
+    // A roomy Tank, so these tests see the multiplier and not the Tank's cap.
+    spacecraft: {
+      ...run.spacecraft,
+      ...refit(run.spacecraft, slots),
+      fuelCapacity: kilograms(100_000),
+      fuelMass: kilograms(500),
+    },
+  });
+  const drill1 = withSlots(base, ['engine-1', 'fuel-tank-1', 'drill-1', null]);
+
+  it('a level-1 Drill yields 1.5 times the Fuel from an Icy Body', () => {
+    const result = collectYield(drill1, moon.id);
+    expect(result.collection).toEqual({
+      kind: 'fuel',
+      collected: kilograms(moon.baseYield * 1.5),
+      leftBehind: kilograms(0),
+    });
+  });
+
+  it('a Drill still stops at Tank capacity, and the rest is left behind', () => {
+    const nearlyFull = {
+      ...drill1,
+      spacecraft: {
+        ...drill1.spacecraft,
+        fuelCapacity: kilograms(10_000),
+        fuelMass: kilograms(9_000),
+      },
+    };
+    const result = collectYield(nearlyFull, moon.id);
+    expect(result.run.spacecraft.fuelMass).toBe(10_000);
+    expect(result.collection).toEqual({
+      kind: 'fuel',
+      collected: kilograms(1_000),
+      leftBehind: kilograms(moon.baseYield * 1.5 - 1_000),
+    });
+  });
+
+  it('a Rocky yield multiplied to a fraction rounds to the nearest whole Material, a half up', () => {
+    // 15 × 1.5 = 22.5 -> 23; 14 × 1.5 = 21 exactly; 11 × 1.5 = 16.5 -> 17.
+    const rocky = (baseYield: number): Run => ({
+      ...away(),
+      starSystem: {
+        ...base.starSystem,
+        planets: base.starSystem.planets.map((planet) =>
+          planet.id === home.id
+            ? { ...planet, composition: 'rocky' as const, baseYield: materials(baseYield) }
+            : planet,
+        ),
+      },
+    });
+    function away(): Run {
+      return { ...landedOn(drill1, moon.id) };
+    }
+    for (const [yielded, expected] of [
+      [15, 23],
+      [14, 21],
+      [11, 17],
+    ] as const) {
+      const result = collectYield(rocky(yielded), home.id);
+      expect(result.collection).toEqual({ kind: 'materials', collected: materials(expected) });
+    }
+  });
+
+  it('the best Drill sets the multiplier: a second Drill adds only mass', () => {
+    const two = withSlots(base, ['engine-1', 'drill-1', 'drill-1', 'fuel-tank-1']);
+    const mixed = withSlots(base, ['engine-1', 'drill-1', 'drill-2', 'fuel-tank-1']);
+    const fuel = (run: Run) => collectYield(run, moon.id).collection;
+    expect(fuel(two)).toMatchObject({ collected: kilograms(moon.baseYield * 1.5) });
+    expect(fuel(mixed)).toMatchObject({ collected: kilograms(moon.baseYield * 2) });
+  });
+
+  it('with no Drill a yield is the Body’s base yield', () => {
+    expect(
+      collectYield(withSlots(base, ['engine-1', null, null, null]), moon.id).collection,
+    ).toMatchObject({ collected: moon.baseYield });
+  });
+
+  it('a Drill does not change the Depleted rule', () => {
+    const once = collectYield(drill1, moon.id).run;
+    expect(collectYield(once, moon.id).collection).toEqual({ kind: 'depleted' });
   });
 });
