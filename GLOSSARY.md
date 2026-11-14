@@ -8,6 +8,10 @@ A roguelike in which the player escapes randomly generated star systems one Hop 
 One attempt from a fresh start until the Spacecraft is lost or stranded. A Run spans as many Star Systems as the player escapes.
 _Avoid_: Game, playthrough, session
 
+**New Run**:
+A Run started fresh in a newly generated Star System, after the previous Run has ended.
+_Avoid_: Restart, retry, new game
+
 **Star System**:
 One randomly generated star and the Bodies orbiting it. Escaping it leads to the next, harder Star System in the same Run.
 _Avoid_: Solar system, level, map
@@ -123,6 +127,10 @@ _Avoid_: Odds, risk, probability
 **Margin**:
 The Δv left over after a Hop's Burns; spare capacity against Burns costing more than estimated.
 _Avoid_: Buffer, slack, reserve
+
+**Arrived**:
+A Hop outcome where every Burn is covered and the Spacecraft lands on the target Body.
+_Avoid_: Success, reached
 
 **Fell Short**:
 A Hop outcome where the Spacecraft runs out of Fuel during Takeoff or Transfer.

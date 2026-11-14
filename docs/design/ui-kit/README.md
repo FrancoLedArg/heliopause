@@ -6,12 +6,16 @@ primary actions and resources, red for danger.
 
 ## Files
 
+In `public/assets/ui/` (served by the game):
+
 - `heliopause_ui.png` + `heliopause_ui.json`: Phaser atlas (JSON hash, 93 frames)
-- `sprites/<category>/*.png`: every frame as its own PNG
-- `cursors_css/*@2x.png`, `*@3x.png`: browser cursors (CSS cursors are not scaled by the game)
-- `heliopauseUI.ts`: nine-slice sizes, cursor hotspots, `addNine`, `addButton`, `setCursor` helpers
 - `ui_meta.json`: size, slice margins, hotspot and usage note per frame
-- `palette.json`, `heliopause.gpl` (Aseprite/LibreSprite), `palette.png`
+- `palette.json`: the palette
+- `cursors/*@2x.png`, `*@3x.png`: browser cursors (CSS cursors are not scaled by the game)
+
+In `docs/design/ui-kit/` (reference only): `heliopause.gpl` (Aseprite/LibreSprite palette), `palette.png`, `preview_sheet.png`, `mock_menu_3x.png`.
+
+Not yet implemented: per-frame PNGs and a `heliopauseUI.ts` helper module (`addNine`, `addButton`, `setCursor`). Builders write the helpers they need, reading slice margins and cursor hotspots from `ui_meta.json`.
 
 ## Phaser setup
 
@@ -23,15 +27,11 @@ scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 64
 // preload
 this.load.atlas("ui", "assets/ui/heliopause_ui.png", "assets/ui/heliopause_ui.json");
 
-// create
-import { addNine, addButton, setCursor } from "./heliopauseUI";
-addNine(this, 24, 64, "panel_metal", 168, 216).setOrigin(0);
-addButton(this, 36, 96, 144, "NEW MISSION", "primary", () => this.scene.start("Mission"));
+// create (no helper module yet: pass slice widths from ui_meta.json explicitly)
 this.add.image(30, 20, "ui", "res_fuel");
-setCursor(this, "cursor_pointer");
 ```
 
-Phaser NineSlice needs Phaser 3.60 or newer. The atlas also stores `scale9Borders`, but `addNine` passes the slice widths explicitly, so it does not depend on that.
+This repo uses Phaser 4 (4.2.1). Check the Phaser 4 NineSlice API before use. The atlas also stores `scale9Borders`, but the slice widths in `ui_meta.json` are the source of truth.
 
 ## Frames
 
