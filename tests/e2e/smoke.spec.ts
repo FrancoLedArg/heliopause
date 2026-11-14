@@ -19,3 +19,14 @@ test('the game boots to the title screen without errors', async ({ page }, testI
   });
   expect(errors).toEqual([]);
 });
+
+test('the title screen links a favicon that the server serves', async ({ page }) => {
+  await page.goto('/');
+
+  const icon = page.locator('link[rel~="icon"]');
+  await expect(icon).toHaveCount(1);
+  const href = (await icon.getAttribute('href')) ?? '';
+  const response = await page.request.get(new URL(href, page.url()).toString());
+  expect(response.status()).toBe(200);
+  expect(response.headers()['content-type']).toContain('image/svg+xml');
+});
