@@ -115,7 +115,8 @@ export class Flight extends Scene {
   private stages!: Readonly<
     Record<'departure' | 'arrival' | 'space', readonly GameObjects.Container[]>
   >;
-  private ship!: GameObjects.Container;
+  /** The Spacecraft with its plumes; tests read where it rests. */
+  ship!: GameObjects.Container;
   private shipArt!: (frame: ShipFrame) => void;
   private hoverPlume!: GameObjects.Image;
   private rearPlume!: GameObjects.Image;
@@ -184,7 +185,8 @@ export class Flight extends Scene {
         this.render(tween.getValue() ?? 0);
       },
       onComplete: () => {
-        this.render(this.playback.duration);
+        // The last update already finished the Hop; posing again would undo where a failure left the ship.
+        if (!this.finished) this.render(this.playback.duration);
       },
     });
 

@@ -50,7 +50,7 @@ describe('the Hop report', () => {
     expect(ranOut?.label).toBe('Transfer');
     expect(ranOut?.actual).toMatch(/^[\d.,]+ of [\d.,]+ (m|km)\/s$/);
     expect(view.rows.at(-1)?.change).toBe('not flown');
-    expect(view.margin).toMatch(/^Margin: none left/);
+    expect(view.margin).toMatch(/^Margin: none left \(planned −[\d,]+ m\/s\)$/);
     expect(view.why).toBe(flight.why);
   });
 

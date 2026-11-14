@@ -3,6 +3,7 @@
 import {
   BURNS,
   findBody,
+  metersPerSecond,
   type Burn,
   type BurnResult,
   type HopFlight,
@@ -46,7 +47,9 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
     if (!result) throw new Error(`Flight has no ${burn} Burn`);
     return row(result);
   });
-  const planned = `planned ${formatDeltaV(flight.plan.margin)}`;
+  const { margin } = flight.plan;
+  // The same minus sign the Hop plan uses.
+  const planned = `planned ${margin < 0 ? '−' : ''}${formatDeltaV(metersPerSecond(Math.abs(margin)))}`;
   switch (outcome.kind) {
     case 'arrived':
       return {

@@ -38,6 +38,10 @@ export function GameUI() {
   const [arrival, setArrival] = useState<{ before: Run; flight: HopFlight } | undefined>(undefined);
   // A New Run has been launched and the scene is about to change: the choice is made.
   const [launching, setLaunching] = useState(false);
+  // Counts requests for focus on the Landed view's Nav Chart button; 0 when none is pending.
+  const [navFocus, setNavFocus] = useState(0);
+  // The next Landed view follows a New Run launched from a failure's report.
+  const afterFailure = useRef(false);
 
   // Set when the player leaves a Run, so the title they land on takes focus like after the picker's Back.
   const leftRun = useRef(false);
@@ -56,6 +60,7 @@ export function GameUI() {
           setInfo(undefined);
           setMenuOpen(false);
           setFlight(undefined);
+          setNavFocus(0);
           setFocus(leftRun.current ? 'new-run' : undefined);
           leftRun.current = false;
         }
@@ -69,6 +74,10 @@ export function GameUI() {
         setRun(started);
         setArrival(undefined);
         setFlight(undefined);
+        if (afterFailure.current) {
+          afterFailure.current = false;
+          setNavFocus((n) => n + 1);
+        }
       }),
     [],
   );
@@ -104,7 +113,15 @@ export function GameUI() {
 
   // What the Nav Chart shows; `undefined` while it is closed.
   const [chart, setChart] = useState<ChartState | undefined>(undefined);
-  useEffect(() => EventBus.on('nav-chart-state', setChart), []);
+  useEffect(
+    () =>
+      EventBus.on('nav-chart-state', (state) => {
+        setChart(state);
+        // Opening the Nav Chart means the player is done with the report.
+        if (state !== undefined) setArrival(undefined);
+      }),
+    [],
+  );
 
   // M opens the Nav Chart from the Landed view (the chart's own keys close it).
   useEffect(() => {
@@ -131,6 +148,9 @@ export function GameUI() {
     );
     setRunSeed(seed);
     setLaunching(true);
+    afterFailure.current = scene === SceneKey.Flight;
+    // The address bar follows the Run being played, so a reload or a shared link replays this Star System.
+    syncUrl(seed, chassisId);
     EventBus.emit('new-run-requested', seed, chassisId);
   };
 
@@ -144,9 +164,7 @@ export function GameUI() {
   // Back to the Landed view of the new Body: focus goes to the button that opens the Nav Chart.
   const dismissArrival = (): void => {
     setArrival(undefined);
-    requestAnimationFrame(() => {
-      document.querySelector<HTMLButtonElement>('.landed-nav-button button')?.focus();
-    });
+    setNavFocus((n) => n + 1);
   };
 
   const closeInfo = (): void => {
@@ -175,6 +193,7 @@ export function GameUI() {
         picking && (
           <ChassisPicker
             launching={launching}
+            initial={flight?.before.spacecraft.chassisId}
             onLaunch={launch}
             onBack={() => {
               setPicking(false);
@@ -183,7 +202,7 @@ export function GameUI() {
           />
         )}
       {scene === SceneKey.Landed && run !== undefined && (
-        <LandedPanels run={run} chartOpen={chart !== undefined} />
+        <LandedPanels run={run} chartOpen={chart !== undefined} focusRequest={navFocus} />
       )}
       {scene === SceneKey.Landed && run !== undefined && arrival !== undefined && (
         <HopReport
@@ -212,4 +231,16 @@ export function GameUI() {
       <p className="hud-tag ai-label">AI-generated art</p>
     </div>
   );
+}
+
+/** Puts the seed and Chassis of the Run just launched in the page URL, other parameters kept. */
+function syncUrl(seed: Seed, chassisId: ChassisId): void {
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('seed')) url.searchParams.set('seed', String(seed));
+    if (url.searchParams.has('chassis')) url.searchParams.set('chassis', chassisId);
+    window.history.replaceState(null, '', url);
+  } catch {
+    // A page that cannot rewrite its own URL still plays.
+  }
 }

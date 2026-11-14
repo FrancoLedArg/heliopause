@@ -45,10 +45,25 @@ export function HopReport({ before, flight, actions, onEscape }: HopReportProps)
       aria-describedby="hop-report-why"
       data-testid="hop-report"
       style={{ width: PANEL.width, height: PANEL.height }}
+      aria-modal="true"
       onKeyDown={(event) => {
         if (event.key === 'Escape' && onEscape) {
           event.stopPropagation();
           onEscape();
+          return;
+        }
+        if (event.key !== 'Tab') return;
+        // Focus stays inside the report: Tab and Shift+Tab cycle through its buttons.
+        const found = buttons.current?.querySelectorAll('button') ?? [];
+        const first = found[0];
+        const last = found[found.length - 1];
+        if (!first || !last) return;
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
         }
       }}
     >

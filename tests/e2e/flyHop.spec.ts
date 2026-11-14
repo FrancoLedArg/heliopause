@@ -112,6 +112,11 @@ test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, the
     contentType: 'image/png',
   });
   await expect(report.getByRole('button', { name: 'Continue' })).toBeFocused();
+  // Focus stays in the report: Tab and Shift+Tab come back to Continue.
+  await page.keyboard.press('Tab');
+  await expect(report.getByRole('button', { name: 'Continue' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(report.getByRole('button', { name: 'Continue' })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(report).toBeHidden();
   await expect(page.getByRole('button', { name: /Nav Chart/ })).toBeFocused();
@@ -125,6 +130,21 @@ test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, the
   await target(page, home.name);
   await expect(page.getByTestId('plan-success')).toContainText('%');
   expect(errors).toEqual([]);
+});
+
+test('the Nav Chart cannot open under the Arrived report: opening it closes the report', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openNavChart(page);
+  await target(page, homeMoon.name);
+  await page.getByRole('button', { name: 'Launch' }).click();
+  const report = page.getByRole('dialog', { name: 'Arrived' });
+  await expect(report).toBeVisible({ timeout: 20_000 });
+  await page.getByRole('button', { name: /Nav Chart/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
+  await expect(page.getByTestId('hop-report')).toHaveCount(0);
 });
 
 test('under reduced motion the playback is shorter and still steps through the three Burns', async ({
@@ -177,6 +197,8 @@ test('after a failed Hop, New Run starts a different Star System on its Home Pla
   await expect(outcome).toBeVisible({ timeout: 10_000 });
   await outcome.getByRole('button', { name: 'New Run' }).click();
 
+  // The address bar follows the Run being played.
+  await expect(page).toHaveURL(new RegExp(`seed=${String(SEED + 1)}`));
   // `?seed=123` moves on to 124 for the next Run, so the Home Planet is a different one.
   const nextHome = homePlanet(generateStarSystem(SEED + 1));
   expect(nextHome.name).not.toBe(home.name);
@@ -211,6 +233,8 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
 
   await outcome.getByRole('button', { name: 'New Run' }).click();
   await expect(page.getByRole('heading', { name: 'Choose a Chassis' })).toBeVisible();
+  // The picker starts on the Chassis just flown.
+  await expect(page.getByRole('radio', { name: /Hauler/ })).toBeChecked();
   await testInfo.attach('picker-after-failure', {
     body: await page.screenshot(),
     contentType: 'image/png',
@@ -219,7 +243,7 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(outcome.getByRole('button', { name: 'New Run' })).toBeFocused();
   await outcome.getByRole('button', { name: 'New Run' }).click();
-  await page.keyboard.press('ArrowRight');
+  // The picker starts on the Hauler just flown; one step on is the Lancer.
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('radio', { name: /Lancer/ })).toBeChecked();
   await page.getByRole('button', { name: 'Launch' }).click();

@@ -19,6 +19,8 @@
   flex-direction: column;
   gap: 3px;
   padding: 9px 12px 10px;
+  /* Longer text must not push the buttons out of the frame. */
+  overflow: hidden;
 }
 
 .hop-report__badge {
@@ -100,4 +102,5 @@
   gap: 6px;
   justify-content: flex-end;
   margin-top: auto;
+  flex: none;
 }
