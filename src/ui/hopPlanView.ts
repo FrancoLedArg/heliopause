@@ -4,6 +4,7 @@ import {
   astronomicalUnits,
   BURNS,
   findBody,
+  marginShare,
   metersPerSecond,
   type Body,
   type Burn,
@@ -85,7 +86,7 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
   if (!from || !to) throw new Error(`Hop plan names unknown Body ${plan.fromId} or ${plan.toId}`);
   const reasons = burnReasons(from, to);
   const short = plan.margin < 0;
-  const share = Math.round(Math.abs(plan.margin / plan.totalEstimate) * 100);
+  const share = Math.round(Math.abs(marginShare(plan)) * 100);
   const marginDeltaV = formatPlanDeltaV(metersPerSecond(Math.abs(plan.margin)));
   const low = short || plan.successChance < LOW_SUCCESS_BELOW;
   const needed = formatPlanDeltaV(plan.totalEstimate);
@@ -100,7 +101,7 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
     needed,
     available,
     availableBasis: `${formatMass(run.spacecraft.dryMass)} craft + ${formatFuel(run.spacecraft.fuelMass)} Fuel`,
-    // A share in the hundreds says little, so a Margin as big as the estimate shows only its Δv.
+    // A share in the hundreds says little, so a Margin as big as the available Δv shows only its Δv.
     margin: `${short ? '−' : '+'}${marginDeltaV}${share < 100 ? ` (${share}%)` : ''}`,
     marginIsShort: short,
     successChance,

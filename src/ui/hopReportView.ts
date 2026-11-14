@@ -3,6 +3,7 @@
 import {
   BURNS,
   findBody,
+  marginShare,
   metersPerSecond,
   type Burn,
   type BurnResult,
@@ -49,7 +50,8 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
   });
   const { margin } = flight.plan;
   // The same minus sign the Hop plan uses.
-  const planned = `planned ${margin < 0 ? '−' : ''}${formatDeltaV(metersPerSecond(Math.abs(margin)))}`;
+  const share = Math.round(Math.abs(marginShare(flight.plan)) * 100);
+  const planned = `planned ${margin < 0 ? '−' : ''}${formatDeltaV(metersPerSecond(Math.abs(margin)))}${share < 100 ? `, ${share}%` : ''}`;
   switch (outcome.kind) {
     case 'arrived':
       return {

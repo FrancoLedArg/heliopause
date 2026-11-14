@@ -7,6 +7,7 @@ import {
   homePlanet,
   launchHop,
   listBodies,
+  marginShare,
   metersPerSecond,
   metersPerSecondSquared,
   planHop,
@@ -345,6 +346,25 @@ describe('flying a Hop', () => {
     expect(flight.why).toMatch(/needed 25% more Δv than the Fuel provides/);
   });
 
+  it('the Margin share is the Margin over the available Δv: a shortfall reads as "needed N% more"', () => {
+    // Hauler on seed 123: Viormio needs 21,347 m/s of the 20,011 m/s the Fuel gives.
+    const hauler = startRun(123, 'hauler');
+    const viormio = listBodies(hauler.starSystem).find((body) => body.name === 'Viormio');
+    if (!viormio) throw new Error('seed 123 has no Viormio');
+    const planned = planHop(hauler, viormio.id);
+    if (planned.kind !== 'planned') throw new Error('expected a plan');
+    expect(Math.round(marginShare(planned.plan) * 1000)).toBe(-67);
+    const { flight } = flyHop(hauler, planned.plan, createRng(1));
+    expect(flight.why).toMatch(/needed 7% more Δv than the Fuel provides/);
+  });
+
+  it('an arrival that had no Margin never says it had a negative one', () => {
+    const { from, plan: short } = tight(moonPlan.totalEstimate * 0.97);
+    const { flight } = flyHop(from, short, createRng(9));
+    if (flight.outcome.kind === 'arrived') expect(flight.why).not.toMatch(/-\d+%/);
+    expect(flight.why).toMatch(/3% more Δv|no Margin/);
+  });
+
   it('the why for a plan far short of its Δv gives the figures, not a huge percentage', () => {
     const { from, plan: hopeless } = tight(moonPlan.totalEstimate * 0.1);
     const { flight } = flyHop(from, hopeless, createRng(3));
@@ -359,7 +379,7 @@ describe('flying a Hop', () => {
       /^Arrived on .+\. The Burns took (\d+% (more|less) Δv than estimated|about the estimated Δv); you had (\d+% Margin|\d+\.\d km\/s of Margin)\.$/,
     );
     const { from, plan: slim } = tight(moonPlan.totalEstimate * 1.15);
-    expect(flyHop(from, slim, createRng(9)).flight.why).toMatch(/; you had 15% Margin\.$/);
+    expect(flyHop(from, slim, createRng(9)).flight.why).toMatch(/; you had 13% Margin\.$/);
   });
 
   it('the why never quotes a percentage of 100 or more', () => {
