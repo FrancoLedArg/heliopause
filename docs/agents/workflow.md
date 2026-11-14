@@ -67,4 +67,4 @@ The Orchestrator settles technical questions itself. It reaches the human only t
 
 ## Commands
 
-`pnpm pipeline status` shows what is actionable. The other `pnpm pipeline` subcommands (`claim`, `requeue`, `escalate`, `approve`, `reject`, `merge`) are the only way agents change pipeline state on GitHub; run without arguments for usage.
+`pnpm pipeline status` shows what is actionable. The other `pnpm pipeline` subcommands (`claim`, `requeue`, `escalate`, `approve`, `reject`, `merge`, `close-specs`) are the only way agents change pipeline state on GitHub; run without arguments for usage.

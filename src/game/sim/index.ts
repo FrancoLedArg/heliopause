@@ -14,10 +14,30 @@ export type {
   InvalidTargetReason,
   LaunchResult,
 } from './hop.ts';
-export { availableDeltaV, fuelAfterBurning, newSpacecraft } from './spacecraft.ts';
-export type { Spacecraft } from './spacecraft.ts';
+export {
+  availableDeltaV,
+  componentEffect,
+  fuelAfterBurning,
+  newSpacecraft,
+  refit,
+  SLOT_COUNT,
+  STARTING_SLOTS,
+} from './spacecraft.ts';
+export type { ComponentEffect, Loadout, Slot, Spacecraft } from './spacecraft.ts';
+export { COMPONENT_IDS, COMPONENTS } from './catalogue.ts';
+export type {
+  Component,
+  ComponentId,
+  ComponentKind,
+  ComponentLevel,
+  Drill,
+  Engine,
+  FuelTank,
+  Provenance,
+} from './catalogue.ts';
 export type {
   Body,
+  BodyComposition,
   BodyId,
   GasGiant,
   LandableBody,
@@ -29,6 +49,8 @@ export type {
   StarSystem,
 } from './starSystem.ts';
 export {
+  BODY_TUNING,
+  ICE_LINE,
   CHASSIS_IDS,
   CHASSIS_TUNING,
   DISPERSION,
@@ -49,6 +71,7 @@ export {
   astronomicalUnits,
   kilograms,
   kilometers,
+  materials,
   metersPerSecond,
   metersPerSecondSquared,
   radians,
@@ -58,6 +81,7 @@ export type {
   AstronomicalUnits,
   Kilograms,
   Kilometers,
+  Materials,
   MetersPerSecond,
   MetersPerSecondSquared,
   Radians,

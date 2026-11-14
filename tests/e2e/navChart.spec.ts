@@ -99,7 +99,7 @@ test('from the keyboard: select the Home Planet Moon, and a Gas Giant says why i
   await expect(page.getByRole('listbox', { name: 'Bodies in the Star System' })).toBeFocused();
 
   await stepTo(page, homeMoon);
-  await expect(page.getByTestId('landable')).toHaveText('Landable');
+  await expect(page.getByTestId('landable')).toHaveText(/^Landable · (Icy|Rocky)$/);
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('target')).toContainText(homeMoon.name);
   await expect(
