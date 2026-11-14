@@ -70,7 +70,6 @@ export type {
 export {
   astronomicalUnits,
   kilograms,
-  materials,
   kilometers,
   materials,
   metersPerSecond,
@@ -81,7 +80,6 @@ export {
 export type {
   AstronomicalUnits,
   Kilograms,
-  Materials,
   Kilometers,
   Materials,
   MetersPerSecond,

@@ -11,8 +11,6 @@ export type MetersPerSecondSquared = Quantity<'m/s²'>;
 export type AstronomicalUnits = Quantity<'AU'>;
 export type Kilometers = Quantity<'km'>;
 export type Kilograms = Quantity<'kg'>;
-/** Materials: the Rocky Body yield and the Component cost unit (#112). */
-export type Materials = Quantity<'materials'>;
 export type Seconds = Quantity<'s'>;
 /** An angle in radians, measured counter-clockwise. */
 export type Radians = Quantity<'rad'>;
@@ -24,7 +22,6 @@ export const metersPerSecondSquared = (value: number) => value as MetersPerSecon
 export const astronomicalUnits = (value: number) => value as AstronomicalUnits;
 export const kilometers = (value: number) => value as Kilometers;
 export const kilograms = (value: number) => value as Kilograms;
-export const materials = (value: number) => value as Materials;
 export const seconds = (value: number) => value as Seconds;
 export const radians = (value: number) => value as Radians;
 export const materials = (value: number) => value as Materials;
