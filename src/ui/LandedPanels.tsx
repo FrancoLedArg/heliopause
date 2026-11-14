@@ -1,18 +1,11 @@
 import { availableDeltaV, currentBody, type Run } from '../game/sim/index.ts';
 import { useEffect, useRef } from 'react';
 import { EventBus } from '../game/EventBus.ts';
-import {
-  bodyTypeLabel,
-  formatDeltaV,
-  formatDistanceAu,
-  formatFuel,
-  formatGravity,
-} from './format.ts';
+import { bodyTypeLabel, formatDistanceAu, formatGravity } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { TopBar } from './TopBar.tsx';
 
-const BAR_WIDTH = 624;
-const BAR_HEIGHT = 40;
 const PLATE_WIDTH = 284;
 const PLATE_HEIGHT = 62;
 
@@ -37,21 +30,11 @@ export function LandedPanels({ run, chartOpen }: LandedPanelsProps) {
 
   return (
     <>
-      <header className="top-bar" style={{ width: BAR_WIDTH, height: BAR_HEIGHT }}>
-        <KitFrame frame="panel_holo" width={BAR_WIDTH} height={BAR_HEIGHT} />
-        <p className="top-bar__label top-bar__system-label">Star System</p>
-        <p className="top-bar__value top-bar__system">{run.starSystem.name}</p>
-        <KitFrame frame="res_fuel" className="top-bar__icon top-bar__fuel-icon" />
-        <p className="top-bar__label top-bar__fuel-label">Fuel</p>
-        <p className="top-bar__value top-bar__fuel" data-testid="fuel">
-          {formatFuel(run.spacecraft.fuelMass)}
-        </p>
-        <KitFrame frame="res_delta_v" className="top-bar__icon top-bar__dv-icon" />
-        <p className="top-bar__label top-bar__dv-label">Δv available</p>
-        <p className="top-bar__value top-bar__dv" data-testid="delta-v">
-          {formatDeltaV(availableDeltaV(run.spacecraft))}
-        </p>
-      </header>
+      <TopBar
+        systemName={run.starSystem.name}
+        fuel={run.spacecraft.fuelMass}
+        deltaV={availableDeltaV(run.spacecraft)}
+      />
 
       {!chartOpen && (
         <>

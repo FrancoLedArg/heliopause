@@ -2,10 +2,12 @@ import { useEffect, useRef, useState } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import { chooseUrlChassis } from '../game/lib/runChassis.ts';
 import { chooseRunSeed } from '../game/lib/runSeed.ts';
-import type { ChassisId, Run, Seed } from '../game/sim/index.ts';
+import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
+import type { ChassisId, HopFlight, Run, Seed } from '../game/sim/index.ts';
 import { SceneKey } from '../game/scenes/keys.ts';
 import type { ChartState } from '../game/scenes/navChartView.ts';
 import { ChassisPicker } from './ChassisPicker.tsx';
+import { FlightHud } from './FlightHud.tsx';
 import { LandedPanels } from './LandedPanels.tsx';
 import { AboutPanel, CreditsPanel } from './InfoPanels.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
@@ -26,6 +28,10 @@ export function GameUI() {
   const [focus, setFocus] = useState<TitleButton | undefined>(undefined);
   // Whether the in-Run Menu is open; while it is, it is the topmost overlay and takes every key.
   const [menuOpen, setMenuOpen] = useState(false);
+  // The Hop being played back: the Run at Launch, the flight, where the playback is, and whether it failed.
+  const [flight, setFlight] = useState<
+    { before: Run; flight: HopFlight; moment?: FlightMoment; failed: boolean } | undefined
+  >(undefined);
 
   // Set when the player leaves a Run, so the title they land on takes focus like after the picker's Back.
   const leftRun = useRef(false);
@@ -40,6 +46,7 @@ export function GameUI() {
           setPicking(false);
           setInfo(undefined);
           setMenuOpen(false);
+          setFlight(undefined);
           setFocus(leftRun.current ? 'new-run' : undefined);
           leftRun.current = false;
         }
@@ -48,6 +55,28 @@ export function GameUI() {
   );
 
   useEffect(() => EventBus.on('run-started', setRun), []);
+
+  useEffect(() => {
+    const offs = [
+      EventBus.on('hop-flight-started', (before, hop) => {
+        setFlight({ before, flight: hop, failed: false });
+      }),
+      EventBus.on('hop-flight-moment', (moment) => {
+        setFlight((now) => now && { ...now, moment });
+      }),
+      EventBus.on('hop-failed', () => {
+        setFlight((now) => now && { ...now, failed: true });
+      }),
+    ];
+    return () => {
+      for (const off of offs) off();
+    };
+  }, []);
+
+  const leaveRun = (): void => {
+    leftRun.current = true;
+    EventBus.emit('leave-run-requested');
+  };
 
   // What the Nav Chart shows; `undefined` while it is closed.
   const [chart, setChart] = useState<ChartState | undefined>(undefined);
@@ -119,13 +148,15 @@ export function GameUI() {
         <NavChartPanel run={run} state={chart} />
       )}
       {scene === SceneKey.Landed && run !== undefined && (
-        <RunMenu
-          open={menuOpen}
-          onOpenChange={setMenuOpen}
-          onLeave={() => {
-            leftRun.current = true;
-            EventBus.emit('leave-run-requested');
-          }}
+        <RunMenu open={menuOpen} onOpenChange={setMenuOpen} onLeave={leaveRun} />
+      )}
+      {scene === SceneKey.Flight && flight !== undefined && (
+        <FlightHud
+          before={flight.before}
+          flight={flight.flight}
+          moment={flight.moment}
+          failed={flight.failed}
+          onLeave={leaveRun}
         />
       )}
       <p className="hud-tag ai-label">AI-generated art</p>
