@@ -221,7 +221,21 @@ function checkGh(args: readonly string[]): string | null {
   return null;
 }
 
-function checkRm(args: readonly string[], context: GuardContext): string | null {
+/** A glob segment that matches every entry of its directory: `*`, `**`, `.*`, `?*`, `.[!.]*`. */
+const MATCH_ALL_SEGMENT = /^(?:\.|\*|\?|\[[^\]]*\])+$/;
+const GLOB_CHARS = /[*?[]/;
+const isMatchAll = (segment: string): boolean =>
+  GLOB_CHARS.test(segment) && MATCH_ALL_SEGMENT.test(segment);
+
+/**
+ * `cwd` is where relative operands resolve; null after a `cd` to a place the guard
+ * cannot resolve (`~`, `$HOME`, an unknown variable), which blocks relative deletes.
+ */
+function checkRm(
+  args: readonly string[],
+  context: GuardContext,
+  cwd: string | null,
+): string | null {
   let recursive = false;
   const operands: string[] = [];
   let options = true;
@@ -250,10 +264,19 @@ function checkRm(args: readonly string[], context: GuardContext): string | null 
     if (resolved.includes('$')) {
       return `recursive delete of an unresolved path (${operand}); use a literal path`;
     }
-    // Only a match-all glob (`*`, `.*`, `**`) empties its whole directory, so judge that
-    // directory. Any other pattern (`dist*`) matches entries inside it and resolves as a child.
-    const matchAll = /^\.?\*+$/.test(path.basename(resolved));
-    const target = path.resolve(context.cwd, matchAll ? path.dirname(resolved) : resolved);
+    if (cwd === null && !path.isAbsolute(resolved)) {
+      return `recursive delete after a cd to an unresolved directory (${operand})`;
+    }
+    // A glob whose segments all match every entry (`*`, `**/*`, `?*`, `.[!.]*`) empties the
+    // directory before its first glob segment, so judge that directory. Any other pattern
+    // (`dist*`) matches entries inside it and resolves as a child.
+    const segments = resolved.split('/');
+    const firstGlob = segments.findIndex((segment) => GLOB_CHARS.test(segment));
+    const matchAll = firstGlob !== -1 && segments.slice(firstGlob).every(isMatchAll);
+    const base = matchAll
+      ? segments.slice(0, firstGlob).join('/') || (resolved.startsWith('/') ? '/' : '.')
+      : resolved;
+    const target = path.resolve(cwd ?? '/', base);
     // Strictly inside a root, and never a root itself (e.g. all of $TMPDIR or the project).
     const inside =
       !roots.includes(target) && roots.some((root) => target.startsWith(root + path.sep));
@@ -262,20 +285,39 @@ function checkRm(args: readonly string[], context: GuardContext): string | null 
   return null;
 }
 
+/** Directory after `cd args`, or null when it cannot be resolved (`~`, `$HOME`, `-`, unknown vars). */
+function nextCwd(
+  cwd: string | null,
+  args: readonly string[],
+  context: GuardContext,
+): string | null {
+  const target = args.find((arg) => arg !== '--' && !/^-[LPe@]+$/.test(arg));
+  if (target === undefined || target === '-' || target.startsWith('~')) return null;
+  const resolved = target.replace(
+    /\$\{?(CLAUDE_PROJECT_DIR|TMPDIR)\}?(?![A-Za-z0-9_])/g,
+    (_, name: string) => (name === 'TMPDIR' ? context.tmpDir : context.projectDir),
+  );
+  if (/[$*?[]/.test(resolved)) return null;
+  return cwd === null && !path.isAbsolute(resolved) ? null : path.resolve(cwd ?? '/', resolved);
+}
+
 /** Why `script` is blocked, or null when it may run. */
 export function guard(script: string, context: GuardContext): string | null {
+  // Follows `cd` within the command line so later `rm` operands resolve against it.
+  let cwd: string | null = context.cwd;
   for (const command of parseShell(script)) {
     const { words, env } = unwrap(command);
     const [head, ...args] = words;
     if (head === undefined) continue;
     const name = path.basename(head);
+    if (name === 'cd') cwd = nextCwd(cwd, args, context);
     const reason =
       name === 'git'
         ? checkGit(args, env)
         : name === 'gh'
           ? checkGh(args)
           : name === 'rm'
-            ? checkRm(args, context)
+            ? checkRm(args, context, cwd)
             : null;
     if (reason) return reason;
   }

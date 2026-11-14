@@ -77,6 +77,11 @@ describe('guard allows ordinary agent work', () => {
     heredocBody("```\ngit reset --hard origin/main\n```\nand it's (mostly) fine"),
     'rm -rf "$TMPDIR/vitest-cache"',
     'rm -rf "${CLAUDE_PROJECT_DIR}/dist"',
+    'cd dist && rm -rf assets',
+    'rm -rf coverage/**',
+    'cd /tmp && rm -rf x',
+    'cd "$CLAUDE_PROJECT_DIR/dist" && rm -rf assets',
+    'cd dist && cd .. && rm -rf dist',
     'if pnpm test; then echo ok; fi',
     'echo $((1 + 2))',
   ])('%s', (script) => {
@@ -179,6 +184,18 @@ describe('guard blocks', () => {
     'rm -rf "$CLAUDE_PROJECT_DIR/$SUBDIR"',
     'rm -rf "$TMPDIR"',
     'rm -rf "$SOMEWHERE/x"',
+    'cd ~ && rm -rf .cache',
+    'cd /Users/x && rm -rf y',
+    'cd $HOME && rm -rf y',
+    'cd "$UNKNOWN" && rm -rf y',
+    'cd && rm -rf y',
+    'cd .. && rm -rf x',
+    'cd dist && rm -rf ../../x',
+    'rm -rf ?*',
+    'rm -rf .[!.]*',
+    'rm -rf **/*',
+    'rm -rf [!.]*',
+    'cd dist && cd .. && rm -rf ?*',
   ])('%s', (script) => {
     expect(check(script)).not.toBeNull();
   });
