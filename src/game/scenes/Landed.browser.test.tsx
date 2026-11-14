@@ -232,8 +232,10 @@ for (const where of ['Home Planet', 'Moon'] as const) {
       const b = ship.getBounds();
       expect(b.left).toBeGreaterThanOrEqual(ship.x - SHIP_FOOTPRINT_HALF_WIDTH);
       expect(b.right).toBeLessThanOrEqual(ship.x + SHIP_FOOTPRINT_HALF_WIDTH);
-      // Its base rests on the top edge: no gap below it, nothing sunk into the ground beyond its shadow.
-      expect(b.bottom).toBeLessThanOrEqual(GROUND_TOP + 6);
+      // Its art rests exactly on the top edge: no gap below it and no overlap into the ground.
+      const art = ship.list.filter((o): o is GameObjects.Image => o instanceof GameObjects.Image);
+      expect(art.length).toBeGreaterThan(0);
+      expect(Math.max(...art.map((a) => a.getBounds().bottom))).toBeCloseTo(GROUND_TOP, 3);
     }
   });
 }

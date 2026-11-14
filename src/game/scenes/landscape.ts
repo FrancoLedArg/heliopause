@@ -33,9 +33,19 @@ export const SKY_X = (640 - SKY_WIDTH) / 2;
 
 const STAR_COUNT = 150;
 
+type Ramp = readonly [
+  PaletteColor,
+  PaletteColor,
+  PaletteColor,
+  PaletteColor,
+  PaletteColor,
+  PaletteColor,
+  PaletteColor,
+];
+
 interface SurfacePalette {
   /** The seven shades of the ground, darkest (mortar) to brightest (the surface line). */
-  readonly ramp: readonly PaletteColor[];
+  readonly ramp: Ramp;
   /** Dust motes: light enough to read against this ground. */
   readonly dust: PaletteColor;
 }
@@ -124,8 +134,8 @@ export function groundTexture(scene: Scene, kind: SurfaceKind): string {
 /** The Body's pebbles, resting on the ground's top edge: one small Graphics, in the ground's own coordinates. */
 function paintPebbles(scene: Scene, run: Run, palette: SurfacePalette): GameObjects.Graphics {
   const graphics = scene.add.graphics();
-  const lit = paletteNumber(palette.ramp[RAMP_SHADES - 2] ?? 'gm5');
-  const body = paletteNumber(palette.ramp[RAMP_SHADES - 4] ?? 'gm3');
+  const lit = paletteNumber(palette.ramp[5]);
+  const body = paletteNumber(palette.ramp[3]);
   for (const pebble of pebbles(run)) {
     graphics.fillStyle(body);
     graphics.fillRect(pebble.x, -pebble.height, pebble.width, pebble.height);

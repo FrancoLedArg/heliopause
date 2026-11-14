@@ -49,6 +49,18 @@
       "file": "sprites/body_star.png"
     },
     {
+      "key": "fx_dust",
+      "file": "sprites/fx_dust.png"
+    },
+    {
+      "key": "fx_smoke",
+      "file": "sprites/fx_smoke.png"
+    },
+    {
+      "key": "fx_spark",
+      "file": "sprites/fx_spark.png"
+    },
+    {
       "key": "res_materials",
       "file": "sprites/res_materials.png"
     },

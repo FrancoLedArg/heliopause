@@ -137,6 +137,56 @@ export function cleanupSummary(pr: number, failures: readonly string[]): string 
     : null;
 }
 
+export interface SpecStep {
+  id: 'comment' | 'close' | 'relabel';
+  what: string;
+  args: string[];
+}
+
+/**
+ * The steps that deliver a spec, in order. The relabel comes last: a failed close then
+ * leaves `in-progress` on the spec, which `close-specs` needs to find it again.
+ */
+export function closeSpecSteps(spec: number, total: number): SpecStep[] {
+  const n = String(spec);
+  return [
+    {
+      id: 'comment',
+      what: `comment on spec #${n}`,
+      args: [
+        'issue',
+        'comment',
+        n,
+        '--body',
+        `🤖 All ${String(total)} tickets merged. Spec delivered.`,
+      ],
+    },
+    {
+      id: 'close',
+      what: `close spec #${n}`,
+      args: ['issue', 'close', n, '--reason', 'completed'],
+    },
+    {
+      id: 'relabel',
+      what: `relabel spec #${n}`,
+      args: ['issue', 'edit', n, '--remove-label', `${Label.ReadyForAgent},${Label.InProgress}`],
+    },
+  ];
+}
+
+/** Runs steps in order until one fails; returns the ids of the steps that succeeded. */
+export function runStepsUntilFailure(
+  steps: readonly SpecStep[],
+  run: (step: SpecStep) => boolean,
+): SpecStep['id'][] {
+  const done: SpecStep['id'][] = [];
+  for (const step of steps) {
+    if (!run(step)) break;
+    done.push(step.id);
+  }
+  return done;
+}
+
 export function summarize(
   issues: readonly IssueSnapshot[],
   pulls: readonly PullSnapshot[],

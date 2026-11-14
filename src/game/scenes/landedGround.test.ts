@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { homePlanet, startRun, type Run } from '../sim/index.ts';
+import { CHASSIS_IDS, homePlanet, startRun, type Run } from '../sim/index.ts';
+import { standingExtent } from './chassisArt.ts';
+import { shadowWidth } from './spacecraftArt.ts';
 import {
   GROUND_HEIGHT,
   GROUND_TOP,
   SHIP_FOOTPRINT_HALF_WIDTH,
+  SHIP_SHADOW,
   SHIP_PLACEMENT,
   SPRITE_SIZE,
   SURFACE_WIDTH,
@@ -63,6 +66,15 @@ describe('the pebbles on the ground', () => {
         }
       }
     }
+  });
+
+  it('keep clear of every Chassis, shadow included', () => {
+    for (const id of CHASSIS_IDS) {
+      const half = standingExtent([id]).halfWidth;
+      expect(SHIP_FOOTPRINT_HALF_WIDTH, id).toBeGreaterThan(half);
+      expect(SHIP_FOOTPRINT_HALF_WIDTH, `${id} shadow`).toBeGreaterThanOrEqual(shadowWidth(id) / 2);
+    }
+    expect(SHIP_SHADOW.height).toBeGreaterThan(0);
   });
 
   it('rest on the surface line inside the strip', () => {

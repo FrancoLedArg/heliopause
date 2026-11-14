@@ -17,7 +17,7 @@ interface LandedPanelsProps {
   focusRequest?: number;
 }
 
-/** The Landed view's panels: the top bar (Star System, Fuel, Δv) and the plate naming the Body. */
+/** The Landed view's panels: the top bar (Star System, Fuel, Δv, Materials) and the plate naming the Body. */
 export function LandedPanels({ run, chartOpen, focusRequest = 0 }: LandedPanelsProps) {
   const body = currentBody(run);
   const type = bodyFullLabel(run, body);
@@ -40,6 +40,7 @@ export function LandedPanels({ run, chartOpen, focusRequest = 0 }: LandedPanelsP
         systemName={run.starSystem.name}
         fuel={run.spacecraft.fuelMass}
         deltaV={availableDeltaV(run.spacecraft)}
+        materials={run.materials}
       />
 
       {!chartOpen && (

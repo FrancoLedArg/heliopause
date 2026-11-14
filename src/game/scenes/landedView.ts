@@ -2,8 +2,15 @@
 // No Phaser here, so the scene stays a thin renderer and these rules are tested in Node.
 import { stringSeed } from '../lib/stringSeed.ts';
 import { createRng } from '../lib/rng.ts';
+import { standingExtent } from './chassisArt.ts';
 import { DRIFT_RANGE } from './landedMotion.ts';
-import { astronomicalUnits, currentBody, kilometersToAu, listBodies } from '../sim/index.ts';
+import {
+  astronomicalUnits,
+  CHASSIS_IDS,
+  currentBody,
+  kilometersToAu,
+  listBodies,
+} from '../sim/index.ts';
 import type {
   AstronomicalUnits,
   Body,
@@ -25,8 +32,8 @@ export function surfaceKind(body: LandableBody): SurfaceKind {
 /**
  * Where the whole Spacecraft stands: `x` is the centre of its base at rest, `baseY` the line it
  * rests on, which is the ground's top edge (`GROUND_TOP`). The ambient drift (#37) moves the
- * ground and the Spacecraft rides it, so the Spacecraft sweeps `SHIP_SWEEP_X`; panels must stay
- * clear of that whole span, not only of the resting position. The location plate sits at lower
+ * ground and the ship rides it, so the ship sweeps `SHIP_SWEEP_X`; panels must stay clear of the
+ * whole `SHIP_SWEEP` box, not only of the resting position. The location plate sits at lower
  * left, clear of it.
  */
 export const SHIP_PLACEMENT = { x: 525, baseY: 296 } as const;
@@ -37,13 +44,33 @@ export const SHIP_SWEEP_X = {
   max: SHIP_PLACEMENT.x + DRIFT_RANGE.ground,
 } as const;
 
+/** The shadow under the Spacecraft: an ellipse this far below the base line, this tall (px). */
+export const SHIP_SHADOW = { dy: 2, height: 8 } as const;
+
 /**
- * How far either side of the centre of its base the Spacecraft (and its shadow) reaches, with a
- * margin: nothing on the ground is placed inside it. Chassis art today is 96 px wide with a 72 px
- * shadow; #135's taller Spacecraft is about 104 px wide. A browser test checks the real ship
- * stays inside, so a wider Spacecraft fails there until this grows.
+ * Everything the standing Spacecraft can cover on screen, over the whole drift: its widest and
+ * tallest Chassis art (sizes come from the generated art data) at both ends of `SHIP_SWEEP_X`, down
+ * to its shadow. No panel may overlap this box.
  */
-export const SHIP_FOOTPRINT_HALF_WIDTH = 64;
+export const SHIP_SWEEP = (() => {
+  const { halfWidth, height } = standingExtent(CHASSIS_IDS);
+  return {
+    left: SHIP_SWEEP_X.min - halfWidth,
+    right: SHIP_SWEEP_X.max + halfWidth,
+    top: SHIP_PLACEMENT.baseY - height,
+    bottom: SHIP_PLACEMENT.baseY + SHIP_SHADOW.dy + SHIP_SHADOW.height / 2,
+  };
+})();
+
+const SHIP_EXTENT = standingExtent(CHASSIS_IDS);
+/** Gameplay tuning: space kept either side of the widest standing Spacecraft. */
+const FOOTPRINT_MARGIN = 12;
+/**
+ * How far either side of the centre of its base the Spacecraft reaches, with a margin: nothing on
+ * the ground (pebbles) is placed inside it. It comes from the widest Chassis art, so a wider
+ * Spacecraft widens it with no edit here.
+ */
+export const SHIP_FOOTPRINT_HALF_WIDTH = SHIP_EXTENT.halfWidth + FOOTPRINT_MARGIN;
 
 /** The ground's top edge: one level y across the whole screen, exactly the Spacecraft's base line. */
 export const GROUND_TOP = SHIP_PLACEMENT.baseY;
@@ -353,7 +380,7 @@ export function pebbles(run: Run): Pebble[] {
     const width = rng.int(2, 5);
     const x = rng.int(0, SURFACE_WIDTH - width);
     const height = rng.int(1, 3);
-    // Drawn, not skipped, so a miss costs no extra rng calls: the rest still match for the same Body.
+    // The rng draws above happen for every pebble, kept or not, so the kept ones do not shift.
     if (x + width > keepOut.left && x < keepOut.right) continue;
     placed.push({ x, width, height });
   }
