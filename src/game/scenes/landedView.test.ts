@@ -119,3 +119,117 @@ describe('the Landed sky', () => {
     }
   });
 });
+
+describe('the Landed sky layout', () => {
+  type Sky = ReturnType<typeof skyBodies>;
+  const half = (s: Sky[number]) => (SPRITE_SIZE[s.kind] * s.scale) / 2;
+  const apart = (a: Sky[number], b: Sky[number]) => Math.hypot(a.x - b.x, a.y - b.y);
+  const planetOfMoon = (run: Run, s: Sky[number]) => {
+    if (s.bodyId === undefined) return undefined;
+    const body = findBody(run.starSystem, s.bodyId);
+    return body?.kind === 'moon' ? body.planetId : undefined;
+  };
+  /** Every sky Body paired with every other one that is not the star. */
+  function pairs(sky: Sky) {
+    const bodies = sky.filter((s) => s.kind !== 'star');
+    return bodies.flatMap((a, i) => bodies.slice(i + 1).map((b) => [a, b] as const));
+  }
+
+  it('never lets two planets overlap, so none hides behind another', () => {
+    for (let seed = 1; seed <= 500; seed++) {
+      const sky = skyBodies(newRun(seed));
+      for (const [a, b] of pairs(sky)) {
+        if (a.kind === 'moon' || b.kind === 'moon') continue;
+        expect(apart(a, b), `seed ${seed}`).toBeGreaterThanOrEqual(half(a) + half(b));
+      }
+    }
+  });
+
+  it('seed 123: the Gas Giant no longer sits on the nearer rocky planet', () => {
+    const sky = skyBodies(newRun(123));
+    const gas = sky.find((s) => s.kind === 'gas-giant');
+    const rocky = sky.find((s) => s.kind === 'rocky-planet');
+    if (!gas || !rocky) throw new Error('seed 123 should show a Gas Giant and a rocky planet');
+    expect(apart(gas, rocky)).toBeGreaterThanOrEqual(half(gas) + half(rocky));
+  });
+
+  it('fans sibling Moons of a planet that is not in the sky out by at least a sprite width', () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 500; seed++) {
+      const run = newRun(seed);
+      const sky = skyBodies(run);
+      const orphans = sky.filter(
+        (s) =>
+          s.kind === 'moon' &&
+          !sky.some((p) => p.bodyId !== undefined && p.bodyId === planetOfMoon(run, s)),
+      );
+      for (const [a, b] of pairs(orphans)) {
+        if (planetOfMoon(run, a) !== planetOfMoon(run, b)) continue;
+        checked++;
+        expect(apart(a, b), `seed ${seed}`).toBeGreaterThanOrEqual(
+          Math.max(SPRITE_SIZE.moon * a.scale, SPRITE_SIZE.moon * b.scale),
+        );
+      }
+    }
+    expect(checked).toBeGreaterThan(10);
+  });
+
+  it('never draws a Moon on a planet other than its own', () => {
+    for (let seed = 1; seed <= 500; seed++) {
+      const run = newRun(seed);
+      const sky = skyBodies(run);
+      for (const moon of sky.filter((s) => s.kind === 'moon')) {
+        for (const planet of sky.filter((s) => s.kind !== 'star' && s.kind !== 'moon')) {
+          expect(apart(moon, planet), `seed ${seed}`).toBeGreaterThanOrEqual(
+            half(moon) + half(planet),
+          );
+        }
+      }
+    }
+  });
+
+  it('keeps the Moons of a planet hidden behind the star out of the sky', () => {
+    let hiddenPlanets = 0;
+    for (let seed = 1; seed <= 500; seed++) {
+      const run = newRun(seed);
+      const sky = skyBodies(run);
+      const star = sky.find((s) => s.kind === 'star');
+      if (!star) throw new Error('no star');
+      for (const planet of sky.filter((s) => s.kind === 'rocky-planet' || s.kind === 'gas-giant')) {
+        if (planet.distanceAu <= star.distanceAu) continue;
+        if (apart(planet, star) + half(planet) > half(star)) continue;
+        hiddenPlanets++;
+        expect(
+          sky.some((s) => planetOfMoon(run, s) === planet.bodyId),
+          `seed ${seed}`,
+        ).toBe(false);
+      }
+    }
+    expect(hiddenPlanets).toBeGreaterThan(10);
+  });
+
+  it('keeps every sky Body above the art horizon and below the top bar, Moons included', () => {
+    for (let seed = 1; seed <= 500; seed++) {
+      for (const s of skyBodies(newRun(seed))) {
+        if (s.kind === 'star') continue;
+        expect(s.y + half(s), `seed ${seed}`).toBeLessThanOrEqual(horizonY(s.x));
+        expect(s.y - half(s)).toBeGreaterThanOrEqual(46);
+      }
+    }
+  });
+
+  it('keeps the Home Moon in the sky and the Home Planet in the sky of its Moon (seeds 1 to 500)', () => {
+    for (let seed = 1; seed <= 500; seed++) {
+      const run = newRun(seed);
+      const home = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId);
+      expect(
+        skyBodies(run).some((s) => s.bodyId === home?.moons[0]?.id),
+        `seed ${seed}`,
+      ).toBe(true);
+      expect(
+        skyBodies(runOnMoonOfHome(seed)).some((s) => s.bodyId === run.starSystem.homePlanetId),
+        `seed ${seed} from the Moon`,
+      ).toBe(true);
+    }
+  });
+});

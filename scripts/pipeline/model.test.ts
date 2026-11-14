@@ -146,6 +146,63 @@ describe('behind-main handling', () => {
   });
 });
 
+describe('needs-attention handling', () => {
+  const approved = [Label.AgentApproved];
+
+  it('lists an approved DIRTY PR and an approved PR with failing CI only in needsAttention', () => {
+    const status = summarize(
+      [],
+      [
+        pull(1, '', { labels: approved, checks: 'passing', mergeState: 'DIRTY' }),
+        pull(2, '', { labels: approved, checks: 'failing', mergeState: 'CLEAN' }),
+        pull(3, '', { labels: approved, checks: 'passing', mergeState: 'CLEAN' }),
+      ],
+    );
+    expect(status.needsAttention.map((p) => [p.number, p.reason])).toEqual([
+      [1, 'conflicts with main'],
+      [2, 'CI failing'],
+    ]);
+    expect(status.mergeable.map((p) => p.number)).toEqual([3]);
+    expect(status.behindMain).toEqual([]);
+    expect(status.awaitingReview).toEqual([]);
+  });
+
+  it('gives both reasons when a PR conflicts and fails CI', () => {
+    const status = summarize(
+      [],
+      [pull(1, '', { labels: approved, checks: 'failing', mergeState: 'DIRTY' })],
+    );
+    expect(status.needsAttention[0]?.reason).toBe('conflicts with main, CI failing');
+  });
+
+  it('ignores unapproved PRs and keeps a failing BEHIND PR in needsAttention only', () => {
+    const status = summarize(
+      [],
+      [
+        pull(1, '', { checks: 'failing', mergeState: 'DIRTY' }),
+        pull(2, '', { labels: approved, checks: 'failing', mergeState: 'BEHIND' }),
+      ],
+    );
+    expect(status.needsAttention.map((p) => p.number)).toEqual([2]);
+    expect(status.awaitingReview.map((p) => p.number)).toEqual([1]);
+    expect(status.behindMain).toEqual([]);
+  });
+
+  it('leanStatus carries the bucket without bodies', () => {
+    const status = summarize(
+      [],
+      [pull(1, 'Closes #5 secret', { labels: approved, mergeState: 'DIRTY', checks: 'passing' })],
+    );
+    const lean = leanStatus(status);
+    expect(lean.needsAttention[0]).toMatchObject({
+      number: 1,
+      closes: [5],
+      reason: 'conflicts with main',
+    });
+    expect(JSON.stringify(lean)).not.toContain('secret');
+  });
+});
+
 describe('checksFromRollup', () => {
   it('maps rollup states', () => {
     expect(checksFromRollup('SUCCESS')).toBe('passing');
