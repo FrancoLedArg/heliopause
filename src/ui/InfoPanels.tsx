@@ -14,7 +14,7 @@ interface InfoPanelProps {
   onBack: () => void;
 }
 
-/** A link to another site: always a new tab, and never hands the opener to it. */
+/** A link that opens in a new tab (another site, or the notices file) and never hands the opener over. */
 function ExternalLink({ link }: { link: ContentLink }) {
   return (
     <a className="info-link" href={link.url} target="_blank" rel="noopener noreferrer">
@@ -126,6 +126,9 @@ function CreditItem({ entry }: { entry: CreditEntry }) {
 export function CreditsPanel({ onBack }: InfoPanelProps) {
   return (
     <InfoShell id="credits" title={CREDITS.heading} backLabel={CREDITS.back} onBack={onBack}>
+      <p>
+        <ExternalLink link={CREDITS.licenses} />
+      </p>
       {CREDITS.groups.map((group) => (
         <section key={group.heading}>
           <h2>{group.heading}</h2>

@@ -99,8 +99,18 @@ export const ABOUT = {
   back: 'Back',
 };
 
-export const CREDITS: { heading: string; groups: readonly CreditGroup[]; back: string } = {
+export const CREDITS: {
+  heading: string;
+  /** The generated notices file the build writes next to the game; a relative URL, so it works under any base path. */
+  licenses: ContentLink;
+  groups: readonly CreditGroup[];
+  back: string;
+} = {
   heading: 'Credits',
+  licenses: {
+    label: 'Full licence texts of everything shipped (THIRD-PARTY-LICENSES.txt)',
+    url: './THIRD-PARTY-LICENSES.txt',
+  },
   groups: [
     {
       heading: 'Libraries (shipped in the game)',
@@ -131,11 +141,11 @@ export const CREDITS: { heading: string; groups: readonly CreditGroup[]; back: s
       ],
     },
     {
-      heading: 'Tools (not shipped)',
+      heading: 'Tools (used to build the game)',
       entries: [
         {
           name: 'Vite',
-          detail: 'MIT licence',
+          detail: 'MIT licence. A few small helpers it injects are part of the game bundle',
           link: { label: 'vite.dev', url: 'https://vite.dev/' },
         },
         { name: 'TypeScript', detail: 'Apache-2.0 licence' },
