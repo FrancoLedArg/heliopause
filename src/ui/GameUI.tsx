@@ -12,6 +12,7 @@ import { HopReport } from './HopReport.tsx';
 import { LandedPanels } from './LandedPanels.tsx';
 import { AboutPanel, CreditsPanel } from './InfoPanels.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
+import { SpacecraftPanel } from './SpacecraftPanel.tsx';
 import { RunMenu } from './RunMenu.tsx';
 import { TitleMenu, type TitleButton } from './TitleMenu.tsx';
 
@@ -38,6 +39,8 @@ export function GameUI() {
   const [arrival, setArrival] = useState<{ before: Run; flight: HopFlight } | undefined>(undefined);
   // A New Run has been launched and the scene is about to change: the choice is made.
   const [launching, setLaunching] = useState(false);
+  // Whether the Spacecraft panel is open over the Landed view.
+  const [spacecraftOpen, setSpacecraftOpen] = useState(false);
   // Counts requests for focus on the Landed view's Nav Chart button; 0 when none is pending.
   const [navFocus, setNavFocus] = useState(0);
   // The next Landed view follows a New Run launched from a failure's report.
@@ -61,6 +64,7 @@ export function GameUI() {
           setMenuOpen(false);
           setFlight(undefined);
           setNavFocus(0);
+          setSpacecraftOpen(false);
           setFocus(leftRun.current ? 'new-run' : undefined);
           leftRun.current = false;
         }
@@ -78,6 +82,14 @@ export function GameUI() {
           afterFailure.current = false;
           setNavFocus((n) => n + 1);
         }
+      }),
+    [],
+  );
+  // A Component was installed: the same Run with a new loadout. Nothing else about the view changes.
+  useEffect(
+    () =>
+      EventBus.on('run-updated', (updated) => {
+        setRun(updated);
       }),
     [],
   );
@@ -129,6 +141,7 @@ export function GameUI() {
       if (event.key.toLowerCase() !== 'm' || event.ctrlKey || event.metaKey || event.altKey) return;
       if (scene !== SceneKey.Landed || chart !== undefined || menuOpen || arrival !== undefined)
         return;
+      if (spacecraftOpen) return;
       if (event.repeat) return;
       event.preventDefault();
       EventBus.emit('nav-chart-open-requested');
@@ -137,7 +150,7 @@ export function GameUI() {
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [scene, chart, menuOpen, arrival]);
+  }, [scene, chart, menuOpen, arrival, spacecraftOpen]);
 
   const launch = (chassisId: ChassisId): void => {
     // After a Run that was played, a New Run is a different Star System even from a seeded URL.
@@ -165,6 +178,12 @@ export function GameUI() {
   const dismissArrival = (): void => {
     setArrival(undefined);
     setNavFocus((n) => n + 1);
+  };
+
+  // Like the Nav Chart, the panel replaces the report: the player is done with it.
+  const openSpacecraft = (): void => {
+    setArrival(undefined);
+    setSpacecraftOpen(true);
   };
 
   const closeInfo = (): void => {
@@ -202,7 +221,13 @@ export function GameUI() {
           />
         )}
       {scene === SceneKey.Landed && run !== undefined && (
-        <LandedPanels run={run} chartOpen={chart !== undefined} focusRequest={navFocus} />
+        <LandedPanels
+          run={run}
+          chartOpen={chart !== undefined}
+          spacecraftOpen={spacecraftOpen}
+          onOpenSpacecraft={openSpacecraft}
+          focusRequest={navFocus}
+        />
       )}
       {scene === SceneKey.Landed && run !== undefined && arrival !== undefined && (
         <HopReport
@@ -214,6 +239,14 @@ export function GameUI() {
       )}
       {scene === SceneKey.Landed && run !== undefined && chart !== undefined && (
         <NavChartPanel run={run} state={chart} />
+      )}
+      {scene === SceneKey.Landed && run !== undefined && spacecraftOpen && (
+        <SpacecraftPanel
+          run={run}
+          onClose={() => {
+            setSpacecraftOpen(false);
+          }}
+        />
       )}
       {scene === SceneKey.Landed && run !== undefined && (
         <RunMenu open={menuOpen} onOpenChange={setMenuOpen} onLeave={leaveRun} />

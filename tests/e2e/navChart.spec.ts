@@ -54,7 +54,7 @@ test('the Nav Chart opens over the Landed view, names the Spacecraft Body and cl
   await expect(opener).toBeFocused();
 });
 
-test('the Nav Chart button sits between the location plate and the Spacecraft, clear of every panel', async ({
+test('the Spacecraft and Nav Chart buttons sit side by side right of the location plate, clear of every panel', async ({
   page,
 }) => {
   await page.goto(`/?seed=${SEED}&chassis=scout`);
@@ -76,19 +76,25 @@ test('the Nav Chart button sits between the location plate and the Spacecraft, c
       bottom: (box.y + box.height - canvas.y) / scale,
     };
   };
-  const at = await stageBox('.landed-nav-button button');
-  expect(at.left).toBeCloseTo(352, 0);
-  expect(at.right).toBeCloseTo(468, 0);
-  expect(at.top).toBeCloseTo(322, 0);
-  expect(at.bottom).toBeCloseTo(346, 0);
-  for (const panel of ['.top-bar', '.landed-plate', '.run-menu__button']) {
-    const other = await stageBox(panel);
-    const overlap =
-      at.left < other.right &&
-      other.left < at.right &&
-      at.top < other.bottom &&
-      other.top < at.bottom;
-    expect(overlap, `Nav Chart button overlaps ${panel}`).toBe(false);
+  const buttons = [
+    { selector: '.landed-spacecraft-button button', left: 352, right: 468 },
+    { selector: '.landed-nav-button button', left: 476, right: 592 },
+  ];
+  for (const { selector, left, right } of buttons) {
+    const at = await stageBox(selector);
+    expect(at.left).toBeCloseTo(left, 0);
+    expect(at.right).toBeCloseTo(right, 0);
+    expect(at.top).toBeCloseTo(322, 0);
+    expect(at.bottom).toBeCloseTo(346, 0);
+    for (const panel of ['.top-bar', '.landed-plate', '.run-menu__button']) {
+      const other = await stageBox(panel);
+      const overlap =
+        at.left < other.right &&
+        other.left < at.right &&
+        at.top < other.bottom &&
+        other.top < at.bottom;
+      expect(overlap, `${selector} overlaps ${panel}`).toBe(false);
+    }
   }
 });
 
