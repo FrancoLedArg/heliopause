@@ -216,6 +216,9 @@ describe('guard blocks', () => {
     "bash -c 'cd dist' && rm -rf *",
     '(cd ~) && cd nonexistent-dir && rm -rf *',
     'mkdir nonexistent-a/b && cd nonexistent-a/b && rm -rf y',
+    'cd ~ && (cd /tmp && ls) && rm -rf .cache',
+    'cd ~ && echo "$(cd /tmp && pwd)" && rm -rf .cache',
+    'cd "$WORKDIR" && (cd "$CLAUDE_PROJECT_DIR" && pnpm build) && rm -rf build',
   ])('%s', (script) => {
     expect(check(script)).not.toBeNull();
   });
@@ -223,8 +226,6 @@ describe('guard blocks', () => {
 
 describe('guard messages', () => {
   it('tells the agent how to proceed after an unresolved cd', () => {
-    expect(check('cd nonexistent-dir; rm -rf dist')).toMatch(
-      /run the cd as its own command, or use an absolute path/,
-    );
+    expect(check('cd nonexistent-dir; rm -rf dist')).toMatch(/use an absolute path/);
   });
 });

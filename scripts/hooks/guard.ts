@@ -270,7 +270,7 @@ function checkRm(
       return `recursive delete of an unresolved path (${operand}); use a literal path`;
     }
     if (cwd === null && !path.isAbsolute(resolved)) {
-      return `recursive delete after a cd to an unresolved directory (${operand}); run the cd as its own command, or use an absolute path`;
+      return `recursive delete after a cd to an unresolved directory (${operand}); use an absolute path (or run the cd as its own command)`;
     }
     // A glob whose segments all match every entry (`*`, `**/*`, `?*`, `.[!.]*`) empties the
     // directory before its first glob segment, so judge that directory. Any other pattern
@@ -298,7 +298,8 @@ function checkRm(
 /**
  * Directory after `cd args`, or null when it cannot be resolved (`~`, `$HOME`, `-`, unknown
  * vars, a missing directory). Known limitation: each stage of a pipeline is a subshell
- * in bash, but the guard treats `cd a | rm …` like `cd a; rm …`.
+ * in bash, but the guard treats `cd a | rm …` like `cd a; rm …`. The `)` ending a `case`
+ * pattern is read as closing a subshell, so a `cd` inside a `case` arm can mis-scope.
  */
 function nextCwd(
   cwd: string | null,
@@ -361,7 +362,7 @@ export function guard(script: string, context: GuardContext): string | null {
   for (const item of parseScoped(script)) {
     if ('scope' in item) {
       if (item.scope === 'enter') outer.push(cwd);
-      else cwd = outer.pop() ?? cwd;
+      else if (outer.length > 0) cwd = outer.pop() ?? null; // null is a saved unresolved cwd
       continue;
     }
     const { words, env } = unwrap(item.words);

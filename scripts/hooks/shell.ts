@@ -60,7 +60,7 @@ export function parseScoped(script: string): ShellItem[] {
   });
 }
 
-/** Every simple command in `script`, flattened (no scope information). */
+/** Every simple command in `script`, flattened (no scope information). Test-only: the guard uses `parseScoped`. */
 export function parseShell(script: string): string[][] {
   return parseScoped(script).flatMap((item) => ('words' in item ? [item.words] : []));
 }
