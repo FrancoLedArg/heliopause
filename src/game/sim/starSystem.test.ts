@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { generateStarSystem, homePlanet, listBodies, type StarSystem } from './index.ts';
+import {
+  BODY_TUNING,
+  ICE_LINE,
+  generateStarSystem,
+  homePlanet,
+  listBodies,
+  type StarSystem,
+} from './index.ts';
 
 /** Many seeds, so rules are checked across the generator's spread, not one lucky system. */
 const SEEDS = Array.from({ length: 300 }, (_, i) => i * 7919 + 1);
@@ -137,5 +144,78 @@ describe('Star System generation', () => {
 
   it('different seeds generate different Star Systems', () => {
     expect(generateStarSystem(1)).not.toEqual(generateStarSystem(2));
+  });
+
+  it("seed 123's Bodies keep their names, orbits and sizes (new rolls never shift the RNG)", () => {
+    const system = generateStarSystem(123);
+    const pinned = JSON.parse(
+      '["Tothaexprae","planet-1","102.436756",[["planet-1","Mioquoxdru","0.434101","3.682326","5.868094","6752.434"],["planet-1-moon-1","Roxho Minor","0.434101","3.751611","0.145221","291.269"],["planet-2","Liltux","1.129603","3.336672","6.878600","7895.466"],["planet-2-moon-1","Tiosli","1.129603","5.613642","0.438914","718.774"],["planet-3","Hulxu","6.338748","3.164405","9.287885","22859.528"],["planet-3-moon-1","Ruxi","6.338748","3.516488","0.474599","770.718"],["planet-4","Quyzi Prime","8.208549","3.402418","10.320600","25599.091"],["planet-4-moon-1","Tyquesion","8.208549","0.564942","1.218963","1854.230"],["planet-4-moon-2","Zulthix-2","8.208549","1.548380","1.078617","1649.940"],["planet-4-moon-3","Thuri","8.208549","3.148021","0.317604","542.193"],["planet-4-moon-4","Venke","8.208549","5.224049","0.692915","1088.504"],["planet-5","Viosprixzul","12.556880","6.019771","16.331792","41545.448"],["planet-5-moon-1","Viormio","12.556880","4.047939","1.244971","1892.088"],["planet-5-moon-2","Thyhae","12.556880","5.446103","1.168266","1780.434"],["planet-5-moon-3","Hyrzethion","12.556880","4.218566","0.212536","389.254"],["planet-6","Caexisu","18.627722","1.667084","20.504913","52615.812"],["planet-6-moon-1","Mesprursin","18.627722","0.576598","0.364335","610.215"],["planet-6-moon-2","Maerprondro Nova","18.627722","1.518801","0.271552","475.159"],["planet-7","Raexthanho","23.252931","5.859746","12.472028","31306.352"],["planet-7-moon-1","Relhoxry","23.252931","0.845263","1.058425","1620.547"],["planet-7-moon-2","Thakyxy","23.252931","1.127325","1.112827","1699.736"]]]',
+    ) as unknown;
+    expect([
+      system.name,
+      system.homePlanetId,
+      system.heliopauseRadius.toFixed(6),
+      listBodies(system).map((b) => [
+        b.id,
+        b.name,
+        b.distanceFromStar.toFixed(6),
+        b.orbitAngle.toFixed(6),
+        b.surfaceGravity.toFixed(6),
+        b.escapeVelocity.toFixed(3),
+      ]),
+    ]).toEqual(pinned);
+  });
+});
+
+describe('Icy and Rocky Bodies', () => {
+  const landable = systems.flatMap((system) => listBodies(system).filter((b) => b.landable));
+
+  it('every landable Body is Icy or Rocky with a base yield inside the tuning range of its type', () => {
+    for (const body of landable) {
+      expect(['icy', 'rocky']).toContain(body.composition);
+      const range = BODY_TUNING.baseYield[body.composition];
+      expect(body.baseYield).toBeGreaterThanOrEqual(range.min);
+      expect(body.baseYield).toBeLessThanOrEqual(range.max);
+    }
+  });
+
+  it('an Icy yield is a meaningful share of the smallest Fuel tank (21,000 kg)', () => {
+    const icy = landable.filter((b) => b.composition === 'icy');
+    expect(Math.min(...icy.map((b) => b.baseYield))).toBeGreaterThanOrEqual(21_000 * 0.1);
+    expect(Math.max(...icy.map((b) => b.baseYield))).toBeLessThan(21_000);
+  });
+
+  it('a Gas Giant has no resource type or yield', () => {
+    for (const system of systems) {
+      for (const planet of system.planets.filter((p) => p.kind === 'gas-giant')) {
+        expect(planet).not.toHaveProperty('composition');
+        expect(planet).not.toHaveProperty('baseYield');
+      }
+    }
+  });
+
+  it('the Home Planet is Rocky and its Moons are Icy', () => {
+    for (const system of systems) {
+      const home = homePlanet(system);
+      expect(home.composition).toBe('rocky');
+      expect(home.moons.length).toBeGreaterThan(0);
+      for (const moon of home.moons) expect(moon.composition).toBe('icy');
+    }
+  });
+
+  it('Icy Bodies are more common in the outer system', () => {
+    const share = (bodies: typeof landable) =>
+      bodies.filter((b) => b.composition === 'icy').length / bodies.length;
+    const inner = landable.filter((b) => b.distanceFromStar < ICE_LINE.distance.value);
+    const outer = landable.filter((b) => b.distanceFromStar >= ICE_LINE.distance.value);
+    expect(inner.length).toBeGreaterThan(50);
+    expect(outer.length).toBeGreaterThan(50);
+    expect(share(outer)).toBeGreaterThan(share(inner) + 0.2);
+  });
+
+  it('both types turn up far from the Home Planet', () => {
+    const away = landable.filter((b) => b.distanceFromStar > 5);
+    expect(away.some((b) => b.composition === 'rocky')).toBe(true);
+    expect(away.some((b) => b.composition === 'icy')).toBe(true);
   });
 });

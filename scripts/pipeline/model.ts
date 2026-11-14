@@ -26,6 +26,8 @@ export interface IssueSnapshot {
   openBlockers: number;
   /** Parent spec number when this issue is a sub-issue. */
   parent: number | null;
+  /** Closed vs total sub-issues; only specs have any (tickets read 0 of 0). */
+  subIssues: { total: number; completed: number };
 }
 
 export const MERGE_STATES = [
@@ -68,6 +70,8 @@ export interface PipelineStatus {
   blockedSpecs: IssueSnapshot[];
   /** Specs already claimed and being delivered. */
   activeSpecs: IssueSnapshot[];
+  /** Claimed specs whose sub-issues all exist and are all closed: ready to close, even if a merge missed it. */
+  specsToClose: IssueSnapshot[];
   /** Tickets a Builder (or Researcher) can start right now. */
   readyTickets: IssueSnapshot[];
   /** Tickets waiting on open blockers. */
@@ -126,6 +130,13 @@ export function closedIssueNumbers(body: string): number[] {
   return [...new Set([...body.matchAll(pattern)].map((match) => Number(match[1])))];
 }
 
+/** The closing line of `merge` when post-merge cleanup partly failed; null when all went well. */
+export function cleanupSummary(pr: number, failures: readonly string[]): string | null {
+  return failures.length
+    ? `Merged PR #${String(pr)}; cleanup incomplete: ${failures.join(', ')}. The merge succeeded; \`pipeline close-specs\` recovers a missed spec close.`
+    : null;
+}
+
 export function summarize(
   issues: readonly IssueSnapshot[],
   pulls: readonly PullSnapshot[],
@@ -155,6 +166,14 @@ export function summarize(
       )
       .sort(byNumber),
     activeSpecs: specs.filter((spec) => has(spec, Label.InProgress)).sort(byNumber),
+    specsToClose: specs
+      .filter(
+        (spec) =>
+          has(spec, Label.InProgress) &&
+          spec.subIssues.total > 0 &&
+          spec.subIssues.completed === spec.subIssues.total,
+      )
+      .sort(byNumber),
     readyTickets: queued.filter((ticket) => ticket.openBlockers === 0).sort(byNumber),
     blockedTickets: queued.filter((ticket) => ticket.openBlockers > 0).sort(byNumber),
     inProgressTickets: tickets
