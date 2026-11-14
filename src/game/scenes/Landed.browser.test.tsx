@@ -1,9 +1,10 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { GameUI } from '../../ui/GameUI.tsx';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
+import { SHIP_PLACEMENT } from './landedView.ts';
 import { homePlanet, startRun, type ChassisId, type Run } from '../sim/index.ts';
 import { SceneKey } from './keys.ts';
 import type { Landed } from './Landed.ts';
@@ -14,6 +15,7 @@ let game: Phaser.Game | undefined;
 let host: HTMLElement | undefined;
 
 afterEach(() => {
+  vi.restoreAllMocks();
   act(() => {
     root?.unmount();
   });
@@ -116,3 +118,44 @@ for (const chassis of CHASSIS) {
     });
   }
 }
+
+function landedRun(): Run {
+  const fresh = startRun(2026, 'scout');
+  return { ...fresh, status: { kind: 'landed', bodyId: homePlanet(fresh.starSystem).id } };
+}
+
+const pause = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+it('drifts the layers at different speeds, the Spacecraft with the ground, and never shows a layer edge', async () => {
+  const scene = await landOn(landedRun());
+  const { far, mid, near, ship } = scene.layers;
+  const rest = near.x;
+  await pause(1500);
+  expect(scene.reducedMotion).toBe(false);
+  expect(near.x).not.toBe(rest);
+  // Parallax: the nearer the layer, the further it has moved from centre.
+  expect(Math.abs(near.x - rest)).toBeGreaterThan(Math.abs(mid.x - rest));
+  expect(Math.abs(mid.x - rest)).toBeGreaterThan(Math.abs(far.x - rest));
+  // The ship rides the ground it stands on.
+  expect(ship.x - SHIP_PLACEMENT.x).toBeCloseTo(near.x - rest);
+  // A surface layer is 800 px wide on a 640 px screen: its edges stay off screen.
+  for (const layer of [far, mid, near]) {
+    expect(layer.x).toBeLessThanOrEqual(0);
+    expect(layer.x + 800).toBeGreaterThanOrEqual(GAME_WIDTH);
+  }
+});
+
+it('holds everything still when the player prefers reduced motion', async () => {
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
+  );
+  const scene = await landOn(landedRun());
+  const { far, mid, near, ship } = scene.layers;
+  const before = [far.x, mid.x, near.x, ship.x];
+  await pause(1000);
+  expect(scene.reducedMotion).toBe(true);
+  expect([far.x, mid.x, near.x, ship.x]).toEqual(before);
+});

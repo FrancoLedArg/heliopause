@@ -51,6 +51,33 @@ export function addStarfield(
   return graphics;
 }
 
+export interface TwinklingStarfield {
+  /** Every star that stays steady, in one drawing. */
+  readonly stars: GameObjects.Graphics;
+  /** One drawing per star that may pulse, so a tween can fade it on its own. */
+  readonly twinklers: GameObjects.Graphics[];
+}
+
+/** Like `addStarfield`, but every `every`-th single-pixel star is its own object so it can twinkle. */
+export function addTwinklingStarfield(
+  scene: Scene,
+  seed: number,
+  count: number,
+  area: { width: number; height: number },
+  every: number,
+): TwinklingStarfield {
+  const stars = scene.add.graphics();
+  const twinklers: GameObjects.Graphics[] = [];
+  generateStars(seed, count, area).forEach((star, index) => {
+    const twinkles = star.size === 1 && index % every === 0;
+    const target = twinkles ? scene.add.graphics() : stars;
+    if (twinkles) twinklers.push(target);
+    target.fillStyle(paletteNumber(star.color), star.alpha);
+    target.fillRect(star.x, star.y, star.size, star.size);
+  });
+  return { stars, twinklers };
+}
+
 /** Depth layer of a star, 0 = farthest: dimmer stars are farther away, so they drift slower. */
 export function starLayer(star: Star, layerCount: number): number {
   const depth = (star.alpha - 0.5) / 0.5; // 0 (dim) .. 1 (bright)

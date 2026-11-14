@@ -1,4 +1,4 @@
-import { Scene, type GameObjects } from 'phaser';
+import { Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber, type PaletteColor } from '../../ui/kit/palette.ts';
 import { hasAsset } from '../assets/manifest.ts';
 import { EventBus } from '../EventBus.ts';
@@ -13,7 +13,8 @@ import {
   type SurfaceKind,
 } from './landedView.ts';
 import { SceneKey } from './keys.ts';
-import { addStarfield } from './starfield.ts';
+import { createLandedAmbient, TWINKLE_EVERY } from './landedAmbient.ts';
+import { addTwinklingStarfield, type TwinklingStarfield } from './starfield.ts';
 
 export interface LandedData {
   /** The Run to show: the Spacecraft landed on its current Body. */
@@ -65,6 +66,9 @@ export class Landed extends Scene {
   private run!: Run;
   /** The layers, back to front: ambient motion (parallax drift) moves these. */
   layers!: Readonly<Record<'sky' | 'far' | 'mid' | 'near' | 'ship', GameObjects.Container>>;
+  /** Whether the ambient life was left still; read once at create from `prefers-reduced-motion`. */
+  reducedMotion = false;
+  private setShipLights: (on: boolean) => void = () => undefined;
 
   constructor() {
     super(SceneKey.Landed);
@@ -76,7 +80,8 @@ export class Landed extends Scene {
 
   create(): void {
     const kind = surfaceKind(currentBody(this.run));
-    const sky = this.buildSky();
+    const starfield = this.buildSky();
+    const sky = starfield.container;
     const far = this.buildSurfaceLayer(`surface_${kind}_far`, FAR, kind, (g, p, rng) => {
       this.paintFar(g, p, rng);
     });
@@ -88,18 +93,46 @@ export class Landed extends Scene {
     });
     this.layers = { sky, far, mid, near, ship: this.buildShip() };
 
+    const ambient = createLandedAmbient(this, {
+      layers: this.layers,
+      rest: { sky: SKY_X, layer: LAYER_X, ship: SHIP_PLACEMENT.x },
+      stars: starfield.stars,
+      twinklers: starfield.twinklers,
+      setShipLights: (on) => {
+        this.setShipLights(on);
+      },
+      dustColor: PALETTES[kind].speck,
+      seed: this.run.seed,
+    });
+    this.reducedMotion = ambient.reducedMotion;
+    // A destroyed game never shuts its scenes down, so stop on both; whichever fires first removes the other.
+    const stop = (): void => {
+      ambient.dispose();
+      this.events.off(Scenes.Events.SHUTDOWN, stop);
+      this.events.off(Scenes.Events.DESTROY, stop);
+    };
+    this.events.once(Scenes.Events.SHUTDOWN, stop);
+    this.events.once(Scenes.Events.DESTROY, stop);
+
     EventBus.emit('run-started', this.run);
     EventBus.emit('scene-ready', SceneKey.Landed);
   }
 
-  private buildSky(): GameObjects.Container {
+  private buildSky(): TwinklingStarfield & { container: GameObjects.Container } {
     const container = this.add.container(SKY_X, 0);
     // The starfield is a child so it scrolls with the sky; added first, behind the Bodies.
-    container.add(addStarfield(this, this.run.seed, STAR_COUNT, { width: SKY_WIDTH, height: 280 }));
+    const field = addTwinklingStarfield(
+      this,
+      this.run.seed,
+      STAR_COUNT,
+      { width: SKY_WIDTH, height: 280 },
+      TWINKLE_EVERY,
+    );
+    container.add([field.stars, ...field.twinklers]);
     for (const sky of skyBodies(this.run)) {
       container.add(this.add.image(sky.x, sky.y, sky.sprite).setScale(sky.scale));
     }
-    return container;
+    return { ...field, container };
   }
 
   /** One ground layer: the generated art when its key is in the manifest, a painted stand-in otherwise. */
@@ -171,7 +204,11 @@ export class Landed extends Scene {
     container.add(shadow);
     const chassis = `chassis_${this.run.spacecraft.chassisId}`;
     if (hasAsset(chassis)) {
-      container.add(this.add.image(0, 0, chassis, 'landed').setOrigin(0.5, 1));
+      const art = this.add.image(0, 0, chassis, 'landed').setOrigin(0.5, 1);
+      container.add(art);
+      this.setShipLights = (on) => {
+        art.setFrame(on ? 'landed_lit' : 'landed');
+      };
     } else {
       container.add(
         this.add
@@ -179,6 +216,12 @@ export class Landed extends Scene {
           .setScale(SHIP_SCALE)
           .setAngle(-90),
       );
+      // The stand-in has no lit frame: a single red pixel-lamp blinks on its hull instead.
+      const lamp = this.add.rectangle(0, -60, 4, 4, paletteNumber('rd2')).setVisible(false);
+      container.add(lamp);
+      this.setShipLights = (on) => {
+        lamp.setVisible(on);
+      };
     }
     return container;
   }
