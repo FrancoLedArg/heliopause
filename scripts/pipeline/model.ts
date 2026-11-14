@@ -52,7 +52,7 @@ export interface PullSnapshot {
   headRefName: string;
   body: string;
   labels: readonly string[];
-  /** Combined CI state for the head commit. */
+  /** CI state for the head commit, judged by main's required checks only (see `checksFromRequired`). */
   checks: 'passing' | 'failing' | 'pending' | 'none';
   /** GitHub `mergeStateStatus`: BEHIND means main moved on and the branch needs updating. */
   mergeState: MergeState;
@@ -181,17 +181,49 @@ export function summarize(
   };
 }
 
-const ROLLUP_TO_CHECKS: Readonly<Record<string, PullSnapshot['checks']>> = {
-  SUCCESS: 'passing',
-  FAILURE: 'failing',
-  ERROR: 'failing',
-  PENDING: 'pending',
-  EXPECTED: 'pending',
-};
+/**
+ * One entry of a head commit's `statusCheckRollup.contexts`, as GraphQL returns it:
+ * a check run (GitHub Actions) or a commit status (e.g. the Vercel deployment).
+ */
+export type CheckContext =
+  { name: string; status: string; conclusion: string | null } | { context: string; state: string };
 
-/** Map GitHub's statusCheckRollup state for a PR's head commit to the pipeline's view of CI. */
-export function checksFromRollup(state: string | null | undefined): PullSnapshot['checks'] {
-  return state ? (ROLLUP_TO_CHECKS[state] ?? 'none') : 'none';
+/** The fallback when branch protection's required checks cannot be read. */
+export const DEFAULT_REQUIRED_CHECKS: readonly string[] = ['verify'];
+
+type CheckOutcome = 'passing' | 'failing' | 'pending';
+
+const PASSING_CONCLUSIONS = new Set(['SUCCESS', 'NEUTRAL', 'SKIPPED']);
+
+function outcome(check: CheckContext): CheckOutcome {
+  if ('context' in check) {
+    if (check.state === 'SUCCESS') return 'passing';
+    return check.state === 'FAILURE' || check.state === 'ERROR' ? 'failing' : 'pending';
+  }
+  if (check.status !== 'COMPLETED' || check.conclusion === null) return 'pending';
+  return PASSING_CONCLUSIONS.has(check.conclusion) ? 'passing' : 'failing';
+}
+
+const checkName = (check: CheckContext): string =>
+  'context' in check ? check.context : check.name;
+
+/**
+ * CI state for a PR's head commit, judged only by the checks branch protection requires
+ * (`required`), as GitHub does when merging. Non-required checks (Vercel previews) never
+ * make a PR failing or pending. A required check not yet reported reads as pending,
+ * unless the commit has no checks at all.
+ */
+export function checksFromRequired(
+  required: readonly string[],
+  contexts: readonly CheckContext[],
+): PullSnapshot['checks'] {
+  if (contexts.length === 0) return 'none';
+  const outcomes = required.flatMap((name): CheckOutcome[] => {
+    const reported = contexts.filter((check) => checkName(check) === name).map(outcome);
+    return reported.length ? reported : ['pending'];
+  });
+  if (outcomes.includes('failing')) return 'failing';
+  return outcomes.includes('pending') ? 'pending' : 'passing';
 }
 
 const lean = ({ body, ...rest }: PullSnapshot): LeanPull => ({
