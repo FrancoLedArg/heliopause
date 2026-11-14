@@ -11,7 +11,7 @@ import {
   type MetersPerSecond,
   type Run,
 } from '../game/sim/index.ts';
-import { formatPlanDeltaV as formatDeltaV } from './format.ts';
+import { formatMarginShare, formatPlanDeltaV as formatDeltaV } from './format.ts';
 
 const BURN_LABEL: Record<Burn, string> = {
   takeoff: 'Takeoff',
@@ -50,8 +50,8 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
   });
   const { margin } = flight.plan;
   // The same minus sign the Hop plan uses.
-  const share = Math.round(Math.abs(marginShare(flight.plan)) * 100);
-  const planned = `planned ${margin < 0 ? '−' : ''}${formatDeltaV(metersPerSecond(Math.abs(margin)))}${share < 100 ? `, ${share}%` : ''}`;
+  const share = formatMarginShare(marginShare(flight.plan));
+  const planned = `planned ${margin < 0 ? '−' : '+'}${formatDeltaV(metersPerSecond(Math.abs(margin)))}${share ? `, ${share}` : ''}`;
   switch (outcome.kind) {
     case 'arrived':
       return {

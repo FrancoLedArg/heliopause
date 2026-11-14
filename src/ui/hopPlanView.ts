@@ -16,6 +16,7 @@ import {
   formatFuel,
   formatGravity,
   formatMass,
+  formatMarginShare,
   formatPercent,
   formatPlanDeltaV,
 } from './format.ts';
@@ -50,7 +51,7 @@ export interface HopPlanView {
   readonly available: string;
   /** What the available Δv is computed from, e.g. "4.0 t craft + 21.0 t Fuel". */
   readonly availableBasis: string;
-  /** Signed, with its share of the Δv needed while that share is under 100%: "+220 m/s (5%)". */
+  /** Signed, with its share of the estimate while that share is under 100%: "+220 m/s (5%)". */
   readonly margin: string;
   readonly marginIsShort: boolean;
   readonly successChance: string;
@@ -86,7 +87,7 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
   if (!from || !to) throw new Error(`Hop plan names unknown Body ${plan.fromId} or ${plan.toId}`);
   const reasons = burnReasons(from, to);
   const short = plan.margin < 0;
-  const share = Math.round(Math.abs(marginShare(plan)) * 100);
+  const share = formatMarginShare(marginShare(plan));
   const marginDeltaV = formatPlanDeltaV(metersPerSecond(Math.abs(plan.margin)));
   const low = short || plan.successChance < LOW_SUCCESS_BELOW;
   const needed = formatPlanDeltaV(plan.totalEstimate);
@@ -101,8 +102,8 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
     needed,
     available,
     availableBasis: `${formatMass(run.spacecraft.dryMass)} craft + ${formatFuel(run.spacecraft.fuelMass)} Fuel`,
-    // A share in the hundreds says little, so a Margin as big as the available Δv shows only its Δv.
-    margin: `${short ? '−' : '+'}${marginDeltaV}${share < 100 ? ` (${share}%)` : ''}`,
+    // A share in the hundreds says little, so a Margin as big as the estimate shows only its Δv.
+    margin: `${short ? '−' : '+'}${marginDeltaV}${share ? ` (${share})` : ''}`,
     marginIsShort: short,
     successChance,
     low,

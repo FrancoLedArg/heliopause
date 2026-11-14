@@ -61,8 +61,8 @@ test('the Hop plan for the Home Planet Moon shows three Burns, totals and a Succ
   await expect(page.getByTestId('plan-available')).toContainText('m/s');
   await expect(page.getByTestId('plan-basis')).toContainText('t craft + ');
   await expect(page.getByTestId('plan-basis')).toContainText('Fuel');
-  // The Margin is a share of the available Δv, the same share the why text quotes.
-  await expect(page.getByTestId('plan-margin')).toHaveText(/^\+[\d,]+ m\/s \(\d+%\)$/);
+  // The Margin is bigger than the estimate, so it shows plain Δv, with no percentage.
+  await expect(page.getByTestId('plan-margin')).toHaveText(/^\+[\d,]+ m\/s$/);
   await expect(page.getByTestId('plan-explain')).toContainText(
     'Δv is how much your speed can change',
   );

@@ -61,8 +61,8 @@ describe('the Hop report', () => {
     const launched = launchHop(run, viormio.id);
     if (launched.kind !== 'flown') throw new Error('expected a flight');
     const view = describeReport(run, launched.flight);
-    expect(view.margin).toBe('Margin: none left (planned −1,336 m/s, 7%)');
-    expect(view.why).toMatch(/needed 7% more Δv/);
+    expect(view.margin).toBe('Margin: none left (planned −1,336 m/s, 6%)');
+    expect(view.why).toMatch(/The Fuel gives 6% less Δv/);
   });
 
   it('says a Crashed Hop completed the Transfer but ran out of Δv in the Landing', () => {
