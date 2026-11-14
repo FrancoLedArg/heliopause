@@ -11,7 +11,7 @@ Art is AI-generated pixel art in the human's UI kit style (ADR 0004). The human 
 
 ## How code uses assets
 
-- Files live in `public/assets/`. Each is listed in `src/game/assets/manifest.json` with a `key` and a `file` path relative to `public/assets/`.
+- Files live in `public/assets/`. Each is listed in `src/game/assets/manifest.json` with a `key` and a `file` path relative to `public/assets/`; a texture atlas goes under `atlases` with an `image` and its frame `data` instead.
 - Code refers to an asset **only by its key**. `loadManifest` loads everything in the manifest; `hasAsset(key)` says whether it exists yet.
 - **Stand-in**: until the asset exists, draw a primitive (Phaser `Graphics`, shapes, text; CSS for React) at the asset's exact size, and branch on `hasAsset(key)`. Replacing the stand-in must need only a manifest entry, never a code change.
 

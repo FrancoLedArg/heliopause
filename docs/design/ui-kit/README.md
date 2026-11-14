@@ -15,23 +15,20 @@ In `public/assets/ui/` (served by the game):
 
 In `docs/design/ui-kit/` (reference only): `heliopause.gpl` (Aseprite/LibreSprite palette), `palette.png`, `preview_sheet.png`, `mock_menu_3x.png`.
 
-Not yet implemented: per-frame PNGs and a `heliopauseUI.ts` helper module (`addNine`, `addButton`, `setCursor`). Builders write the helpers they need, reading slice margins and cursor hotspots from `ui_meta.json`.
+Not yet implemented: per-frame PNGs and cursor helpers (hotspots are in `ui_meta.json`).
 
-## Phaser setup
+## Using the kit in the game
 
-```ts
-// game config
-pixelArt: true,                       // nearest filtering, no smoothing
-scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: 640, height: 360 },
+The game already runs at 640x360 with `pixelArt: true`, and the atlas is in the asset manifest under the key `ui`, so Phaser loads it with everything else. Text panels are React, drawn over the canvas in the same 640x360 coordinates:
 
-// preload
-this.load.atlas("ui", "assets/ui/heliopause_ui.png", "assets/ui/heliopause_ui.json");
+- `src/ui/kit/kit.ts`: typed frame names (`KitFrameName`) and `sliceKitFrame(name, width, height)`, the nine-slice / three-slice geometry read from `ui_meta.json`. It throws for a size a frame cannot take.
+- `src/ui/kit/KitFrame.tsx`: `<KitFrame frame="panel_metal" width={176} height={66} />` draws any frame at any size its slices allow.
+- `src/ui/kit/KitButton.tsx`: `<KitButton variant="primary" width={144}>` is a real `<button>` with the kit's normal, hover, pressed and disabled faces, a cyan focus ring and the 2px press drop.
+- `src/ui/kit/palette.ts`: palette colours for Phaser (`paletteNumber`) and CSS (`--cy3` etc. on `#app`).
 
-// create (no helper module yet: pass slice widths from ui_meta.json explicitly)
-this.add.image(30, 20, "ui", "res_fuel");
-```
+In Phaser, draw a single frame with `this.add.image(x, y, "ui", "res_fuel")`. If a scene ever needs a stretched frame on the canvas, build it from `sliceKitFrame` (or Phaser 4's NineSlice fed with the same margins). The atlas also stores `scale9Borders`, but the slice widths in `ui_meta.json` are the source of truth.
 
-This repo uses Phaser 4 (4.2.1). Check the Phaser 4 NineSlice API before use. The atlas also stores `scale9Borders`, but the slice widths in `ui_meta.json` are the source of truth.
+Labels use Silkscreen (pixel caps, 8px or 16px) and VT323 (body text), both bundled through Fontsource (SIL Open Font License).
 
 ## Frames
 

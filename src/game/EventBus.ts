@@ -2,7 +2,10 @@ import { Events } from 'phaser';
 
 /** Events crossing the React <-> Phaser boundary. Add an entry here before emitting a new event. */
 export interface GameEvents {
+  /** Phaser -> React: a scene finished creating and is now on screen. */
   'scene-ready': [sceneKey: string];
+  /** React -> Phaser: the player chose New Run; the Run starts from `seed` (see `chooseRunSeed`). */
+  'new-run-requested': [seed: number];
 }
 
 class TypedEventBus {

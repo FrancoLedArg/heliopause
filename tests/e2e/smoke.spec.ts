@@ -9,16 +9,9 @@ test('the game boots to the title screen without errors', async ({ page }, testI
 
   await page.goto('/');
 
-  const canvas = page.locator('#game-container canvas');
-  await expect(canvas).toBeVisible();
-  // Give Phaser a few frames to render the Title scene.
-  await page.waitForTimeout(500);
-
-  // Canvas text is not in the DOM; the Title scene mirrors the build label onto the canvas.
-  await expect(canvas).toHaveAttribute(
-    'data-build-label',
-    /^v\d+\.\d+\.\d+ · ([0-9a-f]{7}|unknown)$/,
-  );
+  await expect(page.locator('#game-container canvas')).toBeVisible();
+  // The build label pins the exact build in any screenshot of the title screen.
+  await expect(page.getByText(/^v\d+\.\d+\.\d+ · ([0-9a-f]{7}|unknown)$/)).toBeVisible();
 
   await testInfo.attach('title-screen', {
     body: await page.screenshot(),

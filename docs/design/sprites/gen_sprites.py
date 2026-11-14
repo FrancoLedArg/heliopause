@@ -10,6 +10,7 @@ Usage:  python3 gen_sprites.py <out_dir> [preview_png [surfaces_preview_png]]
 Needs Pillow and numpy.
 """
 import math
+import random
 import sys
 from pathlib import Path
 
@@ -493,7 +494,6 @@ def preview(sprites, path, scale=4):
 # Each layer is opaque below its skyline and transparent above it. The
 # horizon rises lower-left to upper right (the human's Landed sketch).
 # Everything in this section is self-contained (prefix `_surf`/`surface`).
-import random
 
 SURFACE_W = 800
 # Where the layers sit in the 640x360 Landed scene (top-left y of each layer).
@@ -530,21 +530,28 @@ def _skyline(w, left_y, right_y, rough, seed, scales):
     return [int(round(_arc(x, left_y, right_y) + _fbm(x, seed, scales) * rough)) for x in range(w)]
 
 
-def _fill_terrain(s, sky, bands, edge_hi, edge_lo):
+def _fill_terrain(s, sky, bands, edge_hi, edge_lo, broken_edge=False):
     """Fill below the skyline. bands: [(max_depth, key), ...] top to bottom;
-    two-pixel dither where one band meets the next."""
+    dither where one band meets the next. broken_edge breaks the bright top
+    line into dashes so stacked layers do not read as terraces."""
     for x in range(s.w):
         y0 = sky[x]
         slope = sky[min(x + 2, s.w - 1)] - sky[max(x - 2, 0)]
         for y in range(max(y0, 0), s.h):
             dy = y - y0
             if dy == 0:
-                s.px(x, y, edge_hi if slope < 0 else edge_lo)
+                lit = slope < 0
+                if broken_edge and hash01(x // 3, 0, 7) < 0.4:
+                    s.px(x, y, bands[0][1])
+                else:
+                    s.px(x, y, edge_hi if lit else edge_lo)
                 continue
             for i, (limit, key) in enumerate(bands):
                 if dy <= limit:
-                    if i + 1 < len(bands) and limit - dy < 2 and (x + y) % 2 == 0:
-                        key = bands[i + 1][1]
+                    if i + 1 < len(bands):
+                        near = limit - dy
+                        if (near < 2 and (x + y) % 2 == 0) or (near < 5 and x % 2 == 0 and y % 2 == 0):
+                            key = bands[i + 1][1]
                     s.px(x, y, key)
                     break
 
@@ -559,10 +566,32 @@ def _crater(s, sky, cx, cy, rx, ry, floor, shade, rim_hi, rim_lo):
             if d > 1.0:
                 continue
             side = (x - cx) / rx + (y - cy) / ry
+            if d > 0.9 and abs(x - cx) < 1:
+                continue
             if d > 0.62:
                 s.px(x, y, rim_hi if side < 0 else rim_lo)
             else:
                 s.px(x, y, shade if (side < -0.3 or (x + y) % 3 == 0) else floor)
+
+
+def _ridges(s, rng, sky, n, depth, lit, shade, below):
+    """Distant ridge lines following the limb: a lit line, a shadow line under it
+    and a short shaded slope. depth: (min, max) px below the skyline."""
+    for _ in range(n):
+        x0 = rng.randrange(0, s.w - 120)
+        span = rng.randint(70, 220)
+        d0 = rng.randint(*depth)
+        phase = rng.random() * 50
+        for x in range(x0, min(x0 + span, s.w)):
+            taper = min(1.0, (x - x0) / 14, (x0 + span - x) / 14)
+            if taper < 0.5:
+                continue
+            y = sky[x] + d0 + int(round(_vnoise(x + phase, 99, 35) * 7))
+            if 0 <= y < s.h - 3:
+                s.px(x, y, lit)
+                s.px(x, y + 1, shade)
+                if (x + y) % 2 == 0:
+                    s.px(x, y + 2, below)
 
 
 def _stone(s, x, y, w, h, hi, mid, lo):
@@ -629,14 +658,14 @@ def _frost(s, rng, sky, n, key):
 SURFACE_LOOK = {
     "rocky": dict(  # rust and grey rock, craters, scattered stones
         far=dict(sky=(172, 32, 6), edge=("am2", "am1"),
-                 bands=[(3, "am1"), (14, "am0"), (40, "rd0"), (9999, "rd0")]),
+                 bands=[(3, "am1"), (14, "am0"), (40, "rd0"), (75, "rd0"), (9999, "ink")]),
         mid=dict(sky=(100, 42, 9), edge=("am2", "am1"),
-                 bands=[(4, "am1"), (30, "am0"), (70, "rd0"), (9999, "rd0")]),
+                 bands=[(4, "am1"), (30, "am0"), (60, "rd0"), (95, "rd0"), (9999, "ink")]),
         near=dict(sky=(84, 40, 5), edge=("am3", "am2"),
                   bands=[(3, "am2"), (24, "am1"), (60, "am0"), (9999, "rd0")]),
         crater=("rd0", "am0", "am2", "am1"), crater_near=("am0", "rd0", "am2", "am1"),
         stone=("gm5", "gm4", "gm2"), hatch="am0", hatch2="am2",
-        n_stone=26, n_crater_mid=7, n_crater_near=4, n_hatch=190,
+        ridge=("am2", "am1", "rd0"), n_crater_far=9, n_stone=26, n_crater_mid=7, n_crater_near=4, n_hatch=190,
     ),
     "moon": dict(  # grey dust, low and smooth
         far=dict(sky=(176, 38, 2), edge=("gm6", "gm5"),
@@ -647,18 +676,18 @@ SURFACE_LOOK = {
                   bands=[(3, "gm5"), (26, "gm4"), (64, "gm3"), (9999, "gm2")]),
         crater=("gm2", "gm3", "gm6", "gm4"), crater_near=("gm2", "gm3", "gm6", "gm5"),
         stone=("gm6", "gm5", "gm3"), hatch="gm3", hatch2="gm5",
-        n_stone=7, n_crater_mid=9, n_crater_near=5, n_hatch=90,
+        ridge=("gm5", "gm3", "gm1"), n_crater_far=10, n_stone=7, n_crater_mid=9, n_crater_near=5, n_hatch=90,
     ),
     "icy": dict(  # pale blue ice, cracks, frost
         far=dict(sky=(170, 34, 5), edge=("cy4", "cy3"),
-                 bands=[(3, "cy2"), (14, "cy1"), (40, "cy0"), (9999, "gm2")]),
+                 bands=[(3, "cy2"), (14, "cy1"), (40, "cy0"), (95, "cy0"), (9999, "cy1")]),
         mid=dict(sky=(98, 44, 7), edge=("wh3", "cy4"),
                  bands=[(4, "cy3"), (28, "cy2"), (66, "cy1"), (9999, "cy0")]),
         near=dict(sky=(82, 42, 4), edge=("wh3", "cy4"),
                   bands=[(3, "wh2"), (24, "cy4"), (60, "cy3"), (9999, "cy2")]),
         crater=("cy1", "cy2", "wh3", "cy3"), crater_near=("cy1", "cy2", "wh3", "cy4"),
         stone=("wh3", "wh2", "cy2"), hatch="cy2", hatch2="wh3",
-        n_stone=9, n_crater_mid=3, n_crater_near=2, n_hatch=70,
+        ridge=("cy3", "cy1", "cy1"), n_crater_far=5, n_stone=9, n_crater_mid=3, n_crater_near=2, n_hatch=70,
     ),
 }
 
@@ -674,15 +703,15 @@ def surface_layer(kind, layer):
     left, right, rough = spec["sky"]
     scales = (200, 90, 40) if kind == "moon" else (120, 47, 19)
     sky = _skyline(SURFACE_W, left, right, rough, seed, scales)
-    _fill_terrain(s, sky, spec["bands"], *spec["edge"])
+    _fill_terrain(s, sky, spec["bands"], *spec["edge"], broken_edge=layer != "far")
 
     if layer == "far":
-        for _ in range(14):  # distant ridge lines on the limb face
-            x = rng.randrange(40, SURFACE_W - 40)
-            y = sky[x] + rng.randint(8, 30)
-            for k in range(rng.randint(10, 26)):
-                if s.opaque(x + k, y):
-                    s.px(x + k, y, spec["bands"][1][1])
+        ridge = look["ridge"]
+        _ridges(s, rng, sky, 5, (16, 34), *ridge)
+        _ridges(s, rng, sky, 6, (44, 78), *ridge)
+        _ridges(s, rng, sky, 6, (88, 140), *ridge)
+        _scatter_craters(s, sky, rng, look["n_crater_far"], (9, 22), 0.2, 24, look["crater"])
+        _hatch(s, rng, sky, look["n_hatch"] // 2, look["hatch"], (3, 5), 20)
     elif layer == "mid":
         _scatter_craters(s, sky, rng, look["n_crater_mid"], (14, 34), 0.22, 30, look["crater"])
         _hatch(s, rng, sky, look["n_hatch"] // 3, look["hatch"], (3, 5), 10)
