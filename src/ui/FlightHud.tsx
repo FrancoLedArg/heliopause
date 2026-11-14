@@ -155,8 +155,13 @@ export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }:
             style={{ left: `${String(Math.round(view.route.share * 96) - 2)}px` }}
           />
         </div>
-        <p className="route-inset__name route-inset__name--from">{view.route.from}</p>
-        <p className="route-inset__name route-inset__name--to">{view.route.to}</p>
+        {/* Cut off with an ellipsis when long; the full name is in the text and the hover title. */}
+        <p className="route-inset__name route-inset__name--from" title={view.route.from}>
+          {view.route.from}
+        </p>
+        <p className="route-inset__name route-inset__name--to" title={view.route.to}>
+          {view.route.to}
+        </p>
       </section>
 
       {!over && (

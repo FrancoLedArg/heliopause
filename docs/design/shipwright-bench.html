@@ -1,0 +1,1804 @@
+<!doctype html>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<!-- Planner design aid (2026-11-14). Chosen by the human: the side-view flat ground ("Landed", Backdrop: Sky only) and composable flat-style ships. Not shipped art. -->
+<title>Shipwright Bench</title>
+<meta name="claude:viewport-fit-sides" content="cover" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Silkscreen&family=VT323&display=swap"
+/>
+<style>
+  /* Layout: the side-view landing scene leads like a game screen; the bench (preview + part racks) sits under it; a swap table shows one slot changing at a time. Single dark theme on purpose: it is the game's palette. */
+  :root {
+    color-scheme: dark;
+    --void: #070a12;
+    --ink: #0c111c;
+    --panel: #121826;
+    --frame: #283246;
+    --frame-hi: #3a465c;
+    --text: #d2dce8;
+    --muted: #8090a8;
+    --cy: #46dcec;
+    --cy-dim: #11667e;
+    --am: #ffb43c;
+    --am-dim: #a2481a;
+    --vi: #b48cff;
+    --font-display: 'Silkscreen', 'Courier New', monospace;
+    --font-body: 'VT323', ui-monospace, 'Courier New', monospace;
+  }
+  html {
+    background: var(--void);
+  }
+  body {
+    background: var(--void);
+    color: var(--text);
+    font: 20px/1.25 var(--font-body);
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 24px 48px;
+  }
+  .wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    margin: 0;
+    text-wrap: balance;
+  }
+  h1 {
+    font-size: 26px;
+    color: var(--cy);
+  }
+  h2 {
+    font-size: 15px;
+    color: var(--am);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  h3 {
+    font-size: 11px;
+    color: var(--cy);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  p {
+    margin: 0;
+    max-width: 70ch;
+  }
+  .muted {
+    color: var(--muted);
+  }
+  .tag {
+    font-family: var(--font-display);
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  header,
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .screen {
+    border: 2px solid var(--frame-hi);
+    box-shadow:
+      0 0 0 2px var(--ink),
+      0 0 0 4px var(--frame);
+    background: #000;
+  }
+  .screen canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 640 / 360;
+    image-rendering: pixelated;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 22px;
+    align-items: flex-end;
+  }
+  .ctl {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .lbl {
+    font-family: var(--font-display);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .seg {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .seg button,
+  .act {
+    font: 18px/1 var(--font-body);
+    background: var(--panel);
+    color: var(--text);
+    border: 2px solid var(--frame);
+    padding: 6px 10px;
+    cursor: pointer;
+  }
+  .seg button:hover {
+    background: var(--frame);
+    border-color: var(--frame-hi);
+  }
+  .seg button[aria-pressed='true'] {
+    background: var(--cy-dim);
+    border-color: var(--cy);
+    color: #fff;
+  }
+  .seg.comp button[aria-pressed='true'] {
+    background: #4e2a8c;
+    border-color: var(--vi);
+  }
+  .seg.presets button[aria-pressed='true'] {
+    background: var(--am-dim);
+    border-color: var(--am);
+  }
+  .act {
+    background: var(--am-dim);
+    border-color: var(--am);
+    color: #fff;
+  }
+  .act:hover {
+    background: #e07a22;
+  }
+  .act.sec {
+    background: var(--panel);
+    border-color: var(--frame-hi);
+  }
+  button:focus-visible {
+    outline: 2px solid var(--am);
+    outline-offset: 2px;
+  }
+  .bench {
+    display: grid;
+    grid-template-columns: minmax(0, 330px) minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  .preview {
+    background: var(--panel);
+    border: 2px solid var(--frame);
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .preview canvas {
+    image-rendering: pixelated;
+    max-width: 100%;
+    height: auto;
+  }
+  .preview .cap {
+    font-size: 18px;
+    color: var(--muted);
+    text-align: center;
+  }
+  .racks {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  .swaps {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .swap-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .swap-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .swap {
+    background: var(--panel);
+    border: 1px solid var(--frame);
+    padding: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  .swap.on {
+    border-color: var(--am);
+  }
+  .swap canvas {
+    image-rendering: pixelated;
+  }
+  .swap span {
+    font-size: 16px;
+  }
+  .notes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .note {
+    border-top: 2px solid var(--frame-hi);
+    padding-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .note ul {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .note li::marker {
+    color: var(--cy);
+  }
+  footer {
+    font-family: var(--font-display);
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+  }
+  @media (max-width: 720px) {
+    .bench {
+      grid-template-columns: 1fr;
+    }
+    h1 {
+      font-size: 20px;
+    }
+    body {
+      font-size: 18px;
+    }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="tag">Planner · Spacecraft and ground · mockup, not shipped art</span>
+    <h1>Shipwright Bench</h1>
+    <p class="muted">
+      Ships built from parts in the flat, hand-drawn style: a core, side propulsors, fins, a main
+      engine, a crown and Components. The ground is literally flat, seen from the side, and the ship
+      stands on top of it.
+    </p>
+  </header>
+
+  <section aria-labelledby="scene-h">
+    <h2 id="scene-h">Landed</h2>
+    <div class="screen">
+      <canvas
+        id="scene"
+        width="640"
+        height="360"
+        aria-label="The ship standing on a flat side-view ground"
+      ></canvas>
+    </div>
+    <div class="controls">
+      <div class="ctl">
+        <span class="lbl">Launch</span>
+        <div class="seg">
+          <button class="act" id="btn-takeoff" type="button">Takeoff</button
+          ><button class="act sec" id="btn-landing" type="button">Landing</button>
+        </div>
+      </div>
+      <div class="ctl">
+        <span class="lbl">Surface</span>
+        <div class="seg" data-scene="kind">
+          <button type="button" data-v="moon" aria-pressed="true">Moon</button
+          ><button type="button" data-v="rocky" aria-pressed="false">Rocky</button
+          ><button type="button" data-v="icy" aria-pressed="false">Icy</button>
+        </div>
+      </div>
+      <div class="ctl">
+        <span class="lbl">Backdrop</span>
+        <div class="seg" data-scene="backdrop">
+          <button type="button" data-v="sky" aria-pressed="true">Sky only</button
+          ><button type="button" data-v="ridges" aria-pressed="false">Far ridges</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="bench-h">
+    <h2 id="bench-h">Build a ship</h2>
+    <div class="bench">
+      <div class="preview">
+        <canvas
+          id="big"
+          width="312"
+          height="378"
+          aria-label="The ship being built, enlarged 3 times"
+        ></canvas
+        ><span class="cap">3× · 104×126 px in the game</span>
+      </div>
+      <div class="racks">
+        <div class="ctl">
+          <span class="lbl">Start from</span>
+          <div class="seg presets" id="presets"></div>
+        </div>
+        <div class="ctl">
+          <span class="lbl">Core (the Chassis)</span>
+          <div class="seg" data-slot="core"></div>
+        </div>
+        <div class="ctl">
+          <span class="lbl">Side propulsors</span>
+          <div class="seg" data-slot="sides"></div>
+        </div>
+        <div class="ctl">
+          <span class="lbl">Fins and legs</span>
+          <div class="seg" data-slot="fins"></div>
+        </div>
+        <div class="ctl">
+          <span class="lbl">Main engine</span>
+          <div class="seg" data-slot="engine"></div>
+        </div>
+        <div class="ctl">
+          <span class="lbl">Crown</span>
+          <div class="seg" data-slot="crown"></div>
+        </div>
+        <div class="ctl">
+          <span class="lbl">Components</span>
+          <div class="seg comp" id="comps"></div>
+        </div>
+        <div class="ctl">
+          <span class="lbl">Paint</span>
+          <div class="seg" data-slot="paint"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="swap-h">
+    <h2 id="swap-h">One part at a time</h2>
+    <p class="muted">
+      Each row starts from the ship on the bench and swaps a single part. The highlighted one is
+      what's on the bench now.
+    </p>
+    <div class="swaps" id="swaps"></div>
+  </section>
+
+  <section aria-labelledby="notes-h">
+    <h2 id="notes-h">Notes</h2>
+    <div class="notes">
+      <div class="note">
+        <h3>How parts could map to the game</h3>
+        <ul>
+          <li><b>Core</b> = the Chassis picked at New Run.</li>
+          <li>
+            <b>Side propulsors and main engine</b> = the Engine Component: a better Engine adds
+            nacelles or boosters.
+          </li>
+          <li>
+            <b>Components</b> show on the hull when installed: Drill, Radar, Jump Drive, Comms.
+          </li>
+          <li>
+            The game assembles each ship from part sprites at runtime, so it needs no art per
+            combination.
+          </li>
+        </ul>
+      </div>
+      <div class="note">
+        <h3>Ground</h3>
+        <ul>
+          <li>
+            A flat strip seen from the side, with a straight top edge the ship stands on, like a 2D
+            side-view game.
+          </li>
+          <li>No perspective, no curve and no planet texture. Stones are seen in cross-section.</li>
+          <li>"Far ridges" adds one distant silhouette behind it. The default is sky only.</li>
+        </ul>
+      </div>
+      <div class="note">
+        <h3>Questions for you</h3>
+        <ul>
+          <li>Is the ground right now, and do you want the far ridges or sky only?</li>
+          <li>Which core goes with each starting Chassis?</li>
+          <li>Should engine upgrades change the side propulsors as above?</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+  <footer>Heliopause · AI-generated art · mockup</footer>
+</div>
+
+<script>
+  // Epic ship concepts: flat pixel-art drawing helpers and five original designs.
+  // Shared by the page and the Node preview renderer.
+  const PAL = {
+    void: '#070a12',
+    ink: '#0c111c',
+    gm0: '#121826',
+    gm1: '#1c2434',
+    gm2: '#283246',
+    gm3: '#3a465c',
+    gm4: '#56647c',
+    gm5: '#8090a8',
+    gm6: '#b8c4d4',
+    scr0: '#060d16',
+    scr1: '#0a1824',
+    scr2: '#102434',
+    cy0: '#0b3a4c',
+    cy1: '#11667e',
+    cy2: '#1ca4bc',
+    cy3: '#46dcec',
+    cy4: '#aaf6ff',
+    am0: '#5a2410',
+    am1: '#a2481a',
+    am2: '#e07a22',
+    am3: '#ffb43c',
+    am4: '#ffe696',
+    rd0: '#4a0e1c',
+    rd1: '#8e1c2c',
+    rd2: '#d23a44',
+    rd3: '#ff7a6e',
+    rd4: '#ffc0b0',
+    gr0: '#0e3a2c',
+    gr1: '#1a6e46',
+    gr2: '#34b26a',
+    gr3: '#7ceaa0',
+    gr4: '#d0ffd8',
+    vi0: '#2a1650',
+    vi1: '#4e2a8c',
+    vi2: '#8150d0',
+    vi3: '#b48cff',
+    vi4: '#e2d4ff',
+    wh0: '#6a7890',
+    wh1: '#9eacc0',
+    wh2: '#d2dce8',
+    wh3: '#f4f8ff',
+  };
+  const hex = (h) => [
+    parseInt(h.slice(1, 3), 16),
+    parseInt(h.slice(3, 5), 16),
+    parseInt(h.slice(5, 7), 16),
+  ];
+  const RGB = Object.fromEntries(Object.entries(PAL).map(([k, v]) => [k, hex(v)]));
+
+  const R = {
+    white: ['gm3', 'gm5', 'gm6', 'wh1', 'wh2', 'wh3'],
+    chrome: ['gm1', 'gm2', 'gm3', 'gm4', 'gm5', 'gm6', 'wh2'],
+    gun: ['ink', 'gm1', 'gm2', 'gm3', 'gm4', 'gm5'],
+    red: ['rd0', 'rd1', 'rd2', 'rd3', 'rd4'],
+    amber: ['am0', 'am1', 'am2', 'am3', 'am4'],
+    cyan: ['cy0', 'cy1', 'cy2', 'cy3', 'cy4'],
+    violet: ['vi0', 'vi1', 'vi2', 'vi3', 'vi4'],
+    pearl: ['vi1', 'gm4', 'gm5', 'gm6', 'wh2', 'wh3'],
+    tiles: ['ink', 'gm0', 'gm1', 'gm2'],
+  };
+
+  class Spr {
+    constructor(w, h) {
+      this.w = w;
+      this.h = h;
+      this.g = Array.from({ length: h }, () => Array(w).fill(null));
+      this.blink = [];
+      this.nozzles = [];
+      this.halo = [];
+    }
+    px(x, y, k) {
+      x = Math.round(x);
+      y = Math.round(y);
+      if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.g[y][x] = k;
+    }
+    get(x, y) {
+      return x >= 0 && y >= 0 && x < this.w && y < this.h ? this.g[y][x] : null;
+    }
+  }
+
+  // Pick a ramp colour: clean bands, a checker only right at the band edge.
+  function pick(ramp, l, x, y) {
+    const t = Math.max(0, Math.min(0.999, l)) * (ramp.length - 1);
+    const i = Math.floor(t),
+      f = t - i;
+    if (f > 0.4 && f < 0.6) return ramp[Math.min(ramp.length - 1, i + ((x + y) & 1))];
+    return ramp[Math.min(ramp.length - 1, f >= 0.5 ? i + 1 : i)];
+  }
+  // A round hull seen from the side, light from the upper left with a soft specular streak.
+  function roundShade(u) {
+    const nz = Math.sqrt(Math.max(0, 1 - u * u));
+    let l = 0.12 + 0.88 * Math.max(0, -0.55 * u + 0.83 * nz);
+    if (u > -0.62 && u < -0.4) l = Math.min(1, l + 0.2);
+    return l;
+  }
+  // hull: a body of revolution. prof(y) is its half-width at row y.
+  function hull(s, { cx, y0, y1, prof, ramp, rim, mat }) {
+    for (let y = y0; y <= y1; y++) {
+      const w = prof(y);
+      if (w <= 0.35) {
+        if (w > 0) s.px(cx - 0.5, y, ramp[ramp.length - 2]);
+        continue;
+      }
+      for (let x = Math.floor(cx - w); x < Math.ceil(cx + w); x++) {
+        const u = (x + 0.5 - cx) / w;
+        if (Math.abs(u) > 1) continue;
+        let l = roundShade(u),
+          rp = ramp,
+          key = null;
+        if (mat) {
+          const m = mat(u, y, x);
+          if (m) {
+            if (m.key) key = m.key;
+            if (m.ramp) rp = m.ramp;
+            if (m.dl) l += m.dl;
+          }
+        }
+        if (!key) key = rim && u > 0.8 ? rim : pick(rp, l, x, y);
+        s.px(x, y, key);
+      }
+    }
+  }
+  function inside(pts, x, y) {
+    let c = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const [xi, yi] = pts[i],
+        [xj, yj] = pts[j];
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) c = !c;
+    }
+    return c;
+  }
+  // A flat plate (fin, wing, strut): beveled, lit on its top-left edges.
+  function plate(s, pts, ramp, base, opts = {}) {
+    let x0 = Infinity,
+      x1 = -Infinity,
+      y0 = Infinity,
+      y1 = -Infinity;
+    for (const [x, y] of pts) {
+      x0 = Math.min(x0, x);
+      x1 = Math.max(x1, x);
+      y0 = Math.min(y0, y);
+      y1 = Math.max(y1, y);
+    }
+    const inn = (x, y) => inside(pts, x + 0.5, y + 0.5);
+    for (let y = Math.floor(y0); y <= Math.ceil(y1); y++)
+      for (let x = Math.floor(x0); x <= Math.ceil(x1); x++) {
+        if (!inn(x, y)) continue;
+        let lv = base;
+        if (!inn(x - 1, y) || !inn(x, y - 1)) lv += 1;
+        else if (!inn(x + 1, y) || !inn(x, y + 1)) lv -= 1;
+        if (opts.grad) lv += Math.round(opts.grad(x, y));
+        s.px(x, y, ramp[Math.max(0, Math.min(ramp.length - 1, lv))]);
+      }
+  }
+  const mirror = (cx, pts) => pts.map(([x, y]) => [2 * cx - x, y]);
+  function line(s, x0, y0, x1, y1, k) {
+    const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0)) || 1;
+    for (let i = 0; i <= n; i++) s.px(x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n, k);
+  }
+  function disc(s, cx, cy, r, k) {
+    for (let y = Math.floor(cy - r); y <= cy + r; y++)
+      for (let x = Math.floor(cx - r); x <= cx + r; x++)
+        if ((x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= r * r) s.px(x, y, k);
+  }
+  function porthole(s, cx, cy, lit) {
+    disc(s, cx, cy, 3, 'gm3');
+    disc(s, cx, cy, 2.1, lit ? 'cy3' : 'cy1');
+    s.px(cx - 1, cy - 1, lit ? 'cy4' : 'cy2');
+    if (lit) s.halo.push({ x: cx, y: cy, r: 4, k: 'cy2' });
+  }
+  function nozzle(s, x, y, top, bot, h) {
+    plate(
+      s,
+      [
+        [x - top, y],
+        [x + top, y],
+        [x + bot, y + h],
+        [x - bot, y + h],
+      ],
+      R.gun,
+      2,
+    );
+    line(s, x - bot + 1, y + h, x + bot - 1, y + h, 'am1');
+    s.nozzles.push({ x, y: y + h + 1 });
+  }
+  function lamp(s, x, y, on, off) {
+    s.px(x, y, off);
+    s.blink.push({ x, y, on, off });
+  }
+
+  // outline and glow halos, then the finished grid
+  function finish(s) {
+    const out = s.g.map((row) => row.slice());
+    for (let y = 0; y < s.h; y++)
+      for (let x = 0; x < s.w; x++) {
+        if (s.g[y][x]) continue;
+        if (s.get(x - 1, y) || s.get(x + 1, y) || s.get(x, y - 1) || s.get(x, y + 1))
+          out[y][x] = 'void';
+      }
+    s.g = out;
+    return s;
+  }
+
+  // Composable flat pixel-art ship parts. Every ship is: core + side propulsors + fins + main engine + crown + Components + paint.
+  const W = 104,
+    H = 126,
+    CX = 52,
+    BASE = 102,
+    GROUND = H - 1;
+
+  const PAINTS = {
+    pulp: { name: 'Pulp', hull: R.white, trim: R.red, rim: 'cy2' },
+    steel: { name: 'Steel', hull: R.chrome, trim: R.cyan, rim: 'cy2' },
+    night: { name: 'Night', hull: R.gun, trim: R.amber, rim: 'vi2' },
+    pearl: { name: 'Pearl', hull: R.pearl, trim: R.violet, rim: 'vi3' },
+  };
+
+  // ---------------- cores: the Chassis silhouette. Each returns its half-width per row.
+  const CORES = {
+    ogive: {
+      name: 'Ogive',
+      note: 'pulp rocket, portholes',
+      draw(s, P) {
+        const prof = (y) => {
+          if (y < 10 || y > BASE) return 0;
+          const t = (y - 10) / (BASE - 10);
+          return t < 0.3
+            ? 11 * Math.sin(((t / 0.3) * Math.PI) / 2) ** 0.85
+            : t > 0.95
+              ? 11 - (t - 0.95) * 50
+              : 11 + 1.2 * Math.sin(((t - 0.3) / 0.65) * Math.PI);
+        };
+        hull(s, {
+          cx: CX,
+          y0: 10,
+          y1: BASE,
+          ramp: P.hull,
+          rim: P.rim,
+          prof,
+          mat: (u, y) =>
+            (y >= 32 && y <= 34) || (y >= 88 && y <= 90)
+              ? { ramp: P.trim }
+              : y === 52 || y === 76
+                ? { dl: -0.18 }
+                : null,
+        });
+        line(s, CX, 2, CX, 10, 'gm5');
+        lamp(s, CX, 2, 'rd3', 'rd1');
+        porthole(s, CX - 1, 45, true);
+        porthole(s, CX - 1, 58, false);
+        porthole(s, CX - 1, 69, false);
+        return { prof, top: 10 };
+      },
+    },
+    needle: {
+      name: 'Needle',
+      note: 'knife hull, heat tiles',
+      draw(s, P) {
+        const prof = (y) => {
+          if (y < 2 || y > BASE) return 0;
+          const t = (y - 2) / (BASE - 2);
+          return t < 0.55
+            ? 0.3 + (t / 0.55) * 4.9
+            : t < 0.72
+              ? 5.2 + ((t - 0.55) / 0.17) * 5.3
+              : 10.5;
+        };
+        hull(s, {
+          cx: CX,
+          y0: 2,
+          y1: BASE,
+          ramp: P.hull,
+          rim: P.rim,
+          prof,
+          mat: (u, y, x) => {
+            if (y >= 95 && y <= 96) return { key: u < 0 ? P.trim[4] : P.trim[3] };
+            if (y >= 15 && y <= 18 && Math.abs(u) < 0.55) return { key: y === 15 ? 'cy4' : 'cy3' };
+            if (u > 0.2)
+              return { ramp: R.tiles, dl: (x + (y >> 2)) % 4 === 0 || y % 4 === 0 ? -0.3 : 0 };
+            if (y === 36 || y === 64 || y === 82) return { dl: -0.2 };
+            return null;
+          },
+        });
+        s.halo.push({ x: CX, y: 95, r: 13, k: P.trim[1] });
+        lamp(s, CX, 2, 'rd3', 'rd1');
+        return { prof, top: 2 };
+      },
+    },
+    tiered: {
+      name: 'Tiered',
+      note: 'flying cathedral, lit slits',
+      draw(s, P) {
+        const prof = (y) =>
+          y < 4 || y > BASE
+            ? 0
+            : y < 20
+              ? 0.4 + ((y - 4) / 16) * 3.2
+              : y < 46
+                ? 6 - Math.max(0, 23 - y) * 0.8
+                : y < 76
+                  ? 9 - Math.max(0, 49 - y)
+                  : 12.5 - Math.max(0, 79 - y);
+        hull(s, {
+          cx: CX,
+          y0: 4,
+          y1: BASE,
+          ramp: P.hull,
+          rim: P.rim,
+          prof,
+          mat: (u, y) => (y === 46 || y === 76 ? { key: u < 0.3 ? P.trim[3] : P.trim[1] } : null),
+        });
+        const slits = [
+          [26, [-2, 1]],
+          [32, [-2, 1]],
+          [38, [-2, 1]],
+          [53, [-5, -2, 1, 4]],
+          [60, [-5, -2, 1, 4]],
+          [67, [-5, -2, 1, 4]],
+          [83, [-8, -5, -2, 1, 4, 7]],
+          [89, [-8, -5, -2, 1, 4, 7]],
+        ];
+        slits.forEach(([y, xs], i) =>
+          xs.forEach((dx, j) => {
+            const on = (i * 7 + j * 3) % 5 !== 0;
+            s.px(CX + dx, y, on ? 'am3' : 'gm1');
+            s.px(CX + dx, y + 1, on ? 'am2' : 'gm1');
+          }),
+        );
+        for (let y = 92; y <= BASE - 1; y++)
+          for (let x = CX - 4; x <= CX + 3; x++) {
+            const ay = y - 96,
+              ax = x + 0.5 - CX;
+            if (ay < 0 && (ax * ax) / 16 + (ay * ay) / 16 > 1) continue;
+            s.px(x, y, y < 95 ? 'am4' : y < 98 ? 'am3' : 'am2');
+          }
+        s.halo.push({ x: CX, y: 98, r: 7, k: 'am1' });
+        lamp(s, CX - 0.5, 4, 'rd3', 'rd1');
+        return { prof, top: 4 };
+      },
+    },
+    teardrop: {
+      name: 'Teardrop',
+      note: 'smooth hull, glowing core',
+      draw(s, P) {
+        const prof = (y) => {
+          if (y < 6 || y > BASE) return 0;
+          const t = (y - 6) / (BASE - 6);
+          return 0.6 + 8.2 * Math.sin(Math.PI * Math.min(0.85, Math.pow(t, 0.62) * 0.85));
+        };
+        hull(s, {
+          cx: CX,
+          y0: 6,
+          y1: BASE,
+          ramp: P.hull,
+          rim: P.rim,
+          prof,
+          mat: (u, y) => (y === 64 || y === 65 || y === 82 ? { ramp: P.trim, dl: -0.1 } : null),
+        });
+        disc(s, CX, 46, 3.6, P.trim[2]);
+        disc(s, CX, 46, 2.4, P.trim[3]);
+        s.px(CX - 1, 45, P.trim[4]);
+        s.px(CX, 45, P.trim[4]);
+        s.halo.push({ x: CX, y: 46, r: 8, k: P.trim[1] });
+        return { prof, top: 6 };
+      },
+    },
+  };
+
+  const maxW = (prof, y0, y1) => {
+    let m = 0;
+    for (let y = y0; y <= y1; y++) m = Math.max(m, prof(y));
+    return m;
+  };
+
+  // ---------------- side propulsors: return how far out (px from centre) they reach.
+  const SIDES = {
+    none: { name: 'None', note: 'clean hull', draw: (s, P, c) => maxW(c.prof, 64, BASE) },
+    boosters: {
+      name: 'Boosters',
+      note: 'strap-on rockets',
+      draw(s, P, c) {
+        const off = maxW(c.prof, 56, BASE) + 4.5;
+        for (const sd of [-1, 1]) {
+          const x = CX + sd * off;
+          line(s, CX, 68, x, 68, 'gm3');
+          line(s, CX, 94, x, 94, 'gm3');
+          hull(s, {
+            cx: x,
+            y0: 50,
+            y1: 104,
+            ramp: P.hull,
+            rim: sd > 0 ? P.rim : null,
+            prof: (y) => (y < 58 ? 4 * Math.sin((((y - 50) / 8) * Math.PI) / 2) : 4),
+            mat: (u, y) => (y === 62 || y === 63 || y === 98 ? { ramp: P.trim } : null),
+          });
+          nozzle(s, x, 104, 3, 4, 5);
+        }
+        return off + 4;
+      },
+    },
+    nacelles: {
+      name: 'Nacelles',
+      note: 'glowing engines on pylons',
+      draw(s, P, c) {
+        const off = maxW(c.prof, 58, 98) + 10;
+        for (const sd of [-1, 1]) {
+          const x = CX + sd * off;
+          const pylon = [
+            [CX, 64],
+            [x - sd * 2, 70],
+            [x - sd * 2, 76],
+            [CX, 76],
+          ];
+          plate(s, sd < 0 ? pylon : pylon, R.gun, sd < 0 ? 3 : 2);
+          hull(s, {
+            cx: x,
+            y0: 56,
+            y1: 96,
+            ramp: R.chrome,
+            rim: sd > 0 ? 'cy2' : null,
+            prof: (y) => (y < 60 ? 3 + (y - 56) * 0.6 : y > 92 ? 5.4 - (y - 92) * 0.3 : 5.4),
+            mat: (u, y) =>
+              y === 56 || y === 57
+                ? { key: u < 0 ? 'cy4' : 'cy3' }
+                : y === 63 || y === 89
+                  ? { key: u < 0.2 ? 'cy3' : 'cy2' }
+                  : y === 76
+                    ? { dl: -0.2 }
+                    : null,
+          });
+          s.halo.push({ x, y: 57, r: 7, k: 'cy1' });
+          nozzle(s, x, 96, 4, 5, 5);
+        }
+        return off + 5.5;
+      },
+    },
+    quad: {
+      name: 'Quad boosters',
+      note: 'two per side, staggered',
+      draw(s, P, c) {
+        const base = maxW(c.prof, 60, BASE);
+        for (const sd of [-1, 1]) {
+          const xi = CX + sd * (base + 3.5),
+            xo = CX + sd * (base + 9.5);
+          hull(s, {
+            cx: xo,
+            y0: 70,
+            y1: 106,
+            ramp: P.hull,
+            rim: sd > 0 ? P.rim : null,
+            prof: (y) => (y < 76 ? 2.8 * Math.sin((((y - 70) / 6) * Math.PI) / 2) : 2.8),
+            mat: (u, y) => (y === 80 ? { ramp: P.trim } : null),
+          });
+          nozzle(s, xo, 106, 2, 3, 4);
+          hull(s, {
+            cx: xi,
+            y0: 56,
+            y1: 104,
+            ramp: P.hull,
+            rim: sd > 0 ? P.rim : null,
+            prof: (y) => (y < 63 ? 3.2 * Math.sin((((y - 56) / 7) * Math.PI) / 2) : 3.2),
+            mat: (u, y) => (y === 66 || y === 96 ? { ramp: P.trim } : null),
+          });
+          nozzle(s, xi, 104, 2, 3, 5);
+        }
+        return base + 12.5;
+      },
+    },
+  };
+
+  // ---------------- fins and legs, mounted outside whatever is outermost. o = reach from centre.
+  const FINS = {
+    swept: {
+      name: 'Swept fins',
+      note: 'classic, tips on the ground',
+      draw(s, P, o) {
+        const ox = CX - o;
+        const f = [
+          [ox + 3, 72],
+          [ox - 1, 74],
+          [ox - 11, 98],
+          [ox - 14, 120],
+          [ox - 11, GROUND],
+          [ox - 7, GROUND],
+          [ox - 5, 112],
+          [ox + 3, 104],
+        ];
+        plate(s, f, P.trim, 3);
+        plate(s, mirror(CX, f), P.trim, 1);
+        lamp(s, ox - 13, 120, 'am3', 'am1');
+        lamp(s, 2 * CX - ox + 13, 120, 'cy4', 'cy1');
+      },
+    },
+    delta: {
+      name: 'Delta fins',
+      note: 'chrome blades, lit edge',
+      draw(s, P, o) {
+        const ox = CX - o;
+        const f = [
+          [ox + 3, 64],
+          [ox - 1, 67],
+          [ox - 15, 114],
+          [ox - 15, GROUND],
+          [ox - 9, GROUND],
+          [ox + 2, 108],
+        ];
+        plate(s, f, R.chrome, 4);
+        plate(s, mirror(CX, f), R.chrome, 2);
+        line(s, ox - 1, 68, ox - 14, 113, 'cy3');
+        line(s, 2 * CX - ox + 1, 68, 2 * CX - ox + 14, 113, 'cy1');
+        lamp(s, ox - 15, 115, 'cy4', 'cy1');
+        lamp(s, 2 * CX - ox + 15, 115, 'cy4', 'cy1');
+      },
+    },
+    buttress: {
+      name: 'Buttress legs',
+      note: 'heavy, gothic',
+      draw(s, P, o) {
+        const ox = CX - o;
+        const f = [
+          [ox + 3, 80],
+          [ox - 2, 81],
+          [ox - 14, 118],
+          [ox - 14, GROUND],
+          [ox - 8, GROUND],
+          [ox + 3, 98],
+        ];
+        plate(s, f, R.gun, 4);
+        plate(s, mirror(CX, f), R.gun, 2);
+        lamp(s, ox - 13, 121, 'am3', 'am0');
+        lamp(s, 2 * CX - ox + 13, 121, 'am3', 'am0');
+      },
+    },
+    wings: {
+      name: 'Raised wings',
+      note: 'swept up like a bird',
+      draw(s, P, o) {
+        const ox = CX - o;
+        const w = [
+          [ox + 3, 64],
+          [ox - 5, 48],
+          [ox - 13, 30],
+          [ox - 19, 12],
+          [ox - 21, 26],
+          [ox - 20, 42],
+          [ox - 14, 58],
+          [ox - 4, 74],
+          [ox + 3, 76],
+        ];
+        const b = [
+          [ox + 2, 76],
+          [ox - 5, 90],
+          [ox - 11, 112],
+          [ox - 13, GROUND],
+          [ox - 7, GROUND],
+          [ox - 2, 106],
+          [ox + 3, 92],
+        ];
+        plate(s, w, R.pearl, 4);
+        plate(s, mirror(CX, w), R.pearl, 2);
+        plate(s, b, R.pearl, 3);
+        plate(s, mirror(CX, b), R.pearl, 1);
+        line(s, ox - 19, 13, ox - 13, 30, P.trim[3]);
+        line(s, ox - 13, 30, ox - 5, 48, P.trim[3]);
+        line(s, 2 * CX - ox + 19, 13, 2 * CX - ox + 13, 30, P.trim[2]);
+        line(s, 2 * CX - ox + 13, 30, 2 * CX - ox + 5, 48, P.trim[2]);
+        lamp(s, ox - 19, 12, 'vi4', 'vi2');
+        lamp(s, 2 * CX - ox + 19, 12, 'vi4', 'vi2');
+      },
+    },
+  };
+
+  const ENGINES = {
+    bell: {
+      name: 'Single bell',
+      note: 'one big nozzle',
+      draw: (s) => nozzle(s, CX, BASE, 6, 9, 7),
+    },
+    twin: {
+      name: 'Twin',
+      note: 'two nozzles',
+      draw: (s) => {
+        nozzle(s, CX - 5, BASE, 3, 4, 6);
+        nozzle(s, CX + 5, BASE, 3, 4, 6);
+      },
+    },
+    cluster: {
+      name: 'Cluster',
+      note: 'three nozzles',
+      draw: (s) => {
+        for (const dx of [-7, 0, 7]) nozzle(s, CX + dx, BASE, 2, 3, 5);
+      },
+    },
+  };
+
+  const CROWNS = {
+    none: { name: 'None', note: 'bare nose', draw() {} },
+    deck: {
+      name: 'Command deck',
+      note: 'hammerhead bridge',
+      draw(s, P, c) {
+        const y0 = c.top + 14;
+        hull(s, {
+          cx: CX,
+          y0,
+          y1: y0 + 12,
+          ramp: R.chrome,
+          rim: 'cy2',
+          prof: (y) => (y < y0 + 4 ? 7 + (y - y0) * 3 : y <= y0 + 9 ? 19 : 19 - (y - y0 - 9) * 2.5),
+          mat: (u, y, x) =>
+            y === y0 + 6 && Math.abs(u) < 0.85
+              ? { key: x % 3 === 0 ? 'am1' : 'am3' }
+              : y === y0 + 7 && Math.abs(u) < 0.85
+                ? { key: 'am2' }
+                : null,
+        });
+        lamp(s, CX - 19, y0 + 7, 'rd3', 'rd1');
+        lamp(s, CX + 19, y0 + 7, 'cy4', 'cy1');
+      },
+    },
+    mast: {
+      name: 'Antenna mast',
+      note: 'tall spike, beacons',
+      draw(s, P, c) {
+        line(s, CX, 0, CX, c.top, 'gm4');
+        line(s, CX - 3, c.top + 3, CX - 3, c.top - 4, 'gm4');
+        lamp(s, CX, 0, 'rd3', 'rd1');
+        lamp(s, CX - 3, c.top - 4, 'cy4', 'cy1');
+      },
+    },
+  };
+
+  const COMPONENTS = {
+    drill: {
+      name: 'Drill',
+      note: 'arm with a drill bit',
+      front(s, P, c) {
+        const w = c.prof(84),
+          x = CX + w + 5;
+        plate(
+          s,
+          [
+            [CX + 2, 82],
+            [x + 1, 82],
+            [x + 1, 85],
+            [CX + 2, 85],
+          ],
+          R.gun,
+          3,
+        );
+        plate(
+          s,
+          [
+            [x - 1, 85],
+            [x + 2, 85],
+            [x + 2, 106],
+            [x - 1, 106],
+          ],
+          R.gun,
+          2,
+        );
+        for (let k = 0; k < 8; k++) {
+          const hw = Math.max(0, 2.5 - k * 0.35);
+          line(s, x + 0.5 - hw, 107 + k, x + 0.5 + hw, 107 + k, k % 2 ? 'am3' : 'gm5');
+        }
+      },
+    },
+    radar: {
+      name: 'Radar',
+      note: 'dish on a boom',
+      front(s, P, c) {
+        const y = c.top + 30,
+          w = c.prof(y),
+          x = CX - w - 6;
+        line(s, CX - w, y, x, y - 2, 'gm4');
+        plate(
+          s,
+          [
+            [x - 5, y - 9],
+            [x - 1, y - 7],
+            [x + 2, y - 2],
+            [x - 2, y - 1],
+            [x - 6, y - 5],
+          ],
+          R.white,
+          3,
+        );
+        lamp(s, x - 2, y - 5, 'cy4', 'cy2');
+      },
+    },
+    jump: {
+      name: 'Jump Drive',
+      note: 'violet ring',
+      back(s, P, c) {
+        ring(s, c, true);
+      },
+      front(s, P, c) {
+        ring(s, c, false);
+      },
+    },
+    comms: {
+      name: 'Comms',
+      note: 'beacon array',
+      front(s, P, c) {
+        const y = c.top + 22,
+          w = c.prof(y);
+        line(s, CX + w, y, CX + w + 4, y - 6, 'gm4');
+        line(s, CX + w + 4, y - 6, CX + w + 4, y - 11, 'gm4');
+        lamp(s, CX + w + 4, y - 12, 'rd3', 'rd1');
+      },
+    },
+  };
+  function ring(s, c, back) {
+    const y = 52,
+      rx = c.prof(y) + 7,
+      ry = 3.2;
+    for (let a = 0; a < Math.PI * 2; a += 0.01) {
+      const x = CX + rx * Math.cos(a),
+        yy = y + ry * Math.sin(a);
+      if (Math.sin(a) < 0 !== back) continue;
+      s.px(x, yy, back ? 'vi2' : Math.cos(a) < 0 ? 'vi4' : 'vi3');
+      s.px(x, yy + 1, back ? 'vi1' : 'vi2');
+    }
+    if (!back) s.halo.push({ x: CX - rx, y, r: 4, k: 'vi1' }, { x: CX + rx, y, r: 4, k: 'vi1' });
+  }
+
+  function buildShip(cfg) {
+    const s = new Spr(W, H),
+      P = PAINTS[cfg.paint];
+    // the core decides the reach of side parts, so measure it on a scratch sprite first
+    const probe = new Spr(W, H);
+    const c = CORES[cfg.core].draw(probe, P);
+    const reach = SIDES[cfg.sides].draw(new Spr(W, H), P, c);
+    for (const k of cfg.comps) COMPONENTS[k].back && COMPONENTS[k].back(s, P, c);
+    FINS[cfg.fins].draw(s, P, reach);
+    SIDES[cfg.sides].draw(s, P, c);
+    CORES[cfg.core].draw(s, P);
+    CROWNS[cfg.crown].draw(s, P, c);
+    ENGINES[cfg.engine].draw(s, P);
+    for (const k of cfg.comps) COMPONENTS[k].front && COMPONENTS[k].front(s, P, c);
+    if (cfg.fins === 'swept' && cfg.sides === 'none')
+      plate(
+        s,
+        [
+          [CX - 1, 78],
+          [CX + 1, 78],
+          [CX + 3, 118],
+          [CX + 1, GROUND],
+          [CX - 1, GROUND],
+          [CX - 3, 118],
+        ],
+        P.trim,
+        3,
+      );
+    return finish(s);
+  }
+
+  const PRESETS = [
+    {
+      id: 'herald',
+      name: 'Herald',
+      role: 'Scout',
+      core: 'ogive',
+      sides: 'none',
+      fins: 'swept',
+      engine: 'bell',
+      crown: 'none',
+      comps: ['comms'],
+      paint: 'pulp',
+      line: 'The first concept, unchanged: one rocket shape.',
+    },
+    {
+      id: 'herald2',
+      name: 'Herald Mk II',
+      role: 'Scout',
+      core: 'ogive',
+      sides: 'nacelles',
+      fins: 'swept',
+      engine: 'cluster',
+      crown: 'mast',
+      comps: [],
+      paint: 'pulp',
+      line: 'Same core, plus side nacelles, a cluster and a mast. Your example.',
+    },
+    {
+      id: 'hauler',
+      name: 'Bastion',
+      role: 'Hauler',
+      core: 'tiered',
+      sides: 'quad',
+      fins: 'buttress',
+      engine: 'cluster',
+      crown: 'none',
+      comps: ['drill'],
+      paint: 'night',
+      line: 'Cathedral core on four boosters, with a Drill.',
+    },
+    {
+      id: 'lancer',
+      name: 'Lancer',
+      role: 'Lancer',
+      core: 'needle',
+      sides: 'nacelles',
+      fins: 'delta',
+      engine: 'twin',
+      crown: 'none',
+      comps: ['radar', 'jump'],
+      paint: 'steel',
+      line: 'Needle core, glowing nacelles, Radar and Jump Drive.',
+    },
+    {
+      id: 'seraph',
+      name: 'Seraph',
+      role: 'Alt',
+      core: 'teardrop',
+      sides: 'boosters',
+      fins: 'wings',
+      engine: 'bell',
+      crown: 'deck',
+      comps: [],
+      paint: 'pearl',
+      line: 'Teardrop core, boosters, raised wings and a command deck.',
+    },
+  ];
+
+  const THRUSTER =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAADAAAAAYCAYAAAC8/X7cAAACXklEQVR4nM1XvU4CQRBeiIXRxljSaAxPcKUJVhYUPsEV9L4CD2BlSWKvyRU+AQXVaSzvCQiBhpLYYOgws+yss7P/itEvIRDY+flmvpk9WkJhPrzYwvvZZUeIopTfrU9v5fvx6mF3qKnE4m0pP57fzVpoi/YuW4T0kWKPKEpvfDjXunmV9m1tgMkr8ATQqRGEoG42Ogi8ICgG1gmwGBySnCoABc8FiwA4EC5AAsXOkAZfjO6dx7ljZ5Kk+kE0lUWC5mAUSwhhtVEnQJ2AU5Igbz/3gQTW1y8yuCzEpKd9+OznvvgqB7CF5AfjpbZv+5j52uc6w4FEXRJKsReO5BE0eYvAePphJMAllANDLqyDPtTNZlf9ppKxdfEUIRd5g0A1fZfsUAKG/lVwXgFXEnSgaQfheyxStHuTnt5cofkxCGAQeZgFx99i4ARpEa6KQ12kXBnVHvIWASu4an+SdhUgkC6EQtIGUnAV0EfeIuCTCDhIBQSC86jn2P6nsfUcYAeKMkjeIvDY72yNS0mBr68YeAeeRrOsLnIFDJ9XwgVnB0AC+laMVCCVBHQkNsAGyPCCH9/sOGeg3z36cvJNYCFQOqEkKIAoLR7Yh+TbDg3hTwEJ+55vfKiZfEM3d3QLUUc5+rcSaqpk+QwcccruiXzESCYAldNzkLlCOTBxLctUFKV8eIxJz9sBNAISWcPn8ZPjo1ZdS1m9XgKhtuUCipB8Awt15xSlXL0x6UY7kLo9QggNYagDKYgOcc4NvC+MM+Tm/keW8fT4G+irgf+L2HvDXP07iyF+D/wByj0ukH+PT1pErspRAeR4AAAAAElFTkSuQmCC';
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function toCanvas(s) {
+    const c = document.createElement('canvas');
+    c.width = s.w;
+    c.height = s.h;
+    const g = c.getContext('2d'),
+      img = g.createImageData(s.w, s.h),
+      D = img.data;
+    const put = (x, y, k) => {
+      const [r, gg, b] = RGB[k],
+        i = (y * s.w + x) * 4;
+      D[i] = r;
+      D[i + 1] = gg;
+      D[i + 2] = b;
+      D[i + 3] = 255;
+    };
+    for (const h of s.halo)
+      for (let y = h.y - h.r; y <= h.y + h.r; y++)
+        for (let x = h.x - h.r; x <= h.x + h.r; x++) {
+          if (x < 0 || y < 0 || x >= s.w || y >= s.h || s.g[y][x]) continue;
+          const d = Math.hypot(x - h.x, y - h.y);
+          if (d <= h.r && d > h.r * 0.4 && (x + y) % 2 === 0) put(x, y, h.k);
+        }
+    for (let y = 0; y < s.h; y++) for (let x = 0; x < s.w; x++) if (s.g[y][x]) put(x, y, s.g[y][x]);
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+  const lampOn = (now, i) => reduceMotion || Math.floor(now / 650 + i * 0.7) % 2 === 0;
+  function drawLamps(ctx, s, ox, oy, now, z = 1) {
+    s.blink.forEach((b, i) => {
+      ctx.fillStyle = PAL[lampOn(now, i) ? b.on : b.off];
+      ctx.fillRect(
+        Math.round(ox + Math.round(b.x) * z),
+        Math.round(oy + Math.round(b.y) * z),
+        z,
+        z,
+      );
+    });
+  }
+
+  // ---------------- side-view ground
+  const SW = 640,
+    SH = 360,
+    GY = 300,
+    SHIP_X = 320;
+  const KINDS = {
+    moon: {
+      ramp: ['gm0', 'gm1', 'gm2', 'gm3', 'gm4', 'gm5', 'gm6'],
+      dust: '#b8c4d4',
+      smoke: '#d2dce8',
+    },
+    rocky: {
+      ramp: ['rd0', 'rd0', 'rd1', 'am0', 'am1', 'am2', 'am3'],
+      dust: '#ffb43c',
+      smoke: '#ffc0b0',
+    },
+    icy: {
+      ramp: ['scr2', 'cy0', 'cy1', 'cy2', 'wh1', 'wh2', 'wh3'],
+      dust: '#aaf6ff',
+      smoke: '#f4f8ff',
+    },
+  };
+  function h2(x, y, s) {
+    const v = Math.sin(x * 127.1 + y * 311.7 + s * 74.7) * 43758.5453;
+    return v - Math.floor(v);
+  }
+  function vn1(x, s) {
+    const i = Math.floor(x),
+      f = x - i,
+      u = f * f * (3 - 2 * f);
+    return h2(i, 0, s) * (1 - u) + h2(i + 1, 0, s) * u;
+  }
+  function renderScene(kind, backdrop) {
+    const K = KINDS[kind],
+      ramp = K.ramp;
+    const c = document.createElement('canvas');
+    c.width = SW;
+    c.height = SH;
+    const g = c.getContext('2d'),
+      img = g.createImageData(SW, SH),
+      D = img.data;
+    const put = (x, y, key) => {
+      if (x < 0 || y < 0 || x >= SW || y >= SH) return;
+      const [r, gg, b] = RGB[key],
+        i = (y * SW + x) * 4;
+      D[i] = r;
+      D[i + 1] = gg;
+      D[i + 2] = b;
+      D[i + 3] = 255;
+    };
+    for (let y = 0; y < SH; y++)
+      for (let x = 0; x < SW; x++)
+        put(
+          x,
+          y,
+          y > GY - 40 && (x + y) % 2 === 0 && h2(x, y, 3) < (y - (GY - 40)) / 160 ? 'scr1' : 'void',
+        );
+    for (let i = 0; i < 170; i++) {
+      const r = h2(i, 3, 5);
+      put(
+        Math.floor(h2(i, 1, 5) * SW),
+        Math.floor(h2(i, 2, 5) * (GY - 30)),
+        r < 0.08 ? 'cy4' : r < 0.4 ? 'wh2' : r < 0.75 ? 'wh0' : 'gm4',
+      );
+    }
+    // a distant planet, lit from the upper left
+    const L = [-0.55, -0.65, 0.52],
+      n = Math.hypot(...L),
+      pcx = 522,
+      pcy = 78,
+      pr = 26;
+    for (let y = pcy - pr; y <= pcy + pr; y++)
+      for (let x = pcx - pr; x <= pcx + pr; x++) {
+        const nx = (x - pcx) / pr,
+          ny = (y - pcy) / pr,
+          d2 = nx * nx + ny * ny;
+        if (d2 > 1) continue;
+        const lum = Math.max(0, (nx * L[0] + ny * L[1] + Math.sqrt(1 - d2) * L[2]) / n),
+          band = Math.sin(ny * 10 + 2 * vn1(nx * 4 + 9, 7)) > 0.2;
+        const rp = band ? ['ink', 'cy0', 'cy1', 'cy2', 'cy3'] : ['ink', 'cy0', 'cy0', 'cy1', 'cy2'];
+        put(x, y, rp[Math.min(rp.length - 1, Math.floor(lum * rp.length))]);
+      }
+    if (backdrop === 'ridges') {
+      for (let x = 0; x < SW; x++) {
+        const hgt = 14 + 34 * vn1(x / 70, 11) ** 1.6 + 8 * vn1(x / 19, 12),
+          hn = 14 + 34 * vn1((x + 1) / 70, 11) ** 1.6 + 8 * vn1((x + 1) / 19, 12);
+        const top = Math.round(GY - hgt);
+        for (let y = top; y < GY; y++)
+          put(
+            x,
+            y,
+            y === top
+              ? hn > hgt
+                ? ramp[2]
+                : ramp[1]
+              : y < top + 3 && hn > hgt
+                ? ramp[1]
+                : ramp[0],
+          );
+      }
+    }
+    // the ground in cross-section: stones packed in rows, lit top edge
+    const cw = 13,
+      ch = 8;
+    for (let y = GY; y < SH; y++)
+      for (let x = 0; x < SW; x++) {
+        const ry = Math.floor((y - GY) / ch),
+          shift = ((ry & 1) * cw) / 2;
+        let d1 = 1e9,
+          d2 = 1e9,
+          best = null;
+        for (let j = ry - 1; j <= ry + 1; j++)
+          for (
+            let i = Math.floor((x - ((j & 1) * cw) / 2) / cw) - 1;
+            i <= Math.floor((x - ((j & 1) * cw) / 2) / cw) + 1;
+            i++
+          ) {
+            const px = i * cw + ((j & 1) * cw) / 2 + 2 + h2(i, j, 21) * (cw - 4),
+              py = GY + j * ch + 1 + h2(i, j, 22) * (ch - 2);
+            const d = Math.hypot(x + 0.5 - px, (y + 0.5 - py) * 1.4);
+            if (d < d1) {
+              d2 = d1;
+              d1 = d;
+              best = { i, j, px, py };
+            } else if (d < d2) d2 = d;
+          }
+        const depth = (y - GY) / (SH - GY);
+        let key;
+        if (d2 - d1 < 1.3) key = ramp[0];
+        else {
+          let lum = 0.36 + 0.26 * h2(best.i, best.j, 23) - depth * 0.3;
+          lum += Math.max(-0.15, Math.min(0.2, -0.035 * (x - best.px + (y - best.py))));
+          key = ramp[Math.max(0, Math.min(ramp.length - 2, Math.round(lum * (ramp.length - 1))))];
+        }
+        if (y === GY) key = ramp[6];
+        else if (y === GY + 1) key = ramp[5];
+        else if (y === GY + 2 && d2 - d1 >= 1.3) key = ramp[4];
+        put(x, y, key);
+      }
+    // pebbles resting on the surface, clear of the landing spot
+    for (let i = 0; i < 26; i++) {
+      const x = Math.floor(h2(i, 9, 31) * SW);
+      if (Math.abs(x - SHIP_X) < 80) continue;
+      const w = 2 + Math.floor(h2(i, 10, 31) * 4),
+        hgt = 1 + Math.floor(h2(i, 11, 31) * 2);
+      for (let dx = 0; dx < w; dx++)
+        for (let dy = 1; dy <= hgt; dy++)
+          put(x + dx, GY - dy, dy === hgt ? ramp[5] : dx === 0 ? ramp[5] : ramp[3]);
+    }
+    g.putImageData(img, 0, 0);
+    return c;
+  }
+
+  // ---------------- FX (version A from #98)
+  const LEVEL = { 1: 'wh0', 2: 'wh1', 3: 'wh2', 4: 'wh3' };
+  const FXR = {
+    dust: ['..32..', '.3432.', '343321', '233221', '.2221.', '..11..'],
+    smoke: [
+      '...2332...',
+      '..344432..',
+      '.34444332.',
+      '3444443332',
+      '3444433322',
+      '2344333221',
+      '2333332221',
+      '.23322211.',
+      '..222111..',
+      '...1..1...',
+    ],
+    spark: ['.3.', '343', '.3.'],
+  };
+  const fxCache = {};
+  function fx(kind, tint) {
+    const key = kind + tint;
+    if (fxCache[key]) return fxCache[key];
+    const rows = FXR[kind],
+      n = rows.length,
+      c = document.createElement('canvas');
+    c.width = c.height = n;
+    const g = c.getContext('2d'),
+      img = g.createImageData(n, n),
+      t = hex(tint);
+    rows.forEach((row, y) =>
+      [...row].forEach((ch, x) => {
+        if (ch === '.') return;
+        const [r, gg, b] = RGB[LEVEL[ch]],
+          i = (y * n + x) * 4;
+        img.data[i] = (r * t[0]) / 255;
+        img.data[i + 1] = (gg * t[1]) / 255;
+        img.data[i + 2] = (b * t[2]) / 255;
+        img.data[i + 3] = 255;
+      }),
+    );
+    g.putImageData(img, 0, 0);
+    return (fxCache[key] = c);
+  }
+  const thrusterImg = new Image();
+  thrusterImg.src = THRUSTER;
+
+  // ---------------- bench state
+  const cfg = { ...PRESETS[1], comps: [...PRESETS[1].comps] };
+  const sceneState = { kind: 'moon', backdrop: 'sky' };
+  let ship = null,
+    shipCv = null,
+    bg = {};
+  const SLOTS = {
+    core: CORES,
+    sides: SIDES,
+    fins: FINS,
+    engine: ENGINES,
+    crown: CROWNS,
+    paint: PAINTS,
+  };
+  function rebuild() {
+    ship = buildShip(cfg);
+    shipCv = toCanvas(ship);
+    syncButtons();
+    buildSwaps();
+  }
+  for (const [slot, table] of Object.entries(SLOTS)) {
+    const host = document.querySelector(`[data-slot="${slot}"]`);
+    for (const [k, v] of Object.entries(table)) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.v = k;
+      b.textContent = v.name;
+      b.addEventListener('click', () => {
+        cfg[slot] = k;
+        rebuild();
+      });
+      host.append(b);
+    }
+  }
+  const compsHost = document.getElementById('comps');
+  for (const [k, v] of Object.entries(COMPONENTS)) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.v = k;
+    b.textContent = v.name;
+    b.addEventListener('click', () => {
+      cfg.comps = cfg.comps.includes(k) ? cfg.comps.filter((c) => c !== k) : [...cfg.comps, k];
+      rebuild();
+    });
+    compsHost.append(b);
+  }
+  const presetsHost = document.getElementById('presets');
+  for (const p of PRESETS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.dataset.v = p.id;
+    b.textContent = p.name;
+    b.title = p.line;
+    b.addEventListener('click', () => {
+      Object.assign(cfg, p, { comps: [...p.comps] });
+      rebuild();
+      start('takeoff');
+    });
+    presetsHost.append(b);
+  }
+  const same = (a, b) =>
+    ['core', 'sides', 'fins', 'engine', 'crown', 'paint'].every((k) => a[k] === b[k]) &&
+    a.comps.length === b.comps.length &&
+    a.comps.every((c) => b.comps.includes(c));
+  function syncButtons() {
+    for (const slot of Object.keys(SLOTS))
+      document
+        .querySelectorAll(`[data-slot="${slot}"] button`)
+        .forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === cfg[slot])));
+    compsHost
+      .querySelectorAll('button')
+      .forEach((b) => b.setAttribute('aria-pressed', String(cfg.comps.includes(b.dataset.v))));
+    presetsHost.querySelectorAll('button').forEach((b) =>
+      b.setAttribute(
+        'aria-pressed',
+        String(
+          same(
+            PRESETS.find((p) => p.id === b.dataset.v),
+            cfg,
+          ),
+        ),
+      ),
+    );
+  }
+  const swapsHost = document.getElementById('swaps');
+  const SWAP_TITLES = {
+    core: 'Core',
+    sides: 'Side propulsors',
+    fins: 'Fins and legs',
+    engine: 'Main engine',
+    crown: 'Crown',
+    paint: 'Paint',
+  };
+  function buildSwaps() {
+    swapsHost.innerHTML = '';
+    for (const [slot, table] of Object.entries(SLOTS)) {
+      const row = document.createElement('div');
+      row.className = 'swap-row';
+      row.innerHTML = `<h3>${SWAP_TITLES[slot]}</h3>`;
+      const items = document.createElement('div');
+      items.className = 'swap-items';
+      for (const [k, v] of Object.entries(table)) {
+        const s = buildShip({ ...cfg, [slot]: k }),
+          c = toCanvas(s);
+        const box = document.createElement('div');
+        box.className = 'swap' + (cfg[slot] === k ? ' on' : '');
+        const z = document.createElement('canvas');
+        z.width = W * 1.5;
+        z.height = H * 1.5;
+        const g = z.getContext('2d');
+        g.imageSmoothingEnabled = false;
+        g.drawImage(c, 0, 0, z.width, z.height);
+        const n = document.createElement('span');
+        n.textContent = v.name;
+        box.append(z, n);
+        items.append(box);
+      }
+      row.append(items);
+      swapsHost.append(row);
+    }
+  }
+
+  // ---------------- scene loop
+  const cv = document.getElementById('scene'),
+    ctx = cv.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  const big = document.getElementById('big'),
+    bctx = big.getContext('2d');
+  bctx.imageSmoothingEnabled = false;
+  let mode = 'idle',
+    t = 0,
+    particles = [],
+    last = { dust: 0, smoke: 0, spark: 0 };
+  let rng = 7;
+  const rand = () => (rng = (rng * 16807) % 2147483647) / 2147483647;
+  const between = (a, b) => a + (b - a) * rand();
+  function start(m) {
+    mode = m;
+    t = 0;
+    particles = [];
+    last = { dust: 0, smoke: 0, spark: 0 };
+  }
+  function pose() {
+    if (mode === 'idle') return { y: GY, engine: 0 };
+    if (mode === 'takeoff') {
+      if (t < 0.8) return { y: GY, engine: 0 };
+      if (t < 2.2) return { y: GY, engine: Math.min(1, (t - 0.8) / 0.6) };
+      const u = t - 2.2;
+      return { y: GY - 0.5 * 42 * u * u, engine: 1 };
+    }
+    const td = 4.8;
+    if (t < td) {
+      const u = td - t;
+      return { y: GY - 0.5 * 20 * u * u, engine: 1 };
+    }
+    if (t < td + 0.6) return { y: GY, engine: 1 - (t - td) / 0.6 };
+    return { y: GY, engine: 0 };
+  }
+  function spawn(kind, x, y, n) {
+    for (let i = 0; i < n; i++) {
+      const dir = rand() < 0.5 ? -1 : 1;
+      if (kind === 'dust')
+        particles.push({
+          kind,
+          x: x + between(-14, 14),
+          y: y - between(0, 2),
+          vx: dir * between(60, 200),
+          vy: -between(4, 30),
+          g: 70,
+          life: between(0.7, 1.4),
+          age: 0,
+          s1: 1,
+          a0: 1,
+          floor: y,
+        });
+      else if (kind === 'smoke')
+        particles.push({
+          kind,
+          x: x + between(-18, 18),
+          y: y - between(2, 8),
+          vx: dir * between(20, 90),
+          vy: -between(3, 14),
+          g: -1.5,
+          drag: 0.45,
+          life: between(2, 3.4),
+          age: 0,
+          s1: 3,
+          a0: 0.85,
+        });
+      else
+        particles.push({
+          kind,
+          x: x + between(-14, 14),
+          y,
+          vx: between(-30, 30),
+          vy: between(80, 170),
+          g: 40,
+          life: between(0.25, 0.5),
+          age: 0,
+          s1: 1,
+          a0: 1,
+        });
+    }
+  }
+  function step(dt) {
+    if (mode === 'idle') return;
+    t += dt;
+    const p = pose(),
+      height = GY - p.y;
+    if (p.engine > 0.2) {
+      const near = Math.max(0, 1 - height / 110);
+      if (near > 0 && t - last.dust > 0.03) {
+        last.dust = t;
+        spawn('dust', SHIP_X, GY, Math.max(1, Math.round(4 * near * p.engine)));
+      }
+      if (near > 0 && t - last.smoke > 0.06) {
+        last.smoke = t;
+        spawn('smoke', SHIP_X, GY, near > 0.5 ? 2 : 1);
+      }
+      if (height > 4 && t - last.spark > 0.035) {
+        last.spark = t;
+        spawn('spark', SHIP_X, p.y, 2);
+      }
+    }
+    for (const q of particles) {
+      q.age += dt;
+      if (q.drag) q.vx *= Math.pow(q.drag, dt);
+      q.vy += q.g * dt;
+      q.x += q.vx * dt;
+      q.y += q.vy * dt;
+      if (q.kind === 'dust' && q.y > q.floor - 1) {
+        q.y = q.floor - 1;
+        q.vy *= -0.2;
+        q.vx *= 0.5;
+      }
+    }
+    particles = particles.filter((q) => q.age < q.life);
+    if (t > 9.5) start(mode === 'takeoff' ? 'landing' : 'idle');
+  }
+  function drawFx(kind) {
+    const K = KINDS[sceneState.kind],
+      img = fx(kind, kind === 'spark' ? '#ffe696' : K[kind]);
+    for (const q of particles) {
+      if (q.kind !== kind) continue;
+      const u = q.age / q.life,
+        s = img.width * Math.max(1, Math.round(1 + (q.s1 - 1) * u));
+      ctx.globalAlpha = Math.max(0, q.a0 * (1 - u * u));
+      ctx.drawImage(img, Math.round(q.x - s / 2), Math.round(q.y - s / 2), s, s);
+    }
+    ctx.globalAlpha = 1;
+  }
+  function draw(now) {
+    const key = sceneState.kind + sceneState.backdrop;
+    ctx.drawImage(bg[key] || (bg[key] = renderScene(sceneState.kind, sceneState.backdrop)), 0, 0);
+    drawFx('smoke');
+    const p = pose(),
+      ox = SHIP_X - W / 2,
+      oy = Math.round(p.y - H);
+    if (p.engine > 0 && thrusterImg.complete) {
+      const f = Math.floor(now / 90) % 3,
+        h = Math.round(24 * (0.4 + 0.6 * p.engine));
+      for (const nz of ship.nozzles)
+        ctx.drawImage(
+          thrusterImg,
+          f * 16,
+          0,
+          16,
+          24,
+          Math.round(ox + nz.x - 8),
+          oy + nz.y - 2,
+          16,
+          h,
+        );
+    }
+    ctx.drawImage(shipCv, ox, oy);
+    drawLamps(ctx, ship, ox, oy, now);
+    drawFx('dust');
+    drawFx('spark');
+    bctx.fillStyle = PAL.ink;
+    bctx.fillRect(0, 0, big.width, big.height);
+    bctx.drawImage(shipCv, 0, 0, W * 3, H * 3);
+    drawLamps(bctx, ship, 0, 0, now, 3);
+  }
+  let prev = performance.now();
+  function frame(now) {
+    const dt = Math.min(0.05, (now - prev) / 1000) * (reduceMotion ? 0.25 : 1);
+    prev = now;
+    step(dt);
+    draw(now);
+    requestAnimationFrame(frame);
+  }
+  document.querySelectorAll('[data-scene]').forEach((seg) =>
+    seg.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      seg
+        .querySelectorAll('button')
+        .forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+      sceneState[seg.dataset.scene] = b.dataset.v;
+    }),
+  );
+  document.getElementById('btn-takeoff').addEventListener('click', () => start('takeoff'));
+  document.getElementById('btn-landing').addEventListener('click', () => start('landing'));
+  rebuild();
+  setTimeout(() => start('takeoff'), 1200);
+  requestAnimationFrame(frame);
+</script>

@@ -718,19 +718,16 @@ body {
   font: 8px/8px var(--font-pixel);
   text-transform: uppercase;
   color: var(--cy3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
+/* The Body type wraps onto a second line rather than clip (the tooltip grows a line; the lines under it move down 9 px). */
 .nav-chart__tip-kind {
   top: 17px;
-  font: 8px/8px var(--font-pixel);
+  font: 8px/9px var(--font-pixel);
   text-transform: uppercase;
   color: var(--gm5);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
 }
 
 .nav-chart__tip-fact {
@@ -747,6 +744,18 @@ body {
   top: 55px;
   font: 14px/11px var(--font-pixel-body);
   color: var(--wh2);
+}
+
+.nav-chart__tooltip--wrapped-kind .nav-chart__tip-fact {
+  top: 36px;
+}
+
+.nav-chart__tooltip--wrapped-kind .nav-chart__badge {
+  top: 49px;
+}
+
+.nav-chart__tooltip--wrapped-kind .nav-chart__tip-verdict {
+  top: 64px;
 }
 
 .nav-chart__badge {
@@ -795,10 +804,27 @@ body {
   margin-top: 1px;
   font: 16px/16px var(--font-pixel);
   text-transform: uppercase;
+  letter-spacing: -1px;
   color: var(--cy3);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+}
+
+/* A name too long for one line wraps onto two, tighter, and the block and the plan below make room. */
+.nav-chart--long-target .nav-chart__target {
+  height: 67px;
+}
+
+.nav-chart--long-target .nav-chart__target-name {
+  line-height: 12px;
+}
+
+.nav-chart--long-target .nav-chart__divider {
+  top: 62px;
+}
+
+.nav-chart--long-target .nav-chart__plan {
+  top: 150px;
+  height: 152px;
 }
 
 /* Kind and gravity wrap onto a second line rather than clip: the longest Moon of the longest-named
