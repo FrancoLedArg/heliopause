@@ -1,3 +1,5 @@
+import type { Seed } from '../sim/index.ts';
+
 /** Seeds span the 32-bit range the seeded `Rng` uses. */
 const SEED_RANGE = 2 ** 32;
 
@@ -6,7 +8,7 @@ const SEED_RANGE = 2 ** 32;
  * [0, 2^32), so tests and bug reports can replay a Run exactly; otherwise a fresh random seed.
  * `random` returns a float in [0, 1), like `Math.random`.
  */
-export function chooseRunSeed(search: string, random: () => number): number {
+export function chooseRunSeed(search: string, random: () => number): Seed {
   const fromUrl = new URLSearchParams(search).get('seed');
   if (fromUrl !== null && /^\d+$/.test(fromUrl)) {
     const seed = Number(fromUrl);
