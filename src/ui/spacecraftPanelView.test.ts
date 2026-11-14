@@ -56,7 +56,7 @@ describe('a Component’s effect is shown as the Chassis scales it', () => {
       };
       const landing = collectYield(fitted, moon.id).collection;
       if (landing.kind !== 'fuel') throw new Error('The Moon is Icy');
-      expect(landing.collected / moon.baseYield).toBe(Number(said));
+      expect(landing.collected / moon.baseYield).toBeCloseTo(Number(said), 9);
     }
   });
 

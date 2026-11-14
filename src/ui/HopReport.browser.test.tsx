@@ -1,5 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import {
+  install,
   kilograms,
   launchHop,
   listBodies,
@@ -62,4 +63,17 @@ it('the worst report fits: the ice line and a left-behind clause together (seed 
     collection: { ...flight.collection, leftBehind: kilograms(4_321) },
   };
   expect(await spareBelowContinue(before, worst)).toBeGreaterThanOrEqual(0);
+});
+
+it('the worst report with a Drill fits with room to spare: ice line, left-behind clause and Drill text (seed 550, hauler)', async () => {
+  const fitted = install(startRun(550, 'hauler'), 2, 'drill-1');
+  if (fitted.kind !== 'installed') throw new Error('Expected the Drill to install');
+  const before = fitted.run;
+  const { flight } = hop(before, 'Dryrsioquyl Minor');
+  if (flight.collection?.kind !== 'fuel') throw new Error('Expected Fuel collected');
+  const worst = {
+    ...flight,
+    collection: { ...flight.collection, leftBehind: kilograms(4_321) },
+  };
+  expect(await spareBelowContinue(before, worst)).toBeGreaterThanOrEqual(8);
 });

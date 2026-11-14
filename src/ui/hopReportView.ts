@@ -1,5 +1,6 @@
 // The Hop report as words and numbers: what each Burn cost against its estimate, the Margin left and
-// the simulation's plain-language why. Every figure comes from the flight; nothing is recomputed here.
+// the simulation's plain-language why. Every figure comes from the flight; nothing is recomputed here. The one exception is the Drill's
+// factor, read from the Run before the Hop (a Hop never changes the Slots) to name it on the Collected line.
 import {
   BURNS,
   drillMultiplier,
@@ -143,7 +144,9 @@ function hadFuelBefore(run: Run): boolean {
  * inside the "Collected" clause: the report has no room for another line.
  */
 function describeCollection(collection: Collection, drill: number): string {
-  const by = drill > 1 ? ` (Drill ×${String(drill)})` : '';
+  // A Drill is only credited for a yield it produced: nothing collected, nothing to credit.
+  const collectedSomething = collection.kind !== 'depleted' && collection.collected > 0;
+  const by = drill > 1 && collectedSomething ? ` (Drill ×${String(drill)})` : '';
   switch (collection.kind) {
     case 'fuel':
       return collection.leftBehind > 0

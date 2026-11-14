@@ -183,6 +183,29 @@ describe('a Drill multiplies yields', () => {
     });
   });
 
+  it('a Drill increases each Body’s yield', () => {
+    const none = withSlots(base, ['engine-1', 'fuel-tank-1', null, null]);
+    const fuelOf = (run: Run, id: typeof moon.id) => collectYield(run, id).collection;
+    const without = fuelOf(none, moon.id);
+    const withDrill = fuelOf(drill1, moon.id);
+    if (without.kind !== 'fuel' || withDrill.kind !== 'fuel') throw new Error('The Moon is Icy');
+    expect(withDrill.collected).toBeGreaterThan(without.collected);
+    const rockyWithout = collectYield(landedOn(none, moon.id), home.id).collection;
+    const rockyWith = collectYield(landedOn(drill1, moon.id), home.id).collection;
+    if (rockyWithout.kind !== 'materials' || rockyWith.kind !== 'materials') {
+      throw new Error('The Home Planet is Rocky');
+    }
+    expect(rockyWith.collected).toBeGreaterThan(rockyWithout.collected);
+  });
+
+  it('a level-2 Drill yields more than a level-1 Drill', () => {
+    const level2 = withSlots(base, ['engine-1', 'fuel-tank-1', 'drill-2', null]);
+    const one = collectYield(drill1, moon.id).collection;
+    const two = collectYield(level2, moon.id).collection;
+    if (one.kind !== 'fuel' || two.kind !== 'fuel') throw new Error('The Moon is Icy');
+    expect(two.collected).toBeGreaterThan(one.collected);
+  });
+
   it('a Drill still stops at Tank capacity, and the rest is left behind', () => {
     const nearlyFull = {
       ...drill1,

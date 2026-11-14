@@ -148,6 +148,21 @@ describe('the Hop report', () => {
       expect(view.note).not.toMatch(/Drill/);
     });
 
+    it('does not credit the Drill when nothing was collected', () => {
+      const installed = install(run, 2, 'drill-1');
+      if (installed.kind !== 'installed') throw new Error('expected an install');
+      const { flight } = flown(installed.run);
+      const full = {
+        ...flight,
+        collection: {
+          kind: 'fuel' as const,
+          collected: kilograms(0),
+          leftBehind: kilograms(7_000),
+        },
+      };
+      expect(describeReport(installed.run, full).collected).not.toMatch(/Drill/);
+    });
+
     it('names the Drill on a Rocky yield too', () => {
       const installed = install({ ...run, materials: materials(100) }, 2, 'drill-2');
       if (installed.kind !== 'installed') throw new Error('expected an install');
