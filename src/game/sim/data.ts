@@ -161,11 +161,11 @@ export interface ChassisTuning {
  * dry mass costs it.
  */
 export const CHASSIS_TUNING = {
-  scout: { dryMass: kilograms(4_000), fuelCapacity: kilograms(20_000), engineIsp: seconds(1_150) },
+  scout: { dryMass: kilograms(4_000), fuelCapacity: kilograms(21_000), engineIsp: seconds(1_230) },
   hauler: {
-    dryMass: kilograms(16_000),
-    fuelCapacity: kilograms(64_000),
-    engineIsp: seconds(1_160),
+    dryMass: kilograms(15_000),
+    fuelCapacity: kilograms(66_000),
+    engineIsp: seconds(1_210),
   },
-  lancer: { dryMass: kilograms(6_000), fuelCapacity: kilograms(36_000), engineIsp: seconds(1_250) },
+  lancer: { dryMass: kilograms(6_000), fuelCapacity: kilograms(36_000), engineIsp: seconds(1_280) },
 } as const satisfies Record<ChassisId, ChassisTuning>;

@@ -97,5 +97,7 @@ describe.each(CHASSIS_IDS)('starter tuning for the %s', (chassisId: ChassisId) =
     expect(median(hops)).toBeGreaterThanOrEqual(2);
     expect(median(hops)).toBeLessThanOrEqual(4);
     expect(Math.min(...hops)).toBeGreaterThanOrEqual(1);
+    // Few Star Systems leave a cautious player with only the Moon.
+    expect(hops.filter((count) => count === 1).length / hops.length).toBeLessThan(0.1);
   });
 });
