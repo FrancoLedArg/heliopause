@@ -1,4 +1,4 @@
-import type { Scene } from 'phaser';
+import type { GameObjects, Scene } from 'phaser';
 import { paletteNumber, type PaletteColor } from '../../ui/kit/palette.ts';
 import { createRng } from '../lib/rng.ts';
 
@@ -36,18 +36,19 @@ export function generateStars(
   return stars;
 }
 
-/** Fills `area` (default: the whole screen) with single-pixel stars, the same sky for the same seed. */
+/** Fills `area` (default: the whole screen) with single-pixel stars, the same sky for the same seed. Returns the drawing so a scene can move it. */
 export function addStarfield(
   scene: Scene,
   seed: number,
   count: number,
   area = { width: scene.scale.width, height: scene.scale.height },
-): void {
+): GameObjects.Graphics {
   const graphics = scene.add.graphics();
   for (const star of generateStars(seed, count, area)) {
     graphics.fillStyle(paletteNumber(star.color), star.alpha);
     graphics.fillRect(star.x, star.y, star.size, star.size);
   }
+  return graphics;
 }
 
 /** Depth layer of a star, 0 = farthest: dimmer stars are farther away, so they drift slower. */

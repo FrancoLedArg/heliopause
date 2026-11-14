@@ -49,14 +49,16 @@ export function createTitleBackdrop(scene: Scene): TitleBackdrop {
   const moon = scene.add.image(0, 0, 'body_moon_2');
   const orbit: Orbit = { cx: planet.x, cy: planet.y, rx: 170, ry: 52, tilt: 0.62 };
   const pose: OrbitPose = { x: 0, y: 0, behind: false, scale: 1 };
+  let moonBehind: boolean | undefined;
   const placeMoon = (phase: number): void => {
     orbit.cx = planet.x;
     orbit.cy = planet.y;
     orbitPose(orbit, phase, pose);
-    moon
-      .setPosition(pose.x, pose.y)
-      .setScale(2 * pose.scale)
-      .setDepth(pose.behind ? Depth.MoonBehind : Depth.MoonFront);
+    moon.setPosition(pose.x, pose.y).setScale(2 * pose.scale);
+    if (pose.behind !== moonBehind) {
+      moonBehind = pose.behind;
+      moon.setDepth(moonBehind ? Depth.MoonBehind : Depth.MoonFront);
+    }
   };
   placeMoon(ORBIT_START);
 

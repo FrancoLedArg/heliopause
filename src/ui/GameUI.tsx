@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import { chooseRunSeed } from '../game/lib/runSeed.ts';
+import type { Run, Seed } from '../game/sim/index.ts';
 import { SceneKey } from '../game/scenes/keys.ts';
-import { LandedPlaceholder } from './LandedPlaceholder.tsx';
+import { LandedPanels } from './LandedPanels.tsx';
 import { TitleMenu } from './TitleMenu.tsx';
 
 /**
@@ -10,17 +11,23 @@ import { TitleMenu } from './TitleMenu.tsx';
  * Phaser reports on screen, plus the permanent AI-art watermark (ADR 0004).
  */
 export function GameUI() {
-  const [scene, setScene] = useState<string | undefined>(undefined);
-  const [runSeed, setRunSeed] = useState<number | undefined>(undefined);
+  const [scene, setScene] = useState<SceneKey | undefined>(undefined);
+  const [runSeed, setRunSeed] = useState<Seed | undefined>(undefined);
+  const [run, setRun] = useState<Run | undefined>(undefined);
 
   useEffect(
     () =>
       EventBus.on('scene-ready', (key) => {
         setScene(key);
-        if (key === SceneKey.Title) setRunSeed(undefined);
+        if (key === SceneKey.Title) {
+          setRunSeed(undefined);
+          setRun(undefined);
+        }
       }),
     [],
   );
+
+  useEffect(() => EventBus.on('run-started', setRun), []);
 
   const startNewRun = (): void => {
     const seed = chooseRunSeed(window.location.search, Math.random);
@@ -33,7 +40,7 @@ export function GameUI() {
       {scene === SceneKey.Title && (
         <TitleMenu starting={runSeed !== undefined} onNewRun={startNewRun} />
       )}
-      {scene === SceneKey.Landed && runSeed !== undefined && <LandedPlaceholder seed={runSeed} />}
+      {scene === SceneKey.Landed && run !== undefined && <LandedPanels run={run} />}
       <p className="hud-tag ai-label">AI-generated art</p>
     </div>
   );

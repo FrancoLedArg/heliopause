@@ -1,5 +1,5 @@
 import { createRng, type Rng } from '../lib/rng.ts';
-import { GENERATION_TUNING, SOURCED_RANGES, type TuningRange } from './data.ts';
+import { GENERATION_TUNING, SOURCED_RANGES, type Range } from './data.ts';
 import {
   astronomicalUnits,
   kilometers,
@@ -16,8 +16,15 @@ import {
 /** A Run's seed: any integer; the same seed always generates the same Star System. */
 export type Seed = number;
 
-/** Identifies a Body within its Star System. */
-export type BodyId = string;
+declare const bodyIdBrand: unique symbol;
+
+/**
+ * Identifies a Body within its Star System. Branded so an arbitrary string (a name, a seed) cannot
+ * be passed where a Body is meant; only the generator makes them.
+ */
+export type BodyId = string & { readonly [bodyIdBrand]: 'BodyId' };
+
+const bodyId = (value: string) => value as BodyId;
 
 export interface Star {
   readonly name: string;
@@ -121,7 +128,7 @@ export function generateStarSystem(seed: Seed): StarSystem {
   );
 
   const planets: Planet[] = [...rockyPlanets, ...gasGiants].map((planet, index) => {
-    const id = `planet-${index + 1}`;
+    const id = bodyId(`planet-${index + 1}`);
     const isHome = index === homeIndex;
     const moonCount = sampleInt(rng, GENERATION_TUNING.moonCount[planet.kind]);
     return {
@@ -140,7 +147,10 @@ export function generateStarSystem(seed: Seed): StarSystem {
     };
   });
 
-  const outermost = gasGiants.at(-1)?.distanceFromStar ?? 0;
+  // The Heliopause is anchored on the outermost planet, always a Gas Giant.
+  const outermostGasGiant = gasGiants.at(-1);
+  if (!outermostGasGiant) throw new Error(`Star System ${name} generated no Gas Giant`);
+  const outermost = outermostGasGiant.distanceFromStar;
   const heliopauseRadius = astronomicalUnits(
     outermost * sampleFloat(rng, GENERATION_TUNING.heliopausePerOutermostPlanet),
   );
@@ -151,7 +161,7 @@ export function generateStarSystem(seed: Seed): StarSystem {
     name,
     star: { name },
     planets,
-    homePlanetId: `planet-${homeIndex + 1}`,
+    homePlanetId: bodyId(`planet-${homeIndex + 1}`),
     heliopauseRadius,
   });
 }
@@ -165,7 +175,7 @@ function generateMoons(
 ): Moon[] {
   return spreadOrbits(rng, count, GENERATION_TUNING.moonDistanceFromPlanet).map(
     (distanceFromPlanet, index) => ({
-      id: `${planetId}-moon-${index + 1}`,
+      id: bodyId(`${planetId}-moon-${index + 1}`),
       kind: 'moon',
       landable: true,
       name: nextName(),
@@ -204,8 +214,8 @@ export function listBodies(system: StarSystem): Body[] {
 function sampleBodySize(
   rng: Rng,
   ranges: {
-    readonly surfaceGravity: TuningRange<MetersPerSecondSquared>;
-    readonly escapeVelocity: TuningRange<MetersPerSecond>;
+    readonly surfaceGravity: Range<MetersPerSecondSquared>;
+    readonly escapeVelocity: Range<MetersPerSecond>;
   },
 ): { surfaceGravity: MetersPerSecondSquared; escapeVelocity: MetersPerSecond } {
   const size = rng.next();
@@ -224,7 +234,7 @@ export function deepFreeze<T extends object>(value: T): T {
   return Object.freeze(value);
 }
 
-function lerp(range: TuningRange, t: number): number {
+function lerp(range: Range, t: number): number {
   return range.min + (range.max - range.min) * t;
 }
 
@@ -233,7 +243,7 @@ function lerp(range: TuningRange, t: number): number {
  * slices on a log scale (orbits widen outward, as in the Solar System) and each orbit is placed
  * well inside its own slice, so no two orbits crowd each other.
  */
-function spreadOrbits(rng: Rng, count: number, range: TuningRange): number[] {
+function spreadOrbits(rng: Rng, count: number, range: Range): number[] {
   const logMin = Math.log(range.min);
   const slice = (Math.log(range.max) - logMin) / count;
   return Array.from({ length: count }, (_, i) =>
@@ -245,11 +255,11 @@ function randomAngle(rng: Rng): Radians {
   return radians(rng.next() * 2 * Math.PI);
 }
 
-function sampleInt(rng: Rng, range: TuningRange): number {
+function sampleInt(rng: Rng, range: Range): number {
   return rng.int(range.min, range.max);
 }
 
-function sampleFloat(rng: Rng, range: TuningRange): number {
+function sampleFloat(rng: Rng, range: Range): number {
   return lerp(range, rng.next());
 }
 

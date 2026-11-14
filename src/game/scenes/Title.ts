@@ -1,8 +1,12 @@
 import { Scene, Scenes } from 'phaser';
+import { startRun } from '../sim/index.ts';
 import { EventBus } from '../EventBus.ts';
 import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
 import { createTitleBackdrop } from './titleBackdrop.ts';
+
+/** Until the Chassis picker (#36) lets the player choose, every New Run starts with the scout. */
+const DEFAULT_CHASSIS = 'scout';
 
 /** The title backdrop. Its menu (logo, New Run, build label) is React's, drawn over the canvas. */
 export class Title extends Scene {
@@ -16,17 +20,21 @@ export class Title extends Scene {
   create(): void {
     const backdrop = createTitleBackdrop(this);
     this.reducedMotion = backdrop.reducedMotion;
-    // Every tween and timer of the backdrop stops with the scene (a destroyed game never shuts its scenes down).
-    this.events.once(Scenes.Events.SHUTDOWN, backdrop.dispose);
-    this.events.once(Scenes.Events.DESTROY, backdrop.dispose);
 
     const offNewRun = EventBus.on('new-run-requested', (seed) => {
-      const data: LandedData = { seed };
+      const data: LandedData = { run: startRun(seed, DEFAULT_CHASSIS) };
       this.scene.start(SceneKey.Landed, data);
     });
-    // A destroyed game (React StrictMode remounts, tests) never shuts its scenes down, so unsubscribe on both.
-    this.events.once(Scenes.Events.SHUTDOWN, offNewRun);
-    this.events.once(Scenes.Events.DESTROY, offNewRun);
+    // A destroyed game (React StrictMode remounts, tests) never shuts its scenes down, so unsubscribe on
+    // both; whichever fires first removes the other listener.
+    const unsubscribe = (): void => {
+      offNewRun();
+      backdrop.dispose(); // every tween and timer of the backdrop stops with the scene
+      this.events.off(Scenes.Events.SHUTDOWN, unsubscribe);
+      this.events.off(Scenes.Events.DESTROY, unsubscribe);
+    };
+    this.events.once(Scenes.Events.SHUTDOWN, unsubscribe);
+    this.events.once(Scenes.Events.DESTROY, unsubscribe);
 
     EventBus.emit('scene-ready', SceneKey.Title);
   }
