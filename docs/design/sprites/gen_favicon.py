@@ -1,7 +1,9 @@
 """Heliopause browser favicon: a 16x16 pixel-art ringed planet, in the UI kit palette.
 
-AI-generated pixel art (see AI-USAGE.md). Drawn from the ASCII grid below, so
-edit the grid and re-run rather than hand-editing public/favicon.svg.
+AI-generated pixel art (see AI-USAGE.md). It only appears in the tab of the game
+page, whose permanent "AI-generated art" label covers it like every other
+generated sprite. Drawn from the ASCII grid below, so edit the grid and re-run
+rather than hand-editing public/favicon.svg.
 
 Usage:  python3 -I gen_favicon.py <out_svg>
 """
@@ -28,7 +30,7 @@ GRID = [
     "...kkccccccdd...",
     "...kccccccddd...",
     "rrrccccccddddrrr",
-    "...cccccddd.....",
+    "...ccccccdddd...",
     "....ccccdddd....",
     ".....cccddd.....",
     "......ccdd......",
