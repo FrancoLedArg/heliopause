@@ -5,7 +5,7 @@ import type {
   MetersPerSecond,
   MetersPerSecondSquared,
 } from '../game/sim/index.ts';
-import { formatDeltaV, formatDistanceAu, formatFuel, formatGravity } from './format.ts';
+import { formatDeltaV, formatDistanceAu, formatFuel, formatGravity, formatMass } from './format.ts';
 
 // Test fixtures: casts build the branded quantities the simulation would produce.
 const g = (v: number) => v as MetersPerSecondSquared;
@@ -27,6 +27,11 @@ describe('numbers shown to the player', () => {
   it('shows Fuel in tonnes', () => {
     expect(formatFuel(kg(8000))).toBe('8.0 t');
     expect(formatFuel(kg(12_340))).toBe('12.3 t');
+  });
+
+  it('shows a mass in tonnes', () => {
+    expect(formatMass(kg(4000))).toBe('4.0 t');
+    expect(formatMass(kg(15_000))).toBe('15.0 t');
   });
 
   it('shows Δv in m/s, switching to km/s when large, and a dash when unknown', () => {
