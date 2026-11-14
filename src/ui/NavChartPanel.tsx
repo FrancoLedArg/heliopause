@@ -377,7 +377,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
           variant="primary"
           disabled={!target}
           onClick={() => {
-            // TODO(#31): flight playback consumes this; until it lands Launch only announces the Hop.
+            // The Landed scene flies the Hop and starts its playback, which closes this panel.
             if (target) EventBus.emit('hop-launch-requested', target.id);
           }}
         >

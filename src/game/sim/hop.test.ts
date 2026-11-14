@@ -5,11 +5,14 @@ import {
   availableDeltaV,
   flyHop,
   homePlanet,
+  launchHop,
   listBodies,
   metersPerSecond,
   metersPerSecondSquared,
   planHop,
   startRun,
+  type BodyId,
+  type HopFlight,
   type Run,
 } from './index.ts';
 import { farLandables, homeMoon, landedOn, plan, withBodies, withDeltaV } from './testing.ts';
@@ -385,5 +388,51 @@ describe('flying a Hop', () => {
   it('a plan made for another Spacecraft state cannot be flown', () => {
     const { run: arrived } = flyHop(run, moonPlan, createRng(1));
     expect(() => flyHop(arrived, moonPlan, createRng(1))).toThrow();
+  });
+});
+
+describe('launching a Hop', () => {
+  const moon = homeMoon(run);
+
+  const flown = (from: Run, targetId: BodyId) => {
+    const result = launchHop(from, targetId);
+    if (result.kind !== 'flown') throw new Error(`Expected a flight, got ${result.reason}`);
+    return result;
+  };
+  /** The dispersion factor each flown Burn drew. */
+  const factors = (flight: HopFlight) =>
+    flight.burns.map((burn) => (burn.status === 'completed' ? burn.actual / burn.estimated : 0));
+
+  it('flies the exact plan the player saw for the target', () => {
+    expect(flown(run, moon.id).flight.plan).toEqual(plan(run, moon.id));
+  });
+
+  it('replays identically: the same Run launched at the same target flies the same Hop', () => {
+    expect(launchHop(startRun(2026, 'scout'), moon.id)).toEqual(launchHop(run, moon.id));
+  });
+
+  it('counts the Hops flown in a Run, starting from none', () => {
+    expect(run.hopsFlown).toBe(0);
+    const first = flown(run, moon.id);
+    expect(first.run.hopsFlown).toBe(1);
+    expect(flown(first.run, run.starSystem.homePlanetId).run.hopsFlown).toBe(2);
+  });
+
+  it('each Hop of a Run draws its own Burns: the next Hop does not repeat the last one’s', () => {
+    const first = flown(run, moon.id);
+    const back = flown(first.run, run.starSystem.homePlanetId);
+    expect(factors(back.flight)).not.toEqual(factors(first.flight));
+  });
+
+  it('a Run with another seed draws other Burns for the same Hop', () => {
+    const other: Run = { ...run, seed: run.seed + 1 };
+    expect(factors(flown(other, moon.id).flight)).not.toEqual(factors(flown(run, moon.id).flight));
+  });
+
+  it('an invalid target is not launched, and says why', () => {
+    expect(launchHop(run, run.starSystem.homePlanetId)).toMatchObject({
+      kind: 'invalid-target',
+      reason: 'current-body',
+    });
   });
 });

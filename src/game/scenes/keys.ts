@@ -4,6 +4,7 @@ export const SceneKey = {
   Title: 'Title',
   Landed: 'Landed',
   NavChart: 'NavChart',
+  Flight: 'Flight',
 } as const;
 
 export type SceneKey = (typeof SceneKey)[keyof typeof SceneKey];

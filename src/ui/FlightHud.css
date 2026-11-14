@@ -1,0 +1,231 @@
+/* ---- Hop playback HUD: kept to the left and the top, clear of the Spacecraft ---- */
+
+.phase-strip,
+.flight-log,
+.fuel-gauge,
+.flight-outcome {
+  position: absolute;
+}
+
+.phase-strip > .kit-frame:first-child,
+.flight-log > .kit-frame:first-child,
+.fuel-gauge > .kit-frame:first-child,
+.flight-outcome > .kit-frame:first-child {
+  position: absolute;
+  inset: 0;
+}
+
+.phase-strip {
+  top: 52px;
+  left: 170px;
+  width: 300px;
+  height: 26px;
+}
+
+.phase-strip__list {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.phase-strip__phase {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font: 8px/12px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm4);
+}
+
+.phase-strip__phase + .phase-strip__phase::before {
+  content: '→';
+  margin: 0 10px;
+  color: var(--gm4);
+}
+
+.phase-strip__phase--done {
+  color: var(--gr3);
+}
+
+.phase-strip__phase--current {
+  color: var(--cy3);
+}
+
+.phase-strip__dot {
+  animation: phase-blink 0.9s steps(1) infinite;
+}
+
+@keyframes phase-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .phase-strip__dot {
+    animation: none;
+  }
+}
+
+.flight-log {
+  top: 212px;
+  left: 8px;
+  width: 300px;
+  height: 78px;
+}
+
+.game-ui .flight-log__title {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  margin: 0;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.flight-log__table {
+  position: absolute;
+  top: 20px;
+  left: 12px;
+  width: 276px;
+  border-collapse: collapse;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--gm6);
+}
+
+.flight-log__table th,
+.flight-log__table td {
+  padding: 0;
+  height: 12px;
+  font-weight: 400;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.flight-log__table th[scope='row'],
+.flight-log__table thead th:first-child {
+  text-align: left;
+}
+
+.flight-log__table thead th {
+  height: 11px;
+  font: 8px/11px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.flight-log__row--done {
+  color: var(--gr3);
+}
+
+.flight-log__row--burning {
+  color: var(--cy3);
+}
+
+.flight-log__row--ran-out {
+  color: var(--rd3);
+}
+
+.flight-log__row--waiting {
+  color: var(--gm5);
+}
+
+.fuel-gauge {
+  top: 294px;
+  left: 8px;
+  width: 256px;
+  height: 44px;
+}
+
+.fuel-gauge__icon {
+  position: absolute;
+  top: 7px;
+  left: 8px;
+}
+
+.fuel-gauge__label {
+  position: absolute;
+  top: 11px;
+  left: 46px;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.fuel-gauge__value {
+  position: absolute;
+  top: 7px;
+  right: 20px;
+  font: 16px/14px var(--font-pixel-body);
+  color: var(--am3);
+}
+
+.fuel-gauge__bar {
+  position: absolute;
+  top: 24px;
+  left: 46px;
+  width: 190px;
+  height: 10px;
+}
+
+.fuel-gauge__bar > .kit-frame {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.fuel-gauge__bar > .fuel-gauge__fill {
+  top: 2px;
+  left: 2px;
+}
+
+.flight-outcome {
+  top: 52px;
+  left: 170px;
+  width: 300px;
+  height: 124px;
+  pointer-events: auto;
+}
+
+.flight-outcome__badge {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font: 8px/12px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--rd3);
+}
+
+.game-ui .flight-outcome__title {
+  position: absolute;
+  top: 26px;
+  left: 12px;
+  margin: 0;
+  font: 16px/16px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--wh3);
+}
+
+.flight-outcome__why {
+  position: absolute;
+  top: 46px;
+  left: 12px;
+  width: 276px;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--gm6);
+}
+
+.flight-outcome__actions {
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+}

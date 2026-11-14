@@ -3,7 +3,7 @@
 export { findBody, generateStarSystem, homePlanet, listBodies } from './starSystem.ts';
 export { currentBody, startRun } from './run.ts';
 export type { Run, RunStatus } from './run.ts';
-export { BURNS, flyHop, planHop } from './hop.ts';
+export { BURNS, flyHop, launchHop, planHop } from './hop.ts';
 export type {
   Burn,
   BurnResult,
@@ -12,8 +12,9 @@ export type {
   HopPlan,
   HopPlanResult,
   InvalidTargetReason,
+  LaunchResult,
 } from './hop.ts';
-export { availableDeltaV, newSpacecraft } from './spacecraft.ts';
+export { availableDeltaV, fuelAfterBurning, newSpacecraft } from './spacecraft.ts';
 export type { Spacecraft } from './spacecraft.ts';
 export type {
   Body,
