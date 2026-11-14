@@ -237,6 +237,8 @@
 }
 
 .route-inset__name {
+  /* The stage's UI layer ignores the pointer; the hover title needs it. */
+  pointer-events: auto;
   position: absolute;
   top: 26px;
   width: 70px;

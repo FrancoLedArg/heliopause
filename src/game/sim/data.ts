@@ -2,6 +2,7 @@ import {
   astronomicalUnits,
   kilograms,
   kilometers,
+  materials,
   metersPerSecond,
   metersPerSecondSquared,
   seconds,
@@ -109,6 +110,32 @@ export const GENERATION_TUNING = {
   moonDistanceFromPlanet: { min: kilometers(150_000), max: kilometers(1_900_000) },
 } as const satisfies Record<string, TuningRange | Record<string, TuningRange>>;
 
+/** Real-world figure behind what landable Bodies are made of. */
+export const ICE_LINE = {
+  /**
+   * The Solar System's ice line, about 2.7 AU. Only this figure is sourced; the chance of an Icy
+   * Body, d / (d + ice line), is a gameplay curve (see `BODY_TUNING`).
+   */
+  distance: {
+    value: astronomicalUnits(2.7),
+    source:
+      'Lecar et al. 2006, ApJ 640, 1115 https://doi.org/10.1086/500159; Martin & Livio 2013, MNRAS (ice line of the Solar System); see docs/research/ for the ice-line note from research PR #120',
+  } satisfies SourcedValue<AstronomicalUnits>,
+} as const;
+
+/** Gameplay tuning for what a landable Body is made of. Not real-world figures. */
+export const BODY_TUNING = {
+  /**
+   * Base yield by type, before any Drill multiplier. Icy is Fuel in kilograms, scaled to Chassis
+   * Fuel capacity (21,000 to 66,000 kg) so one landing is a meaningful refill. Rocky is Materials,
+   * in the unit of Component costs (#112).
+   */
+  baseYield: {
+    icy: { min: kilograms(3_000), max: kilograms(9_000) },
+    rocky: { min: materials(10), max: materials(30) },
+  },
+} as const satisfies Record<string, Record<string, TuningRange>>;
+
 /** Real-world figures behind the Hop rules. Each cites its source. */
 export const SOURCED_CONSTANTS = {
   /** g0 in the rocket equation: Δv = Isp × g0 × ln(wet mass / dry mass). */
@@ -155,12 +182,17 @@ export const DISPERSION = { min: 0.9, max: 1.1 } as const satisfies TuningRange;
 export const CHASSIS_IDS = ['scout', 'hauler', 'lancer'] as const;
 export type ChassisId = (typeof CHASSIS_IDS)[number];
 
-/** What a Chassis gives a new Spacecraft: everything that sets its Δv. */
+/**
+ * What a new Spacecraft on a Chassis starts with: everything that sets its Δv. Each Chassis's own
+ * mass and its factors on Engine Isp and Fuel Tank capacity are calibrated from these, so the
+ * starting Components give exactly these figures (ADR 0005).
+ */
 export interface ChassisTuning {
-  /** Everything but Fuel. */
+  /** Everything but Fuel: the Chassis plus its starting Components. */
   readonly dryMass: Kilograms;
-  /** The most Fuel it can carry; a new Spacecraft starts full. */
+  /** What its starting Fuel Tank holds; a new Spacecraft starts full. */
   readonly fuelCapacity: Kilograms;
+  /** Its starting Engine's Isp on this Chassis. */
   readonly engineIsp: Seconds;
 }
 

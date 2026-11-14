@@ -1,5 +1,5 @@
 import { Scene, Scenes, type GameObjects, type Tweens } from 'phaser';
-import { paletteNumber } from '../../ui/kit/palette.ts';
+import { paletteNumber, type PaletteColor } from '../../ui/kit/palette.ts';
 import { hasAsset } from '../assets/manifest.ts';
 import { EventBus } from '../EventBus.ts';
 import { prefersReducedMotion } from '../lib/motion.ts';
@@ -126,6 +126,8 @@ export class Flight extends Scene {
   /** Where the playback is (ms from Launch). */
   playbackMs = 0;
 
+  /** The dust colour of the departure and arrival grounds. */
+  private dustColors!: Readonly<Record<'departure' | 'arrival', PaletteColor>>;
   private stages!: Readonly<
     Record<'departure' | 'arrival' | 'space', readonly GameObjects.Container[]>
   >;
@@ -168,13 +170,14 @@ export class Flight extends Scene {
     this.pace = prefersReducedMotion() ? 'reduced' : 'full';
     this.playback = flightPlayback(this.before.spacecraft, this.flight, this.pace);
 
-    const departure = this.buildGround(this.before);
+    const { layers: departure, dustColor: departureDust } = this.buildGround(this.before);
     // The target's sky as seen from its own surface: where the Spacecraft is about to stand.
     const atTarget: Run = {
       ...this.before,
       status: { kind: 'landed', bodyId: this.flight.plan.toId },
     };
-    const arrival = this.buildGround(atTarget);
+    const { layers: arrival, dustColor: arrivalDust } = this.buildGround(atTarget);
+    this.dustColors = { departure: departureDust, arrival: arrivalDust };
     const space = this.buildSpace();
     this.shadow = this.add.ellipse(
       SHIP_PLACEMENT.x,
@@ -393,6 +396,7 @@ export class Flight extends Scene {
     if (this.pace === 'full' && this.stage !== undefined && this.stage !== stage) {
       this.cameras.main.fadeIn(STAGE_FADE_MS);
     }
+    if (this.stage !== stage && stage !== 'space') this.fx?.setSurface(this.dustColors[stage]);
     this.stage = stage;
     for (const [name, objects] of Object.entries(this.stages)) {
       for (const object of objects) object.setVisible(name === stage);
@@ -504,13 +508,13 @@ export class Flight extends Scene {
     });
   }
 
-  private buildGround(run: Run): LandscapeLayers {
-    const { layers } = buildLandscape(this, run);
+  private buildGround(run: Run): { layers: LandscapeLayers; dustColor: PaletteColor } {
+    const { layers, dustColor } = buildLandscape(this, run);
     layers.sky.setScrollFactor(SCROLL_FACTOR.sky);
     layers.far.setScrollFactor(SCROLL_FACTOR.far);
     layers.mid.setScrollFactor(SCROLL_FACTOR.mid);
     layers.near.setScrollFactor(SCROLL_FACTOR.near);
-    return layers;
+    return { layers, dustColor };
   }
 
   /** Deep space, held still on screen: stars, the two Bodies and the speed streaks. */

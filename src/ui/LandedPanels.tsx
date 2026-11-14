@@ -1,7 +1,7 @@
 import { availableDeltaV, currentBody, type Run } from '../game/sim/index.ts';
 import { useEffect, useRef } from 'react';
 import { EventBus } from '../game/EventBus.ts';
-import { bodyTypeLabel, formatDistanceAu, formatGravity } from './format.ts';
+import { bodyFullLabel, formatDistanceAu, formatGravity } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import { TopBar } from './TopBar.tsx';
@@ -20,7 +20,7 @@ interface LandedPanelsProps {
 /** The Landed view's panels: the top bar (Star System, Fuel, Δv) and the plate naming the Body. */
 export function LandedPanels({ run, chartOpen, focusRequest = 0 }: LandedPanelsProps) {
   const body = currentBody(run);
-  const type = bodyTypeLabel(run, body);
+  const type = bodyFullLabel(run, body);
 
   // Closing the Nav Chart hands focus back to the button that opened it.
   const buttonSlot = useRef<HTMLDivElement>(null);
