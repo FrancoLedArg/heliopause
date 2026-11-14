@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import { chooseUrlChassis } from '../game/lib/runChassis.ts';
 import { chooseRunSeed } from '../game/lib/runSeed.ts';
@@ -7,8 +7,10 @@ import { SceneKey } from '../game/scenes/keys.ts';
 import type { ChartState } from '../game/scenes/navChartView.ts';
 import { ChassisPicker } from './ChassisPicker.tsx';
 import { LandedPanels } from './LandedPanels.tsx';
+import { AboutPanel, CreditsPanel } from './InfoPanels.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
-import { TitleMenu } from './TitleMenu.tsx';
+import { RunMenu } from './RunMenu.tsx';
+import { TitleMenu, type TitleButton } from './TitleMenu.tsx';
 
 /**
  * The DOM layer over the canvas, in native 640×360 pixels. Shows the panels for whichever scene
@@ -19,7 +21,11 @@ export function GameUI() {
   const [runSeed, setRunSeed] = useState<Seed | undefined>(undefined);
   const [run, setRun] = useState<Run | undefined>(undefined);
   const [picking, setPicking] = useState(false);
-  const [cameBack, setCameBack] = useState(false);
+  const [info, setInfo] = useState<'about' | 'credits' | undefined>(undefined);
+  // The title button to focus when the menu comes back from the screen it opened.
+  const [focus, setFocus] = useState<TitleButton | undefined>(undefined);
+  // Set when the player leaves a Run, so the title they land on takes focus like after the picker's Back.
+  const leftRun = useRef(false);
 
   useEffect(
     () =>
@@ -29,7 +35,9 @@ export function GameUI() {
           setRunSeed(undefined);
           setRun(undefined);
           setPicking(false);
-          setCameBack(false);
+          setInfo(undefined);
+          setFocus(leftRun.current ? 'new-run' : undefined);
+          leftRun.current = false;
         }
       }),
     [],
@@ -68,18 +76,35 @@ export function GameUI() {
     else launch(fromUrl);
   };
 
+  const closeInfo = (): void => {
+    setFocus(info);
+    setInfo(undefined);
+  };
+
   return (
     <div className="game-ui" data-testid="game-ui" data-run-seed={runSeed}>
-      {scene === SceneKey.Title && !picking && (
-        <TitleMenu starting={runSeed !== undefined} onNewRun={startNewRun} focusNewRun={cameBack} />
+      {scene === SceneKey.Title && !picking && info === undefined && (
+        <TitleMenu
+          starting={runSeed !== undefined}
+          onNewRun={startNewRun}
+          onAbout={() => {
+            setInfo('about');
+          }}
+          onCredits={() => {
+            setInfo('credits');
+          }}
+          focus={focus}
+        />
       )}
+      {scene === SceneKey.Title && info === 'about' && <AboutPanel onBack={closeInfo} />}
+      {scene === SceneKey.Title && info === 'credits' && <CreditsPanel onBack={closeInfo} />}
       {scene === SceneKey.Title && picking && (
         <ChassisPicker
           launching={runSeed !== undefined}
           onLaunch={launch}
           onBack={() => {
             setPicking(false);
-            setCameBack(true);
+            setFocus('new-run');
           }}
         />
       )}
@@ -88,6 +113,14 @@ export function GameUI() {
       )}
       {scene === SceneKey.Landed && run !== undefined && chart !== undefined && (
         <NavChartPanel run={run} state={chart} />
+      )}
+      {scene === SceneKey.Landed && run !== undefined && (
+        <RunMenu
+          onLeave={() => {
+            leftRun.current = true;
+            EventBus.emit('leave-run-requested');
+          }}
+        />
       )}
       <p className="hud-tag ai-label">AI-generated art</p>
     </div>

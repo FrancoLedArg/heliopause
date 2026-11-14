@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { TITLE_PANEL_BOTTOM } from '../lib/titleLayout.ts';
 import { generateStars, starLayer } from './starfield.ts';
 import {
+  FLYBY_HALF_HEIGHT,
   FLYBY_LANES,
   FLYBY_MAX_MS,
   FLYBY_MIN_MS,
@@ -57,10 +59,10 @@ describe('fly-by scheduling', () => {
     expect(nextFlybyDelayMs(() => 0.999999)).toBeLessThanOrEqual(FLYBY_MAX_MS);
   });
 
-  it('never flies through the logo, tagline or New Run panel', () => {
+  it('never flies through the logo, tagline or title menu panel', () => {
     for (let i = 0; i < FLYBY_LANES.length; i++) {
       const y = flybyLane(() => i / FLYBY_LANES.length);
-      const clearOfMenu = y + 16 < 72 || y > 240;
+      const clearOfMenu = y + FLYBY_HALF_HEIGHT < 72 || y - FLYBY_HALF_HEIGHT > TITLE_PANEL_BOTTOM;
       expect(clearOfMenu).toBe(true);
     }
   });

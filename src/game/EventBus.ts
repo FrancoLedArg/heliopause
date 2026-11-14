@@ -28,6 +28,8 @@ export interface GameEvents {
    * `selectedId` is the same value and is only for the chart panel's own display.
    */
   'nav-target-selected': [targetId: BodyId | undefined];
+  /** React -> Phaser: the player confirmed leaving the Run from the in-Run Menu; go back to the Title scene. */
+  'leave-run-requested': [];
 }
 
 class TypedEventBus {
@@ -42,6 +44,11 @@ class TypedEventBus {
     return () => {
       this.emitter.off(event, listener);
     };
+  }
+
+  /** How many handlers are listening for `event`; tests use it to prove scenes clean up after themselves. */
+  listenerCount(event: keyof GameEvents): number {
+    return this.emitter.listenerCount(event);
   }
 }
 

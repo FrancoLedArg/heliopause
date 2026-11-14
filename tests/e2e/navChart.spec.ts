@@ -43,6 +43,10 @@ test('the Nav Chart opens over the Landed view, names the Spacecraft Body and cl
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeHidden();
   await expect(page.getByRole('heading', { name: homeName, level: 1 })).toBeVisible();
   await expect(opener).toBeFocused();
+  // Esc was the Nav Chart's: the in-Run Menu, which Esc opens otherwise, stays closed. The Menu decides
+  // a tick after the key, so give it that tick before looking.
+  await page.waitForTimeout(250);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.keyboard.press('m');
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
   await page.getByRole('button', { name: 'Close' }).click();
@@ -77,7 +81,7 @@ test('the Nav Chart button sits between the location plate and the Spacecraft, c
   expect(at.right).toBeCloseTo(468, 0);
   expect(at.top).toBeCloseTo(322, 0);
   expect(at.bottom).toBeCloseTo(346, 0);
-  for (const panel of ['.top-bar', '.landed-plate']) {
+  for (const panel of ['.top-bar', '.landed-plate', '.run-menu__button']) {
     const other = await stageBox(panel);
     const overlap =
       at.left < other.right &&
