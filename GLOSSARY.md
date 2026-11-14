@@ -34,6 +34,18 @@ _Avoid_: Edge, border
 A planet or Moon in a Star System. Rocky planets and Moons can be landed on; gas giants cannot.
 _Avoid_: Node, location, world
 
+**Icy Body**:
+A landable Body whose ice yields Fuel the first time the Spacecraft lands on it in a Run.
+_Avoid_: Water world, ice planet
+
+**Rocky Body**:
+A landable Body whose ground yields Materials the first time the Spacecraft lands on it in a Run.
+_Avoid_: Mineral world, terrestrial
+
+**Depleted**:
+A Body that has already given up its Fuel or Materials in this Run and yields nothing more.
+_Avoid_: Empty, mined out, used
+
 **Gas Giant**:
 A planet with no surface: never a Hop target, but home to Moons.
 _Avoid_: Gas planet, jovian
@@ -49,8 +61,24 @@ The player's one vehicle, kept and modified for the whole Run.
 _Avoid_: Ship, satellite, rocket, vessel
 
 **Component**:
-A part installed on the Spacecraft, with its own mass, power and cost.
+A part installed on the Spacecraft in a Slot, with its own mass and Materials cost. Kinds so far: Engine, Fuel Tank, Drill, each with levels.
 _Avoid_: Module, part, upgrade, item
+
+**Slot**:
+A place on the Spacecraft that holds one Component; the Spacecraft has a fixed number of them.
+_Avoid_: Socket, bay, hardpoint
+
+**Engine**:
+The Component that turns Fuel into Δv; a better Engine gets more Δv from the same Fuel.
+_Avoid_: Thruster, motor
+
+**Fuel Tank**:
+The Component that sets how much Fuel the Spacecraft can carry.
+_Avoid_: Tank, storage
+
+**Drill**:
+The Component that increases how much a Body yields when the Spacecraft lands on it.
+_Avoid_: Miner, extractor, harvester
 
 ## Resources
 
