@@ -5,7 +5,13 @@ import { EventBus } from '../EventBus.ts';
 import { createRng, type Rng } from '../lib/rng.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
 import { currentBody, type Run } from '../sim/index.ts';
-import { SKY_WIDTH, skyBodies, surfaceKind, type SurfaceKind } from './landedView.ts';
+import {
+  SHIP_PLACEMENT,
+  SKY_WIDTH,
+  skyBodies,
+  surfaceKind,
+  type SurfaceKind,
+} from './landedView.ts';
 import { SceneKey } from './keys.ts';
 import { addStarfield } from './starfield.ts';
 
@@ -26,9 +32,6 @@ const FAR = { y: 90, height: 200 } as const;
 const MID = { y: 180, height: 160 } as const;
 const NEAR = { y: 240, height: 120 } as const;
 
-/** Where the whole Spacecraft stands: centred, its base on the near ground. */
-const SHIP_X = 320;
-const SHIP_BASE_Y = 296;
 const SHIP_SCALE = 4;
 // The `spacecraft` sprite points right; its tail sits 5px past the centre, so stood upright
 // (rotated -90°) its base is 5px below its middle.
@@ -163,7 +166,7 @@ export class Landed extends Scene {
 
   /** The whole Spacecraft, in the foreground: its Chassis art when present, the 4x `spacecraft` otherwise. */
   private buildShip(): GameObjects.Container {
-    const container = this.add.container(SHIP_X, SHIP_BASE_Y);
+    const container = this.add.container(SHIP_PLACEMENT.x, SHIP_PLACEMENT.baseY);
     const shadow = this.add.ellipse(0, 2, 72, 8, paletteNumber('void'), 0.45);
     container.add(shadow);
     const chassis = `chassis_${this.run.spacecraft.chassisId}`;
