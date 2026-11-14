@@ -2,6 +2,7 @@
 // scene (which draws it) and the React HUD (which reads it) agree, and the rules run in Node.
 // The simulation has already settled the outcome; this only paces it.
 import {
+  BURNS,
   fuelAfterBurning,
   metersPerSecond,
   type Burn,
@@ -29,6 +30,9 @@ const THRUST: Readonly<Record<Burn, { readonly from: number; readonly to: number
   landing: { from: 0, to: 1 },
 };
 
+/** How much faster the fast-forward plays the Hop. It only scales the clock: the outcome is settled already. */
+export const FAST_FORWARD = 4;
+
 /** After a failed Burn cuts out, the playback holds this long (ms) on what happened before it ends. */
 export const AFTERMATH_MS: Readonly<Record<Pace, number>> = { full: 1600, reduced: 600 };
 
@@ -43,6 +47,8 @@ export interface FlightMoment {
   readonly fuel: Kilograms;
   /** How many Burns are done and in the flight log, in order. */
   readonly logged: number;
+  /** How far along the whole route, 0 to 1 (each Burn a third); holds where the engine cut out. */
+  readonly route: number;
   /** The playback is over: hand off to the Landed view or the report. */
   readonly ended: boolean;
 }
@@ -137,12 +143,16 @@ export function flightPlayback(
         ? Math.min(Math.max((t - span.thrustStart) / (span.thrustEnd - span.thrustStart), 0), 1)
         : 1;
     const done = t >= span.thrustEnd;
+    // A failed Burn's aftermath is not travel: the route holds where the engine cut out.
+    const travelled = Math.min(t, stopsAt ?? duration);
+    const share = Math.min((travelled - span.start) / span.length, 1);
     return {
       burn: span.burn,
       progress: Math.min((t - span.start) / span.length, 1),
       thrusting: t >= span.thrustStart && !done,
       fuel: fuelAfter(span.spentBefore + thrustShare * (span.spentAfter - span.spentBefore)),
       logged: index + (done ? 1 : 0),
+      route: (BURNS.indexOf(span.burn) + share) / BURNS.length,
       ended: t >= duration,
     };
   };

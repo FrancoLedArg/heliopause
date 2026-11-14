@@ -3,6 +3,8 @@
 .phase-strip,
 .flight-log,
 .fuel-gauge,
+.route-inset,
+.fast-forward,
 .flight-outcome {
   position: absolute;
 }
@@ -10,6 +12,7 @@
 .phase-strip > .kit-frame:first-child,
 .flight-log > .kit-frame:first-child,
 .fuel-gauge > .kit-frame:first-child,
+.route-inset > .kit-frame:first-child,
 .flight-outcome > .kit-frame:first-child {
   position: absolute;
   inset: 0;
@@ -228,4 +231,80 @@
   position: absolute;
   right: 12px;
   bottom: 10px;
+}
+
+/* Route inset and fast-forward: bottom middle, clear of the Spacecraft at the right and the log and Fuel at the left. */
+.route-inset {
+  top: 294px;
+  left: 272px;
+  width: 156px;
+  height: 44px;
+}
+
+.route-inset__body {
+  position: absolute;
+  top: 6px;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.route-inset__body--from {
+  left: 8px;
+}
+
+.route-inset__body--to {
+  right: 8px;
+}
+
+.route-inset__track {
+  position: absolute;
+  top: 13px;
+  left: 30px;
+  width: 96px;
+  height: 2px;
+  background: var(--gm3);
+}
+
+.route-inset__done {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 2px;
+  background: var(--cy3);
+}
+
+.route-inset__ship {
+  position: absolute;
+  top: -2px;
+  width: 4px;
+  height: 6px;
+  background: var(--wh3);
+}
+
+.route-inset__name {
+  position: absolute;
+  top: 26px;
+  width: 70px;
+  margin: 0;
+  overflow: hidden;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--gm6);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.route-inset__name--from {
+  left: 8px;
+}
+
+.route-inset__name--to {
+  right: 8px;
+  text-align: right;
+}
+
+.fast-forward {
+  top: 304px;
+  left: 434px;
 }

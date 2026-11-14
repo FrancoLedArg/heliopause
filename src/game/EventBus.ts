@@ -41,6 +41,8 @@ export interface GameEvents {
   'hop-flight-started': [before: Run, flight: HopFlight, pace: Pace];
   /** Phaser -> React: the playback moved on (Burn, thrust, Fuel, flight log); sent only on a visible change. */
   'hop-flight-moment': [moment: FlightMoment];
+  /** React -> Phaser: the player turned the Hop playback's fast-forward on or off. It only scales the clock. */
+  'hop-fast-forward-requested': [fast: boolean];
   /**
    * Phaser -> React: the playback of a Fell Short or Crashed Hop is over, and the Run with it. An
    * Arrived Hop goes on to the Landed view instead.

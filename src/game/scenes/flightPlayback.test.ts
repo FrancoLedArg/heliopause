@@ -118,6 +118,29 @@ describe('Hop playback', () => {
     expect(moments.at(-1)?.logged).toBe(3);
   });
 
+  it('reports how far along the route the Spacecraft is, from 0 to 1, never going back', () => {
+    const moments = samples(flightPlayback(run.spacecraft, arrived, 'full'));
+    expect(moments[0]?.route).toBe(0);
+    expect(moments.at(-1)?.route).toBe(1);
+    moments.forEach((moment, i) => {
+      const before = moments[i - 1];
+      if (before) expect(moment.route).toBeGreaterThanOrEqual(before.route);
+    });
+    // Each Burn is a third of the route.
+    const transferStart = moments.find((m) => m.burn === 'transfer');
+    expect(transferStart?.route).toBeCloseTo(1 / 3, 1);
+  });
+
+  it('a Hop that stops short holds its route progress where the engine cut out', () => {
+    const from = shortRun(0.97);
+    const flight = flightEnding('fell-short', from, 'transfer');
+    const playback = flightPlayback(from.spacecraft, flight, 'full');
+    const stop = playback.at(playback.stopsAt).route;
+    expect(stop).toBeGreaterThan(1 / 3);
+    expect(stop).toBeLessThan(2 / 3);
+    expect(playback.at(playback.duration).route).toBe(stop);
+  });
+
   it('a Hop that Fell Short in the Transfer stops when the Fuel runs dry, partway through it', () => {
     const from = shortRun(0.97);
     const flight = flightEnding('fell-short', from, 'transfer');
