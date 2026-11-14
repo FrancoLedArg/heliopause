@@ -18,6 +18,7 @@ export { availableDeltaV, fuelAfterBurning, newSpacecraft } from './spacecraft.t
 export type { Spacecraft } from './spacecraft.ts';
 export type {
   Body,
+  BodyComposition,
   BodyId,
   GasGiant,
   LandableBody,
@@ -29,6 +30,8 @@ export type {
   StarSystem,
 } from './starSystem.ts';
 export {
+  BODY_TUNING,
+  ICE_LINE,
   CHASSIS_IDS,
   CHASSIS_TUNING,
   DISPERSION,
@@ -48,6 +51,7 @@ export type {
 export {
   astronomicalUnits,
   kilograms,
+  materials,
   kilometers,
   metersPerSecond,
   metersPerSecondSquared,
@@ -57,6 +61,7 @@ export {
 export type {
   AstronomicalUnits,
   Kilograms,
+  Materials,
   Kilometers,
   MetersPerSecond,
   MetersPerSecondSquared,
