@@ -3,10 +3,7 @@ import { startRun } from '../sim/index.ts';
 import { EventBus } from '../EventBus.ts';
 import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
-import { addStarfield } from './starfield.ts';
-
-const STAR_COUNT = 140;
-const STARFIELD_SEED = 1977; // Voyager launch year: same sky on every load.
+import { createTitleBackdrop } from './titleBackdrop.ts';
 
 /** The title backdrop. Its menu (logo, New Run, Chassis picker, build label) is React's, drawn over the canvas. */
 export class Title extends Scene {
@@ -14,11 +11,12 @@ export class Title extends Scene {
     super(SceneKey.Title);
   }
 
+  /** Whether the backdrop was drawn held still; read once at create from `prefers-reduced-motion`. */
+  reducedMotion = false;
+
   create(): void {
-    addStarfield(this, STARFIELD_SEED, STAR_COUNT);
-    this.add.image(84, 64, 'body_star');
-    this.add.image(560, 372, 'body_gas_1').setScale(5);
-    this.add.image(438, 262, 'body_moon_2').setScale(2);
+    const backdrop = createTitleBackdrop(this);
+    this.reducedMotion = backdrop.reducedMotion;
 
     const offNewRun = EventBus.on('new-run-requested', (seed, chassisId) => {
       const data: LandedData = { run: startRun(seed, chassisId) };
@@ -28,6 +26,7 @@ export class Title extends Scene {
     // both; whichever fires first removes the other listener.
     const unsubscribe = (): void => {
       offNewRun();
+      backdrop.dispose(); // every tween and timer of the backdrop stops with the scene
       this.events.off(Scenes.Events.SHUTDOWN, unsubscribe);
       this.events.off(Scenes.Events.DESTROY, unsubscribe);
     };
