@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  checksFromRollup,
+  checksFromRequired,
   closedIssueNumbers,
   Label,
   mergeFailureMeansBehind,
@@ -203,13 +203,51 @@ describe('needs-attention handling', () => {
   });
 });
 
-describe('checksFromRollup', () => {
-  it('maps rollup states', () => {
-    expect(checksFromRollup('SUCCESS')).toBe('passing');
-    expect(checksFromRollup('FAILURE')).toBe('failing');
-    expect(checksFromRollup('ERROR')).toBe('failing');
-    expect(checksFromRollup('PENDING')).toBe('pending');
-    expect(checksFromRollup(null)).toBe('none');
+describe('checksFromRequired', () => {
+  const run = (name: string, conclusion: string | null, status = 'COMPLETED') => ({
+    name,
+    status,
+    conclusion,
+  });
+  const context = (name: string, state: string) => ({ context: name, state });
+
+  it('passes when the required check passes, whatever non-required checks say', () => {
+    expect(
+      checksFromRequired(['verify'], [run('verify', 'SUCCESS'), context('Vercel', 'FAILURE')]),
+    ).toBe('passing');
+  });
+
+  it('is pending while the required check is still running', () => {
+    expect(
+      checksFromRequired(
+        ['verify'],
+        [run('verify', null, 'IN_PROGRESS'), context('Vercel', 'SUCCESS')],
+      ),
+    ).toBe('pending');
+    expect(checksFromRequired(['verify'], [context('verify', 'PENDING')])).toBe('pending');
+  });
+
+  it('fails when the required check fails, even if every other check passes', () => {
+    expect(
+      checksFromRequired(['verify'], [run('verify', 'FAILURE'), context('Vercel', 'SUCCESS')]),
+    ).toBe('failing');
+    expect(checksFromRequired(['verify'], [run('verify', 'TIMED_OUT')])).toBe('failing');
+    expect(checksFromRequired(['verify'], [context('verify', 'ERROR')])).toBe('failing');
+  });
+
+  it('is pending when the required check has not reported but other checks have', () => {
+    expect(checksFromRequired(['verify'], [context('Vercel', 'FAILURE')])).toBe('pending');
+  });
+
+  it('is none when the head commit has no checks at all', () => {
+    expect(checksFromRequired(['verify'], [])).toBe('none');
+  });
+
+  it('needs every required check to pass', () => {
+    expect(
+      checksFromRequired(['verify', 'e2e'], [run('verify', 'SUCCESS'), run('e2e', 'FAILURE')]),
+    ).toBe('failing');
+    expect(checksFromRequired(['verify', 'e2e'], [run('verify', 'SUCCESS')])).toBe('pending');
   });
 });
 

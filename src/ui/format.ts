@@ -23,9 +23,14 @@ export function formatDistanceAu(distance: AstronomicalUnits): string {
   return `${distance >= 10 ? distance.toFixed(1) : distance.toFixed(2)} AU`;
 }
 
+/** A mass as tonnes. */
+export function formatMass(mass: Kilograms): string {
+  return `${(mass / 1000).toFixed(1)} t`;
+}
+
 /** Fuel mass as tonnes. */
 export function formatFuel(mass: Kilograms): string {
-  return `${(mass / 1000).toFixed(1)} t`;
+  return formatMass(mass);
 }
 
 /** Δv in m/s or km/s; a dash while the Δv is not yet known. */

@@ -13,7 +13,7 @@ if (!home || !homeMoon || !gasGiant)
 const homeName = home.name;
 
 async function openNavChart(page: Page): Promise<void> {
-  await page.goto(`/?seed=${SEED}`);
+  await page.goto(`/?seed=${SEED}&chassis=scout`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();

@@ -1,7 +1,7 @@
 import { Events } from 'phaser';
 import type { SceneKey } from './scenes/keys.ts';
 import type { ChartCommand, ChartState } from './scenes/navChartView.ts';
-import type { BodyId, Run, Seed } from './sim/index.ts';
+import type { BodyId, ChassisId, Run, Seed } from './sim/index.ts';
 
 /** Events crossing the React <-> Phaser boundary. Add an entry here before emitting a new event. */
 export interface GameEvents {
@@ -9,8 +9,8 @@ export interface GameEvents {
   'scene-ready': [sceneKey: SceneKey];
   /** Phaser -> React: the Run the Landed view shows (sent just before its `scene-ready`). */
   'run-started': [run: Run];
-  /** React -> Phaser: the player chose New Run; the Run starts from `seed` (see `chooseRunSeed`). */
-  'new-run-requested': [seed: Seed];
+  /** React -> Phaser: the player launched a New Run; it starts from `seed` (see `chooseRunSeed`) on `chassisId`. */
+  'new-run-requested': [seed: Seed, chassisId: ChassisId];
   /** React -> Phaser: the player asked to open the Nav Chart over the Landed view. */
   'nav-chart-open-requested': [];
   /** React -> Phaser: the player asked to close the Nav Chart. */

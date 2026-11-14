@@ -5,10 +5,7 @@ import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
 import { createTitleBackdrop } from './titleBackdrop.ts';
 
-/** Until the Chassis picker (#36) lets the player choose, every New Run starts with the scout. */
-const DEFAULT_CHASSIS = 'scout';
-
-/** The title backdrop. Its menu (logo, New Run, build label) is React's, drawn over the canvas. */
+/** The title backdrop. Its menu (logo, New Run, Chassis picker, build label) is React's, drawn over the canvas. */
 export class Title extends Scene {
   constructor() {
     super(SceneKey.Title);
@@ -21,8 +18,8 @@ export class Title extends Scene {
     const backdrop = createTitleBackdrop(this);
     this.reducedMotion = backdrop.reducedMotion;
 
-    const offNewRun = EventBus.on('new-run-requested', (seed) => {
-      const data: LandedData = { run: startRun(seed, DEFAULT_CHASSIS) };
+    const offNewRun = EventBus.on('new-run-requested', (seed, chassisId) => {
+      const data: LandedData = { run: startRun(seed, chassisId) };
       this.scene.start(SceneKey.Landed, data);
     });
     // A destroyed game (React StrictMode remounts, tests) never shuts its scenes down, so unsubscribe on
