@@ -2,14 +2,14 @@ import { Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
 import { install, launchHop, type HopFlight, type Run } from '../sim/index.ts';
-import { SHIP_PLACEMENT } from './landedView.ts';
+import { SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
 import { SceneKey } from './keys.ts';
 import type { FlightData } from './Flight.ts';
 import type { NavChartData } from './NavChart.ts';
 import { createLandedAmbient, type LandedAmbient } from './landedAmbient.ts';
 import { buildLandscape, LAYER_X, SKY_X } from './landscape.ts';
 import { onLeaveRun } from './leaveRun.ts';
-import { addSpacecraftArt } from './spacecraftArt.ts';
+import { addSpacecraftArt, shadowWidth } from './spacecraftArt.ts';
 
 export interface LandedData {
   /** The Run to show: the Spacecraft landed on its current Body. */
@@ -111,8 +111,18 @@ export class Landed extends Scene {
     setLights: (on: boolean) => void;
   } {
     const container = this.add.container(SHIP_PLACEMENT.x, SHIP_PLACEMENT.baseY);
-    container.add(this.add.ellipse(0, 2, 72, 8, paletteNumber('void'), 0.45));
-    const art = addSpacecraftArt(this, this.run.spacecraft.chassisId);
+    const { chassisId } = this.run.spacecraft;
+    container.add(
+      this.add.ellipse(
+        0,
+        SHIP_SHADOW.dy,
+        shadowWidth(chassisId),
+        SHIP_SHADOW.height,
+        paletteNumber('void'),
+        0.45,
+      ),
+    );
+    const art = addSpacecraftArt(this, chassisId);
     container.add([...art.objects]);
     return {
       container,
