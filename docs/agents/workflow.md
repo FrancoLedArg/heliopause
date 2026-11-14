@@ -9,7 +9,7 @@ How work moves from a conversation with the human to merged code on `main`. Ever
 | **Human**        | —                                            | —                           | Product decisions, assets, approving nothing else                       |
 | **Planner**      | `pnpm planner` (herdr tab, on demand)        | Opus                        | Grilling the human; `GLOSSARY.md`; ADRs; publishing **specs**           |
 | **Orchestrator** | `pnpm orchestrator` (herdr tab, always open) | Opus                        | Turning specs into **tickets**; dispatching; merging; token budget      |
-| **Researcher**   | subagent                                     | Sonnet                      | Answers from primary sources; `docs/research/*.md`                      |
+| **Researcher**   | subagent, own git worktree                   | Sonnet                      | Answers from primary sources; `docs/research/*.md`                      |
 | **Builder**      | subagent, own git worktree                   | Sonnet (Opus when assigned) | One ticket → one PR                                                     |
 | **Reviewer**     | subagent, own git worktree                   | Opus                        | Verdict on one PR: standards, spec, and the change working in a browser |
 
