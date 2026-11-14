@@ -10,6 +10,7 @@ import {
   checksFromRollup,
   closedIssueNumbers,
   isBehind,
+  isDirty,
   Label,
   leanStatus,
   mergeFailureMeansBehind,
@@ -164,6 +165,10 @@ function formatStatus(status: PipelineStatus): string {
       'Behind main (update)',
       status.behindMain.map((p) => `  PR #${String(p.number)} ${p.title}`),
     ),
+    section(
+      'Needs attention (back to Builder)',
+      status.needsAttention.map((p) => `  PR #${String(p.number)} ${p.title} [${p.reason}]`),
+    ),
     section('Blocked specs', status.blockedSpecs.map(line)),
     section('Blocked tickets', status.blockedTickets.map(line)),
     section('Needs triage (human)', status.needsTriage.map(line)),
@@ -264,6 +269,11 @@ const commands: Record<string, (args: string[]) => void> = {
     if (!pull) throw new Error(`PR #${String(pr)} is not open`);
     if (!pull.labels.includes(Label.AgentApproved)) {
       throw new Error(`PR #${String(pr)} lacks the ${Label.AgentApproved} label`);
+    }
+    if (isDirty(pull)) {
+      throw new Error(
+        `PR #${String(pr)} conflicts with main: a Builder must merge main and resolve`,
+      );
     }
     if (pull.checks !== 'passing') {
       throw new Error(`PR #${String(pr)} CI is ${pull.checks}, not passing`);
