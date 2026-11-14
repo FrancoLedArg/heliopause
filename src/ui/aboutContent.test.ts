@@ -24,6 +24,14 @@ describe('About and Credits content', () => {
     }
   });
 
+  it('links the generated licence notices by a relative URL so it works under any base path', () => {
+    expect(CREDITS.licenses.url).toBe('./THIRD-PARTY-LICENSES.txt');
+  });
+
+  it('does not call the build tools not shipped, since Vite injects helpers into the bundle', () => {
+    expect(CREDITS.groups.map((g) => g.heading).join()).not.toContain('not shipped');
+  });
+
   it('ships the team as a visible placeholder, not invented names', () => {
     expect(ABOUT.team.members.length).toBeGreaterThan(0);
     expect(ABOUT.team.members.every((m) => m.placeholder === true)).toBe(true);
