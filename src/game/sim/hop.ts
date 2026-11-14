@@ -1,7 +1,7 @@
 import { createRng, type Rng } from '../lib/rng.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
 import { DISPERSION, SOURCED_CONSTANTS } from './data.ts';
-import { landOn, type Collection } from './gather.ts';
+import { collectYield, type Collection } from './gather.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
 import { availableDeltaV, fuelAfterBurning } from './spacecraft.ts';
 import {
@@ -214,7 +214,7 @@ export function flyHop(
     hopsFlown: run.hopsFlown + 1,
   };
   if (outcome.kind !== 'arrived') return deepFreeze({ flight, run: flown });
-  const landed = landOn(flown, target.id);
+  const landed = collectYield(flown, target.id);
   return deepFreeze({ flight: { ...flight, collection: landed.collection }, run: landed.run });
 }
 

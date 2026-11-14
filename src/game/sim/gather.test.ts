@@ -6,8 +6,9 @@ import {
   COMPONENT_IDS,
   homePlanet,
   kilograms,
-  landOn,
+  collectYield,
   launchHop,
+  listBodies,
   materials,
   startRun,
   STARTING_MATERIALS,
@@ -25,7 +26,7 @@ describe('landing collects a Body’s yield', () => {
 
   it('landing on an Icy Body adds Fuel up to Tank capacity', () => {
     expect(moon.composition).toBe('icy');
-    const result = landOn(withFuel(run, 1_000), moon.id);
+    const result = collectYield(withFuel(run, 1_000), moon.id);
     expect(result.collection).toEqual({
       kind: 'fuel',
       collected: moon.baseYield,
@@ -37,7 +38,7 @@ describe('landing collects a Body’s yield', () => {
 
   it('Fuel beyond Tank capacity is reported as left behind', () => {
     const nearlyFull = withFuel(run, run.spacecraft.fuelCapacity - 1_000);
-    const result = landOn(nearlyFull, moon.id);
+    const result = collectYield(nearlyFull, moon.id);
     expect(result.run.spacecraft.fuelMass).toBe(run.spacecraft.fuelCapacity);
     expect(result.collection).toEqual({
       kind: 'fuel',
@@ -50,27 +51,27 @@ describe('landing collects a Body’s yield', () => {
     const home = homePlanet(run.starSystem);
     expect(home.composition).toBe('rocky');
     const away = landedOn(run, moon.id);
-    const result = landOn(away, home.id);
+    const result = collectYield(away, home.id);
     expect(result.collection).toEqual({ kind: 'materials', collected: home.baseYield });
     expect(result.run.materials).toBe(away.materials + home.baseYield);
     expect(result.run.spacecraft.fuelMass).toBe(away.spacecraft.fuelMass);
   });
 
   it('a Depleted Body yields nothing', () => {
-    const first = landOn(withFuel(run, 1_000), moon.id).run;
-    const again = landOn(withFuel(first, 1_000), moon.id);
+    const first = collectYield(withFuel(run, 1_000), moon.id).run;
+    const again = collectYield(withFuel(first, 1_000), moon.id);
     expect(again.collection).toEqual({ kind: 'depleted' });
     expect(again.run.spacecraft.fuelMass).toBe(1_000);
     expect(again.run.materials).toBe(first.materials);
   });
 
   it('only the Body landed on becomes Depleted', () => {
-    expect(landOn(run, moon.id).run.depleted).toEqual([moon.id]);
+    expect(collectYield(run, moon.id).run.depleted).toEqual([moon.id]);
     expect(run.depleted).toEqual([]);
   });
 
   it('a Run’s Materials and Depleted Bodies cannot be changed in place', () => {
-    const landed = landOn(run, moon.id).run;
+    const landed = collectYield(run, moon.id).run;
     const mutable = landed as unknown as { materials: number; depleted: string[] };
     expect(() => (mutable.materials = 1)).toThrow(TypeError);
     expect(() => mutable.depleted.push('x')).toThrow(TypeError);
@@ -133,5 +134,24 @@ describe('collection on arrival', () => {
     expect(result.flight.collection).toBeNull();
     expect(result.run.depleted).toEqual([]);
     expect(result.run.materials).toBe(empty.materials);
+  });
+});
+
+describe('Fuel left behind in a real Run', () => {
+  it('seed 14, scout: the Hop to Konvin after Lydruthyx leaves Fuel behind', () => {
+    const start = startRun(14, 'scout');
+    const named = (run: Run, name: string) => {
+      const body = listBodies(run.starSystem).find((b) => b.name === name);
+      if (!body) throw new Error(`no Body ${name}`);
+      return body.id;
+    };
+    const first = launchHop(start, named(start, 'Lydruthyx'));
+    if (first.kind !== 'flown') throw new Error('Expected a flown Hop');
+    const second = launchHop(first.run, named(first.run, 'Konvin'));
+    if (second.kind !== 'flown') throw new Error('Expected a flown Hop');
+    const { collection } = second.flight;
+    if (collection?.kind !== 'fuel') throw new Error('Expected Fuel collected');
+    expect(collection.leftBehind).toBeGreaterThan(0);
+    expect(second.run.spacecraft.fuelMass).toBe(second.run.spacecraft.fuelCapacity);
   });
 });

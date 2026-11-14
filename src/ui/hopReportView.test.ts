@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   kilograms,
-  landOn,
+  collectYield,
   launchHop,
   listBodies,
   homePlanet,
@@ -138,7 +138,7 @@ describe('the Hop report', () => {
     });
 
     it('says a Depleted Body had nothing left', () => {
-      const visited = { ...landOn(run, moon.id).run, status: run.status };
+      const visited = { ...collectYield(run, moon.id).run, status: run.status };
       const view = describeReport(visited, flown(visited).flight);
       expect(view.collected).toBe('Nothing to collect: this Body is Depleted.');
     });

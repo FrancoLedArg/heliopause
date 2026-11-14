@@ -24,15 +24,21 @@ function yieldMultiplier(): number {
   return 1;
 }
 
+/** Whether `bodyId` has already given up its yield in this Run. */
+export function isDepleted(run: Run, bodyId: BodyId): boolean {
+  return run.depleted.includes(bodyId);
+}
+
 /**
- * Lands the Run's Spacecraft on `bodyId`, collecting its yield the first time and Depleting it.
- * Fuel is capped at the Tank's capacity. Throws for a Body that is not a landable Body of this Star
+ * Collects the yield of `bodyId`, the Body the Spacecraft has just landed on: the first time only,
+ * after which the Body is Depleted. Fuel is capped at the Tank's capacity. It leaves the Run's
+ * status to the caller (a Hop sets it). Throws for a Body that is not a landable Body of this Star
  * System: a programmer error.
  */
-export function landOn(run: Run, bodyId: BodyId): Landing {
+export function collectYield(run: Run, bodyId: BodyId): Landing {
   const body = findBody(run.starSystem, bodyId);
   if (!body?.landable) throw new Error(`${bodyId} is not a Body the Spacecraft can land on`);
-  if (run.depleted.includes(body.id)) return { run, collection: { kind: 'depleted' } };
+  if (isDepleted(run, body.id)) return { run, collection: { kind: 'depleted' } };
 
   const depleted = [...run.depleted, body.id];
   const multiplier = yieldMultiplier();

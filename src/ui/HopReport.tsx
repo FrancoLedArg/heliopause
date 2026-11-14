@@ -5,7 +5,7 @@ import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import './HopReport.css';
 
-const PANEL = { width: 356, height: 226 } as const;
+const PANEL = { width: 392, height: 226 } as const;
 
 export interface ReportAction {
   readonly label: string;

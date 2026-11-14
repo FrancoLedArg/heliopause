@@ -2,7 +2,7 @@
 // The UI and tests use only what is exported here.
 export { findBody, generateStarSystem, homePlanet, listBodies } from './starSystem.ts';
 export { currentBody, startRun, STARTING_MATERIALS } from './run.ts';
-export { landOn } from './gather.ts';
+export { collectYield, isDepleted } from './gather.ts';
 export type { Collection, Landing } from './gather.ts';
 export type { Run, RunStatus } from './run.ts';
 export { BURNS, flyHop, launchHop, marginShare, planHop } from './hop.ts';
