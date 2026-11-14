@@ -493,7 +493,7 @@ def preview(sprites, path, scale=4):
 #   surface_<kind>      800x120  near ground with stones and texture
 # Each layer is opaque below its skyline and transparent above it. The
 # horizon rises lower-left to upper right (the human's Landed sketch).
-# Everything in this section is self-contained (prefix `_surf`/`surface`).
+# Everything in this section is self-contained (functions named `_*` helpers and `surface_*`).
 
 SURFACE_W = 800
 # Where the layers sit in the 640x360 Landed scene (top-left y of each layer).
@@ -658,7 +658,7 @@ def _frost(s, rng, sky, n, key):
 SURFACE_LOOK = {
     "rocky": dict(  # rust and grey rock, craters, scattered stones
         far=dict(sky=(172, 32, 6), edge=("am2", "am1"),
-                 bands=[(3, "am1"), (14, "am0"), (40, "rd0"), (75, "rd0"), (9999, "ink")]),
+                 bands=[(3, "am1"), (14, "am0"), (40, "rd0"), (9999, "rd0")]),
         mid=dict(sky=(100, 42, 9), edge=("am2", "am1"),
                  bands=[(4, "am1"), (30, "am0"), (60, "rd0"), (95, "rd0"), (9999, "ink")]),
         near=dict(sky=(84, 40, 5), edge=("am3", "am2"),
