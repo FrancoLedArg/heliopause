@@ -408,9 +408,9 @@ body {
 
 .chassis-picker__note {
   position: absolute;
-  top: 234px;
-  left: 0;
-  width: 640px;
+  top: 232px;
+  left: 40px;
+  width: 560px;
   text-align: center;
   font: 14px/14px var(--font-pixel-body);
   color: var(--gm6);

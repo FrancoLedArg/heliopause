@@ -57,7 +57,12 @@ it('a New Run request on the Title screen lands on the Landed scene', async () =
   const { game } = await bootToTitle();
 
   const landed = nextSceneReady();
-  const run = new Promise<Run>((resolve) => EventBus.on('run-started', resolve));
+  const run = new Promise<Run>((resolve) => {
+    const off = EventBus.on('run-started', (started) => {
+      off();
+      resolve(started);
+    });
+  });
   EventBus.emit('new-run-requested', 123, 'lancer');
 
   expect(await landed).toBe(SceneKey.Landed);

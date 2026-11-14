@@ -17,6 +17,7 @@ export function GameUI() {
   const [runSeed, setRunSeed] = useState<Seed | undefined>(undefined);
   const [run, setRun] = useState<Run | undefined>(undefined);
   const [picking, setPicking] = useState(false);
+  const [cameBack, setCameBack] = useState(false);
 
   useEffect(
     () =>
@@ -26,6 +27,7 @@ export function GameUI() {
           setRunSeed(undefined);
           setRun(undefined);
           setPicking(false);
+          setCameBack(false);
         }
       }),
     [],
@@ -49,7 +51,7 @@ export function GameUI() {
   return (
     <div className="game-ui" data-testid="game-ui" data-run-seed={runSeed}>
       {scene === SceneKey.Title && !picking && (
-        <TitleMenu starting={runSeed !== undefined} onNewRun={startNewRun} />
+        <TitleMenu starting={runSeed !== undefined} onNewRun={startNewRun} focusNewRun={cameBack} />
       )}
       {scene === SceneKey.Title && picking && (
         <ChassisPicker
@@ -57,6 +59,7 @@ export function GameUI() {
           onLaunch={launch}
           onBack={() => {
             setPicking(false);
+            setCameBack(true);
           }}
         />
       )}

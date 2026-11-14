@@ -1,12 +1,6 @@
 import { useState } from 'react';
 import { atlasImageUrl, hasAsset, imageUrl } from '../game/assets/manifest.ts';
-import {
-  availableDeltaV,
-  CHASSIS_IDS,
-  newSpacecraft,
-  type ChassisId,
-  type Spacecraft,
-} from '../game/sim/index.ts';
+import { availableDeltaV, CHASSIS_IDS, newSpacecraft, type ChassisId } from '../game/sim/index.ts';
 import { formatDeltaV, formatFuel, formatMass } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
@@ -58,7 +52,8 @@ export function ChassisPicker({ onLaunch, onBack, launching }: ChassisPickerProp
         ))}
       </div>
       <p className="chassis-picker__note">
-        A heavier craft gets less Δv from the same Fuel: its own mass has to be pushed along too.
+        A heavier craft gets less Δv from the same Fuel, since it must push its own mass along. A
+        bigger tank or a better engine gives more.
       </p>
       <div className="chassis-picker__actions">
         <KitButton width={BUTTON_WIDTH} disabled={launching} onClick={onBack}>
@@ -86,7 +81,7 @@ interface ChassisCardProps {
 }
 
 function ChassisCard({ id, selected, onSelect }: ChassisCardProps) {
-  const spacecraft: Spacecraft = newSpacecraft(id);
+  const spacecraft = newSpacecraft(id);
   const name = NAMES[id];
   return (
     <label
@@ -104,8 +99,12 @@ function ChassisCard({ id, selected, onSelect }: ChassisCardProps) {
       />
       <KitFrame frame="panel_metal" width={CARD_WIDTH} height={CARD_HEIGHT} />
       <span className="chassis-card__name">{name}</span>
-      {selected && <span className="chassis-card__tag">Selected</span>}
-      <ChassisSprite id={id} name={name} />
+      {selected && (
+        <span className="chassis-card__tag" aria-hidden="true">
+          Selected
+        </span>
+      )}
+      <ChassisSprite id={id} />
       <dl className="chassis-card__stats">
         <dt>Dry mass</dt>
         <dd>{formatMass(spacecraft.dryMass)}</dd>
@@ -122,13 +121,12 @@ function ChassisCard({ id, selected, onSelect }: ChassisCardProps) {
  * The Chassis's landed art, cropped from its atlas (the `landed` frame is the first 96×64 cell); the
  * generic Spacecraft stands in until the Chassis art is in the manifest.
  */
-function ChassisSprite({ id, name }: { id: ChassisId; name: string }) {
+function ChassisSprite({ id }: { id: ChassisId }) {
   const key = `chassis_${id}`;
   if (hasAsset(key)) {
     return (
       <span
-        role="img"
-        aria-label={`${name} Chassis`}
+        aria-hidden="true"
         className="chassis-card__sprite"
         style={{
           width: SPRITE_WIDTH,
@@ -140,8 +138,7 @@ function ChassisSprite({ id, name }: { id: ChassisId; name: string }) {
   }
   return (
     <span
-      role="img"
-      aria-label={`${name} Chassis`}
+      aria-hidden="true"
       className="chassis-card__sprite chassis-card__sprite--stand-in"
       style={{
         width: SPRITE_WIDTH,

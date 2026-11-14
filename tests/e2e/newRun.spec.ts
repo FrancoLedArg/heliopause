@@ -85,6 +85,7 @@ test('the picker shows each Chassis and its numbers, and picking by keyboard sta
   page,
 }, testInfo) => {
   await page.goto('/?seed=5');
+  await expect(page.getByRole('button', { name: 'New Run' })).toBeVisible();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
 
@@ -114,4 +115,13 @@ test('the picker shows each Chassis and its numbers, and picking by keyboard sta
   await expect(page.getByTestId('fuel')).toHaveText('66.0 t');
   // Hauler: 1210 s Isp, 15 t dry + 66 t Fuel: 1210 × 9.80665 × ln(81 / 15) is about 20.0 km/s.
   await expect(page.getByTestId('delta-v')).toHaveText('20.0 km/s');
+});
+
+test('Back from the picker returns focus to New Run', async ({ page }) => {
+  await page.goto('/?seed=5');
+  const newRun = page.getByRole('button', { name: 'New Run' });
+  await expect(newRun).toBeVisible();
+  await newRun.click();
+  await page.getByRole('button', { name: 'Back' }).click();
+  await expect(newRun).toBeFocused();
 });
