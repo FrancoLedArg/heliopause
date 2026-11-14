@@ -13,10 +13,12 @@ interface LandedPanelsProps {
   run: Run;
   /** The Nav Chart is open and covers the plate and the Nav Chart button. */
   chartOpen: boolean;
+  /** Counts requests to put focus on the Nav Chart button (after the Hop report closes, or a New Run). */
+  focusRequest?: number;
 }
 
 /** The Landed view's panels: the top bar (Star System, Fuel, Δv) and the plate naming the Body. */
-export function LandedPanels({ run, chartOpen }: LandedPanelsProps) {
+export function LandedPanels({ run, chartOpen, focusRequest = 0 }: LandedPanelsProps) {
   const body = currentBody(run);
   const type = bodyTypeLabel(run, body);
 
@@ -27,6 +29,10 @@ export function LandedPanels({ run, chartOpen }: LandedPanelsProps) {
     if (wasOpen.current && !chartOpen) buttonSlot.current?.querySelector('button')?.focus();
     wasOpen.current = chartOpen;
   }, [chartOpen]);
+
+  useEffect(() => {
+    if (focusRequest > 0) buttonSlot.current?.querySelector('button')?.focus();
+  }, [focusRequest]);
 
   return (
     <>

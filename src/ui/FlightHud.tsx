@@ -1,9 +1,8 @@
-import { useEffect, useRef } from 'react';
 import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
 import { availableDeltaV, kilograms, type HopFlight, type Run } from '../game/sim/index.ts';
 import { describeFlight } from './flightHudView.ts';
-import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { HopReport } from './HopReport.tsx';
 import { TopBar } from './TopBar.tsx';
 import './FlightHud.css';
 
@@ -12,9 +11,6 @@ const LOG = { width: 300, height: 78 } as const;
 const FUEL = { width: 256, height: 44 } as const;
 const FUEL_BAR = { width: 190, height: 10, inset: 2 } as const;
 const FILL_MIN_WIDTH = 2;
-const OUTCOME = { width: 300, height: 124 } as const;
-
-const OUTCOME_TITLE = { 'fell-short': 'Fell Short', crashed: 'Crashed' } as const;
 
 interface FlightHudProps {
   /** The Run at Launch. */
@@ -24,6 +20,8 @@ interface FlightHudProps {
   moment: FlightMoment | undefined;
   /** The playback of a failed Hop is over: show what happened and the way out. */
   failed: boolean;
+  /** New Run after a failure: asks for a Chassis, then a new Star System. */
+  onNewRun: () => void;
   onLeave: () => void;
 }
 
@@ -32,9 +30,10 @@ interface FlightHudProps {
  * Transfer → Landing), the Fuel bar and the flight log. Panels keep to the left and the top, clear of
  * the Spacecraft. The in-Run Menu is not offered here: the playback runs to its end.
  */
-export function FlightHud({ before, flight, moment, failed, onLeave }: FlightHudProps) {
+export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }: FlightHudProps) {
   const view = describeFlight(before, flight, moment);
   const fuel = moment?.fuel ?? flight.fuelAtLaunch;
+  const deltaV = availableDeltaV({ ...before.spacecraft, fuelMass: kilograms(fuel) });
   const current = view.phases.find((phase) => phase.state === 'current');
   // Any Fuel left shows at least the fill's 2 px leading edge, the narrowest the kit frame draws.
   const fill =
@@ -42,42 +41,51 @@ export function FlightHud({ before, flight, moment, failed, onLeave }: FlightHud
       ? Math.max(FILL_MIN_WIDTH, Math.round((FUEL_BAR.width - 2 * FUEL_BAR.inset) * view.fuelShare))
       : 0;
 
+  if (failed && flight.outcome.kind !== 'arrived') {
+    // The Run is over: the report takes the place of the playback's panels.
+    return (
+      <>
+        <TopBar systemName={before.starSystem.name} fuel={fuel} deltaV={deltaV} />
+        <HopReport
+          before={before}
+          flight={flight}
+          actions={[
+            { label: 'Back to title', onClick: onLeave },
+            { label: 'New Run', onClick: onNewRun, primary: true },
+          ]}
+        />
+      </>
+    );
+  }
+
   return (
     <>
-      <TopBar
-        systemName={before.starSystem.name}
-        fuel={fuel}
-        deltaV={availableDeltaV({ ...before.spacecraft, fuelMass: kilograms(fuel) })}
-      />
+      <TopBar systemName={before.starSystem.name} fuel={fuel} deltaV={deltaV} />
 
-      {failed && flight.outcome.kind !== 'arrived' ? (
-        <Outcome title={OUTCOME_TITLE[flight.outcome.kind]} why={flight.why} onLeave={onLeave} />
-      ) : (
-        <section className="phase-strip" aria-label="Hop progress" data-testid="phase-strip">
-          <KitFrame frame="panel_holo" width={STRIP.width} height={STRIP.height} />
-          <ol className="phase-strip__list">
-            {view.phases.map((phase) => (
-              <li
-                key={phase.label}
-                className={`phase-strip__phase phase-strip__phase--${phase.state}`}
-                aria-current={phase.state === 'current' ? 'step' : undefined}
-              >
-                {phase.state === 'done' && <KitFrame frame="badge_ok" />}
-                {phase.state === 'current' && (
-                  <span className="phase-strip__dot" aria-hidden="true">
-                    ●
-                  </span>
-                )}
-                {phase.label}
-                {phase.state === 'done' && <span className="sr-only"> (done)</span>}
-              </li>
-            ))}
-          </ol>
-          <p className="sr-only" role="status">
-            {current ? `${current.label} under way` : ''}
-          </p>
-        </section>
-      )}
+      <section className="phase-strip" aria-label="Hop progress" data-testid="phase-strip">
+        <KitFrame frame="panel_holo" width={STRIP.width} height={STRIP.height} />
+        <ol className="phase-strip__list">
+          {view.phases.map((phase) => (
+            <li
+              key={phase.label}
+              className={`phase-strip__phase phase-strip__phase--${phase.state}`}
+              aria-current={phase.state === 'current' ? 'step' : undefined}
+            >
+              {phase.state === 'done' && <KitFrame frame="badge_ok" />}
+              {phase.state === 'current' && (
+                <span className="phase-strip__dot" aria-hidden="true">
+                  ●
+                </span>
+              )}
+              {phase.label}
+              {phase.state === 'done' && <span className="sr-only"> (done)</span>}
+            </li>
+          ))}
+        </ol>
+        <p className="sr-only" role="status">
+          {current ? `${current.label} under way` : ''}
+        </p>
+      </section>
 
       <section className="flight-log" aria-label="Flight log" data-testid="flight-log">
         <KitFrame frame="panel_holo" width={LOG.width} height={LOG.height} />
@@ -132,39 +140,5 @@ export function FlightHud({ before, flight, moment, failed, onLeave }: FlightHud
         </div>
       </section>
     </>
-  );
-}
-
-/** What happened to a failed Hop, until the Hop report (#32) takes its place. */
-function Outcome({ title, why, onLeave }: { title: string; why: string; onLeave: () => void }) {
-  const buttonSlot = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    buttonSlot.current?.querySelector('button')?.focus();
-  }, []);
-  return (
-    <section
-      className="flight-outcome"
-      role="alertdialog"
-      aria-labelledby="flight-outcome-title"
-      aria-describedby="flight-outcome-why"
-      data-testid="flight-outcome"
-    >
-      <KitFrame frame="panel_metal" width={OUTCOME.width} height={OUTCOME.height} />
-      <p className="flight-outcome__badge">
-        <KitFrame frame="badge_alert" />
-        Run over
-      </p>
-      <h2 id="flight-outcome-title" className="flight-outcome__title">
-        {title}
-      </h2>
-      <p id="flight-outcome-why" className="flight-outcome__why">
-        {why}
-      </p>
-      <div ref={buttonSlot} className="flight-outcome__actions">
-        <KitButton variant="primary" width={110} onClick={onLeave}>
-          Back to title
-        </KitButton>
-      </div>
-    </section>
   );
 }

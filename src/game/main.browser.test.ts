@@ -3,7 +3,7 @@ import { KIT_ATLAS_KEY } from '../ui/kit/kit.ts';
 import { EventBus } from './EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from './main.ts';
 import { SceneKey } from './scenes/keys.ts';
-import type { Run } from './sim/index.ts';
+import { launchHop, listBodies, startRun, type Run } from './sim/index.ts';
 
 let game: Phaser.Game | undefined;
 
@@ -68,4 +68,44 @@ it('a New Run request on the Title screen lands on the Landed scene', async () =
   expect(await landed).toBe(SceneKey.Landed);
   expect((await run).spacecraft.chassisId).toBe('lancer');
   expect(game.scene.isActive(SceneKey.Title)).toBe(false);
+});
+
+it('a New Run request from any scene, not only the Title, starts a fresh Run on the Landed scene', async () => {
+  const { game } = await bootToTitle();
+  const first = nextSceneReady();
+  EventBus.emit('new-run-requested', 123, 'scout');
+  expect(await first).toBe(SceneKey.Landed);
+
+  // From the Flight scene (a failed Hop leaves the player there).
+  const flying = nextSceneReady();
+  game.scene.stop(SceneKey.Landed);
+  const run = startRun(123, 'scout');
+  const target = listBodies(run.starSystem).find((body) => {
+    const launched = launchHop(run, body.id);
+    return launched.kind === 'flown' && launched.flight.outcome.kind === 'crashed';
+  });
+  if (!target) throw new Error('seed 123 has no crashing Hop');
+  const launched = launchHop(run, target.id);
+  if (launched.kind !== 'flown') throw new Error('not flown');
+  game.scene.start(SceneKey.Flight, {
+    before: run,
+    flight: launched.flight,
+    after: launched.run,
+  });
+  expect(await flying).toBe(SceneKey.Flight);
+
+  const started = new Promise<Run>((resolve) => {
+    const off = EventBus.on('run-started', (r) => {
+      off();
+      resolve(r);
+    });
+  });
+  const landed = nextSceneReady();
+  EventBus.emit('new-run-requested', 77, 'hauler');
+  expect(await landed).toBe(SceneKey.Landed);
+  const second = await started;
+  expect(second.seed).toBe(77);
+  expect(second.spacecraft.chassisId).toBe('hauler');
+  expect(game.scene.isActive(SceneKey.Flight)).toBe(false);
+  expect(game.scene.isActive(SceneKey.Landed)).toBe(true);
 });
