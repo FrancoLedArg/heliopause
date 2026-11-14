@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { GameObjects } from 'phaser';
+import { GameObjects, Scenes } from 'phaser';
 import { afterEach, expect, it, vi } from 'vitest';
 import { GameUI } from '../../ui/GameUI.tsx';
 import { EventBus } from '../EventBus.ts';
@@ -171,11 +171,25 @@ it('the F key turns fast-forward on and off: the clock runs about 4x as fast and
   const { scene } = await fly('scout');
   const button = document.querySelector<HTMLButtonElement>('.fast-forward');
   expect(button?.getAttribute('aria-pressed')).toBe('false');
+  // Playback per millisecond of game time, not of wall time: a loaded machine stretches both
+  // together, so only the speed the feature sets shows in the ratio. Sampling after each full
+  // update keeps the playback and the frame deltas aligned frame by frame.
   const advance = async (): Promise<number> => {
-    const from = scene.playbackMs;
-    const started = performance.now();
+    let frames = 0;
+    let gameMs = 0;
+    let playbackStart = 0;
+    let playbackEnd = 0;
+    const onFrame = (_time: number, delta: number): void => {
+      frames += 1;
+      if (frames === 1) playbackStart = scene.playbackMs;
+      else gameMs += delta;
+      playbackEnd = scene.playbackMs;
+    };
+    scene.events.on(Scenes.Events.POST_UPDATE, onFrame);
     await wait(1000);
-    return (scene.playbackMs - from) / (performance.now() - started);
+    scene.events.off(Scenes.Events.POST_UPDATE, onFrame);
+    expect(frames).toBeGreaterThan(2);
+    return (playbackEnd - playbackStart) / gameMs;
   };
   await wait(300); // let the create frame's catch-up pass before the 1x window
   const normal = await advance();

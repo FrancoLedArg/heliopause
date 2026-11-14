@@ -153,13 +153,15 @@ test('under reduced motion the playback is shorter and still steps through the t
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openNavChart(page);
   await target(page, homeMoon.name);
-  const launched = Date.now();
   await page.getByRole('button', { name: 'Launch' }).click();
   await expect(currentBurn(page)).toContainText('Takeoff');
   await expect(currentBurn(page)).toContainText('Transfer');
   await expect(currentBurn(page)).toContainText('Landing');
-  await expect(page.getByRole('heading', { name: homeMoon.name, level: 1 })).toBeVisible();
-  expect(Date.now() - launched).toBeLessThan(8_000);
+  // How much shorter reduced motion plays is checked on the playback itself (flightPlayback.test.ts);
+  // a wall-clock limit here fails on a loaded machine, so this waits on the outcome instead.
+  await expect(page.getByRole('heading', { name: homeMoon.name, level: 1 })).toBeVisible({
+    timeout: 30_000,
+  });
 });
 
 test('a Hop that Crashes stops on the Landing and says why, and the title is the way out', async ({
@@ -185,7 +187,7 @@ test('a Hop that Crashes stops on the Landing and says why, and the title is the
   await expect(page.getByRole('button', { name: 'New Run' })).toBeVisible();
 });
 
-test('fast-forward (F) plays the same Hop in a fraction of the time and lands with the same Fuel', async ({
+test('fast-forward (F) turns on, keeps the flight log filling in, and lands with the same Fuel', async ({
   page,
 }) => {
   test.setTimeout(60_000);
@@ -193,7 +195,6 @@ test('fast-forward (F) plays the same Hop in a fraction of the time and lands wi
   await target(page, homeMoon.name);
   await page.getByRole('button', { name: 'Launch' }).click();
   await expect(currentBurn(page)).toContainText('Takeoff');
-  const launched = Date.now();
   await page.keyboard.press('f');
   await expect(page.getByRole('button', { name: /Fast-forward/ })).toHaveAttribute(
     'aria-pressed',
@@ -204,10 +205,10 @@ test('fast-forward (F) plays the same Hop in a fraction of the time and lands wi
     /m\/s.*%/,
   );
   await expect(page.getByRole('heading', { name: homeMoon.name, level: 1 })).toBeVisible({
-    timeout: 10_000,
+    timeout: 30_000,
   });
-  // The full playback is about 13 s; at 4x it is well under 7 s.
-  expect(Date.now() - launched).toBeLessThan(7_000);
+  // How much faster it plays is checked on the playback clock (Flight.browser.test.tsx); wall time
+  // here would only measure how busy the machine is.
   await expect(page.getByTestId('fuel')).toHaveText(formatFuel(moonHop.flight.fuelRemaining));
 });
 
