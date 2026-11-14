@@ -13,6 +13,8 @@ How work moves from a conversation with the human to merged code on `main`. Ever
 | **Builder**      | subagent, own git worktree                   | Sonnet (Opus when assigned) | One ticket → one PR                                                     |
 | **Reviewer**     | subagent, own git worktree                   | Opus                        | Verdict on one PR: standards, spec, and the change working in a browser |
 
+The Planner owns the shared main checkout and may leave it on a `planner/*` branch with uncommitted edits. The Orchestrator never runs from it: `pnpm orchestrator` creates or refreshes its own worktree (`.claude/worktrees/orchestrator-main`, detached at `origin/main`) and starts there, so `pnpm pipeline` always runs the scripts on `main`.
+
 The human makes **product** decisions (what the game is, how it feels, what ships). Agents make every **technical** decision and record the hard-to-reverse ones as ADRs in `docs/adr/`.
 
 ## Artifacts
