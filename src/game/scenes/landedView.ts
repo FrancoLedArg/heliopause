@@ -57,6 +57,12 @@ const SPRITE_PREFIX = {
 export const SPRITE_SIZE = { star: 64, 'rocky-planet': 24, 'gas-giant': 48, moon: 12 } as const;
 /** Gap (px) left between a planet and the Moons drawn beside it. */
 const MOON_GAP = 2;
+/** Gap (px) kept between any two sky Bodies (the star aside), so none overlaps another. */
+const SKY_GAP = 2;
+/** How far (in Moon widths) beyond its planet's edge a Moon may fan out. */
+const MOON_REACH = 4;
+/** Heights tried, nearest the wanted one first, when a spot is taken. */
+const NUDGES = [0, -6, 6, -12, 12, -18, 18, -24, 24, -32, 32] as const;
 
 /**
  * The far-layer horizon on screen, as the generated art draws it (about 16 px above the painted
@@ -195,63 +201,91 @@ export function skyBodies(run: Run): SkyBody[] {
   const bearing = (at: Point): number => Math.atan2(at.y - from.y, at.x - from.x);
   const inSky = (id: BodyId): boolean => nearest.some((n) => n.body.id === id);
 
-  // Planets, and Moons whose planet is not in the sky, hang where their bearing puts them.
   const placed = new Map<BodyId, SkyBody>();
+  /** Looks for the free spot nearest the wanted one: sideways first, then up or down a little. */
+  const settle = (
+    kind: Body['kind'],
+    scale: number,
+    want: Point,
+    range: { readonly min: number; readonly max: number },
+  ): Point | undefined => {
+    const half = halfWidth(kind, scale);
+    const free = (x: number, y: number): boolean =>
+      [...placed.values()].every(
+        (o) => Math.hypot(o.x - x, o.y - y) >= half + halfWidth(o.kind, o.scale) + SKY_GAP,
+      );
+    for (let d = 0; d <= range.max - range.min; d++) {
+      for (const x of d === 0 ? [want.x] : [want.x + d, want.x - d]) {
+        if (x < range.min || x > range.max) continue;
+        for (const dy of NUDGES) {
+          const y = clampToSky(want.y + dy, x, kind, scale);
+          if (free(x, y)) return { x, y };
+        }
+      }
+    }
+    return undefined;
+  };
+
+  // Planets, and Moons whose planet is not in the sky, hang where their bearing puts them, nearest
+  // first so the Body you are closest to keeps its place; later ones move aside rather than overlap.
   for (const { body, at, distance } of nearest) {
     if (body.kind === 'moon' && inSky(body.planetId)) continue;
     const scale = scaleForDistance(distance, false);
-    const x = place(bearing(at));
+    const spot = settle(
+      body.kind,
+      scale,
+      { x: place(bearing(at)), y: skyHeight(run, body) },
+      { min: SKY_VISIBLE.left, max: SKY_VISIBLE.right },
+    );
+    if (!spot) continue;
     placed.set(body.id, {
       bodyId: body.id,
       kind: body.kind,
       sprite: bodySprite(run, body),
-      x,
-      y: clampToSky(skyHeight(run, body), x, body.kind, scale),
+      x: spot.x,
+      y: spot.y,
       scale,
       distanceAu: distance,
     });
   }
 
-  // Moons whose planet is in the sky hang beside it, on the side of their true bearing.
-  const taken = new Map<BodyId, Record<'-1' | '1', number>>();
+  // Moons whose planet is in the sky hang beside it, on the side of their true bearing, and fan out.
+  // A planet hidden behind the star takes its Moons with it rather than leave them orphaned.
+  const hiddenByStar = (planet: SkyBody): boolean =>
+    planet.distanceAu > star.distanceAu &&
+    Math.hypot(planet.x - star.x, planet.y - star.y) + halfWidth(planet.kind, planet.scale) <=
+      halfWidth('star', star.scale);
   for (const { body, at, distance } of nearest) {
     if (body.kind !== 'moon' || !inSky(body.planetId)) continue;
     const planet = placed.get(body.planetId);
-    const planetBody = planetOf(run, body);
-    if (!planet) throw new Error(`Planet ${planetBody.id} is in the sky but was not placed`);
+    if (!planet || hiddenByStar(planet)) continue;
     const scale = scaleForDistance(distance, false);
     const half = halfWidth('moon', scale);
-    const trueDx = place(bearing(at)) - place(bearing(position(run, planetBody)));
-    const preferred = trueDx === 0 ? (stringSeed(body.id) % 2 === 0 ? 1 : -1) : Math.sign(trueDx);
-    const used = taken.get(planetBody.id) ?? { '-1': 0, '1': 0 };
-    const offsetOn = (side: -1 | 1): number =>
-      side *
-      (halfWidth(planet.kind, planet.scale) +
-        half +
-        MOON_GAP +
-        used[`${side}`] * (2 * half + MOON_GAP));
-    const fits = (side: -1 | 1): boolean => {
-      const x = planet.x + offsetOn(side);
-      return x >= SKY_VISIBLE.left && x <= SKY_VISIBLE.right;
-    };
-    const side: -1 | 1 = fits(preferred === 1 ? 1 : -1)
-      ? preferred === 1
-        ? 1
-        : -1
-      : preferred === 1
-        ? -1
-        : 1;
-    const x = Math.min(Math.max(planet.x + offsetOn(side), SKY_VISIBLE.left), SKY_VISIBLE.right);
-    used[`${side}`] += 1;
-    taken.set(planetBody.id, used);
+    const trueDx = place(bearing(at)) - place(bearing(position(run, planetOf(run, body))));
+    const side = trueDx === 0 ? (stringSeed(body.id) % 2 === 0 ? 1 : -1) : Math.sign(trueDx);
+    const near = halfWidth(planet.kind, planet.scale) + half + MOON_GAP;
+    const reach = near + MOON_REACH * (2 * half + MOON_GAP);
+    const spot = settle(
+      'moon',
+      scale,
+      {
+        x: planet.x + side * near,
+        y:
+          planet.y +
+          createRng(run.seed ^ stringSeed(`${body.id}:height`)).int(-MOON_SPREAD, MOON_SPREAD),
+      },
+      {
+        min: Math.max(SKY_VISIBLE.left, planet.x - reach),
+        max: Math.min(SKY_VISIBLE.right, planet.x + reach),
+      },
+    );
+    if (!spot) continue;
     placed.set(body.id, {
       bodyId: body.id,
       kind: 'moon',
       sprite: bodySprite(run, body),
-      x,
-      y:
-        planet.y +
-        createRng(run.seed ^ stringSeed(`${body.id}:height`)).int(-MOON_SPREAD, MOON_SPREAD),
+      x: spot.x,
+      y: spot.y,
       scale,
       distanceAu: distance,
     });
