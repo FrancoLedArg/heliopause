@@ -255,9 +255,10 @@ describe('flying a Hop', () => {
         ['landing', 'completed'],
       ]);
       expect(flight.why).toContain(moon.name);
-      // Arrived moves the Spacecraft to the target with the Fuel left.
+      // Arrived moves the Spacecraft to the target with the Fuel left, plus what landing collected.
       expect(next.status).toEqual({ kind: 'landed', bodyId: moon.id });
-      expect(next.spacecraft.fuelMass).toBe(flight.fuelRemaining);
+      const collected = flight.collection?.kind === 'fuel' ? flight.collection.collected : 0;
+      expect(next.spacecraft.fuelMass).toBeCloseTo(flight.fuelRemaining + collected);
       expect(flight.fuelRemaining).toBeLessThan(run.spacecraft.fuelMass);
       expect(flight.fuelRemaining).toBeGreaterThan(0);
     }
@@ -269,7 +270,9 @@ describe('flying a Hop', () => {
       (sum, burn) => sum + (burn.status === 'not-flown' ? 0 : burn.actual),
       0,
     );
-    expect(availableDeltaV(next.spacecraft)).toBeCloseTo(moonPlan.availableDeltaV - spent, 3);
+    // The Hop's own Fuel: the Δv left before landing collected anything.
+    const beforeCollecting = { ...next.spacecraft, fuelMass: flight.fuelRemaining };
+    expect(availableDeltaV(beforeCollecting)).toBeCloseTo(moonPlan.availableDeltaV - spent, 3);
     expect(flight.deltaVRemaining).toBeCloseTo(moonPlan.availableDeltaV - spent, 3);
   });
 
