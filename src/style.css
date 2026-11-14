@@ -301,9 +301,9 @@ body {
   color: var(--wh3);
 }
 
+/* The cards, note and buttons are placed from the art's size: their `top` is set in ChassisPicker.tsx. */
 .chassis-picker__cards {
   position: absolute;
-  top: 52px;
   left: 16px;
   display: flex;
   gap: 16px;
@@ -363,8 +363,6 @@ body {
 
 .chassis-card__sprite {
   position: absolute;
-  top: 26px;
-  left: 48px;
   background-repeat: no-repeat;
   background-position: 0 0;
   image-rendering: pixelated;
@@ -378,7 +376,6 @@ body {
 
 .chassis-card__stats {
   position: absolute;
-  top: 100px;
   left: 12px;
   right: 12px;
   margin: 0;
@@ -408,7 +405,6 @@ body {
 
 .chassis-picker__note {
   position: absolute;
-  top: 232px;
   left: 40px;
   width: 560px;
   text-align: center;
@@ -418,7 +414,6 @@ body {
 
 .chassis-picker__actions {
   position: absolute;
-  top: 280px;
   left: 0;
   width: 640px;
   display: flex;
@@ -591,7 +586,7 @@ body {
 .landed-nav-button {
   position: absolute;
   top: 322px;
-  /* Right of the location plate (ends x 296) and below the Spacecraft, which sweeps x 429–621, y 232–302: no panel over the ship. */
+  /* Right of the location plate (ends x 296) and below the Spacecraft, which sweeps x 425–625, y 170–302 (`SHIP_SWEEP` in landedView.ts): no panel over the ship. */
   left: 352px;
 }
 
