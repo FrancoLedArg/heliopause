@@ -4,6 +4,7 @@ dist-ssr
 coverage
 playwright-report
 test-results
+.vitest/
 blob-report
 *.local
 *.log
