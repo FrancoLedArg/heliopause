@@ -10,6 +10,8 @@ export interface GameEvents {
   'run-started': [run: Run];
   /** React -> Phaser: the player launched a New Run; it starts from `seed` (see `chooseRunSeed`) on `chassisId`. */
   'new-run-requested': [seed: Seed, chassisId: ChassisId];
+  /** React -> Phaser: the player confirmed leaving the Run from the in-Run Menu; go back to the Title scene. */
+  'leave-run-requested': [];
 }
 
 class TypedEventBus {
@@ -24,6 +26,11 @@ class TypedEventBus {
     return () => {
       this.emitter.off(event, listener);
     };
+  }
+
+  /** How many handlers are listening for `event`; tests use it to prove scenes clean up after themselves. */
+  listenerCount(event: keyof GameEvents): number {
+    return this.emitter.listenerCount(event);
   }
 }
 

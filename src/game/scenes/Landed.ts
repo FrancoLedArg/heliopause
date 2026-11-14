@@ -13,6 +13,7 @@ import {
   type SurfaceKind,
 } from './landedView.ts';
 import { SceneKey } from './keys.ts';
+import { onLeaveRun } from './leaveRun.ts';
 import { addStarfield } from './starfield.ts';
 
 export interface LandedData {
@@ -88,6 +89,7 @@ export class Landed extends Scene {
     });
     this.layers = { sky, far, mid, near, ship: this.buildShip() };
 
+    onLeaveRun(this);
     EventBus.emit('run-started', this.run);
     EventBus.emit('scene-ready', SceneKey.Landed);
   }

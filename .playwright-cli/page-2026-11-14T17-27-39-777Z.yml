@@ -1,0 +1,16 @@
+- generic [ref=e4]:
+    - generic:
+        - generic:
+            - banner:
+                - paragraph: Star System
+                - paragraph: Tothaexprae
+                - paragraph: Fuel
+                - paragraph: 21.0 t
+                - paragraph: Δv available
+                - paragraph: 22.1 km/s
+            - region "Mioquoxdru":
+                - heading "Mioquoxdru" [level=1]
+                - paragraph: Home Planet · Rocky
+                - paragraph: Gravity 5.9 m/s² · 0.43 AU from the star
+            - button "Menu" [ref=e7] [cursor=pointer]
+            - paragraph: AI-generated art
