@@ -2,8 +2,15 @@
 // No Phaser here, so the scene stays a thin renderer and these rules are tested in Node.
 import { stringSeed } from '../lib/stringSeed.ts';
 import { createRng } from '../lib/rng.ts';
+import { standingExtent } from './chassisArt.ts';
 import { DRIFT_RANGE } from './landedMotion.ts';
-import { astronomicalUnits, currentBody, kilometersToAu, listBodies } from '../sim/index.ts';
+import {
+  astronomicalUnits,
+  CHASSIS_IDS,
+  currentBody,
+  kilometersToAu,
+  listBodies,
+} from '../sim/index.ts';
 import type {
   AstronomicalUnits,
   Body,
@@ -26,8 +33,8 @@ export function surfaceKind(body: LandableBody): SurfaceKind {
  * Where the whole Spacecraft stands: `x` is the centre of its base at rest, `baseY` the ground
  * line it rests on. The near layer's ground is almost level from x 450 to 600 (it drops 2-4 px).
  * The ambient drift (#37) moves the near ground and the ship rides it, so the ship sweeps
- * `SHIP_SWEEP_X` (x 429-621 for the 96 px Chassis); panels must stay clear of that whole span,
- * not only of the resting position. The location plate sits at lower left, clear of it.
+ * `SHIP_SWEEP_X`; panels must stay clear of the whole `SHIP_SWEEP` box, not only of the resting
+ * position. The location plate sits at lower left, clear of it.
  */
 export const SHIP_PLACEMENT = { x: 525, baseY: 296 } as const;
 
@@ -36,6 +43,24 @@ export const SHIP_SWEEP_X = {
   min: SHIP_PLACEMENT.x - DRIFT_RANGE.near,
   max: SHIP_PLACEMENT.x + DRIFT_RANGE.near,
 } as const;
+
+/** The shadow under the Spacecraft: an ellipse this far below the base line, this tall (px). */
+export const SHIP_SHADOW = { dy: 2, height: 8 } as const;
+
+/**
+ * Everything the standing Spacecraft can cover on screen, over the whole drift: its widest and
+ * tallest Chassis art (sizes come from the generated art data) at both ends of `SHIP_SWEEP_X`, down
+ * to its shadow. No panel may overlap this box.
+ */
+export const SHIP_SWEEP = (() => {
+  const { halfWidth, height } = standingExtent(CHASSIS_IDS);
+  return {
+    left: SHIP_SWEEP_X.min - halfWidth,
+    right: SHIP_SWEEP_X.max + halfWidth,
+    top: SHIP_PLACEMENT.baseY - height,
+    bottom: SHIP_PLACEMENT.baseY + SHIP_SHADOW.dy + SHIP_SHADOW.height / 2,
+  };
+})();
 
 /** Width of each surface layer: wider than the 640 px screen so the ambient drift never shows an edge. */
 export const SURFACE_WIDTH = 800;

@@ -243,6 +243,7 @@ it('the route inset names the two Bodies and shows how far along the Hop is', as
   expect(share).toBeLessThan(70);
 });
 
+// It waits on the real (reduced) playback to end, so a loaded machine needs more than the default 15 s.
 it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clear of the report', async () => {
   vi.spyOn(window, 'matchMedia').mockImplementation(
     (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
@@ -282,7 +283,6 @@ it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clea
   if (!scene) throw new Error('no Flight scene');
   // The whole Spacecraft, plumes included, sits right of the report.
   expect(scene.ship.getBounds().left).toBeGreaterThanOrEqual(reportRight);
-  // It waits on the real (reduced) playback to end, so a loaded machine needs more than the default 15 s.
 }, 60_000);
 
 it('the particles use the real sprites, tinted: dust and smoke by surface, sparks amber', async () => {

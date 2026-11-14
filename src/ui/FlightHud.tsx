@@ -73,7 +73,12 @@ export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }:
     // The Run is over: the report takes the place of the playback's panels.
     return (
       <>
-        <TopBar systemName={before.starSystem.name} fuel={fuel} deltaV={deltaV} />
+        <TopBar
+          systemName={before.starSystem.name}
+          fuel={fuel}
+          deltaV={deltaV}
+          materials={before.materials}
+        />
         <HopReport
           before={before}
           flight={flight}
@@ -88,7 +93,12 @@ export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }:
 
   return (
     <>
-      <TopBar systemName={before.starSystem.name} fuel={fuel} deltaV={deltaV} />
+      <TopBar
+        systemName={before.starSystem.name}
+        fuel={fuel}
+        deltaV={deltaV}
+        materials={before.materials}
+      />
 
       <section className="phase-strip" aria-label="Hop progress" data-testid="phase-strip">
         <KitFrame frame="panel_holo" width={STRIP.width} height={STRIP.height} />

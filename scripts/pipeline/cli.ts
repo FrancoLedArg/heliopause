@@ -10,6 +10,7 @@ import {
   checksFromRequired,
   cleanupSummary,
   closedIssueNumbers,
+  closeSpecSteps,
   DEFAULT_REQUIRED_CHECKS,
   isBehind,
   isDirty,
@@ -17,6 +18,7 @@ import {
   leanStatus,
   mergeFailureMeansBehind,
   parseMergeState,
+  runStepsUntilFailure,
   summarize,
   type CheckContext,
   type IssueSnapshot,
@@ -44,39 +46,22 @@ function ghTry(args: readonly string[]): GhAttempt {
   }
 }
 
-/** Comment, unlabel and close a delivered spec; each step is best-effort and records its failure. */
-function closeSpec(spec: number, total: number, failures: string[]): void {
-  const steps: [string, string[]][] = [
-    [
-      `comment on spec #${String(spec)}`,
-      [
-        'issue',
-        'comment',
-        String(spec),
-        '--body',
-        `🤖 All ${String(total)} tickets merged. Spec delivered.`,
-      ],
-    ],
-    [
-      `relabel spec #${String(spec)}`,
-      [
-        'issue',
-        'edit',
-        String(spec),
-        '--remove-label',
-        `${Label.ReadyForAgent},${Label.InProgress}`,
-      ],
-    ],
-    [`close spec #${String(spec)}`, ['issue', 'close', String(spec), '--reason', 'completed']],
-  ];
-  for (const [what, args] of steps) {
-    const result = ghTry(args);
-    if (!result.ok) {
-      failures.push(what);
-      console.warn(`warning: ${what} failed: ${result.output.trim()}`);
-    }
+/** Runs a best-effort `gh` step: a failure is recorded and warned about, never thrown. */
+function attempt(failures: string[], what: string, args: readonly string[]): boolean {
+  const result = ghTry(args);
+  if (!result.ok) {
+    failures.push(what);
+    console.warn(`warning: ${what} failed: ${result.output.trim()}`);
   }
-  console.log(`Closed spec #${String(spec)}`);
+  return result.ok;
+}
+
+/** Comment, close and unlabel a delivered spec, stopping at the first failure. */
+function closeSpec(spec: number, total: number, failures: string[]): void {
+  const done = runStepsUntilFailure(closeSpecSteps(spec, total), (step) =>
+    attempt(failures, step.what, step.args),
+  );
+  if (done.includes('close')) console.log(`Closed spec #${String(spec)}`);
 }
 
 interface Repo {
@@ -420,19 +405,10 @@ const commands: Record<string, (args: string[]) => void> = {
     // The PR is merged: everything below is best-effort. A failure is noted and the
     // rest still runs; a later `close-specs` pass recovers a missed close.
     const failures: string[] = [];
-    const attempt = (what: string, args: readonly string[]): boolean => {
-      const result = ghTry(args);
-      if (!result.ok) {
-        failures.push(what);
-        console.warn(`warning: ${what} failed: ${result.output.trim()}`);
-      }
-      return result.ok;
-    };
-
     const doneLabels = `${Label.ReadyForAgent},${Label.InProgress}`;
     const tickets = closedIssueNumbers(pull.body);
     for (const ticket of tickets) {
-      attempt(`relabel #${String(ticket)}`, [
+      attempt(failures, `relabel #${String(ticket)}`, [
         'issue',
         'edit',
         String(ticket),
@@ -441,7 +417,7 @@ const commands: Record<string, (args: string[]) => void> = {
       ]);
       // GitHub closes `Closes #N` tickets asynchronously; close them now so the
       // sub-issue count below is not read before it catches up.
-      attempt(`close #${String(ticket)}`, [
+      attempt(failures, `close #${String(ticket)}`, [
         'issue',
         'close',
         String(ticket),

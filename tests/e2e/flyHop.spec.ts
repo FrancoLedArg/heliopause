@@ -62,7 +62,7 @@ async function target(page: Page, name: string): Promise<void> {
 const currentBurn = (page: Page) =>
   page.getByTestId('phase-strip').locator('[aria-current="step"]');
 
-test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, then lands on the Moon with less Fuel', async ({
+test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, then lands on the Moon and collects its Fuel', async ({
   page,
 }, testInfo) => {
   test.setTimeout(60_000);
@@ -107,6 +107,10 @@ test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, the
   }
   await expect(report.getByTestId('hop-report-margin')).toContainText('Margin left');
   await expect(report).toContainText(moonHop.flight.why);
+  // Landing on the Icy Moon collected its Fuel, and said why that is plausible.
+  await expect(report.getByTestId('hop-report-collected')).toContainText(/Collected .* t of Fuel/);
+  await expect(report).toContainText('so rockets could refuel on the Moon');
+  await expect(page.getByTestId('materials')).toHaveText(String(run.materials));
   await testInfo.attach('arrived-report', {
     body: await page.screenshot(),
     contentType: 'image/png',
@@ -120,8 +124,10 @@ test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, the
   await page.keyboard.press('Enter');
   await expect(report).toBeHidden();
   await expect(page.getByRole('button', { name: /Nav Chart/ })).toBeFocused();
-  await expect(page.getByTestId('fuel')).toHaveText(formatFuel(moonHop.flight.fuelRemaining));
+  // The Fuel left by the Hop, plus what landing collected.
+  await expect(page.getByTestId('fuel')).toHaveText(formatFuel(moonHop.run.spacecraft.fuelMass));
   expect(moonHop.flight.fuelRemaining).toBeLessThan(run.spacecraft.fuelMass);
+  expect(moonHop.run.spacecraft.fuelMass).toBeGreaterThan(moonHop.flight.fuelRemaining);
   await testInfo.attach('arrived', { body: await page.screenshot(), contentType: 'image/png' });
 
   // The next Hop can be planned from the Moon.
@@ -210,7 +216,7 @@ test('fast-forward (F) turns on, keeps the flight log filling in, and lands with
   });
   // How much faster it plays is checked on the playback clock (Flight.browser.test.tsx); wall time
   // here would only measure how busy the machine is.
-  await expect(page.getByTestId('fuel')).toHaveText(formatFuel(moonHop.flight.fuelRemaining));
+  await expect(page.getByTestId('fuel')).toHaveText(formatFuel(moonHop.run.spacecraft.fuelMass));
 });
 
 test('after a failed Hop, New Run starts a different Star System on its Home Planet', async ({

@@ -1,6 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
+import {
+  FLIGHT_ANGLE,
+  frameGeometry,
+  nozzleExits,
+  turn,
+  type ShipFrame,
+  type ShipPose,
+} from '../../src/game/scenes/chassisArt.ts';
 
 // Seam: the committed Chassis art as the game sees it, through manifest.json, the atlas JSON and the PNGs.
 const ASSETS = new URL('../../public/assets/', import.meta.url);
@@ -78,14 +86,14 @@ const hex = (n: number): string => n.toString(16).padStart(2, '0');
 
 describe('Chassis sprites', () => {
   for (const id of CHASSIS) {
-    it(`${id} is a spritesheet with landed, landed_lit and flight frames of 96x64`, () => {
+    it(`${id} is a spritesheet with landed, landed_lit and flight frames sized as the art data says`, () => {
       const sheet = atlas(`chassis_${id}`);
       const png = decodePng(read(sheet.image));
       const named = frames(`chassis_${id}`);
       expect(Object.keys(named).sort()).toEqual(['flight', 'landed', 'landed_lit']);
-      for (const { frame } of Object.values(named)) {
-        expect(frame.w).toBe(96);
-        expect(frame.h).toBe(64);
+      for (const [name, { frame }] of Object.entries(named)) {
+        const size = frameGeometry(id, name as ShipFrame);
+        expect([frame.w, frame.h], `${id} ${name}`).toEqual([size.width, size.height]);
         expect(frame.x + frame.w).toBeLessThanOrEqual(png.width);
         expect(frame.y + frame.h).toBeLessThanOrEqual(png.height);
       }
@@ -124,32 +132,76 @@ describe('Chassis sprites', () => {
     }
   });
 
-  it('the scout is the smallest landed Chassis, and every landed ship touches the frame bottom', () => {
-    const outline = (id: string): { width: number; height: number; bottom: number } => {
-      const png = decodePng(read(atlas(`chassis_${id}`).image));
-      const frame = frames(`chassis_${id}`)['landed']?.frame;
-      if (!frame) throw new Error(`${id} lacks landed`);
-      let [minX, minY, maxX, maxY] = [frame.w, frame.h, -1, -1];
-      for (let y = 0; y < frame.h; y++) {
-        for (let x = 0; x < frame.w; x++) {
-          if ((png.rgba[((frame.y + y) * png.width + frame.x + x) * 4 + 3] ?? 0) === 0) continue;
-          [minX, minY, maxX, maxY] = [
-            Math.min(minX, x),
-            Math.min(minY, y),
-            Math.max(maxX, x),
-            Math.max(maxY, y),
-          ];
+  /** Whether the pixel at (x, y) of a frame (frame-local) is part of the art. */
+  const solidAt = (
+    id: (typeof CHASSIS)[number],
+    name: ShipFrame,
+  ): ((x: number, y: number) => boolean) => {
+    const png = decodePng(read(atlas(`chassis_${id}`).image));
+    const frame = frames(`chassis_${id}`)[name]?.frame;
+    if (!frame) throw new Error(`${id} lacks ${name}`);
+    return (x, y) =>
+      x >= 0 &&
+      y >= 0 &&
+      x < frame.w &&
+      y < frame.h &&
+      (png.rgba[((frame.y + y) * png.width + frame.x + x) * 4 + 3] ?? 0) > 0;
+  };
+
+  for (const id of CHASSIS) {
+    for (const name of ['landed', 'landed_lit'] as const) {
+      it(`${id} rests the lowest row of its ${name} art on the base line`, () => {
+        const { width, height, pivot } = frameGeometry(id, name);
+        const solid = solidAt(id, name);
+        let lowest = -1;
+        for (let y = 0; y < height; y++)
+          for (let x = 0; x < width; x++) if (solid(x, y)) lowest = y;
+        // The origin is the centre of the base, on the line the Spacecraft stands on.
+        expect(lowest + 1).toBe(pivot.y);
+        expect(pivot.x).toBe(width / 2);
+      });
+    }
+
+    for (const pose of ['standing', 'flight'] as const satisfies readonly ShipPose[]) {
+      it(`${id} has every nozzle exit of the ${pose} pose at the bottom of a nozzle`, () => {
+        const frame: ShipFrame = pose === 'standing' ? 'landed' : 'flight';
+        const { pivot } = frameGeometry(id, frame);
+        const solid = solidAt(id, frame);
+        // Plumes leave rearward: straight down when standing, along the flight heading when turned.
+        const rearward = turn({ x: 0, y: 1 }, pose === 'flight' ? FLIGHT_ANGLE : 0);
+        for (const exit of nozzleExits(id, pose)) {
+          const at = (distance: number): boolean =>
+            solid(
+              Math.floor(pivot.x + exit.x + rearward.x * distance),
+              Math.floor(pivot.y + exit.y + rearward.y * distance),
+            );
+          expect(at(-1.5), `art just inside the exit ${JSON.stringify(exit)}`).toBe(true);
+          expect(at(2.5), `open air beyond the exit ${JSON.stringify(exit)}`).toBe(false);
+        }
+      });
+    }
+
+    it(`${id} points its nose up and to the right in the flight frame`, () => {
+      const { width, height, pivot } = frameGeometry(id, 'flight');
+      const solid = solidAt(id, 'flight');
+      // The nose is the solid pixel furthest from the base centre.
+      let nose = { x: 0, y: 0 };
+      let far = 0;
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const reach = Math.hypot(x - pivot.x, y - pivot.y);
+          if (solid(x, y) && reach > far) {
+            far = reach;
+            nose = { x: x - pivot.x, y: y - pivot.y };
+          }
         }
       }
-      return { width: maxX - minX + 1, height: maxY - minY + 1, bottom: maxY };
-    };
-    const [scout, hauler, lancer] = [outline('scout'), outline('hauler'), outline('lancer')];
-    const area = (box: { width: number; height: number }): number => box.width * box.height;
-    expect(area(scout)).toBeLessThan(area(hauler) * 0.85);
-    expect(area(scout)).toBeLessThan(area(lancer) * 0.85);
-    expect(scout.width).toBeLessThan(Math.min(hauler.width, lancer.width) - 10);
-    for (const ship of [scout, hauler, lancer]) expect(ship.bottom).toBe(63);
-  });
+      // 24 degrees above the horizontal, give or take the pixels.
+      const heading = (Math.atan2(-nose.y, nose.x) * 180) / Math.PI;
+      expect(heading).toBeGreaterThan(90 - FLIGHT_ANGLE - 4);
+      expect(heading).toBeLessThan(90 - FLIGHT_ANGLE + 4);
+    });
+  }
 
   it('uses only palette colours, fully opaque or fully transparent', () => {
     for (const key of ['chassis_scout', 'chassis_hauler', 'chassis_lancer', 'fx_thruster']) {
