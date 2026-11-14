@@ -16,6 +16,7 @@ import {
   targetStatus,
   TOOLTIP_SIZE,
   tooltipHeight,
+  tooltipKindExtra,
   type ChartCommand,
   type ChartState,
   type Direction,
@@ -35,6 +36,8 @@ import { DELTA_V_EXPLANATION, describeHopPlan } from './hopPlanView.ts';
 const PANEL = { x: 8, y: 52, width: 432, height: 284 } as const;
 const SIDE = { x: 444, y: 52, width: 188, height: 284 } as const;
 const TITLEBAR_HEIGHT = 14;
+/** The target name is 16 px Silkscreen, 9 to 13 px a character across 164 px; longer wraps. */
+const LONG_TARGET_NAME = 12;
 
 const ARROWS: Partial<Record<string, Direction>> = {
   ArrowLeft: 'left',
@@ -95,12 +98,17 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
   // Labels and tooltip take about a millisecond, and the panel only renders when the chart changes.
   const context = { hereId: here.id, targetId: state.selectedId, focusedId: state.focusedId };
   const labels = placeLabels(layout, context);
-  const tipHeight = tooltipHeight(status.valid ? undefined : status.why);
+  const focusedKind = bodyTypeLabel(run, focused);
+  const kindExtra = tooltipKindExtra(focusedKind);
+  const tipHeight = tooltipHeight(status.valid ? undefined : status.why, kindExtra);
   const tooltip = placeTooltip(layout, context, tipHeight, labels);
 
   const planned = state.selectedId === undefined ? undefined : planHop(run, state.selectedId);
   const view =
     planned?.kind === 'planned' && target ? describeHopPlan(run, planned.plan) : undefined;
+
+  // A long target name wraps onto a second line, so the target block is taller and the plan moves down.
+  const longTarget = target !== undefined && target.name.length > LONG_TARGET_NAME;
 
   const chartRef = useRef<HTMLDivElement>(null);
   const actionsRef = useRef<HTMLDivElement>(null);
@@ -164,7 +172,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
 
   return (
     <section
-      className="nav-chart"
+      className={longTarget ? 'nav-chart nav-chart--long-target' : 'nav-chart'}
       role="dialog"
       aria-modal="true"
       aria-label="Nav Chart"
@@ -228,7 +236,11 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
       ))}
 
       <div
-        className="nav-chart__tooltip"
+        className={
+          kindExtra > 0
+            ? 'nav-chart__tooltip nav-chart__tooltip--wrapped-kind'
+            : 'nav-chart__tooltip'
+        }
         data-testid="inspect"
         style={{ ...at(tooltip), width: TOOLTIP_SIZE.w, height: tipHeight }}
       >
@@ -239,7 +251,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
           className="nav-chart__tooltip-frame"
         />
         <h2 className="nav-chart__tip-name">{focused.name}</h2>
-        <p className="nav-chart__tip-kind">{bodyTypeLabel(run, focused)}</p>
+        <p className="nav-chart__tip-kind">{focusedKind}</p>
         <p className="nav-chart__tip-fact">
           {formatGravity(focused.surfaceGravity)} · {formatDistanceAu(focused.distanceFromStar)}
         </p>
