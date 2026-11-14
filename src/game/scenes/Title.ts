@@ -1,4 +1,5 @@
 import { Scene, Scenes } from 'phaser';
+import { startRun } from '../sim/index.ts';
 import { EventBus } from '../EventBus.ts';
 import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
@@ -20,12 +21,18 @@ export class Title extends Scene {
     this.add.image(438, 262, 'body_moon_2').setScale(2);
 
     const offNewRun = EventBus.on('new-run-requested', (seed) => {
-      const data: LandedData = { seed };
+      const data: LandedData = { run: startRun(seed) };
       this.scene.start(SceneKey.Landed, data);
     });
-    // A destroyed game (React StrictMode remounts, tests) never shuts its scenes down, so unsubscribe on both.
-    this.events.once(Scenes.Events.SHUTDOWN, offNewRun);
-    this.events.once(Scenes.Events.DESTROY, offNewRun);
+    // A destroyed game (React StrictMode remounts, tests) never shuts its scenes down, so unsubscribe on
+    // both; whichever fires first removes the other listener.
+    const unsubscribe = (): void => {
+      offNewRun();
+      this.events.off(Scenes.Events.SHUTDOWN, unsubscribe);
+      this.events.off(Scenes.Events.DESTROY, unsubscribe);
+    };
+    this.events.once(Scenes.Events.SHUTDOWN, unsubscribe);
+    this.events.once(Scenes.Events.DESTROY, unsubscribe);
 
     EventBus.emit('scene-ready', SceneKey.Title);
   }
