@@ -7,8 +7,9 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import {
-  checksFromRollup,
+  checksFromRequired,
   closedIssueNumbers,
+  DEFAULT_REQUIRED_CHECKS,
   isBehind,
   isDirty,
   Label,
@@ -16,6 +17,7 @@ import {
   mergeFailureMeansBehind,
   parseMergeState,
   summarize,
+  type CheckContext,
   type IssueSnapshot,
   type PipelineStatus,
   type PullSnapshot,
@@ -73,7 +75,11 @@ interface SnapshotQuery {
           headRefName: string;
           body: string;
           mergeStateStatus: string;
-          commits: { nodes: { commit: { statusCheckRollup: { state: string } | null } }[] };
+          commits: {
+            nodes: {
+              commit: { statusCheckRollup: { contexts: { nodes: CheckContext[] } } | null };
+            }[];
+          };
         })[];
       };
     };
@@ -95,13 +101,54 @@ query($owner: String!, $name: String!) {
       nodes {
         number title headRefName body mergeStateStatus
         labels(first: 30) { nodes { name } }
-        commits(last: 1) { nodes { commit { statusCheckRollup { state } } } }
+        commits(last: 1) {
+          nodes {
+            commit {
+              statusCheckRollup {
+                contexts(first: 100) {
+                  nodes {
+                    ... on CheckRun { name status conclusion }
+                    ... on StatusContext { context state }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   }
 }`;
 
+/**
+ * The status checks branch protection requires on main: the only checks that gate a merge.
+ * Falls back to `verify` when the protection cannot be read (missing, or no admin access).
+ */
+function requiredChecks(repo: Repo): readonly string[] {
+  try {
+    const contexts = JSON.parse(
+      execFileSync(
+        'gh',
+        [
+          'api',
+          `repos/${repo.owner}/${repo.name}/branches/main/protection/required_status_checks`,
+          '--jq',
+          '.contexts',
+        ],
+        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+      ),
+    ) as unknown;
+    const names = Array.isArray(contexts)
+      ? contexts.filter((name): name is string => typeof name === 'string')
+      : [];
+    return names.length ? names : DEFAULT_REQUIRED_CHECKS;
+  } catch {
+    return DEFAULT_REQUIRED_CHECKS;
+  }
+}
+
 function snapshot(repo: Repo): { issues: IssueSnapshot[]; pulls: PullSnapshot[] } {
+  const required = requiredChecks(repo);
   const result = JSON.parse(
     gh([
       'api',
@@ -130,7 +177,10 @@ function snapshot(repo: Repo): { issues: IssueSnapshot[]; pulls: PullSnapshot[] 
       body: node.body,
       mergeState: parseMergeState(node.mergeStateStatus),
       labels: node.labels.nodes.map((label) => label.name),
-      checks: checksFromRollup(node.commits.nodes[0]?.commit.statusCheckRollup?.state),
+      checks: checksFromRequired(
+        required,
+        node.commits.nodes[0]?.commit.statusCheckRollup?.contexts.nodes ?? [],
+      ),
     })),
   };
 }
