@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "WebSearch",
+      "WebFetch",
+      "Skill",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "Bash(pnpm *)",
+      "Bash(git *)",
+      "Bash(gh *)",
+      "Bash(node *)",
+      "Bash(cd *)",
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(rg *)",
+      "Bash(find *)",
+      "Bash(sed *)",
+      "Bash(awk *)",
+      "Bash(wc *)",
+      "Bash(sort *)",
+      "Bash(uniq *)",
+      "Bash(diff *)",
+      "Bash(jq *)",
+      "Bash(mkdir *)",
+      "Bash(mktemp *)",
+      "Bash(touch *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(rm *)",
+      "Bash(echo *)",
+      "Bash(printf *)",
+      "Bash(test *)",
+      "Bash(pwd)",
+      "Bash(which *)",
+      "Bash(lsof -i *)",
+      "Bash(kill *)",
+      "Bash(pkill -f *)",
+      "Bash(playwright-cli *)",
+      "Bash(curl -s http://localhost*)",
+      "Bash(curl -sf http://localhost*)"
+    ]
+  },
+  "env": {
+    "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": "2"
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/hooks/guard-bash.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
