@@ -12,6 +12,7 @@ import {
   placeTooltip,
   routeEnds,
   TOOLTIP_SIZE,
+  tooltipHeight,
   type ChartLayout,
   type ChartNode,
   type LabelContext,
@@ -464,18 +465,95 @@ describe('Body labels on the Nav Chart', () => {
 });
 
 describe('the Body tooltip', () => {
-  it('sits on the chart beside the focused Body without covering it', () => {
-    for (const seed of SEEDS) {
+  interface TooltipCase {
+    readonly where: string;
+    readonly layout: ChartLayout;
+    readonly context: LabelContext;
+    readonly labels: readonly PlacedLabel[];
+    readonly box: Rect;
+  }
+
+  /** Every Body of every seed in focus, with the Home Moon as the target, as the panel would show it. */
+  const tooltipCases = once(() =>
+    SEEDS.flatMap((seed) => {
+      const run = newRun(seed);
       const layout = layoutFor(seed);
-      for (const node of layout.nodes) {
-        const box = placeTooltip(layout, node.body.id);
-        expect(insideChart(box), `seed ${seed}`).toBe(true);
-        expect(box.w).toBe(TOOLTIP_SIZE.w);
-        expect(touchesCircle(box, node), `seed ${seed}: tooltip covers ${node.body.name}`).toBe(
-          false,
-        );
+      return layout.nodes.map((node): TooltipCase => {
+        const context = {
+          hereId: currentBody(run).id,
+          targetId: homeMoon(run).id,
+          focusedId: node.body.id,
+        };
+        const labels = placeLabels(layout, context);
+        const status = targetStatus(run, node.body.id);
+        const height = tooltipHeight(status.valid ? undefined : status.why);
+        return {
+          where: `seed ${seed}, focus ${node.body.name}`,
+          layout,
+          context,
+          labels,
+          box: placeTooltip(layout, context, height, labels),
+        };
+      });
+    }),
+  );
+
+  const nodeOf = (layout: ChartLayout, id: string | undefined) =>
+    layout.nodes.find((n) => n.body.id === id);
+
+  it('sits on the chart and never covers the focused Body, the star, where the Spacecraft is or the target', () => {
+    const problems = tooltipCases().flatMap(({ where, layout, context, labels, box }) => {
+      const found: string[] = [];
+      if (!insideChart(box)) found.push(`${where}: off the chart`);
+      if (box.w !== TOOLTIP_SIZE.w) found.push(`${where}: ${box.w} px wide`);
+      if (touchesCircle(box, layout.star)) found.push(`${where}: covers the star`);
+      for (const id of [context.focusedId, context.hereId, context.targetId]) {
+        const node = nodeOf(layout, id);
+        if (node && touchesCircle(box, node)) found.push(`${where}: covers ${node.body.name}`);
       }
-    }
+      for (const label of labels) {
+        if ((label.kind === 'here' || label.kind === 'target') && overlaps(box, label.box)) {
+          found.push(`${where}: covers the label ${label.text}`);
+        }
+      }
+      return found;
+    });
+    expect(problems.join('\n')).toBe('');
+  });
+
+  it('as the chart opens, sits beside where the Spacecraft is and off the star, on every seed', () => {
+    const problems = [...SEEDS, 74, 2024].flatMap((seed) => {
+      const run = newRun(seed);
+      const layout = layoutFor(seed);
+      const context = initialChartState(run);
+      const labelContext = { hereId: context.focusedId, targetId: undefined, ...context };
+      const labels = placeLabels(layout, labelContext);
+      const why = targetStatus(run, context.focusedId);
+      const box = placeTooltip(
+        layout,
+        labelContext,
+        tooltipHeight(why.valid ? undefined : why.why),
+        labels,
+      );
+      const here = nodeOf(layout, context.focusedId);
+      if (!here) throw new Error('no node for the Spacecraft');
+      const found: string[] = [];
+      if (touchesCircle(box, layout.star)) found.push(`seed ${seed}: covers the star`);
+      if (edgeDistance(box, here) > 40)
+        found.push(`seed ${seed}: ${edgeDistance(box, here)} px off`);
+      return found;
+    });
+    expect(problems.join('\n')).toBe('');
+  });
+
+  it('sits within 40 px of the focused Body, but for the rare spot boxed in by the marks it must not hide', () => {
+    const cases = tooltipCases();
+    const far = cases.filter(({ layout, context, box }) => {
+      const node = nodeOf(layout, context.focusedId);
+      if (!node) throw new Error('no focused node');
+      return edgeDistance(box, node) > 40;
+    });
+    expect(far.length / cases.length).toBeLessThan(0.05);
   });
 });
 

@@ -8,6 +8,7 @@ import {
   placeTooltip,
   targetStatus,
   TOOLTIP_SIZE,
+  tooltipHeight,
   type ChartCommand,
   type ChartState,
   type Direction,
@@ -73,26 +74,11 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
   if (!focused) throw new Error(`Nav Chart is focused on unknown Body ${state.focusedId}`);
   const status = targetStatus(run, focused.id);
 
-  const labels = useMemo(
-    () =>
-      placeLabels(layout, {
-        hereId: here.id,
-        targetId: state.selectedId,
-        focusedId: state.focusedId,
-      }),
-    [layout, here.id, state.selectedId, state.focusedId],
-  );
-  const tipHeight = status.valid ? TOOLTIP_SIZE.h : TOOLTIP_SIZE.hWithReason;
-  const tooltip = useMemo(
-    () =>
-      placeTooltip(
-        layout,
-        state.focusedId,
-        tipHeight,
-        labels.map((l) => l.box),
-      ),
-    [layout, state.focusedId, tipHeight, labels],
-  );
+  // Labels and tooltip take about a millisecond, and the panel only renders when the chart changes.
+  const context = { hereId: here.id, targetId: state.selectedId, focusedId: state.focusedId };
+  const labels = placeLabels(layout, context);
+  const tipHeight = tooltipHeight(status.valid ? undefined : status.why);
+  const tooltip = placeTooltip(layout, context, tipHeight, labels);
 
   const chartRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLDivElement>(null);

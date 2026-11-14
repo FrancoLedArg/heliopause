@@ -68,6 +68,12 @@ const boxesTouch = (a: Rect, b: Rect, margin: number): boolean =>
   a.y < b.y + b.h + margin &&
   b.y < a.y + a.h + margin;
 
+const clampToChart = (box: Rect): Rect => ({
+  ...box,
+  x: Math.min(Math.max(box.x, 0), CHART.width - box.w),
+  y: Math.min(Math.max(box.y, 0), CHART.height - box.h),
+});
+
 const insideBox = (r: Rect): boolean =>
   r.x >= 0 && r.y >= 0 && r.x + r.w <= CHART.width && r.y + r.h <= CHART.height;
 
@@ -845,37 +851,140 @@ function orders<T>(items: readonly T[]): T[][] {
   );
 }
 
-/** Width of the Body tooltip, and its height with and without the line saying why a Body is not a target. */
-export const TOOLTIP_SIZE = { w: 150, h: 58, hWithReason: 86 } as const;
+/** Width of the Body tooltip, and its height without the lines saying why a Body is not a target. */
+export const TOOLTIP_SIZE = { w: 150, h: 58 } as const;
 
 /**
- * Where the focused Body's tooltip goes: on the chart, never over the Body itself, as near it as it can
- * be while hiding the fewest other Bodies and labels (`labels`, the boxes already placed).
+ * The reason a Body is not a target, in VT323 at 14 px: where it starts in the tooltip, its line height,
+ * and how many characters fit on a line (5.6 px each across the 136 px between the tooltip's insets).
+ */
+const REASON = { top: 55, lineHeight: 11, charsPerLine: 24, bottomPad: 7 } as const;
+
+/** How tall the tooltip is: taller by a line for each line the reason wraps to. */
+export function tooltipHeight(why: string | undefined): number {
+  if (why === undefined) return TOOLTIP_SIZE.h;
+  let lines = 1;
+  let line = 0;
+  for (const word of why.split(' ')) {
+    const wanted = line === 0 ? word.length : line + 1 + word.length;
+    if (wanted > REASON.charsPerLine && line > 0) {
+      lines += 1;
+      line = word.length;
+    } else {
+      line = wanted;
+    }
+  }
+  return REASON.top + lines * REASON.lineHeight + REASON.bottomPad;
+}
+
+/**
+ * Where the focused Body's tooltip goes: on the chart, right beside the Body's focus brackets (right,
+ * left, below, above, then the corners), and never over the star, the Body itself, where the Spacecraft
+ * is, the target, or their labels. Of the spots beside it, the one that hides the fewest other Bodies and
+ * labels wins, then the nearest. Only when no spot beside it is clear does it move farther out.
  */
 export function placeTooltip(
   layout: ChartLayout,
-  id: BodyId,
-  height: number = TOOLTIP_SIZE.h,
-  labels: readonly Rect[] = [],
+  context: LabelContext,
+  height: number,
+  labels: readonly PlacedLabel[],
 ): Rect {
-  const node = layout.nodes.find((n) => n.body.id === id);
-  if (!node) throw new Error(`Nav Chart has no Body ${id}`);
-  const w = TOOLTIP_SIZE.w;
-  const h = height;
-  // Every spot on an 8 px grid that leaves the focused Body in view; the cheapest, then the closest, wins.
-  const others = [layout.star, ...layout.nodes.filter((n) => n !== node)];
+  const node = layout.nodes.find((n) => n.body.id === context.focusedId);
+  if (!node) throw new Error(`Nav Chart has no Body ${context.focusedId}`);
+  const [w, h] = [TOOLTIP_SIZE.w, height];
+
+  const kept = new Set([context.focusedId, context.hereId, context.targetId]);
+  const keepOff: Footprint[] = [
+    { circle: layout.star, boxes: [] },
+    ...layout.nodes
+      .filter((n) => n !== node && kept.has(n.body.id))
+      .map((n) => footprint(n, context)),
+  ];
+  const ownMarks = footprint(node, context);
+  const keepOffLabels = labels.filter((l) => l.kind === 'here' || l.kind === 'target');
+  const others = layout.nodes.filter((n) => !kept.has(n.body.id));
+  const otherLabels = labels.filter((l) => l.kind !== 'here' && l.kind !== 'target');
+
+  /** On the chart and off everything kept in view; `overBrackets` lets it cover the Body's own marks. */
+  const clear = (box: Rect, overBrackets = false): boolean =>
+    insideBox(box) &&
+    (overBrackets ? !circleTouchesBox(node, box, 1) : !touches(ownMarks, box, 1)) &&
+    keepOff.every((f) => !touches(f, box, 1)) &&
+    keepOffLabels.every((l) => !boxesTouch(l.box, box, 1));
+  /** What a spot hides: other Bodies count more than labels, and distance breaks ties. */
   const cost = (box: Rect): number =>
-    others.filter((n) => circleTouchesBox(n, box, 0)).length * 3 +
-    labels.filter((l) => boxesTouch(l, box, 0)).length * 2 +
-    Math.hypot(box.x + w / 2 - node.x, box.y + h / 2 - node.y) / 100;
-  let best: Rect | undefined;
-  for (let y = 0; y <= CHART.height - h; y += 8) {
-    for (let x = 0; x <= CHART.width - w; x += 8) {
-      const box = { x, y, w, h };
-      if (circleTouchesBox(node, box, 6)) continue;
-      if (!best || cost(box) < cost(best)) best = box;
+    others.filter((n) => circleTouchesBox(n, box, 1)).length * TOOLTIP_HIDES_BODY +
+    otherLabels.filter((l) => boxesTouch(l.box, box, 0)).length * TOOLTIP_HIDES_LABEL +
+    edgeDistance(box, node);
+
+  const best = (spots: readonly Rect[], overBrackets = false): Rect | undefined => {
+    let pick: { box: Rect; cost: number } | undefined;
+    for (const spot of spots) {
+      const box = { ...spot, x: Math.round(spot.x), y: Math.round(spot.y) };
+      if (!clear(box, overBrackets)) continue;
+      const c = cost(box);
+      if (!pick || c < pick.cost) pick = { box, cost: c };
+    }
+    return pick?.box;
+  };
+
+  const beside: Rect[] = [];
+  for (const gap of TOOLTIP_GAPS) {
+    const out = node.radius + gap;
+    for (const t of [0.5, 0.25, 0.75, 0, 1, 0.125, 0.375, 0.625, 0.875]) {
+      beside.push({ x: node.x + out, y: node.y - t * h, w, h });
+      beside.push({ x: node.x - out - w, y: node.y - t * h, w, h });
+      beside.push({ x: node.x - t * w, y: node.y + out, w, h });
+      beside.push({ x: node.x - t * w, y: node.y - out - h, w, h });
+    }
+    for (const [sx, sy] of CORNERS) {
+      beside.push({
+        x: sx > 0 ? node.x + out : node.x - out - w,
+        y: sy > 0 ? node.y + out : node.y - out - h,
+        w,
+        h,
+      });
     }
   }
-  if (!best) throw new Error(`Nav Chart has no room for a tooltip beside ${node.body.name}`);
-  return { ...best, x: Math.round(best.x), y: Math.round(best.y) };
+  // A spot past the chart edge slides back onto it, staying beside the Body.
+  const nearby = beside.map(clampToChart);
+  const near = best(nearby);
+  if (near) return near;
+  // Beside it but over the corners of its own focus brackets is still better than far away.
+  const overBrackets = best(nearby, true);
+  if (overBrackets) return overBrackets;
+
+  // Nothing clear beside it: every spot on the chart, on a 4 px grid.
+  const anywhere: Rect[] = [];
+  for (let y = 0; y <= CHART.height - h; y += 4) {
+    for (let x = 0; x <= CHART.width - w; x += 4) anywhere.push({ x, y, w, h });
+  }
+  // Within reach of the Body, whatever it hides, before anywhere else on the chart.
+  const reachable = anywhere.filter((box) => edgeDistance(box, node) <= TOOLTIP_REACH);
+  const far = best(reachable) ?? best(reachable, true) ?? best(anywhere);
+  if (far) return far;
+
+  // Nowhere clear at all (a very full chart): the spot that hides the fewest of them, never the Body itself.
+  const hides = (box: Rect): number =>
+    [ownMarks, ...keepOff].filter((f) => touches(f, box, 0)).length +
+    keepOffLabels.filter((l) => boxesTouch(l.box, box, 0)).length;
+  let least: { box: Rect; cost: number } | undefined;
+  for (const box of anywhere) {
+    if (circleTouchesBox(node, box, 1)) continue;
+    const c = hides(box) * TOOLTIP_HIDES_KEPT + cost(box);
+    if (!least || c < least.cost) least = { box, cost: c };
+  }
+  if (least) return least.box;
+  throw new Error(`Nav Chart has no room for a tooltip beside ${node.body.name}`);
 }
+
+/** Gaps tried between the tooltip and the focused Body, nearest first; its brackets rule out the nearest. */
+const TOOLTIP_GAPS = [2, 3, 5, 7, 9, 11, 14, 17, 20];
+/** How far (in pixels) from the focused Body a tooltip still reads as beside it. */
+const TOOLTIP_REACH = 40;
+/** What hiding another Body costs a tooltip spot, in pixels of distance. */
+const TOOLTIP_HIDES_BODY = 60;
+/** What hiding another label costs a tooltip spot, in pixels of distance. */
+const TOOLTIP_HIDES_LABEL = 20;
+/** What hiding the star, where the Spacecraft is, the target or their labels costs, when nothing else is left. */
+const TOOLTIP_HIDES_KEPT = 1000;
