@@ -1,4 +1,4 @@
-import type { GameObjects, Scene } from 'phaser';
+import type { GameObjects, Scene, Tweens } from 'phaser';
 import { paletteNumber, type PaletteColor } from '../../ui/kit/palette.ts';
 import { createRng } from '../lib/rng.ts';
 
@@ -49,6 +49,53 @@ export function addStarfield(
     graphics.fillRect(star.x, star.y, star.size, star.size);
   }
   return graphics;
+}
+
+/** Every this-many-th single-pixel star twinkles. */
+export const TWINKLE_EVERY = 14;
+
+/** Pulses one star's alpha forever; `index` varies the pace and start so the stars do not blink together. */
+export function twinkle(scene: Scene, star: GameObjects.Graphics, index: number): Tweens.Tween {
+  return scene.tweens.add({
+    targets: star,
+    alpha: 0.15,
+    duration: 1400 + (index % 7) * 300,
+    delay: (index % 11) * 400,
+    ease: 'Sine.easeInOut',
+    yoyo: true,
+    repeat: -1,
+  });
+}
+
+export interface TwinklingStarfield {
+  /** Holds the steady stars and every twinkler, so one offset moves the whole field. */
+  readonly container: GameObjects.Container;
+  /** One drawing per star that may pulse, with its star's index, so a tween can fade it on its own. */
+  readonly twinklers: readonly { readonly star: GameObjects.Graphics; readonly index: number }[];
+}
+
+/** Like `addStarfield`, but every `every`-th single-pixel star is its own object so it can twinkle. */
+export function addTwinklingStarfield(
+  scene: Scene,
+  seed: number,
+  count: number,
+  area: { width: number; height: number },
+  every: number,
+): TwinklingStarfield {
+  const steady = scene.add.graphics();
+  const container = scene.add.container(0, 0, [steady]);
+  const twinklers: { star: GameObjects.Graphics; index: number }[] = [];
+  generateStars(seed, count, area).forEach((star, index) => {
+    const twinkles = star.size === 1 && index % every === 0;
+    const target = twinkles ? scene.add.graphics() : steady;
+    if (twinkles) {
+      container.add(target);
+      twinklers.push({ star: target, index });
+    }
+    target.fillStyle(paletteNumber(star.color), star.alpha);
+    target.fillRect(star.x, star.y, star.size, star.size);
+  });
+  return { container, twinklers };
 }
 
 /** Depth layer of a star, 0 = farthest: dimmer stars are farther away, so they drift slower. */

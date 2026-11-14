@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it } from 'vitest';
 import { EventBus } from '../game/EventBus.ts';
 import { SceneKey } from '../game/scenes/keys.ts';
+import type { Landed } from '../game/scenes/Landed.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../game/main.ts';
 import { startRun } from '../game/sim/index.ts';
 import { GameUI } from './GameUI.tsx';
@@ -65,6 +66,9 @@ it('leaving the Run and starting another many times leaves one handler per event
     await landed;
     expect(EventBus.listenerCount('leave-run-requested')).toBe(baseline.leave + 1);
     expect(started.scene.isActive(SceneKey.Landed)).toBe(true);
+    const landedScene = started.scene.getScene<Landed>(SceneKey.Landed);
+    // The ambient life is running: drift and twinkle tweens, the lights timer, the dust listener.
+    expect(landedScene.tweens.getTweens().length).toBeGreaterThan(0);
 
     const title = nextSceneReady(SceneKey.Title);
     EventBus.emit('leave-run-requested');
@@ -72,6 +76,16 @@ it('leaving the Run and starting another many times leaves one handler per event
     await act(() => Promise.resolve());
 
     expect(started.scene.isActive(SceneKey.Landed)).toBe(false);
+    // Leaving the Run stops every ambient tween, timer and update listener.
+    expect(landedScene.tweens.getTweens()).toHaveLength(0);
+    // Phaser has no public list of a Clock's timers, so read its two queues.
+    const clock = landedScene.time as unknown as {
+      _active: unknown[];
+      _pendingInsertion: unknown[];
+    };
+    expect(clock._active).toHaveLength(0);
+    expect(clock._pendingInsertion).toHaveLength(0);
+    expect(landedScene.events.listenerCount('update')).toBe(0);
     expect(EventBus.listenerCount('leave-run-requested')).toBe(baseline.leave);
     expect(EventBus.listenerCount('new-run-requested')).toBe(baseline.newRun);
   }
