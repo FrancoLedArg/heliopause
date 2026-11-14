@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { currentBody, findBody, startRun, type Run } from '../sim/index.ts';
-import { SKY_VISIBLE, SPRITE_SIZE, horizonY, skyBodies, surfaceKind } from './landedView.ts';
+import { CHASSIS_IDS, currentBody, findBody, startRun, type Run } from '../sim/index.ts';
+import { frameGeometry } from './chassisArt.ts';
+import {
+  SHIP_PLACEMENT,
+  SHIP_SWEEP,
+  SHIP_SWEEP_X,
+  SKY_VISIBLE,
+  SPRITE_SIZE,
+  horizonY,
+  skyBodies,
+  surfaceKind,
+} from './landedView.ts';
 
 /** A New Run with the default Chassis: the view rules do not depend on which. */
 const newRun = (seed: number): Run => startRun(seed, 'scout');
@@ -231,5 +241,24 @@ describe('the Landed sky layout', () => {
         `seed ${seed} from the Moon`,
       ).toBe(true);
     }
+  });
+});
+
+describe('the Spacecraft sweep', () => {
+  it('covers every Chassis, whole, at both ends of the ground drift', () => {
+    for (const id of CHASSIS_IDS) {
+      for (const frame of ['landed', 'landed_lit'] as const) {
+        const { width, pivot } = frameGeometry(id, frame);
+        expect(SHIP_SWEEP.left).toBeLessThanOrEqual(SHIP_SWEEP_X.min - pivot.x);
+        expect(SHIP_SWEEP.right).toBeGreaterThanOrEqual(SHIP_SWEEP_X.max + (width - pivot.x));
+        expect(SHIP_SWEEP.top).toBeLessThanOrEqual(SHIP_PLACEMENT.baseY - pivot.y);
+      }
+    }
+  });
+
+  it('reaches from the top of the tallest ship down to the shadow under it', () => {
+    expect(SHIP_SWEEP.bottom).toBeGreaterThan(SHIP_PLACEMENT.baseY);
+    expect(SHIP_SWEEP.bottom).toBeLessThan(SHIP_PLACEMENT.baseY + 12);
+    expect(SHIP_SWEEP.top).toBeLessThan(SHIP_PLACEMENT.baseY - 120);
   });
 });
