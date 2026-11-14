@@ -3,7 +3,9 @@ import {
   availableDeltaV,
   CHASSIS_IDS,
   COMPONENTS,
+  kilograms,
   newSpacecraft,
+  refit,
   type Component,
 } from './index.ts';
 
@@ -88,6 +90,122 @@ describe('Slots', () => {
       expect(spacecraft.fuelMass).toBe(specA[id].fuelCapacity);
       expect(spacecraft.engineIsp).toBe(specA[id].engineIsp);
       expect(availableDeltaV(spacecraft)).toBeCloseTo(specA[id].deltaV, 2);
+    }
+  });
+});
+
+describe('what the installed Components make of the Spacecraft', () => {
+  it('Fuel capacity is the sum of the Fuel Tanks', () => {
+    for (const id of CHASSIS_IDS) {
+      const start = newSpacecraft(id);
+      const levelOne = refit(start, ['engine-1', 'fuel-tank-1', null, null]).fuelCapacity;
+      const levelTwo = refit(start, ['engine-1', 'fuel-tank-2', null, null]).fuelCapacity;
+      expect(refit(start, ['engine-1', 'fuel-tank-1', 'fuel-tank-1', null]).fuelCapacity).toBe(
+        levelOne * 2,
+      );
+      expect(refit(start, ['fuel-tank-2', 'engine-1', 'fuel-tank-1', null]).fuelCapacity).toBe(
+        levelOne + levelTwo,
+      );
+    }
+    // Worked example: the scout's 21 t level-1 Tank, twice.
+    expect(
+      refit(newSpacecraft('scout'), ['engine-1', 'fuel-tank-1', 'fuel-tank-1', null]).fuelCapacity,
+    ).toBe(42_000);
+  });
+
+  it('a level-2 Engine gives more Δv from the same Fuel', () => {
+    for (const id of CHASSIS_IDS) {
+      for (const share of [1, 0.5, 0.05]) {
+        const start = newSpacecraft(id);
+        const levelOne = { ...start, fuelMass: kilograms(start.fuelCapacity * share) };
+        const levelTwo = refit(levelOne, ['engine-2', 'fuel-tank-1', null, null]);
+        expect(levelTwo.fuelMass).toBe(levelOne.fuelMass);
+        expect(availableDeltaV(levelTwo)).toBeGreaterThan(availableDeltaV(levelOne));
+      }
+    }
+  });
+
+  it('adding an empty Fuel Tank lowers Δv', () => {
+    for (const id of CHASSIS_IDS) {
+      const start = newSpacecraft(id);
+      for (const tank of ['fuel-tank-1', 'fuel-tank-2'] as const) {
+        const withTank = refit(start, ['engine-1', 'fuel-tank-1', tank, null]);
+        expect(withTank.fuelMass).toBe(start.fuelMass);
+        expect(availableDeltaV(withTank)).toBeLessThan(availableDeltaV(start));
+      }
+    }
+  });
+
+  it('the best installed Engine sets the Isp', () => {
+    for (const id of CHASSIS_IDS) {
+      const start = newSpacecraft(id);
+      const levelTwo = refit(start, ['engine-2', 'fuel-tank-1', null, null]);
+      const both = refit(start, ['engine-1', 'fuel-tank-1', 'engine-2', null]);
+      expect(levelTwo.engineIsp).toBeGreaterThan(start.engineIsp);
+      expect(both.engineIsp).toBe(levelTwo.engineIsp);
+    }
+  });
+
+  it('dry mass is the Chassis plus every installed Component', () => {
+    for (const id of CHASSIS_IDS) {
+      const start = newSpacecraft(id);
+      const drilled = refit(start, ['engine-1', 'fuel-tank-1', 'drill-1', 'drill-2']);
+      expect(drilled.dryMass).toBe(
+        start.dryMass + COMPONENTS['drill-1'].mass + COMPONENTS['drill-2'].mass,
+      );
+      const bare = refit(start, [null, null, null, null]);
+      expect(bare.dryMass).toBe(
+        start.dryMass - COMPONENTS['engine-1'].mass - COMPONENTS['fuel-tank-1'].mass,
+      );
+      expect(bare.dryMass).toBeGreaterThan(0);
+    }
+  });
+
+  it('a Drill changes neither Fuel capacity nor Isp', () => {
+    const start = newSpacecraft('lancer');
+    const drilled = refit(start, ['engine-1', 'fuel-tank-1', 'drill-2', null]);
+    expect(drilled.fuelCapacity).toBe(start.fuelCapacity);
+    expect(drilled.engineIsp).toBe(start.engineIsp);
+  });
+
+  it('removing a Fuel Tank keeps only the Fuel the remaining Tanks can hold', () => {
+    const start = newSpacecraft('hauler');
+    const twoTanks = refit(start, ['engine-1', 'fuel-tank-1', 'fuel-tank-2', null]);
+    expect(twoTanks.fuelMass).toBe(start.fuelMass);
+    const full = { ...twoTanks, fuelMass: twoTanks.fuelCapacity };
+    const oneTank = refit(full, ['engine-1', null, 'fuel-tank-2', null]);
+    expect(oneTank.fuelMass).toBe(oneTank.fuelCapacity);
+    expect(oneTank.fuelCapacity).toBeLessThan(full.fuelCapacity);
+  });
+
+  it('with no Engine installed the Spacecraft has no Δv', () => {
+    const start = newSpacecraft('scout');
+    expect(availableDeltaV(refit(start, [null, 'fuel-tank-1', null, null]))).toBe(0);
+  });
+
+  it('a Spacecraft always has exactly 4 Slots', () => {
+    const start = newSpacecraft('scout');
+    expect(() => refit(start, ['engine-1', 'fuel-tank-1'])).toThrow(/4 Slots/);
+  });
+});
+
+describe('the Chassis', () => {
+  it('the same Component changes each Chassis differently', () => {
+    const added = CHASSIS_IDS.map((id) => {
+      const start = newSpacecraft(id);
+      const refitted = refit(start, ['engine-2', 'fuel-tank-1', 'fuel-tank-1', null]);
+      return {
+        fuelCapacity: refitted.fuelCapacity - start.fuelCapacity,
+        engineIsp: refitted.engineIsp - start.engineIsp,
+      };
+    });
+    expect(new Set(added.map((a) => a.fuelCapacity)).size).toBe(CHASSIS_IDS.length);
+    expect(new Set(added.map((a) => a.engineIsp)).size).toBe(CHASSIS_IDS.length);
+  });
+
+  it('a refit keeps the Chassis', () => {
+    for (const id of CHASSIS_IDS) {
+      expect(refit(newSpacecraft(id), ['engine-2', 'fuel-tank-2', null, null]).chassisId).toBe(id);
     }
   });
 });

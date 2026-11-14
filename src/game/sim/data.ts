@@ -155,12 +155,17 @@ export const DISPERSION = { min: 0.9, max: 1.1 } as const satisfies TuningRange;
 export const CHASSIS_IDS = ['scout', 'hauler', 'lancer'] as const;
 export type ChassisId = (typeof CHASSIS_IDS)[number];
 
-/** What a Chassis gives a new Spacecraft: everything that sets its Δv. */
+/**
+ * What a new Spacecraft on a Chassis starts with: everything that sets its Δv. Each Chassis's own
+ * mass and its factors on Engine Isp and Fuel Tank capacity are calibrated from these, so the
+ * starting Components give exactly these figures (ADR 0005).
+ */
 export interface ChassisTuning {
-  /** Everything but Fuel. */
+  /** Everything but Fuel: the Chassis plus its starting Components. */
   readonly dryMass: Kilograms;
-  /** The most Fuel it can carry; a new Spacecraft starts full. */
+  /** What its starting Fuel Tank holds; a new Spacecraft starts full. */
   readonly fuelCapacity: Kilograms;
+  /** Its starting Engine's Isp on this Chassis. */
   readonly engineIsp: Seconds;
 }
 

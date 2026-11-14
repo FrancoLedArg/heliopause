@@ -18,6 +18,7 @@ export {
   availableDeltaV,
   fuelAfterBurning,
   newSpacecraft,
+  refit,
   SLOT_COUNT,
   STARTING_SLOTS,
 } from './spacecraft.ts';
