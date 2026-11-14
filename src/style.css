@@ -159,7 +159,7 @@ body {
 
 .title-menu__panel {
   position: absolute;
-  top: 168px;
+  top: 168px; /* TITLE_PANEL_TOP in game/lib/titleLayout.ts */
   left: 232px;
 }
 
@@ -176,7 +176,7 @@ body {
 
 .title-menu__hint {
   position: absolute;
-  top: 45px;
+  top: 41px;
   left: 0;
   width: 100%;
   text-align: center;
@@ -483,4 +483,105 @@ body {
 .run-menu__actions--row {
   grid-auto-flow: column;
   top: 62px;
+}
+
+/* ---- About and Credits ---- */
+
+.info-panel {
+  position: absolute;
+  inset: 0;
+}
+
+.info-panel__plate {
+  position: absolute;
+  pointer-events: auto;
+}
+
+.info-panel__plate > .kit-frame {
+  position: absolute;
+  inset: 0;
+}
+
+.info-panel__title {
+  position: absolute;
+  top: 12px;
+  left: 0;
+  width: 100%;
+  text-align: center;
+  font: 16px/16px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--wh3);
+}
+
+.info-panel__body {
+  position: absolute;
+  top: 38px;
+  left: 16px;
+  right: 16px;
+  bottom: 14px;
+  overflow-y: auto;
+  padding-right: 6px;
+  font: 14px/14px var(--font-pixel-body);
+  color: var(--gm6);
+}
+
+.info-panel__body:focus-visible {
+  outline: 1px solid var(--cy3);
+  outline-offset: 2px;
+}
+
+.info-panel__body h2 {
+  margin: 10px 0 4px;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--am3);
+}
+
+.info-panel__body p {
+  margin: 0 0 4px;
+}
+
+.info-panel__body ul {
+  margin: 0 0 4px;
+  padding-left: 14px;
+}
+
+.info-panel__body strong {
+  font-weight: 400;
+  color: var(--wh3);
+}
+
+.info-link {
+  color: var(--cy3);
+}
+
+.info-link:focus-visible {
+  outline: 1px solid var(--cy3);
+  outline-offset: 1px;
+}
+
+.info-placeholder {
+  color: var(--am3);
+}
+
+.info-panel__actions {
+  position: absolute;
+  top: 312px;
+  left: 0;
+  width: 640px;
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.title-menu__about {
+  position: absolute;
+  top: 62px;
+  left: 16px;
+}
+
+.title-menu__credits {
+  position: absolute;
+  top: 90px;
+  left: 16px;
 }
