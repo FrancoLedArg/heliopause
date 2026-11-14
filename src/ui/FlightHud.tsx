@@ -11,6 +11,7 @@ const STRIP = { width: 300, height: 26 } as const;
 const LOG = { width: 300, height: 78 } as const;
 const FUEL = { width: 256, height: 44 } as const;
 const FUEL_BAR = { width: 190, height: 10, inset: 2 } as const;
+const FILL_MIN_WIDTH = 2;
 const OUTCOME = { width: 300, height: 124 } as const;
 
 const OUTCOME_TITLE = { 'fell-short': 'Fell Short', crashed: 'Crashed' } as const;
@@ -35,7 +36,11 @@ export function FlightHud({ before, flight, moment, failed, onLeave }: FlightHud
   const view = describeFlight(before, flight, moment);
   const fuel = moment?.fuel ?? flight.fuelAtLaunch;
   const current = view.phases.find((phase) => phase.state === 'current');
-  const fill = Math.round((FUEL_BAR.width - 2 * FUEL_BAR.inset) * view.fuelShare);
+  // Any Fuel left shows at least the fill's 2 px leading edge, the narrowest the kit frame draws.
+  const fill =
+    view.fuelShare > 0
+      ? Math.max(FILL_MIN_WIDTH, Math.round((FUEL_BAR.width - 2 * FUEL_BAR.inset) * view.fuelShare))
+      : 0;
 
   return (
     <>

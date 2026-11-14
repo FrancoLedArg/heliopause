@@ -240,7 +240,7 @@ export class Flight extends Scene {
     const toDiameter = to.size + (to.to - to.size) * progress ** 1.6;
     this.fromBody
       .setScale(fromDiameter / this.fromBody.width)
-      .setPosition(Math.round(70 - 90 * progress), Math.round(330 + 50 * progress));
+      .setPosition(Math.round(78 - 110 * progress), Math.round(196 + 120 * progress));
     this.toBody
       .setScale(toDiameter / this.toBody.width)
       .setPosition(Math.round(560 - 40 * progress), Math.round(96 + 24 * progress));
