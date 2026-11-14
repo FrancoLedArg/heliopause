@@ -12,6 +12,7 @@ import {
   isBehind,
   Label,
   leanStatus,
+  mergeFailureMeansBehind,
   parseMergeState,
   summarize,
   type IssueSnapshot,
@@ -21,6 +22,19 @@ import {
 
 function gh(args: readonly string[]): string {
   return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+}
+
+type GhAttempt = { ok: true } | { ok: false; output: string; error: unknown };
+
+/** Like `gh`, but returns the failure's stderr and stdout instead of throwing. */
+function ghTry(args: readonly string[]): GhAttempt {
+  try {
+    execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    return { ok: true };
+  } catch (error) {
+    const { stdout, stderr } = error as { stdout?: string; stderr?: string };
+    return { ok: false, output: `${stderr ?? ''}\n${stdout ?? ''}`, error };
+  }
 }
 
 interface Repo {
@@ -255,7 +269,7 @@ const commands: Record<string, (args: string[]) => void> = {
       throw new Error(`PR #${String(pr)} CI is ${pull.checks}, not passing`);
     }
 
-    if (isBehind(pull)) {
+    const updateBranch = (): void => {
       gh([
         'api',
         '-X',
@@ -265,10 +279,14 @@ const commands: Record<string, (args: string[]) => void> = {
       console.log(
         `PR #${String(pr)} was behind main: updated its branch. CI must pass again before it can merge; the next pass will merge it.`,
       );
+    };
+
+    if (isBehind(pull)) {
+      updateBranch();
       return;
     }
 
-    gh([
+    const merged = ghTry([
       'api',
       '-X',
       'PUT',
@@ -276,6 +294,14 @@ const commands: Record<string, (args: string[]) => void> = {
       '-f',
       'merge_method=squash',
     ]);
+    if (!merged.ok) {
+      if (mergeFailureMeansBehind(merged.output)) {
+        updateBranch();
+        return;
+      }
+      process.stderr.write(merged.output);
+      throw merged.error;
+    }
     console.log(`Merged PR #${String(pr)}`);
 
     const doneLabels = `${Label.ReadyForAgent},${Label.InProgress}`;
