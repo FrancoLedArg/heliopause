@@ -1,4 +1,4 @@
-import { Scene } from 'phaser';
+import { Scene, Scenes } from 'phaser';
 import { EventBus } from '../EventBus.ts';
 import { formatBuildLabel } from '../lib/buildLabel.ts';
 import { createRng } from '../lib/rng.ts';
@@ -56,7 +56,11 @@ export class Title extends Scene {
       })
       .setOrigin(1, 1);
     // Canvas text is invisible to the DOM; mirror it onto the canvas so e2e tests can read it.
-    this.game.canvas.dataset['buildLabel'] = buildLabel;
+    const canvas = this.game.canvas;
+    canvas.dataset['buildLabel'] = buildLabel;
+    this.events.once(Scenes.Events.SHUTDOWN, () => {
+      delete canvas.dataset['buildLabel'];
+    });
 
     EventBus.emit('scene-ready', SceneKey.Title);
   }
