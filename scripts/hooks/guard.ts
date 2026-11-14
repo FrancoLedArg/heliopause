@@ -10,7 +10,9 @@ import { parseShell } from './shell.ts';
 export interface GuardContext {
   /** Repository (or worktree) root; recursive deletes are allowed inside it. */
   projectDir: string;
-  /** Extra directories where recursive deletes are allowed (temp dirs). */
+  /** Working directory of the command (hook payload `cwd`); relative `rm` operands resolve here. */
+  cwd: string;
+  /** Extra directories where recursive deletes are allowed: /tmp, /private/tmp and $TMPDIR. */
   scratchDirs: readonly string[];
   /** Value of $TMPDIR, so `rm -r "$TMPDIR/x"` resolves to a real path. */
   tmpDir: string;
@@ -159,6 +161,22 @@ function checkGit(args: readonly string[], env: ReadonlyMap<string, string>): st
 const GRAPHQL_DESTRUCTIVE =
   /\b(?:mergePullRequest|enablePullRequestAutoMerge|deleteRef|deleteIssue|deleteRepository|deleteBranchProtectionRule)\b/;
 
+/** `gh api` flags whose value is a request field or body (the request then writes). */
+const FIELD_FLAGS = new Set(['-f', '-F', '--field', '--raw-field', '--input']);
+/** Other `gh api` flags that consume the next word; it is never the endpoint. */
+const FLAGS_WITH_VALUE = new Set([
+  '-H',
+  '--header',
+  '-q',
+  '--jq',
+  '-t',
+  '--template',
+  '-p',
+  '--preview',
+  '--hostname',
+  '--cache',
+]);
+
 function checkGh(args: readonly string[]): string | null {
   const rest: string[] = [];
   for (let i = 0; i < args.length; i++) {
@@ -181,14 +199,16 @@ function checkGh(args: readonly string[]): string | null {
     if (arg === '-X' || arg === '--method') method = rest[++i] ?? '';
     else if (arg.startsWith('--method=')) method = arg.slice('--method='.length);
     else if (/^-X./.test(arg)) method = arg.slice(2).replace(/^=/, '');
-    else if (['-f', '-F', '--field', '--raw-field', '--input'].includes(arg)) {
+    else if (FIELD_FLAGS.has(arg)) {
       hasFields = true;
-      positionals.push(rest[++i] ?? '');
-    } else positionals.push(arg);
+      i++;
+    } else if (/^--(?:field|raw-field|input)=/.test(arg) || /^-[fF]./.test(arg)) hasFields = true;
+    else if (FLAGS_WITH_VALUE.has(arg)) i++;
+    else if (!arg.startsWith('-')) positionals.push(arg);
   }
   method = method.toUpperCase();
   if (method === 'DELETE') return 'DELETE via gh api';
-  const endpoint = positionals[0] ?? '';
+  const endpoint = (positionals[0] ?? '').replace(/[?#].*$/, '');
   const writes = hasFields || (method !== '' && method !== 'GET');
   if (writes && /pulls\/\d+\/merge\/?$/.test(endpoint)) {
     return 'merging outside the pipeline (use pnpm pipeline merge)';
@@ -197,8 +217,7 @@ function checkGh(args: readonly string[]): string | null {
   if (writes && /git\/refs\/heads\/(?:main|master)\/?$/.test(endpoint)) {
     return 'moving main through the API';
   }
-  if (positionals.some((arg) => GRAPHQL_DESTRUCTIVE.test(arg)))
-    return 'destructive GraphQL mutation';
+  if (args.some((arg) => GRAPHQL_DESTRUCTIVE.test(arg))) return 'destructive GraphQL mutation';
   return null;
 }
 
@@ -215,7 +234,8 @@ function checkRm(args: readonly string[], context: GuardContext): string | null 
   if (!recursive) return null;
 
   const roots = [context.projectDir, ...context.scratchDirs].map((dir) => path.resolve(dir));
-  const known: Record<string, string> = {
+  type KnownVar = 'CLAUDE_PROJECT_DIR' | 'TMPDIR';
+  const known: Record<KnownVar, string> = {
     CLAUDE_PROJECT_DIR: context.projectDir,
     TMPDIR: context.tmpDir,
   };
@@ -225,18 +245,19 @@ function checkRm(args: readonly string[], context: GuardContext): string | null 
     if (operand.split('/').includes('..')) return outside;
     const resolved = operand.replace(
       /\$\{?(CLAUDE_PROJECT_DIR|TMPDIR)\}?(?![A-Za-z0-9_])/g,
-      (_, name: string) => known[name] ?? '$',
+      (_, name: KnownVar) => known[name],
     );
     if (resolved.includes('$')) {
       return `recursive delete of an unresolved path (${operand}); use a literal path`;
     }
-    if (path.isAbsolute(resolved)) {
-      const target = path.resolve(resolved);
-      // Strictly inside a root, and never a root itself (e.g. all of $TMPDIR).
-      const inside =
-        !roots.includes(target) && roots.some((root) => target.startsWith(root + path.sep));
-      if (!inside) return outside;
-    }
+    // Only a match-all glob (`*`, `.*`, `**`) empties its whole directory, so judge that
+    // directory. Any other pattern (`dist*`) matches entries inside it and resolves as a child.
+    const matchAll = /^\.?\*+$/.test(path.basename(resolved));
+    const target = path.resolve(context.cwd, matchAll ? path.dirname(resolved) : resolved);
+    // Strictly inside a root, and never a root itself (e.g. all of $TMPDIR or the project).
+    const inside =
+      !roots.includes(target) && roots.some((root) => target.startsWith(root + path.sep));
+    if (!inside) return outside;
   }
   return null;
 }
