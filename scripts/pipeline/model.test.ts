@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   checksFromRequired,
+  cleanupSummary,
   closedIssueNumbers,
   Label,
   mergeFailureMeansBehind,
@@ -40,6 +41,18 @@ describe('closedIssueNumbers', () => {
 
   it('ignores plain references', () => {
     expect(closedIssueNumbers('Part of #4, see #5')).toEqual([]);
+  });
+});
+
+describe('cleanupSummary', () => {
+  it('is silent when every cleanup step worked', () => {
+    expect(cleanupSummary(60, [])).toBeNull();
+  });
+
+  it('names the merged PR and each failed step', () => {
+    expect(cleanupSummary(60, ['close #51', 'relabel #52'])).toContain(
+      'Merged PR #60; cleanup incomplete: close #51, relabel #52',
+    );
   });
 });
 

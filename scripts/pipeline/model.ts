@@ -26,7 +26,7 @@ export interface IssueSnapshot {
   openBlockers: number;
   /** Parent spec number when this issue is a sub-issue. */
   parent: number | null;
-  /** Sub-issue progress (specs only meaningful). */
+  /** Closed vs total sub-issues; only specs have any (tickets read 0 of 0). */
   subIssues: { total: number; completed: number };
 }
 
@@ -128,6 +128,13 @@ export type LeanStatus = Omit<
 export function closedIssueNumbers(body: string): number[] {
   const pattern = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)/gi;
   return [...new Set([...body.matchAll(pattern)].map((match) => Number(match[1])))];
+}
+
+/** The closing line of `merge` when post-merge cleanup partly failed; null when all went well. */
+export function cleanupSummary(pr: number, failures: readonly string[]): string | null {
+  return failures.length
+    ? `Merged PR #${String(pr)}; cleanup incomplete: ${failures.join(', ')}. The merge succeeded; \`pipeline close-specs\` recovers a missed spec close.`
+    : null;
 }
 
 export function summarize(

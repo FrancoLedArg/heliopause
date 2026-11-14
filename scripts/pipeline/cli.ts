@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import {
   checksFromRequired,
+  cleanupSummary,
   closedIssueNumbers,
   DEFAULT_REQUIRED_CHECKS,
   isBehind,
@@ -27,17 +28,55 @@ function gh(args: readonly string[]): string {
   return execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
 }
 
-type GhAttempt = { ok: true } | { ok: false; output: string; error: unknown };
+type GhAttempt = { ok: true; stdout: string } | { ok: false; output: string; error: unknown };
 
 /** Like `gh`, but returns the failure's stderr and stdout instead of throwing. */
 function ghTry(args: readonly string[]): GhAttempt {
   try {
-    execFileSync('gh', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-    return { ok: true };
+    const stdout = execFileSync('gh', args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    return { ok: true, stdout };
   } catch (error) {
     const { stdout, stderr } = error as { stdout?: string; stderr?: string };
     return { ok: false, output: `${stderr ?? ''}\n${stdout ?? ''}`, error };
   }
+}
+
+/** Comment, unlabel and close a delivered spec; each step is best-effort and records its failure. */
+function closeSpec(spec: number, total: number, failures: string[]): void {
+  const steps: [string, string[]][] = [
+    [
+      `comment on spec #${String(spec)}`,
+      [
+        'issue',
+        'comment',
+        String(spec),
+        '--body',
+        `🤖 All ${String(total)} tickets merged. Spec delivered.`,
+      ],
+    ],
+    [
+      `relabel spec #${String(spec)}`,
+      [
+        'issue',
+        'edit',
+        String(spec),
+        '--remove-label',
+        `${Label.ReadyForAgent},${Label.InProgress}`,
+      ],
+    ],
+    [`close spec #${String(spec)}`, ['issue', 'close', String(spec), '--reason', 'completed']],
+  ];
+  for (const [what, args] of steps) {
+    const result = ghTry(args);
+    if (!result.ok) {
+      failures.push(what);
+      console.warn(`warning: ${what} failed: ${result.output.trim()}`);
+    }
+  }
+  console.log(`Closed spec #${String(spec)}`);
 }
 
 interface Repo {
@@ -260,19 +299,11 @@ const commands: Record<string, (args: string[]) => void> = {
   /** Close every claimed spec whose sub-issues are all closed (recovers a missed close). */
   'close-specs'() {
     const { issues, pulls } = snapshot(currentRepo());
-    for (const spec of summarize(issues, pulls).specsToClose) {
-      const total = spec.subIssues.total;
-      comment('issue', spec.number, `🤖 All ${String(total)} tickets merged. Spec delivered.`);
-      gh([
-        'issue',
-        'edit',
-        String(spec.number),
-        '--remove-label',
-        `${Label.ReadyForAgent},${Label.InProgress}`,
-      ]);
-      gh(['issue', 'close', String(spec.number), '--reason', 'completed']);
-      console.log(`Closed spec #${String(spec.number)}`);
-    }
+    const specs = summarize(issues, pulls).specsToClose;
+    if (!specs.length) console.log('No specs to close');
+    const failures: string[] = [];
+    for (const spec of specs) closeSpec(spec.number, spec.subIssues.total, failures);
+    if (failures.length) throw new Error(`Some steps failed: ${failures.join(', ')}`);
   },
 
   /** Mark a spec or ticket as taken by the Orchestrator. */
@@ -386,13 +417,37 @@ const commands: Record<string, (args: string[]) => void> = {
     }
     console.log(`Merged PR #${String(pr)}`);
 
+    // The PR is merged: everything below is best-effort. A failure is noted and the
+    // rest still runs; a later `close-specs` pass recovers a missed close.
+    const failures: string[] = [];
+    const attempt = (what: string, args: readonly string[]): boolean => {
+      const result = ghTry(args);
+      if (!result.ok) {
+        failures.push(what);
+        console.warn(`warning: ${what} failed: ${result.output.trim()}`);
+      }
+      return result.ok;
+    };
+
     const doneLabels = `${Label.ReadyForAgent},${Label.InProgress}`;
     const tickets = closedIssueNumbers(pull.body);
     for (const ticket of tickets) {
-      gh(['issue', 'edit', String(ticket), '--remove-label', doneLabels]);
+      attempt(`relabel #${String(ticket)}`, [
+        'issue',
+        'edit',
+        String(ticket),
+        '--remove-label',
+        doneLabels,
+      ]);
       // GitHub closes `Closes #N` tickets asynchronously; close them now so the
       // sub-issue count below is not read before it catches up.
-      gh(['issue', 'close', String(ticket), '--reason', 'completed']);
+      attempt(`close #${String(ticket)}`, [
+        'issue',
+        'close',
+        String(ticket),
+        '--reason',
+        'completed',
+      ]);
     }
 
     const specs = new Set(
@@ -402,31 +457,33 @@ const commands: Record<string, (args: string[]) => void> = {
     );
     for (const spec of specs) {
       if (spec === null) continue;
-      const summary = JSON.parse(
-        gh([
-          'api',
-          'graphql',
-          '-f',
-          'query=query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){subIssuesSummary{total completed}}}}',
-          '-F',
-          `owner=${repo.owner}`,
-          '-F',
-          `name=${repo.name}`,
-          '-F',
-          `n=${String(spec)}`,
-        ]),
-      ) as {
+      const read = ghTry([
+        'api',
+        'graphql',
+        '-f',
+        'query=query($owner:String!,$name:String!,$n:Int!){repository(owner:$owner,name:$name){issue(number:$n){subIssuesSummary{total completed}}}}',
+        '-F',
+        `owner=${repo.owner}`,
+        '-F',
+        `name=${repo.name}`,
+        '-F',
+        `n=${String(spec)}`,
+      ]);
+      if (!read.ok) {
+        failures.push(`read spec #${String(spec)}`);
+        console.warn(`warning: read spec #${String(spec)} failed: ${read.output.trim()}`);
+        continue;
+      }
+      const summary = JSON.parse(read.stdout) as {
         data: { repository: { issue: { subIssuesSummary: { total: number; completed: number } } } };
       };
       const { total, completed } = summary.data.repository.issue.subIssuesSummary;
       console.log(`Spec #${String(spec)}: ${String(completed)}/${String(total)} tickets done`);
-      if (total > 0 && completed === total) {
-        comment('issue', spec, `🤖 All ${String(total)} tickets merged. Spec delivered.`);
-        gh(['issue', 'edit', String(spec), '--remove-label', doneLabels]);
-        gh(['issue', 'close', String(spec), '--reason', 'completed']);
-        console.log(`Closed spec #${String(spec)}`);
-      }
+      if (total > 0 && completed === total) closeSpec(spec, total, failures);
     }
+
+    const incomplete = cleanupSummary(pr, failures);
+    if (incomplete) console.warn(incomplete);
   },
 };
 
