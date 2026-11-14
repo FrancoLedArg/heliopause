@@ -16,7 +16,8 @@ The human's rough scene sketches. They set composition and mood only; agents gen
 
 ## Ground (decided 2026-11-14, replaces the curved horizon)
 
-- **Flat**: one straight, level horizon across the whole screen. No curvature, no limb, no hills or mountains on the horizon. On a curved ground the Spacecraft looked like it didn't belong.
-- **One surface**: the ground must read as a single place. The old ground was three parallax layers, each with its own curved skyline, and it looked like three planets stacked up. Depth comes from perspective instead: craters and stones get smaller and flatter toward the horizon. There's no visible edge or band boundary inside the ground and no bright rim line on the horizon.
-- **Quiet**: low-contrast ground so the Spacecraft and the FX stand out. The background is the sky: stars, the Star and the nearby Bodies.
-- **Mockup**: direction D ("Flat and simple") in `docs/design/landed-look-directions.html` (open it in a browser). Directions A–C on the same page were rejected. Its grey rocket is a placeholder for scale, not a Chassis design.
+- **Side view, literally flat**: the ground is a horizontal strip seen from the side, like a 2D side-view game. Its top edge is a straight, level line and the Spacecraft stands on it. There is no perspective, curve, limb, horizon plane or planet texture: on every one of those, the ship "looked like it didn't belong".
+- **Inside the strip**: stones in cross-section, packed in rows, lit on the upper left and darker with depth. The top surface line is the brightest part, with a few pebbles resting on it, kept clear of the Spacecraft.
+- **Background**: the sky that's already there (stars, the Star, nearby Bodies). No hills or ridges for now.
+- **Composition reference**: a ship centred on flat side-view ground, as in a Super Metroid landing-site painting the human shared. It's a reference for composition only; nothing from it is copied.
+- **Mockup**: the "Landed" scene in `docs/design/shipwright-bench.html` (open it in a browser, Backdrop: Sky only). Rejected along the way: a curved limb, a mountain range, a giant planet and a perspective floor.
