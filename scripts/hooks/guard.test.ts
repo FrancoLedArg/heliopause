@@ -4,7 +4,8 @@ import { parseShell } from './shell.ts';
 
 const context = {
   projectDir: '/work/heliopause',
-  scratchDirs: ['/tmp', '/private/tmp', '/var/folders', '/var/folders/xy/T'],
+  cwd: '/work/heliopause',
+  scratchDirs: ['/tmp', '/private/tmp', '/var/folders/xy/T'],
   tmpDir: '/var/folders/xy/T',
 };
 
@@ -64,6 +65,10 @@ describe('guard allows ordinary agent work', () => {
     'git restore --staged .',
     'gh api repos/o/r/issues/3',
     'gh api repos/o/r/pulls/3/merge',
+    'gh api repos/o/r/pulls/3/merge?x=1',
+    'gh api -H "Accept: application/vnd.github+json" repos/o/r/issues/3',
+    'rm -rf ./coverage',
+    'rm -rf dist/*',
     'cd /tmp && ls',
     heredocBody("It's done; `gh label delete spec` is now blocked."),
     heredocBody('Findings:\n1) force push slips through\n2) fixed :)'),
@@ -74,6 +79,16 @@ describe('guard allows ordinary agent work', () => {
     'echo $((1 + 2))',
   ])('%s', (script) => {
     expect(check(script)).toBeNull();
+  });
+});
+
+describe('guard rm relative to cwd', () => {
+  it('blocks relative deletes when cwd is outside the project', () => {
+    expect(guard('rm -rf dist', { ...context, cwd: '/Users/someone' })).not.toBeNull();
+  });
+
+  it('allows relative deletes from a subdirectory of the project', () => {
+    expect(guard('rm -rf .', { ...context, cwd: '/work/heliopause/out' })).toBeNull();
   });
 });
 
@@ -136,6 +151,12 @@ describe('guard blocks', () => {
     'rm -rf "$HOME/x"',
     'rm -rf /Users/someone/other',
     'rm -rf /work/heliopause',
+    'rm -rf .',
+    'rm -rf ./',
+    'rm -rf *',
+    'rm -rf ./*',
+    'rm -rf /var/folders/xy',
+    'rm -rf /var/folders',
     `${heredocBody("It's done")} && git push --force`,
     `${heredocBody('1) step')} && git reset --hard`,
     'if git push origin main; then echo ok; fi',
@@ -144,6 +165,11 @@ describe('guard blocks', () => {
     'gh api -X=DELETE repos/o/r/labels/x',
     'gh api -XDELETE repos/o/r/labels/x',
     'gh api repos/o/r/merges -f base=main -f head=agent/1',
+    'gh api --method PUT -H "Accept: application/vnd.github+json" /repos/o/r/pulls/3/merge -f merge_method=squash',
+    'gh api -f merge_method=squash repos/o/r/pulls/3/merge',
+    'gh api --input body.json repos/o/r/pulls/3/merge',
+    'gh api -H "Accept: application/vnd.github+json" repos/o/r/merges -f base=main -f head=x',
+    'gh api -X PUT repos/o/r/pulls/3/merge?x=1',
     'gh api -X PATCH repos/o/r/git/refs/heads/main -f sha=abc',
     'rm -rf "$CLAUDE_PROJECT_DIR"',
     'rm -rf "$CLAUDE_PROJECT_DIR/$SUBDIR"',
