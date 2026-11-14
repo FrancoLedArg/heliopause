@@ -35,19 +35,34 @@ function closingBacktick(script: string, start: number): number {
   return i + 1;
 }
 
-export function parseShell(script: string): string[][] {
+/**
+ * One step of a parsed script: a simple command, or the boundary of a subshell scope
+ * (`( … )`, `$( … )`, backticks, `bash -c`). A `cd` inside a scope ends at its `exit`.
+ */
+export type ShellItem = { words: string[] } | { scope: 'enter' | 'exit' };
+
+/** Commands in execution order, with subshell boundaries kept so callers can scope `cd`. */
+export function parseScoped(script: string): ShellItem[] {
   // Unwrap `bash -c '…'`, `sh -c '…'`, `eval …` into the commands they run.
-  return lex(script, 0, false).commands.flatMap((command) => {
-    const [head, ...rest] = command;
+  return lex(script, 0, false).items.flatMap((item): ShellItem[] => {
+    if (!('words' in item)) return [item];
+    const [head, ...rest] = item.words;
     if (head === undefined) return [];
-    if (head === 'eval') return [command, ...parseShell(rest.join(' '))];
+    if (head === 'eval') return [item, ...parseScoped(rest.join(' '))];
     if (/^(?:.*\/)?(?:bash|sh|zsh|dash)$/.test(head)) {
       const flag = rest.findIndex((arg) => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(arg));
       const body = flag === -1 ? undefined : rest[flag + 1];
-      if (body !== undefined) return [command, ...parseShell(body)];
+      if (body !== undefined) {
+        return [item, { scope: 'enter' }, ...parseScoped(body), { scope: 'exit' }];
+      }
     }
-    return [command];
+    return [item];
   });
+}
+
+/** Every simple command in `script`, flattened (no scope information). Test-only: the guard uses `parseScoped`. */
+export function parseShell(script: string): string[][] {
+  return parseScoped(script).flatMap((item) => ('words' in item ? [item.words] : []));
 }
 
 /**
@@ -59,8 +74,8 @@ function lex(
   script: string,
   start: number,
   inSubstitution: boolean,
-): { commands: string[][]; end: number } {
-  const commands: string[][] = [];
+): { items: ShellItem[]; end: number } {
+  const items: ShellItem[] = [];
   let depth = 0;
   let words: string[] = [];
   let word = '';
@@ -90,18 +105,18 @@ function lex(
 
   const endCommand = (): void => {
     endWord();
-    if (words.length > 0) commands.push(words);
+    if (words.length > 0) items.push({ words });
     words = [];
   };
 
   const substitute = (inner: string): void => {
-    commands.push(...parseShell(inner));
+    items.push({ scope: 'enter' }, ...parseScoped(inner), { scope: 'exit' });
   };
 
   /** Lex the `$(…)` whose content starts at `from`; returns the index after its `)`. */
   const substitution = (from: number): number => {
     const inner = lex(script, from, true);
-    commands.push(...inner.commands);
+    items.push({ scope: 'enter' }, ...inner.items, { scope: 'exit' });
     return inner.end;
   };
 
@@ -245,6 +260,7 @@ function lex(
 
     if (ch === '(') {
       endCommand();
+      items.push({ scope: 'enter' });
       depth++;
       i++;
       continue;
@@ -253,8 +269,10 @@ function lex(
     if (ch === ')') {
       endCommand();
       i++;
-      if (depth > 0) depth--;
-      else if (inSubstitution) return { commands, end: i };
+      if (depth > 0) {
+        depth--;
+        items.push({ scope: 'exit' });
+      } else if (inSubstitution) return { items, end: i };
       continue;
     }
 
@@ -274,5 +292,5 @@ function lex(
     i++;
   }
   endCommand();
-  return { commands, end: i };
+  return { items, end: i };
 }
