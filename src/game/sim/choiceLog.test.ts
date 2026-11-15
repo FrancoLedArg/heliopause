@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createRng, type Rng } from '../lib/rng.ts';
 import {
+  advanceCruise,
+  beginHop,
   CHASSIS_IDS,
   CHOICE_LOG_VERSION,
   COMPONENT_IDS,
+  CRUISE_TUNING,
   HELIOPAUSE,
   install,
   launchHop,
@@ -15,6 +18,7 @@ import {
   runEnd,
   score,
   SLOT_COUNT,
+  startRepair,
   startRun,
   storedChoiceLog,
   type BodyId,
@@ -56,11 +60,29 @@ function playRandomly(start: Run, rng: Rng, options: HopOptions = {}): Run {
       const planned = planHop(run, target);
       const risky = planned.kind === 'planned' && planned.plan.successChance < 0.6;
       if (risky && rng.next() < 0.8) continue;
-      const result = launchHop(run, target, options);
-      if (result.kind === 'flown') run = result.run;
+      const begun = beginHop(run, target, options);
+      if (begun.kind === 'flown') run = begun.run;
+      if (begun.kind === 'cruising') run = flyCruise(begun.run, rng);
     }
   }
   return run;
+}
+
+/**
+ * The random player's Cruise: most Engine fires get a Repair, some too late, so a few Runs end
+ * Destroyed (#251); then the Cruise flies to its end.
+ */
+function flyCruise(cruising: Run, rng: Rng): Run {
+  let run = cruising;
+  const schedule = run.status.kind === 'cruising' ? run.status.cruise.schedule : [];
+  for (const event of schedule) {
+    if (event.kind !== 'engine-fire' || event.slot === null || rng.next() < 0.3) continue;
+    const at = advanceCruise(run, event.tick + rng.int(1, 2 * CRUISE_TUNING.fireTicks));
+    if (at.kind !== 'cruising') return at.run;
+    const repaired = startRepair(at.run, event.slot);
+    run = repaired.kind === 'repairing' ? repaired.run : at.run;
+  }
+  return run.status.kind === 'cruising' ? advanceCruise(run, CRUISE_TUNING.ticks).run : run;
 }
 
 /** The explorer's way out on `seed`, landed with a Jump Drive and the Heliopause found. */
@@ -288,6 +310,7 @@ describe('replay', () => {
   it('over many seeds, replaying random choices gives the same Run, Score and end', () => {
     let heliopauseHops = 0;
     let endedRuns = 0;
+    let destroyedRuns = 0;
     for (let seed = 1; seed <= 300; seed++) {
       const chassisId = CHASSIS_IDS[seed % CHASSIS_IDS.length] ?? 'scout';
       // Every tenth Run starts where a careful explorer has found the Heliopause (when it can), so
@@ -301,6 +324,7 @@ describe('replay', () => {
         (choice) => choice.kind === 'hop' && choice.target === HELIOPAUSE,
       ).length;
       if (runEnd(run)) endedRuns++;
+      if (runEnd(run)?.kind === 'destroyed') destroyedRuns++;
 
       const replayed = replay(seed, chassisId, run.choices, events);
       if (replayed.kind !== 'replayed') throw new Error(`Seed ${String(seed)}: ${replayed.why}`);
@@ -311,6 +335,7 @@ describe('replay', () => {
     // The random player reaches every kind of choice, ends Runs and Hops to the Heliopause.
     expect(heliopauseHops).toBeGreaterThan(0);
     expect(endedRuns).toBeGreaterThan(0);
+    expect(destroyedRuns).toBeGreaterThan(0);
     // About 1.5 s alone; each Jump generates a Star System with its redraws, so give it room under load.
   }, 30_000);
 

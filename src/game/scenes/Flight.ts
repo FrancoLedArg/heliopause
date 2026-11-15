@@ -108,10 +108,28 @@ export interface FlightData {
  */
 export function flightDataFor(before: Run, begun: BeginResult): FlightData {
   if (begun.kind === 'flown') return { before, flight: begun.flight, after: begun.run };
-  const untouched = advanceCruise(begun.run, CRUISE_TUNING.ticks);
-  // Only an Engine fire Destroys a Spacecraft, and real Runs do not schedule one yet (#251).
-  if (untouched.kind !== 'flown') throw new Error('An Engine fire in the Cruise arrives with #251');
+  const untouched = paceCruise(begun.run);
   return { before, flight: untouched.flight, after: untouched.run, cruising: begun.run };
+}
+
+/**
+ * The Hop as it ends if the player does nothing in its Cruise but start a Repair on each Engine fire
+ * as it strikes: what paces the playback until the real result is known. (A fire left alone ends the
+ * Hop Destroyed, with no Landing to pace; the scene plays that when it happens, #251.)
+ */
+function paceCruise(cruising: Run): Extract<CruiseResult, { kind: 'flown' }> {
+  let run = cruising;
+  const schedule = run.status.kind === 'cruising' ? run.status.cruise.schedule : [];
+  for (const event of schedule) {
+    if (event.kind !== 'engine-fire' || event.slot === null) continue;
+    const struck = advanceCruise(run, event.tick);
+    if (struck.kind !== 'cruising') break;
+    const repaired = startRepair(struck.run, event.slot);
+    run = repaired.kind === 'repairing' ? repaired.run : struck.run;
+  }
+  const flown = advanceCruise(run, CRUISE_TUNING.ticks);
+  if (flown.kind !== 'flown') throw new Error('A Cruise with every fire put out ended early');
+  return flown;
 }
 
 /**
@@ -260,6 +278,12 @@ const BURST = { size: 120, crash: 200 } as const;
 const SPUTTER_MS = 450;
 /** The crash's explosion art (`fx_explosion`), when the manifest has it: frames `explode_0`..`explode_7`, each shown this long (ms). */
 const EXPLOSION = { frames: 8, frameMs: 70, scale: 2 } as const;
+/**
+ * An Engine fire reaching the Fuel (#251): the Spacecraft breaks up this soon into the explosion, the
+ * warm flash over the screen starts this bright and fades over `flashMs`, the burst of light is this
+ * big (px across), and the Run ends `holdMs` after the blast.
+ */
+const BOOM = { breakupMs: 280, flash: 0.6, flashMs: 500, burst: 160, holdMs: 1600 } as const;
 
 /** The pieces thrown up by a crash. */
 const DEBRIS_COUNT = 14;
@@ -408,6 +432,11 @@ export class Flight extends Scene {
   live: Run | undefined;
   /** The Damage drawn on the flying Spacecraft. */
   marks!: DamageMarks;
+  /**
+   * Set once an Engine fire Destroyed the Spacecraft (#251): when on the playback clock, where on
+   * screen it blew up, and the ended Run.
+   */
+  private boom: { readonly atMs: number; readonly spot: Point; readonly ended: Run } | undefined;
   /** The solar flare's warm wash (#253), over the space shot, rolling in from the star's side. */
   flareWash!: GameObjects.Image;
 
@@ -420,6 +449,7 @@ export class Flight extends Scene {
     this.flight = data.flight;
     this.after = data.after;
     this.live = data.cruising;
+    this.boom = undefined;
     this.finished = false;
     this.held = false;
     this.fast = false;
@@ -558,6 +588,11 @@ export class Flight extends Scene {
   override update(_time: number, delta: number): void {
     if (this.held || this.finished) return;
     const real = Math.min(delta, MAX_FRAME_MS);
+    // The explosion plays in real time, whatever the Cruise's speed was.
+    if (this.boom) {
+      this.render(this.playbackMs + real);
+      return;
+    }
     const speed = this.fast ? FAST_FORWARD : 1;
     const { duration } = this.playback;
     const ms =
@@ -627,8 +662,56 @@ export class Flight extends Scene {
         this.marks.hide();
         EventBus.emit('hop-flight-settled', this.flight, this.after);
         return;
-      case 'destroyed':
-        throw new Error('An Engine fire in the Cruise arrives with #251');
+      case 'destroyed': {
+        // An Engine fire reached the Fuel (#251): the explosion plays where the Engine was, then
+        // the Run ends. Nothing more is flown, so the playback clock stops mattering.
+        const burning =
+          this.live?.spacecraft.damage.findIndex((d) => typeof d?.burning === 'number') ?? -1;
+        const bounds = this.componentBounds().get(burning);
+        const spot = bounds
+          ? { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
+          : { x: this.ship.x, y: this.ship.y };
+        this.live = undefined;
+        this.marks.hide();
+        this.game.canvas.parentElement?.removeAttribute(DAMAGE_ATTRIBUTE);
+        this.boom = { atMs: this.playbackMs, spot, ended: result.run };
+        EventBus.emit('spacecraft-exploded');
+        return;
+      }
+    }
+  }
+
+  /**
+   * The Spacecraft exploding, `since` ms after its Engine fire reached the Fuel (#251): a flash and
+   * the explosion art over the burning Engine while the Spacecraft breaks up, then only the stars.
+   * Under reduced motion no flash or animation: the Spacecraft is simply gone behind a steady glow.
+   * Once it has played, the Run ends Destroyed.
+   */
+  private renderBoom(boom: NonNullable<Flight['boom']>, ms: number): void {
+    const since = Math.max(0, ms - boom.atMs);
+    this.showStage('cruise');
+    this.cruise(boom.atMs, false);
+    this.marks.hide();
+    const calm = this.pace === 'reduced';
+    this.ship.setVisible(since < BOOM.breakupMs && !calm);
+    const { screen, burst, explosion } = this.engineLight;
+    const flash = calm ? 0 : BOOM.flash * clamp01(1 - since / BOOM.flashMs);
+    this.flash = flash;
+    screen.setAlpha(flash).setVisible(flash > 0);
+    const size = BOOM.burst * (calm ? 0.6 : 0.6 + 2 * flash);
+    const glow = calm ? 0.6 : clamp01(1 - since / BOOM.holdMs);
+    burst
+      .setPosition(boom.spot.x, boom.spot.y)
+      .setDisplaySize(size, size)
+      .setAlpha(glow)
+      .setVisible(glow > 0);
+    const frame = Math.floor(since / EXPLOSION.frameMs);
+    const playing = !calm && frame < EXPLOSION.frames;
+    explosion?.setPosition(boom.spot.x, boom.spot.y).setVisible(playing);
+    if (playing) explosion?.setFrame(`explode_${String(frame)}`);
+    if (since >= BOOM.holdMs && !this.finished) {
+      this.finished = true;
+      EventBus.emit('hop-destroyed', boom.ended);
     }
   }
 
@@ -718,10 +801,14 @@ export class Flight extends Scene {
   }
 
   private render(ms: number): void {
-    this.cruiseTo(ms);
     // Only the Cruise draws the Debris fields' rocks.
     for (const rock of this.rocks) rock.setVisible(false);
     this.playbackMs = ms;
+    this.cruiseTo(ms);
+    if (this.boom) {
+      this.renderBoom(this.boom, ms);
+      return;
+    }
     if (this.jump && ms > this.playback.duration) {
       this.renderJump(this.jump, ms - this.playback.duration);
       return;

@@ -6,7 +6,7 @@ export interface EndOfRunView {
   readonly title: 'Fell Short' | 'Crashed' | 'Stranded' | 'Destroyed';
   /** One line saying what happened, before the why. */
   readonly summary: string;
-  /** The simulation's plain-language why, as written. */
+  /** The simulation's plain-language why, as written; for Destroyed, how to avoid it (the summary is the why). */
   readonly reason: string;
   readonly score: string;
   /** The Best Score, which includes this Run's when it is the best. */
@@ -57,8 +57,14 @@ const ENDS: Record<RunEnd['kind'], Pick<EndOfRunView, 'title' | 'summary'>> = {
   'fell-short': { title: 'Fell Short', summary: 'The Fuel ran out in flight.' },
   crashed: { title: 'Crashed', summary: 'The Spacecraft was lost on Landing.' },
   stranded: { title: 'Stranded', summary: 'No Hop was left to fly.' },
-  destroyed: { title: 'Destroyed', summary: 'The Spacecraft was lost in the Cruise.' },
+  destroyed: { title: 'Destroyed', summary: 'The Engine fire reached the Fuel.' },
 };
+
+/**
+ * What waits behind "Tell me more" for a Destroyed Run: the summary already says what happened, in
+ * the simulation's one line, so this is how to avoid it (#210's "Show, don't tell" amendment).
+ */
+const DESTROYED_ADVICE = 'A Repair started in time would have put it out.';
 
 /**
  * What the End-of-Run screen shows for a Run that ended as `end` with `score`. For a Daily Run,
@@ -73,7 +79,7 @@ export function describeEndOfRun(
 ): EndOfRunView {
   return {
     ...ENDS[end.kind],
-    reason: end.reason,
+    reason: end.kind === 'destroyed' ? DESTROYED_ADVICE : end.reason,
     score: formatScore(score),
     best: formatScore(best),
     scoreFigures: scoreFigures(score),

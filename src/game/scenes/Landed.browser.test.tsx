@@ -33,7 +33,7 @@ import {
 } from '../sim/index.ts';
 import { manifest, type AssetEntry } from '../assets/manifest.ts';
 import { SceneKey } from './keys.ts';
-import { COMMS_PING, SPACECRAFT_ATTRIBUTE, type Landed, type LandedData } from './Landed.ts';
+import { SPACECRAFT_ATTRIBUTE, type Landed, type LandedData } from './Landed.ts';
 import type { Gathering } from './gathering.ts';
 import '../../style.css';
 
@@ -487,13 +487,14 @@ it('under reduced motion the Comms ping is one still ring, gone after a moment',
   );
   const { run, report } = firstLanding();
   const scene = await landOn(run, undefined, report);
-  await until(() => scene.commsPing.length > 0);
+  await until(() => scene.commsPing.length > 0, PING_WAIT_MS);
   expect(scene.commsPing).toHaveLength(1);
   const [ring] = scene.commsPing;
   const scale = ring?.scale;
   await pause(300);
   expect(ring?.scale).toBe(scale);
-  await until(() => scene.commsPing.length === 0, COMMS_PING.stillMs * 3);
+  // The ring goes on the scene clock, which lags real time on a loaded CI runner.
+  await until(() => scene.commsPing.length === 0, PING_WAIT_MS);
 });
 
 /** Every image the drawn Spacecraft is made of: its Chassis art and Component art. */
@@ -722,8 +723,22 @@ it('under reduced motion a Damaged part shows a steady glow and its badge, and n
   );
   const scene = await landOn(leakingOnTheMoon());
   expect(scene.reducedMotion).toBe(true);
-  expect(scene.marks.shown(1)).toEqual({ glow: true, badge: true, vent: false, ring: false });
-  expect(scene.marks.shown(0)).toEqual({ glow: false, badge: false, vent: false, ring: false });
+  expect(scene.marks.shown(1)).toEqual({
+    glow: true,
+    badge: true,
+    vent: false,
+    flame: false,
+    danger: false,
+    ring: false,
+  });
+  expect(scene.marks.shown(0)).toEqual({
+    glow: false,
+    badge: false,
+    vent: false,
+    flame: false,
+    danger: false,
+    ring: false,
+  });
 });
 
 it('sweeps a Radar ring out from the Spacecraft when one is installed, and says what it found', async () => {
