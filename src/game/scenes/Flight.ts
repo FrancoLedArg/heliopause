@@ -27,6 +27,7 @@ import {
   glowTexture,
   type FlightEffects,
 } from './flightEffects.ts';
+import { describeGathering } from './gathering.ts';
 import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
 import {
@@ -769,7 +770,11 @@ export class Flight extends Scene {
       }
       case 'reached-heliopause': {
         // The Jump has played: on to the Landed view of the next Starting Moon, up out of the black.
-        const data: LandedData = { run: this.after, afterJump: true };
+        // Marooned on the next Starting Moon: its yield flows in as the view comes up (#189).
+        const gathering = describeGathering(this.after, this.after.startingYield);
+        const data: LandedData = gathering
+          ? { run: this.after, afterJump: true, gathering }
+          : { run: this.after, afterJump: true };
         this.scene.start(SceneKey.Landed, data);
         return;
       }

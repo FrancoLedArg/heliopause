@@ -17,11 +17,11 @@ One randomly generated star and the Bodies orbiting it. Escaping it leads to the
 _Avoid_: Solar system, level, map
 
 **Home Planet**:
-The small rocky planet, close to its star and with at least one Moon, where the Spacecraft starts in each Star System. Superseded by Starting Moon when spec #96 is built; until then the code and specs #12, #14 and #15 still use this term.
+Retired: the small rocky planet where the Spacecraft started in each Star System before spec #96 (#189). Specs #12, #14 and #15 still use the term; read it as Starting Moon.
 _Avoid_: Start, spawn, Earth
 
 **Starting Moon**:
-The randomly chosen Moon where the Spacecraft is marooned at the start of each Star System, knowing nothing but where it stands and one nearby Body. Replaces Home Planet once spec #96 is built.
+The randomly chosen Moon where the Spacecraft is marooned at the start of each Star System, knowing nothing but where it stands and one nearby Body. Its yield is collected at the start, so it begins Depleted. Replaces the Home Planet.
 _Avoid_: Start, spawn, Earth
 
 **Stranded**:
@@ -37,7 +37,7 @@ Leaving a Star System by making the Jump, which wins that Star System.
 _Avoid_: Win, exit
 
 **Jump**:
-Firing the Jump Drive at the Heliopause, which carries the Spacecraft to the next Star System's Home Planet (Starting Moon once #96 lands) and burns the Jump Drive out.
+Firing the Jump Drive at the Heliopause, which carries the Spacecraft to the next Star System's Starting Moon and burns the Jump Drive out.
 _Avoid_: Warp, hyperspace, FTL
 
 **Heliopause**:
@@ -117,7 +117,7 @@ The Component that Detects every Body within its range, and at level 2 also Surv
 _Avoid_: Sensor, scanner, telescope
 
 **Comms**:
-The Spacecraft's built-in communications system, not a Component: after every landing it Detects the nearest Body not yet Detected.
+The Spacecraft's built-in communications system, not a Component: after every landing it Detects the nearest landable Body not yet Detected.
 _Avoid_: Radio, antenna, beacon
 
 ## Resources

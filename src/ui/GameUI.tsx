@@ -8,6 +8,7 @@ import { readDailyBest, recordDailyRun } from '../game/lib/dailyBest.ts';
 import { dailySeed, utcDay } from '../game/lib/dailyStarSystem.ts';
 import {
   availableDeltaV,
+  kilograms,
   score,
   starSystemNumber,
   type ChassisId,
@@ -18,9 +19,11 @@ import {
 } from '../game/sim/index.ts';
 import { SceneKey } from '../game/scenes/keys.ts';
 import type { ChartState } from '../game/scenes/navChartView.ts';
+import { readoutAt, type Gathering, type GatheringReadout } from '../game/scenes/gathering.ts';
 import { ChassisPicker } from './ChassisPicker.tsx';
 import { commsAnnouncement } from './commsView.ts';
 import { EndOfRun, type RecordedScore } from './EndOfRun.tsx';
+import { formatFuel } from './format.ts';
 import { FlightHud, type FlightAfter } from './FlightHud.tsx';
 import { HopReport } from './HopReport.tsx';
 import { LandedPanels } from './LandedPanels.tsx';
@@ -90,6 +93,13 @@ export function GameUI() {
   const [arrival, setArrival] = useState<{ before: Run; flight: HopFlight } | undefined>(undefined);
   // What Comms just revealed, in words for the polite live region; the ping on the Landed view is the visual.
   const [comms, setComms] = useState('');
+  // The gathering moment playing in the Landed view, and where its readout has counted to; the
+  // Hop report waits until it ends.
+  const [gathering, setGathering] = useState<
+    { gathering: Gathering; readout: GatheringReadout } | undefined
+  >(undefined);
+  // What the last gathering moment brought aboard, for the polite live region (said once).
+  const [gathered, setGathered] = useState('');
   // A New Run has been launched and the scene is about to change: the choice is made.
   const [launching, setLaunching] = useState(false);
   // Whether the Spacecraft panel is open over the Landed view.
@@ -128,6 +138,8 @@ export function GameUI() {
           setNavFocus(0);
           setSpacecraftOpen(false);
           setStranded(undefined);
+          setGathering(undefined);
+          setGathered('');
           setFocus(leftRun.current ? 'new-run' : undefined);
           leftRun.current = false;
         }
@@ -141,6 +153,8 @@ export function GameUI() {
         setRun(started);
         setComms('');
         setArrival(undefined);
+        setGathering(undefined);
+        setGathered('');
         setFlight(undefined);
         setStranded(undefined);
         setFadingIn(afterJump.current);
@@ -172,6 +186,7 @@ export function GameUI() {
         setSpacecraftOpen(false);
         setArrival(undefined);
         setFlight(undefined);
+        setGathering(undefined);
       }),
     [],
   );
@@ -189,6 +204,41 @@ export function GameUI() {
       }),
     [],
   );
+
+  useEffect(() => {
+    const offs = [
+      EventBus.on('gathering-started', (started) => {
+        setGathering({ gathering: started, readout: readoutAt(started, 0) });
+        setGathered(describeGathered(started));
+      }),
+      EventBus.on('gathering-readout', (readout) => {
+        setGathering((now) => now && { ...now, readout });
+      }),
+      EventBus.on('gathering-ended', () => {
+        setGathering(undefined);
+      }),
+    ];
+    return () => {
+      for (const off of offs) off();
+    };
+  }, []);
+
+  // Any key or click skips the gathering moment, wherever it lands (canvas or panel), and does
+  // nothing else.
+  const gatheringNow = gathering !== undefined;
+  useEffect(() => {
+    if (!gatheringNow) return;
+    const skip = (event: KeyboardEvent | PointerEvent): void => {
+      takeWhole(event);
+      EventBus.emit('gathering-skip-requested');
+    };
+    window.addEventListener('keydown', skip, true);
+    window.addEventListener('pointerdown', skip, true);
+    return () => {
+      window.removeEventListener('keydown', skip, true);
+      window.removeEventListener('pointerdown', skip, true);
+    };
+  }, [gatheringNow]);
 
   useEffect(() => {
     const offs = [
@@ -377,12 +427,15 @@ export function GameUI() {
           onOpenSpacecraft={openSpacecraft}
           focusRequest={navFocus}
           dailyDay={daily}
+          gathering={gathering?.readout}
+          gathered={gathered}
         />
       )}
       {scene === SceneKey.Landed &&
         run !== undefined &&
         stranded === undefined &&
-        arrival !== undefined && (
+        arrival !== undefined &&
+        gathering === undefined && (
           <HopReport
             before={arrival.before}
             flight={arrival.flight}
@@ -434,6 +487,52 @@ export function GameUI() {
       <p className="hud-tag ai-label">AI-generated art and music</p>
     </div>
   );
+}
+
+/**
+ * Takes the whole of the key press or click that skips the gathering moment, so the Hop report it
+ * opens is not pressed by the same input: Enter acts on the keydown and Space on the keyup of the
+ * Continue button the report focuses, and a click lands on whatever appears under the pointer.
+ */
+function takeWhole(event: KeyboardEvent | PointerEvent): void {
+  event.preventDefault();
+  event.stopPropagation();
+  const swallow = (next: Event): void => {
+    next.preventDefault();
+    next.stopPropagation();
+  };
+  if (event instanceof KeyboardEvent) {
+    // A held key repeats its keydown, then ends with one keyup.
+    const onKey = (next: KeyboardEvent): void => {
+      if (next.key !== event.key) return;
+      swallow(next);
+      if (next.type !== 'keyup') return;
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keyup', onKey, true);
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKey, true);
+    return;
+  }
+  // The click this press ends in comes straight after its pointerup; a drag that ends in none leaves
+  // the next click alone.
+  window.addEventListener('click', swallow, { capture: true, once: true });
+  window.addEventListener(
+    'pointerup',
+    () => {
+      setTimeout(() => {
+        window.removeEventListener('click', swallow, true);
+      }, 0);
+    },
+    { capture: true, once: true },
+  );
+}
+
+/** What a gathering moment brought aboard, as the live region says it. */
+function describeGathered(gathering: Gathering): string {
+  return gathering.resource === 'fuel'
+    ? `Fuel +${formatFuel(kilograms(gathering.to - gathering.from))}`
+    : `Materials +${String(gathering.to - gathering.from)}`;
 }
 
 /** Puts the seed and Chassis of the Run just launched in the page URL, other parameters kept. */

@@ -2,10 +2,10 @@ import { Events } from 'phaser';
 import type { SceneKey } from './scenes/keys.ts';
 import type { ChartCommand, ChartState } from './scenes/navChartView.ts';
 import type { FlightMoment, Pace } from './scenes/flightPlayback.ts';
+import type { Gathering, GatheringReadout } from './scenes/gathering.ts';
 import type { JumpStage } from './scenes/jumpPlayback.ts';
 import type {
   ChassisId,
-  Collection,
   ComponentId,
   HopFlight,
   HopTarget,
@@ -20,12 +20,6 @@ export interface GameEvents {
   'scene-ready': [sceneKey: SceneKey];
   /** Phaser -> React: the Run the Landed view shows (sent just before its `scene-ready`). */
   'run-started': [run: Run];
-  /**
-   * Phaser -> React: the Landed view opened a Star System (a New Run, or the Jump's arrival) and the
-   * Starting Moon's yield is in: `collection` is what it gave, already in `run`'s Fuel or Materials
-   * (sent just after `run-started`). The gathering moment (#220) plays it.
-   */
-  'starting-yield-collected': [run: Run, collection: Collection];
   /**
    * Phaser -> React: the Comms ping is playing on the Landed view after a landing that taught the
    * player something (`reveal`: the Body Surveyed, and what Comms Detected). React announces it in a
@@ -99,6 +93,19 @@ export interface GameEvents {
    * it (sent after the Landed view's `run-started`, before its `scene-ready`). `before` is the Run at Launch.
    */
   'hop-arrived': [before: Run, flight: HopFlight];
+  /**
+   * Phaser -> React: the gathering moment begins in the Landed view (sent after `hop-arrived`, before
+   * `scene-ready`). Until `gathering-ended`, the top bar's readout for `gathering.resource` shows
+   * `gathering.from` and then each `gathering-readout`, and the Hop report waits. Never sent under
+   * reduced motion: the view shows the end state at once.
+   */
+  'gathering-started': [gathering: Gathering];
+  /** Phaser -> React: the readout counted up as the resource reached the top bar; sent only on a change. */
+  'gathering-readout': [readout: GatheringReadout];
+  /** Phaser -> React: the gathering moment is over, played out or skipped; the top bar shows the Run's own values. */
+  'gathering-ended': [];
+  /** React -> Phaser: the player pressed a key or clicked during the gathering moment: skip to its end. */
+  'gathering-skip-requested': [];
   /**
    * Phaser -> React: the simulation ended the Run as Stranded (`ended`) on the Body the Landed view
    * shows: no change to the Spacecraft could give any Hop a chance. Sent when the view comes up on a

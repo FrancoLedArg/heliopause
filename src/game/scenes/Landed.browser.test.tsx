@@ -29,6 +29,7 @@ import {
 import { manifest, type AssetEntry } from '../assets/manifest.ts';
 import { SceneKey } from './keys.ts';
 import { COMMS_PING, type Landed, type LandedData } from './Landed.ts';
+import type { Gathering } from './gathering.ts';
 import '../../style.css';
 
 let root: Root | undefined;
@@ -396,17 +397,34 @@ function firstLanding(): { run: Run; report: NonNullable<LandedData['report']> }
   return { run: launched.run, report: { before, flight: launched.flight } };
 }
 
-it('opening a Star System hands the Starting Moon’s yield to the gathering moment', async () => {
-  const seen: unknown[] = [];
-  const off = EventBus.on('starting-yield-collected', (run, collection) => {
-    seen.push([run.seed, collection]);
+it('a New Run opens with the gathering moment for the Starting Moon’s yield, and ends with the Run’s own value', async () => {
+  await landOn(startRun(2026, 'scout'));
+  const run = startRun(7, 'scout');
+  // Seed 7 opens on a Rocky Starting Moon: its Materials flow in.
+  expect(run.startingYield.kind).toBe('materials');
+  const started = new Promise<Gathering>((resolve) => {
+    const off = EventBus.on('gathering-started', (gathering) => {
+      off();
+      resolve(gathering);
+    });
   });
-  const run = startRun(2026, 'scout');
-  await landOn(run);
-  off();
-  expect(seen).toEqual([[2026, run.startingYield]]);
-  // The top bar already shows what the yield brought in.
-  expect(document.querySelector('.stage__ui')?.textContent).toContain(String(run.materials));
+  const ended = new Promise<void>((resolve) => {
+    const off = EventBus.on('gathering-ended', () => {
+      off();
+      resolve();
+    });
+  });
+  act(() => {
+    EventBus.emit('new-run-requested', 7, 'scout');
+  });
+  const gathering = await started;
+  expect(gathering).toMatchObject({ resource: 'materials', to: run.materials });
+  expect(gathering.from).toBeLessThan(gathering.to);
+  await ended;
+  await act(() => Promise.resolve());
+  expect(document.querySelector('[data-testid="materials"]')?.textContent).toBe(
+    String(run.materials),
+  );
 });
 
 it('after a landing, Comms pings from the Spacecraft and says what it Detected in a polite live region', async () => {

@@ -29,6 +29,13 @@ const hop = launchHop(builtRun, moon.id);
 if (hop.kind !== 'flown' || hop.flight.outcome.kind !== 'arrived') {
   throw new Error(`Seed ${SEED}: the Drilled Spacecraft's Hop to ${moon.name} should Arrive`);
 }
+// The gathering moment's end state (#220): the Fuel the top bar shows rose by what landing brought
+// aboard, and the report's icon row says so as "+N t" beside the Fuel icon.
+const [gathered] = describeReport(builtRun, hop.flight).gains;
+if (gathered?.resource !== 'fuel') throw new Error(`${moon.name} should give Fuel`);
+const fuelBeforeGathering = formatFuel(hop.flight.fuelRemaining);
+const fuelAfterGathering = formatFuel(hop.run.spacecraft.fuelMass);
+if (fuelAfterGathering === fuelBeforeGathering) throw new Error('The landing should add Fuel');
 
 /** Tab until focus is on the button named `name`: how a keyboard player reaches a Component. */
 async function tabTo(page: Page, name: RegExp): Promise<void> {
@@ -118,7 +125,8 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
     page.getByTestId('inspect').getByRole('img', { name: moonYield.name }),
   ).toBeVisible();
 
-  // 5. Hop to the Icy Moon; the report says what was collected, naming the Drill.
+  // 5. Hop to the Icy Moon. Under reduced motion the gathering moment resolves at once: the top bar
+  // already shows the Fuel risen, and the report's icon row shows "+N t" with the Fuel icon.
   // On the Hop plan, Tab goes to Cancel and then to Launch.
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
@@ -126,12 +134,20 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   await page.keyboard.press('Enter');
   const report = page.getByRole('dialog', { name: 'Arrived' });
   await expect(report).toBeVisible({ timeout: 30_000 });
-  await expect(report.getByTestId('hop-report-collected')).toHaveText(
-    describeReport(builtRun, hop.flight).collected ?? '',
-  );
+  await expect(page.getByTestId('fuel')).toHaveText(fuelAfterGathering);
+  // The words, Drill included, are the entry's accessible name; what shows is the icon and the amount.
+  const gain = report.getByRole('img', { name: gathered.name });
+  await expect(gain).toBeVisible();
+  await expect(gain).toContainText(gathered.amount);
+  expect(gathered.amount).toMatch(/^\+\d+\.\d t$/);
+  await expect(gain.locator('[data-resource="fuel"]').first()).toBeVisible();
+  await testInfo.attach('arrived-report', {
+    body: await page.screenshot(),
+    contentType: 'image/png',
+  });
   await page.keyboard.press('Enter');
   await expect(report).toBeHidden();
-  await expect(page.getByTestId('fuel')).toHaveText(formatFuel(hop.run.spacecraft.fuelMass));
+  await expect(page.getByTestId('fuel')).toHaveText(fuelAfterGathering);
   // The plate shows the struck-through icon (its words in the accessible name).
   await expect(
     page.getByTestId('landed-kind').getByRole('img', { name: 'Depleted, yields nothing' }),
