@@ -209,7 +209,7 @@ const DEPARTURE = {
  * (`stars`: how bright, and how fast in px per s).
  */
 const APPROACH = {
-  body: { at: { x: 500, y: 258 }, from: 220, to: 300 },
+  body: { at: { x: 502, y: 246 }, from: 220, to: 300 },
   ship: { from: { x: 44, y: 86 }, to: { x: 340, y: 152 } },
   scale: { from: 1.1, to: 0.38 },
   stars: { alpha: 0.55, drift: { x: -7, y: -2 } },
