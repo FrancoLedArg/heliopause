@@ -53,33 +53,37 @@ export function landing(
 }
 
 /**
- * Seed 156 with a level-1 Drill, landed on Rymoquox by way of Zuzin and Rama: no Hop as built, but
+ * Seed 111 with a level-1 Drill, on Malsaer again after Malsaer and Susrox: no Hop as built, but
  * removing the Drill saves the Run. Re-pinned for #189 (was seed 45's Mavar, then seed 11 before a
- * Rocky opening stopped adding Materials over a New Run's) and for #247 (was seed 15's Pripro): the
- * Chassis Isp rose 30%, so seed 15's Run has a Hop there.
+ * Rocky opening stopped adding Materials over a New Run's), for #247 (was seed 15's Pripro): the
+ * Chassis Isp rose 30%, so seed 15's Run has a Hop there, and for #280 (was seed 156's Rymoquox):
+ * Comms now Detects a Fuel source In reach first, so Rymoquox is never Detected.
  */
 export const SAVE_BY_REMOVING = {
-  seed: 156,
-  path: ['Zuzin', 'Rama', 'Rymoquox'],
+  seed: 111,
+  path: ['Malsaer', 'Susrox', 'Malsaer'],
   fit: 'drill-1',
 } as const;
 
 /**
- * Seed 27, back on Dryli after Dryli, Siolmel and Teskae: the last Hop's plan is sure, and no change
- * to the Spacecraft could give any Hop a chance. Re-pinned for #189 (was seed 305's Lyquin): Runs
- * open on a Starting Moon and Hop only to Bodies Comms Detected. Re-pinned for #247 (was seed 12's
- * Laquun): the Chassis Isp rose 30%, so that Run is no longer Stranded.
+ * Seed 10, back on Lanpraen after Lanpraen, Dryslansu and Salsyr: the last Hop's plan is sure, and
+ * no change to the Spacecraft could give any Hop a chance. Re-pinned for #189 (was seed 305's
+ * Lyquin): Runs open on a Starting Moon and Hop only to Bodies Comms Detected. Re-pinned for #247
+ * (was seed 12's Laquun): the Chassis Isp rose 30%, so that Run is no longer Stranded. Re-pinned for
+ * #280 (was seed 27's Dryli): Comms now Detects a Fuel source In reach first, so Siolmel is never
+ * Detected.
  */
 export const STRANDED_ON_LANDING = {
-  seed: 27,
-  path: ['Dryli', 'Siolmel', 'Teskae', 'Dryli'],
+  seed: 10,
+  path: ['Lanpraen', 'Dryslansu', 'Salsyr', 'Lanpraen'],
 } as const;
 
 /**
- * Seed 27's same path with 1 Material more than it would have (60, not 59): only swapping in the
- * level-2 Engine (60) saves the Run, so spending any of them on another Component strands it.
- * Without it, the Landing itself strands it. Re-pinned for #189 (was seed 57's Vekyr).
+ * Seed 10's same path with 15 Materials more than it would have, landing with 60: only swapping in
+ * the level-2 Engine (60) saves the Run, so spending any of them on another Component strands it.
+ * With one fewer, the Landing itself strands it. Re-pinned for #189 (was seed 57's Vekyr) and #280
+ * (was seed 27's, with 1 more).
  */
 export function saveByRefitting(): Run {
-  return landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path, undefined, 1).run;
+  return landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path, undefined, 15).run;
 }

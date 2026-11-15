@@ -61,21 +61,23 @@ function fittedWith(from: Run, slots: readonly Slot[]): Run {
 }
 
 /**
- * Seed 27's Scout after Hopping to Dryli, Siolmel, Teskae and back to Dryli, `extra` Materials added
- * at the start: a Run that only swapping in the level-2 Engine (60 Materials) could save. Re-pinned for
+ * Seed 10's Scout after Hopping to Lanpraen, Dryslansu, Salsyr and back to Lanpraen, `extra` Materials
+ * added at the start: with 14 more, a Run that only swapping in the level-2 Engine (60 Materials) could save. Re-pinned for
  * #189 (was seed 57's Hop to Vekyr): Runs open on a Starting Moon and Hop only to Bodies Comms
  * Detected. Re-pinned for #247 (was seed 12's Laquun, Prahen and Laquun): the Chassis Isp rose 30%,
- * so that Run is no longer Stranded. The last Hop's plan is sure, yet it Arrives Stranded as built.
+ * so that Run is no longer Stranded. Re-pinned for #280 (was seed 27's Dryli, Siolmel, Teskae and
+ * Dryli): Comms now Detects a Fuel source In reach first, so Siolmel is never Detected. The last
+ * Hop's plan is sure, yet it Arrives Stranded as built.
  */
-function backOnDryli(extra: number): Run {
-  let run = startRun(27, 'scout');
+function backOnLanpraen(extra: number): Run {
+  let run = startRun(10, 'scout');
   run = { ...run, materials: materials(run.materials + extra) };
-  for (const name of ['Dryli', 'Siolmel', 'Teskae', 'Dryli']) {
+  for (const name of ['Lanpraen', 'Dryslansu', 'Salsyr', 'Lanpraen']) {
     const body = listBodies(run.starSystem).find((b) => b.name === name);
-    if (!body) throw new Error(`Seed 27 has no ${name}`);
+    if (!body) throw new Error(`Seed 10 has no ${name}`);
     const landed = launchHop(run, body.id);
     if (landed.kind !== 'flown' || landed.flight.outcome.kind !== 'arrived') {
-      throw new Error(`Seed 27: the Hop to ${name} should Arrive`);
+      throw new Error(`Seed 10: the Hop to ${name} should Arrive`);
     }
     run = landed.run;
   }
@@ -227,14 +229,14 @@ describe('what could still save a Run', () => {
   });
 
   it('a rescue the Materials cannot pay for in the order the changes must be made does not count', () => {
-    // Seed 27: back on Dryli the Run has 59 Materials. Swapping the level-1 Engine for the level-2
+    // Seed 10: back on Lanpraen, 14 Materials added, the Run has 59. Swapping the level-1 Engine for the level-2
     // one would save it, but the new Engine (60) must be installed before the old one can be
     // removed for its refund, so the swap can never be paid for.
-    const landed = backOnDryli(0);
+    const landed = backOnLanpraen(14);
     expect(landed.materials).toBe(59);
     expect(landed.status).toMatchObject({ kind: 'ended', end: { kind: 'stranded' } });
     // With 1 more Material, 60 on Landing, the same Run can still be saved.
-    const richer = backOnDryli(1);
+    const richer = backOnLanpraen(15);
     expect(richer.materials).toBe(60);
     expect(assessStranding(richer).kind).toBe('warning');
   });
@@ -331,7 +333,7 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('installing a Component that spends the Materials a rescue needed ends the Run as Stranded', () => {
-    const saveable = backOnDryli(1);
+    const saveable = backOnLanpraen(15);
     const spent = install(saveable, 2, 'drill-1');
     if (spent.kind !== 'installed') throw new Error('expected an install');
     expect(spent.run.status).toMatchObject(stranded);
@@ -342,7 +344,7 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('a Stranded Run takes no more choices', () => {
-    const ended = backOnDryli(0);
+    const ended = backOnLanpraen(0);
     expect(() => install(ended, 2, 'drill-1')).toThrow(/ended/);
     expect(() => remove(ended, 1)).toThrow(/ended/);
     const someBody = listBodies(ended.starSystem).find((body) => body.landable);
@@ -351,15 +353,15 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('a replayed Run ends Stranded where the game did, and takes no choice after it', () => {
-    const saveable = backOnDryli(0);
+    const saveable = backOnLanpraen(0);
     expect(saveable.status).toMatchObject(stranded);
-    // Seed 27's own log: the four Hops, the last of which strands it.
-    const replayed = replay(27, 'scout', saveable.choices);
+    // Seed 10's own log: the four Hops, the last of which strands it.
+    const replayed = replay(10, 'scout', saveable.choices);
     expect(replayed).toMatchObject({ kind: 'replayed', end: { kind: 'stranded' } });
     if (replayed.kind !== 'replayed') return;
     expect(replayed.run.status).toEqual(saveable.status);
     // A choice made after the end is refused.
-    const after = replay(27, 'scout', [
+    const after = replay(10, 'scout', [
       ...saveable.choices,
       { kind: 'install', slot: 2, componentId: 'drill-1' },
     ]);

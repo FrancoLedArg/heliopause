@@ -28,14 +28,15 @@ if (moonHop.kind !== 'flown' || moonHop.flight.outcome.kind !== 'arrived') {
   throw new Error(`Seed ${SEED}: the Hop to ${homeMoon.name} should Arrive`);
 }
 
-// A failure needs a long way out: on seed 46, the first target Voprin, then Quioxevex and
-// Rioquunlaen, then back to the Starting Moon, Maethu. The scout Crashes on Maethu at a 23% chance
-// and the hauler Falls Short in the Transfer (found by a scan over seeds and paths). Re-pinned for
-// #247 (was seed 1442's Thosny then Korxel): the Chassis Isp rose 30%, so no second Hop fails.
-const FAIL_SEED = 46;
+// A failure needs a long way out: on seed 4, the first target Ludran, back to the Starting Moon
+// Ruquir-9, Ludran again, then Prumal. The scout Crashes on Prumal at a 20% chance and the hauler
+// Falls Short (found by a scan over seeds and paths). Re-pinned for #247 (was seed 1442's Thosny
+// then Korxel): the Chassis Isp rose 30%, so no second Hop fails. Re-pinned for #280 (was seed 46's
+// Voprin, Quioxevex, Rioquunlaen and Maethu): Comms now Detects a Fuel source In reach first.
+const FAIL_SEED = 4;
 /** The Hops that Arrive on the way, every Chassis alike; the first is the first target. */
-const PATH = ['Voprin', 'Quioxevex', 'Rioquunlaen'] as const;
-const FAR = 'Maethu';
+const PATH = ['Ludran', 'Ruquir-9', 'Ludran'] as const;
+const FAR = 'Prumal';
 
 /** The last Hop of `chassis` on the failure seed, to FAR, as the simulation settles it. */
 function lastHop(chassis: 'scout' | 'hauler'): { before: Run; why: string } {
@@ -369,7 +370,7 @@ test('after a failed Hop, New Run starts a different Star System on its Starting
 
   // The address bar follows the Run being played.
   await expect(page).toHaveURL(new RegExp(`seed=${String(FAIL_SEED + 1)}`));
-  // `?seed=46` moves on to 47 for the next Run, so the Starting Moon is a different one.
+  // `?seed=4` moves on to 5 for the next Run, so the Starting Moon is a different one.
   const nextHome = startingMoon(generateStarSystem(FAIL_SEED + 1));
   expect(nextHome.name).not.toBe(startingMoon(generateStarSystem(FAIL_SEED)).name);
   await expect(page.getByRole('heading', { name: nextHome.name, level: 1 })).toBeVisible();
