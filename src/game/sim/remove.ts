@@ -1,6 +1,7 @@
 import { COMPONENTS, componentCost, type ComponentId } from './catalogue.ts';
-import { starSystemNumber, type Run } from './run.ts';
-import { refit, SLOT_COUNT } from './spacecraft.ts';
+import type { Outfit } from './install.ts';
+import type { Run } from './run.ts';
+import { refit, SLOT_COUNT, type Slot } from './spacecraft.ts';
 import { deepFreeze } from './starSystem.ts';
 import { kilograms, materials, type Kilograms, type Materials } from './units.ts';
 
@@ -34,29 +35,48 @@ export function remove(run: Run, slotIndex: number): RemoveResult {
   if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= SLOT_COUNT) {
     throw new RangeError(`A Spacecraft has Slots 0 to ${String(SLOT_COUNT - 1)}, not ${slotIndex}`);
   }
-  const slots = run.spacecraft.slots;
+  const refusal = removalRefusal(run.spacecraft.slots, slotIndex);
+  if (refusal) return { kind: 'refused', reason: refusal };
+  const after = withRemoved(run, slotIndex);
+  return {
+    kind: 'removed',
+    run: deepFreeze({ ...run, ...after }),
+    refund: materials(after.materials - run.materials),
+    fuelLost: kilograms(run.spacecraft.fuelMass - after.spacecraft.fuelMass),
+  };
+}
+
+/** Why `remove` would refuse to empty Slot `slotIndex` of these Slots, or `undefined` when it would not. */
+export function removalRefusal(
+  slots: readonly Slot[],
+  slotIndex: number,
+): RemoveRefusal | undefined {
   const held = slots[slotIndex];
-  if (held === null || held === undefined) {
-    return { kind: 'refused', reason: { kind: 'empty-slot', slot: slotIndex } };
-  }
+  if (held === null || held === undefined) return { kind: 'empty-slot', slot: slotIndex };
   const { kind } = COMPONENTS[held];
   const another = slots.some(
     (slot, index) => index !== slotIndex && slot !== null && COMPONENTS[slot].kind === kind,
   );
-  if (!another) {
-    if (kind === 'engine') return { kind: 'refused', reason: { kind: 'last-engine' } };
-    if (kind === 'fuel-tank') return { kind: 'refused', reason: { kind: 'last-fuel-tank' } };
-  }
-  const spacecraft = refit(
-    run.spacecraft,
-    slots.map((slot, index) => (index === slotIndex ? null : slot)),
-  );
-  const refund = removalRefund(held, starSystemNumber(run));
+  if (another) return undefined;
+  if (kind === 'engine') return { kind: 'last-engine' };
+  if (kind === 'fuel-tank') return { kind: 'last-fuel-tank' };
+  return undefined;
+}
+
+/** The Spacecraft and Materials after a removal that `removalRefusal` allows. */
+export function withRemoved(
+  outfit: Outfit,
+  slotIndex: number,
+): Pick<Outfit, 'spacecraft' | 'materials'> {
+  const slots = outfit.spacecraft.slots;
+  const held = slots[slotIndex];
+  if (held === null || held === undefined) throw new Error(`Slot ${String(slotIndex)} is empty`);
   return {
-    kind: 'removed',
-    run: deepFreeze({ ...run, spacecraft, materials: materials(run.materials + refund) }),
-    refund,
-    fuelLost: kilograms(run.spacecraft.fuelMass - spacecraft.fuelMass),
+    spacecraft: refit(
+      outfit.spacecraft,
+      slots.map((slot, index) => (index === slotIndex ? null : slot)),
+    ),
+    materials: materials(outfit.materials + removalRefund(held, outfit.starSystemNumber)),
   };
 }
 

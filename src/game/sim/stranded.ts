@@ -1,17 +1,11 @@
 // Stranded: the Run's end when no Hop could have any Success Chance, even after removing every
 // removable Component, and the warning while a change to the Spacecraft could still save the Run.
-import { COMPONENTS, componentCost, type ComponentId } from './catalogue.ts';
+import type { ComponentId } from './catalogue.ts';
 import { formatDeltaV, HELIOPAUSE, leastDeltaV, planHop, type HopTarget } from './hop.ts';
-import { removalRefund } from './remove.ts';
-import { currentBody, starSystemNumber, type Run } from './run.ts';
-import {
-  availableDeltaV,
-  carriesJumpDrive,
-  refit,
-  SLOT_COUNT,
-  type Slot,
-  type Spacecraft,
-} from './spacecraft.ts';
+import { installRefusal, withInstalled, type Outfit } from './install.ts';
+import { removalRefusal, withRemoved } from './remove.ts';
+import { currentBody, type Run } from './run.ts';
+import { availableDeltaV, carriesJumpDrive, type Spacecraft } from './spacecraft.ts';
 import { deepFreeze, listBodies } from './starSystem.ts';
 import { metersPerSecond } from './units.ts';
 
@@ -154,77 +148,63 @@ interface Design {
   readonly installs: boolean;
 }
 
+/** The Components worth installing to save a Run. A Drill adds mass and no Δv, so it never helps. */
+const RESCUERS: readonly ComponentId[] = [
+  'engine-1',
+  'engine-2',
+  'fuel-tank-1',
+  'fuel-tank-2',
+  'jump-drive',
+];
+
 /**
- * Every Spacecraft the player could build on this Body: the rule for what "could still" means.
- * Keep any of the installed Components, and install others in the Slots left free, paid with the
- * Materials on hand plus the refunds from those removed (half their cost, rounded down, as `remove`
- * gives). A build keeps at least one Engine and one Fuel Tank, as `remove` insists, and at most one
- * Jump Drive, as `install` does. Its Fuel is what is aboard, capped at its capacity: no change adds
- * Fuel.
+ * Every Spacecraft the player could build on this Body, one install or removal at a time under the
+ * very rules the Spacecraft panel applies (`installRefusal`, `removalRefusal`): the rule for what
+ * "could still" means. A removal refunds half the cost and caps the Fuel at the new capacity, an
+ * install is paid from the Materials on hand, and no change adds Fuel. So the order matters: the
+ * last Engine leaves only after its replacement is installed and paid for, and Fuel spilled by a
+ * removed Tank is gone.
  *
  * The lightest configuration (every Component removed but the last Engine and the last Fuel Tank,
  * Fuel capped to that Tank) is one of these, for each Engine and Tank that could be the last. So is
- * a Jump Drive that could still be installed: its cost covered by the Materials after the refunds
- * from removing everything removable, in a free Slot. And so are builds between: a lighter
- * Spacecraft is not always the one that goes farther (a second full Tank can give more Δv than its
- * mass costs), so every one is weighed.
+ * the Jump Drive that could still be installed: Materials enough, after the refunds from removing
+ * what can be removed, and a free Slot. And so are the builds between, since a lighter Spacecraft
+ * is not always the one that goes farther (a second full Tank can give more Δv than its mass costs).
  *
- * Generous on purpose: it ignores the order the changes would take (swapping the only Engine needs
- * a free Slot for a moment), so it may call a lost Run saveable, and the warning shows, but it
- * never ends a Run that could be saved. Only Engines, Fuel Tanks and the Jump Drive are installed:
- * a Drill adds mass and no Δv.
+ * A search over Slots, Fuel and Materials: of two ways to the same Slots and Fuel, the one with more
+ * Materials left can do all the other can, so only it goes on. Builds that need an install are kept
+ * apart from those reached by removals alone, which the warning names.
  */
 function buildable(run: Run): Design[] {
-  const level = starSystemNumber(run);
-  const installed = run.spacecraft.slots.filter((slot): slot is ComponentId => slot !== null);
   const designs: Design[] = [];
-  for (let keep = 0; keep < 2 ** installed.length; keep++) {
-    const kept = installed.filter((_, i) => (keep & (1 << i)) !== 0);
-    const refunds = installed.reduce(
-      (sum, id, i) => ((keep & (1 << i)) !== 0 ? sum : sum + removalRefund(id, level)),
-      0,
-    );
-    const budget = run.materials + refunds;
-    const keepsJumpDrive = kept.some((id) => COMPONENTS[id].kind === 'jump-drive');
-    for (const added of additions(SLOT_COUNT - kept.length, keepsJumpDrive)) {
-      const slots = [...kept, ...added];
-      const cost = added.reduce((sum, id) => sum + componentCost(id, level), 0);
-      if (cost > budget || !flies(slots)) continue;
-      const padded: Slot[] = [...slots, ...Array<Slot>(SLOT_COUNT - slots.length).fill(null)];
-      designs.push({ spacecraft: refit(run.spacecraft, padded), installs: added.length > 0 });
+  const richest = new Map<string, number>();
+  const start: Outfit = {
+    spacecraft: run.spacecraft,
+    materials: run.materials,
+    starSystemNumber: run.starSystemNumber,
+  };
+  const pending: { readonly outfit: Outfit; readonly installs: boolean }[] = [
+    { outfit: start, installs: false },
+  ];
+  for (let next = pending.pop(); next; next = pending.pop()) {
+    const { outfit, installs } = next;
+    const { slots, fuelMass } = outfit.spacecraft;
+    const held = slots.map((slot) => slot ?? '').sort((a, b) => a.localeCompare(b));
+    const key = `${held.join()}|${String(fuelMass)}|${String(installs)}`;
+    if ((richest.get(key) ?? -1) >= outfit.materials) continue;
+    richest.set(key, outfit.materials);
+    designs.push({ spacecraft: outfit.spacecraft, installs });
+
+    slots.forEach((_, slot) => {
+      if (removalRefusal(slots, slot)) return;
+      pending.push({ outfit: { ...outfit, ...withRemoved(outfit, slot) }, installs });
+    });
+    const empty = slots.indexOf(null);
+    if (empty < 0) continue;
+    for (const id of RESCUERS) {
+      if (installRefusal(outfit, empty, id)) continue;
+      pending.push({ outfit: { ...outfit, ...withInstalled(outfit, empty, id) }, installs: true });
     }
   }
   return designs;
-}
-
-/**
- * The sets of Components worth installing in `free` Slots: at most one Engine (the best one sets
- * the Isp, a second adds only mass), any Fuel Tanks, and a Jump Drive unless one is kept.
- */
-function additions(free: number, keepsJumpDrive: boolean): ComponentId[][] {
-  const sets: ComponentId[][] = [];
-  const engines: ComponentId[][] = [[], ['engine-1'], ['engine-2']];
-  const jumpDrives: ComponentId[][] = keepsJumpDrive ? [[]] : [[], ['jump-drive']];
-  for (const engine of engines) {
-    for (const jumpDrive of jumpDrives) {
-      const room = free - engine.length - jumpDrive.length;
-      for (let small = 0; small <= room; small++) {
-        for (let large = 0; small + large <= room; large++) {
-          sets.push([
-            ...engine,
-            ...jumpDrive,
-            ...Array<ComponentId>(small).fill('fuel-tank-1'),
-            ...Array<ComponentId>(large).fill('fuel-tank-2'),
-          ]);
-        }
-      }
-    }
-  }
-  return sets;
-}
-
-/** Whether a set of Components can fly: an Engine, a Fuel Tank, and no more than one Jump Drive. */
-function flies(slots: readonly ComponentId[]): boolean {
-  const count = (kind: string) => slots.filter((id) => COMPONENTS[id].kind === kind).length;
-  return count('engine') > 0 && count('fuel-tank') > 0 && count('jump-drive') <= 1;
 }

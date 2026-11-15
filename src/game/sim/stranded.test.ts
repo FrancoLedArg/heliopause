@@ -7,6 +7,7 @@ import {
   HELIOPAUSE,
   install,
   kilograms,
+  launchHop,
   listBodies,
   materials,
   metersPerSecond,
@@ -175,6 +176,23 @@ describe('what could still save a Run', () => {
     const installed = install(rich, 2, 'engine-2');
     if (installed.kind !== 'installed') throw new Error('expected an install');
     expect(anyBodyHop(removeSlots(installed.run, [0]))).toBe(true);
+  });
+
+  it('a rescue the Materials cannot pay for in the order the changes must be made does not count', () => {
+    // Seed 7: after Landing on Quiolxaexis the Run has 53 Materials. Swapping the level-1 Engine for
+    // the level-2 one would save it, but the new Engine (60) must be installed before the old one
+    // can be removed for its refund, so the swap can never be paid for.
+    const start = startRun(7, 'scout');
+    const body = listBodies(start.starSystem).find(({ name }) => name === 'Quiolxaexis');
+    if (!body) throw new Error('Seed 7 has no Quiolxaexis');
+    const landed = launchHop(start, body.id);
+    if (landed.kind !== 'flown' || landed.flight.outcome.kind !== 'arrived') {
+      throw new Error('Seed 7: the Hop to Quiolxaexis should Arrive');
+    }
+    expect(landed.run.materials).toBe(53);
+    expect(assessStranding(landed.run).kind).toBe('stranded');
+    // With the 60 up front, the same Run can still be saved.
+    expect(assessStranding({ ...landed.run, materials: materials(60) }).kind).toBe('warning');
   });
 
   it('a second full Fuel Tank can save a Run that the lightest configuration cannot', () => {
