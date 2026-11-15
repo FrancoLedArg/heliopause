@@ -148,12 +148,13 @@ export const ICE_LINE = {
 /** Gameplay tuning for what a landable Body is made of. Not real-world figures. */
 export const BODY_TUNING = {
   /**
-   * Base yield by type, before any Drill multiplier. Icy is Fuel in kilograms, scaled to Chassis
-   * Fuel capacity (21,000 to 66,000 kg) so one landing is a meaningful refill. Rocky is Materials,
+   * Base yield by type, before any Drill multiplier. Icy is Fuel in kilograms, scaled to the 36 t Tank
+   * every Chassis shares (#298) so one landing is a meaningful refill. Rocky is Materials,
    * in the unit of Component costs (#112).
    */
   baseYield: {
-    icy: { min: kilograms(3_000), max: kilograms(9_000) },
+    /** Three times their first tuning (3 to 9 t) since #298: the game was too Fuel-centred. */
+    icy: { min: kilograms(9_000), max: kilograms(27_000) },
     rocky: { min: materials(10), max: materials(30) },
   },
 } as const satisfies Record<string, Record<string, TuningRange>>;
@@ -266,29 +267,25 @@ export interface ChassisTuning {
 }
 
 /**
- * Gameplay tuning for the Chassis. Not real-world figures: the engines are sci-fi, past any flown
- * engine's Isp (a hydrogen/LOX RL-10 makes 444 s, research doc §3, UNVERIFIED there), because the
- * Burns use real-world sized Δv. Calibrated so every Chassis reaches the first Detected Body (#96) with
- * comfortable Margin in every Star System, starter Fuel covers roughly 3 to 6 nearby Hops (2 to 4
- * before #188 gave every rocky planet two Moons), and their starting Δv differs noticeably. The
- * hauler carries the most Fuel yet has the least Δv: its dry mass costs it.
- *
- * The Isp is 30% above its first tuning (1,230, 1,210 and 1,280 s) since #247: a new Run felt out
- * of Fuel after its first Hop. The gauge reads Fuel mass, and the rocket equation spends the
- * heaviest Fuel first: the first Hop took about 40% of the tank, most of it for the Landing on the
- * Starting Moon's planet (about 4 km/s). A bigger tank cannot fix that, since the share a Burn
- * leaves can never top e^(−Δv / exhaust velocity), about 65% here; a better Engine raises that
- * ceiling. On average the first Hop now leaves at least 60% of the tank and the starting Fuel alone
- * lasts 3 nearby Hops.
+ * The one gameplay tuning every Chassis shares (#298, ADR 0006): a Chassis only changes how the
+ * Spacecraft looks. Not real-world figures: the engine is sci-fi, past any flown engine's Isp (a
+ * hydrogen/LOX RL-10 makes 444 s, research doc §3, UNVERIFIED there), because the Burns use
+ * real-world sized Δv. A 36 t tank, started full, with Icy yields three times their first tuning:
+ * calibrated so the careful explorer escapes Star System 1 in about half of all Runs, the first
+ * Detected Body (#96) is In reach with comfortable Margin, and the first Hop leaves a healthy gauge
+ * (#247).
  */
+const SHARED_CHASSIS: ChassisTuning = {
+  dryMass: kilograms(4_000),
+  fuelCapacity: kilograms(36_000),
+  engineIsp: seconds(1_600),
+};
+
+/** Every Chassis's gameplay figures: the same for all (#298). */
 export const CHASSIS_TUNING = {
-  scout: { dryMass: kilograms(4_000), fuelCapacity: kilograms(21_000), engineIsp: seconds(1_600) },
-  hauler: {
-    dryMass: kilograms(15_000),
-    fuelCapacity: kilograms(66_000),
-    engineIsp: seconds(1_575),
-  },
-  lancer: { dryMass: kilograms(6_000), fuelCapacity: kilograms(36_000), engineIsp: seconds(1_665) },
+  scout: SHARED_CHASSIS,
+  hauler: SHARED_CHASSIS,
+  lancer: SHARED_CHASSIS,
 } as const satisfies Record<ChassisId, ChassisTuning>;
 
 /**

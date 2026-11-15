@@ -1,6 +1,6 @@
 import type { Run } from './run.ts';
 import { drillMultiplier } from './spacecraft.ts';
-import { deepFreeze, findBody, type BodyId } from './starSystem.ts';
+import { deepFreeze, findBody, type Body, type BodyId } from './starSystem.ts';
 import { kilograms, materials, type Kilograms, type Materials } from './units.ts';
 
 /** What landing on a Body collected: expected outcomes, so results rather than exceptions. */
@@ -20,6 +20,13 @@ export interface Landing {
 /** Whether `bodyId` has already given up its yield in this Run. */
 export function isDepleted(run: Run, bodyId: BodyId): boolean {
   return run.depleted.includes(bodyId);
+}
+
+/** Whether `body` is a Fuel source in this Run: an Icy Body with Fuel left (#280). */
+export function isFuelSource(run: Run, body: Body): boolean {
+  return (
+    body.landable && body.composition === 'icy' && body.baseYield > 0 && !isDepleted(run, body.id)
+  );
 }
 
 /**

@@ -207,9 +207,9 @@ describe('the Hop plan as the player reads it', () => {
     const innerMoon = home.starSystem.planets[0]?.moons[0];
     if (!innerMoon) throw new Error('The innermost planet has a Moon');
     const view = describeHopPlan(home, planFor(innerMoon.id, home));
-    // The top bar reads the same Spacecraft's Δv: 28,754 m/s is 28.8 km/s in both (#247's Isp).
+    // The top bar reads the same Spacecraft's Δv: 36,129 m/s is 36.1 km/s in both (#298's tuning).
     expect(view.available).toBe(formatDeltaVKmS(availableDeltaV(home.spacecraft)));
-    expect(view.available).toBe('28.8 km/s');
+    expect(view.available).toBe('36.1 km/s');
     for (const text of [...view.burns.map((b) => b.estimate), view.needed, view.available]) {
       // Two decimals under 1 km/s, as everywhere (re-pinned for #189: this Transfer is short).
       expect(text).toMatch(/^\d+\.\d{1,2} km\/s$/);
@@ -240,15 +240,15 @@ describe('the Hop plan as the player reads it', () => {
   it('gives the same percentage as the why text for a hauler Hop on seed 123 that is short', () => {
     // Re-pinned for #189: from the innermost planet, a half-fuelled hauler's Hop to Rexsio is short.
     // #247's Isp leaves it less short. Re-pinned for #283: Rexsio is past the Hop range, so a hauler
-    // with a fifth of its Fuel plans for Tiosli.
+    // with a fifth of its Fuel plans for Tiosli. Re-pinned for #298: a tenth of its 36 t Tank.
     const full = onInnerPlanet(startRun(123, 'hauler'));
     const hauler: Run = {
       ...full,
-      spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 5) },
+      spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 10) },
     };
     const tiosli = listBodies(hauler.starSystem).find((body) => body.name === 'Tiosli');
     if (!tiosli) throw new Error('seed 123 has no Tiosli');
-    expect(describeHopPlan(hauler, planFor(tiosli.id, hauler)).margin).toBe('−5.0 km/s (34%)');
+    expect(describeHopPlan(hauler, planFor(tiosli.id, hauler)).margin).toBe('−4.6 km/s (31%)');
   });
 
   it('drops the percentage once the Margin is as big as the estimate', () => {
@@ -309,11 +309,11 @@ describe('the Hop plan’s Fuel gauge', () => {
     const fuel = describeHopPlan(surveyed, plan).fuel;
     expect(fuel.after).toBeCloseTo(flight.fuelRemaining);
     expect(fuel.afterText).toBe(formatFuel(flight.fuelRemaining));
-    // A full scout Tank: 21.0 t now, and the gauge's chunk is the Fuel the Hop burns.
+    // A full Tank, 36.0 t on every Chassis (#298), and the gauge's chunk is the Fuel the Hop burns.
     expect(fuel.now).toBe(run.spacecraft.fuelMass);
     expect(fuel.nowShare).toBe(1);
     expect(fuel.afterShare).toBeCloseTo(flight.fuelRemaining / run.spacecraft.fuelCapacity);
-    expect(fuel.label).toBe(`Fuel: 21.0 t now, ${formatFuel(flight.fuelRemaining)} after the Hop.`);
+    expect(fuel.label).toBe(`Fuel: 36.0 t now, ${formatFuel(flight.fuelRemaining)} after the Hop.`);
   });
 
   it('shows the Fuel running dry when the Hop needs more Δv than it gives', () => {

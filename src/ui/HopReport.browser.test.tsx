@@ -148,10 +148,10 @@ const reports: [string, () => [Run, HopFlight]][] = [
       return [before, hop(before, 'Praerionrio Prime').flight];
     },
   ],
-  // A fifth of the Fuel since #283: within the Hop range, half still reaches every Body.
-  ['Fell Short', () => halfFuelledHop('fell-short', 'hauler', 0.2)],
+  // A fifth of the Fuel since #283, a tenth of the 36 t Tank since #298 (as in hopReportView.test.ts).
+  ['Fell Short', () => halfFuelledHop('fell-short', 'hauler', 0.1)],
   // 0.45 of the Fuel, not half, is what Crashes from there (as in hopReportView.test.ts).
-  ['Crashed', () => halfFuelledHop('crashed', 'scout', 0.3)],
+  ['Crashed', () => halfFuelledHop('crashed', 'scout', 0.15)],
   ['the Heliopause', () => heliopauseHop(1)],
 ];
 

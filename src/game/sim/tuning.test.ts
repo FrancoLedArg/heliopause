@@ -6,13 +6,15 @@ import {
   generateSystem,
   knownBodies,
   launchHop,
+  newSpacecraft,
+  listBodies,
   planHop,
   startRun,
   type ChassisId,
   type HopPlan,
   type Run,
 } from './index.ts';
-import { firstTarget, plan, startingRun } from './testing.ts';
+import { firstTarget, isFuelSourceInReach, plan, readyToJump, startingRun } from './testing.ts';
 
 /** Many Star Systems, so the tuning is checked across the generator's spread, not one lucky seed. */
 const SEEDS = Array.from({ length: 2_000 }, (_, i) => i * 7_919 + 13);
@@ -123,14 +125,86 @@ describe.each(CHASSIS_IDS)(
       },
     );
 
-    it('starter Fuel covers roughly 3 to 6 nearby Hops for a cautious player', () => {
+    it('starter Fuel, and the Fuel it gathers, covers roughly 3 to 12 nearby Hops for a cautious player', () => {
       const hops = SEEDS.slice(0, 400).map((seed) => cautiousHops(startRun(seed, chassisId), seed));
       // Was 2 to 4 until #188 gave every rocky planet two Moons: short Hops between them, some Icy.
+      // Was 3 to 6 until #280: Comms Detects a Fuel source In reach, so the medians rose to 10 and 11.
       expect(median(hops)).toBeGreaterThanOrEqual(3);
-      expect(median(hops)).toBeLessThanOrEqual(6);
+      expect(median(hops)).toBeLessThanOrEqual(12);
       expect(Math.min(...hops)).toBeGreaterThanOrEqual(1);
       // Few Star Systems leave a cautious player with only the Moon.
       expect(hops.filter((count) => count === 1).length / hops.length).toBeLessThan(0.1);
     });
   },
 );
+
+/** After one landing: whether a Fuel source is Detected and In reach, and whether one is In reach at all. */
+interface Lifeline {
+  readonly detected: boolean;
+  readonly any: boolean;
+}
+
+/** What the cautious player of `cautiousHops` finds after each landing in Star System 1. */
+function lifelinesAfterLandings(start: Run, seed: number): Lifeline[] {
+  const rng = createRng(seed);
+  const visited = new Set<string>([start.starSystem.startingMoonId]);
+  const found: Lifeline[] = [];
+  let run = start;
+  for (;;) {
+    const [next] = knownBodies(run)
+      .filter((body) => !visited.has(body.id))
+      .flatMap((body) => {
+        const result = planHop(run, body.id);
+        return result.kind === 'planned' && result.plan.successChance >= 0.5 ? [result.plan] : [];
+      })
+      .sort((a, b) => a.totalEstimate - b.totalEstimate);
+    if (!next) return found;
+    run = flyHop(run, next, rng).run;
+    if (run.status.kind !== 'landed') return found;
+    visited.add(next.toId);
+    const landed = run;
+    found.push({
+      detected: knownBodies(landed).some((body) => isFuelSourceInReach(landed, body)),
+      any: listBodies(landed.starSystem).some((body) => isFuelSourceInReach(landed, body)),
+    });
+  }
+}
+
+// #280, the Fuel lifeline: after a landing, a Fuel source In reach is Detected whenever one exists,
+// and generation makes sure one does after the first Hop.
+describe.each(CHASSIS_IDS)('the Fuel lifeline for the %s', { timeout: 60_000 }, (chassisId) => {
+  it('after every landing of a cautious player, a Fuel source In reach is Detected whenever one exists', () => {
+    const landings = FIRST_HOP_SEEDS.flatMap((seed) =>
+      lifelinesAfterLandings(startRun(seed, chassisId), seed).map((landing, hop) => ({
+        ...landing,
+        seed,
+        hop,
+      })),
+    );
+    expect(landings.filter((landing) => landing.any && !landing.detected)).toEqual([]);
+    // The first landing always has one.
+    expect(landings.filter((landing) => landing.hop === 0 && !landing.detected)).toEqual([]);
+  });
+});
+
+// #298, ADR 0006: a Chassis is cosmetic, so every one flies the same.
+describe('one gameplay tuning for every Chassis', () => {
+  it('every Chassis starts with the same Fuel, Tank, mass, Engine and Slots', () => {
+    const [first, ...others] = CHASSIS_IDS.map((id) => ({ ...newSpacecraft(id), chassisId: null }));
+    for (const other of others) expect(other).toEqual(first);
+    expect(first?.fuelMass).toBe(36_000);
+    expect(first?.fuelCapacity).toBe(36_000);
+  });
+
+  // The human's target (#298): a careful explorer gets out of Star System 1 in about half of Runs.
+  // Measured over these 500 seeds; every Chassis flies alike, so one stands for all.
+  it(
+    'the careful explorer escapes Star System 1 in about half of all Runs',
+    { timeout: 300_000 },
+    () => {
+      const out = FIRST_HOP_SEEDS.filter((seed) => readyToJump(seed, 'scout') !== undefined);
+      expect(out.length / FIRST_HOP_SEEDS.length).toBeGreaterThanOrEqual(0.5);
+      expect(out.length / FIRST_HOP_SEEDS.length).toBeLessThanOrEqual(0.7);
+    },
+  );
+});

@@ -124,15 +124,16 @@ describe('Damage', () => {
   it('a leak loses Fuel every tick until its Repair finishes', () => {
     const leaking = at(cruising(seasoned, firstHop, [leakAt(100)]), 100);
     const start = leaking.spacecraft.fuelMass;
-    // A leak past the mild Hops on a scout: 0.25% of its 21 t Fuel capacity a second, 5.25 kg a tick.
-    expect(start - at(leaking, 200).spacecraft.fuelMass).toBeCloseTo(525, 6);
+    // A leak past the mild Hops: 0.25% of the 36 t Fuel capacity every Chassis has (#298) a second,
+    // 9 kg a tick.
+    expect(start - at(leaking, 200).spacecraft.fuelMass).toBeCloseTo(900, 6);
     const fixing = repairing(at(leaking, 200), FUEL_TANK);
     // A Fuel Tank's Repair takes 30 s: done on tick 500, after that tick's drain.
     expect(damaged(at(fixing, 499), FUEL_TANK)).toBe(true);
     const fixed = at(fixing, 500);
     expect(damaged(fixed, FUEL_TANK)).toBe(false);
     expect(at(fixed, 900).spacecraft.fuelMass).toBe(fixed.spacecraft.fuelMass);
-    expect(start - fixed.spacecraft.fuelMass).toBeCloseTo(400 * 5.25, 6);
+    expect(start - fixed.spacecraft.fuelMass).toBeCloseTo(400 * 9, 6);
   });
 
   it('a mild leak left alone visibly drains the tank: at least a tenth of it (#250)', () => {
@@ -185,7 +186,7 @@ describe('Damage', () => {
     expect(hit.flight.why).toContain('Damage in the Cruise');
 
     const leaked = flown(cruising(seasoned, firstHop, [leakAt(1_000)]));
-    expect(leaked.flight.fuelLost).toBeCloseTo(201 * 5.25, 6);
+    expect(leaked.flight.fuelLost).toBeCloseTo(201 * 9, 6);
     const calm = launchHop(seasoned, firstHop, { schedule: [] });
     expect(calm.kind === 'flown' && leaked.flight.fuelRemaining).toBeLessThan(
       calm.kind === 'flown' ? calm.flight.fuelRemaining : 0,

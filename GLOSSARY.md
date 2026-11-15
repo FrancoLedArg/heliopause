@@ -85,7 +85,7 @@ The player's one vehicle, built on the Chassis picked at New Run, kept and modif
 _Avoid_: Ship, satellite, rocket, vessel
 
 **Chassis**:
-The starting design of the Spacecraft, picked at New Run. It sets the Spacecraft's shape and its starting dry mass, Fuel capacity and engine.
+How the Spacecraft looks, picked at New Run: its art and silhouette. It is cosmetic. Every Chassis flies the same, with the same mass, engine, Fuel Tank, starting Fuel and Slots (ADR 0006).
 _Avoid_: Hull, frame, model, class
 
 **Component**:
@@ -121,7 +121,7 @@ The Component that Detects every Body within its range, and at level 2 also Surv
 _Avoid_: Sensor, scanner, telescope
 
 **Comms**:
-The Spacecraft's built-in communications system, not a Component: after every landing it Detects the nearest landable Body not yet Detected.
+The Spacecraft's built-in communications system, not a Component: after every landing it Detects the nearest landable Body not yet Detected. When no Fuel source is Detected and In reach, it Detects the nearest Fuel source In reach instead, if there is one (the Fuel lifeline).
 _Avoid_: Radio, antenna, beacon
 
 **Damaged**:
@@ -167,6 +167,14 @@ _Avoid_: Delta-V, dv, thrust, range
 **Success Chance**:
 The probability, shown before launch, that the Spacecraft's Fuel covers the actual Δv of every Burn in a Hop, for the Spacecraft as it stands at launch; Cruise events are not included.
 _Avoid_: Odds, risk, probability
+
+**In reach**:
+A Body within the Hop range whose Hop plan, as the player sees it, has a Success Chance of at least 70% with the Fuel on board. Below that a Hop is Marginal, and at 0% Out of reach.
+_Avoid_: Reachable, in range
+
+**Fuel source**:
+An Icy Body that has not been Depleted in this Run. Generation makes sure one is In reach after the first Hop.
+_Avoid_: Fuel station, refuel point
 
 **Margin**:
 The Δv left over after a Hop's Burns; spare capacity against Burns costing more than estimated.

@@ -134,7 +134,7 @@ describe('the Hop report', () => {
     expect(bar.label).toMatch(/Used [\d.]+ of [\d.]+ km\/s/);
     expect(bar.label).toMatch(/\(est\. [\d.]+\)/);
 
-    const fell = hopThatEnds('fell-short', 123, 'hauler', 0.2);
+    const fell = hopThatEnds('fell-short', 123, 'hauler', 0.1);
     const short = describeReport(fell.run, fell.flight).bar;
     expect(short.segments.map((s) => s.burn)).toEqual(['takeoff', 'transfer']);
   });
@@ -142,9 +142,9 @@ describe('the Hop report', () => {
   it('gives every outcome exactly one why sentence, with the whole explanation kept apart', () => {
     const flights = [
       hopThatEnds('arrived', 123, 'scout'),
-      hopThatEnds('fell-short', 123, 'hauler', 0.2),
+      hopThatEnds('fell-short', 123, 'hauler', 0.1),
       // 0.3 since #283 (0.45 since #189): within the Hop range, the share that Crashes.
-      hopThatEnds('crashed', 123, 'scout', 0.3),
+      hopThatEnds('crashed', 123, 'scout', 0.15),
       heliopauseHopThatEnds('reached-heliopause', 1),
     ];
     for (const { run, flight } of flights) {
@@ -156,13 +156,13 @@ describe('the Hop report', () => {
   });
 
   it('names the Burn that ran out and the shortfall in the why line of each failure', () => {
-    const fell = hopThatEnds('fell-short', 123, 'hauler', 0.2);
+    const fell = hopThatEnds('fell-short', 123, 'hauler', 0.1);
     const fellView = describeReport(fell.run, fell.flight);
     expect(fellView.why).toMatch(/^Fuel ran out in the Transfer: Δv short by [\d.]+ km\/s\.$/);
     expect(fellView.outcomeLine).toBe(fell.flight.why);
 
     // 0.3 since #283 (see the Crashed report test below).
-    const crashed = hopThatEnds('crashed', 123, 'scout', 0.3);
+    const crashed = hopThatEnds('crashed', 123, 'scout', 0.15);
     const crashedView = describeReport(crashed.run, crashed.flight);
     expect(crashedView.why).toMatch(/^Fuel ran out in the Landing: Δv short by [\d.]+ km\/s\.$/);
     expect(crashedView.outcomeLine).toBe(crashed.flight.why);
@@ -170,7 +170,7 @@ describe('the Hop report', () => {
 
   it('says during which Burn the Fuel ran out when a Hop Fell Short, and that the later Burns never flew', () => {
     // Re-pinned for #188: no first Hop of a full hauler falls short now, so it sets off half-fuelled.
-    const { run, flight } = hopThatEnds('fell-short', 123, 'hauler', 0.2);
+    const { run, flight } = hopThatEnds('fell-short', 123, 'hauler', 0.1);
     const view = describeReport(run, flight);
     expect(view.title).toBe('Fell Short');
     expect(view.outcomeLine).toMatch(/Fuel ran out during the Transfer/);
@@ -185,21 +185,23 @@ describe('the Hop report', () => {
   it('gives the same Margin share in the report as in the why text: a hauler on seed 123', () => {
     // Re-pinned for #189: a half-fuelled hauler's Hop to Rexsio is short (was Sircer's).
     // #247's Isp leaves it less short. Re-pinned for #283: Rexsio is past the Hop range, so a hauler
-    // with a fifth of its Fuel Hops to Tiosli.
-    const run = withFuelShare(123, 'hauler', 0.2);
+    // with a fifth of its Fuel Hops to Tiosli. Re-pinned for #298: a tenth of the 36 t Tank every
+    // Chassis now has.
+    const run = withFuelShare(123, 'hauler', 0.1);
     const tiosli = listBodies(run.starSystem).find((body) => body.name === 'Tiosli');
     if (!tiosli) throw new Error('seed 123 has no Tiosli');
     const launched = launchHop(run, tiosli.id);
     if (launched.kind !== 'flown') throw new Error('expected a flight');
     const view = describeReport(run, launched.flight);
-    expect(view.margin).toBe('Margin: none left (planned −5.0 km/s, 34%)');
-    expect(view.outcomeLine).toMatch(/The Fuel gives 34% less Δv/);
+    expect(view.margin).toBe('Margin: none left (planned −4.6 km/s, 31%)');
+    expect(view.outcomeLine).toMatch(/The Fuel gives 31% less Δv/);
   });
 
   it('says a Crashed Hop completed the Transfer but ran out of Δv in the Landing', () => {
     // Re-pinned for #189 (was 0.5): no first Hop of a full scout crashes, so it sets off low on Fuel.
     // Re-pinned for #283 (was 0.45): within the Hop range, a scout needs to set off lower to crash.
-    const { run, flight } = hopThatEnds('crashed', 123, 'scout', 0.3);
+    // Re-pinned for #298 (was 0.3): its Tank is now 36 t.
+    const { run, flight } = hopThatEnds('crashed', 123, 'scout', 0.15);
     const view = describeReport(run, flight);
     expect(view.title).toBe('Crashed');
     expect(view.outcomeLine).toMatch(/Transfer was completed.*Landing/);
@@ -224,6 +226,8 @@ describe('the Hop report', () => {
       },
       knowledge: { detected: ids, surveyed: ids, heliopauseFound: true },
       depleted: [],
+      // Room in the Tank for a whole Icy yield, three times bigger since #298.
+      spacecraft: { ...start.spacecraft, fuelMass: kilograms(start.spacecraft.fuelCapacity * 0.5) },
     };
     /** The first Body of `composition` a Hop from `run` reaches for sure. */
     const sure = (composition: 'icy' | 'rocky') => {
@@ -317,7 +321,10 @@ describe('the Hop report', () => {
       const installed = install(run, 2, 'drill-1');
       if (installed.kind !== 'installed') throw new Error('expected an install');
       const view = describeReport(installed.run, flown(installed.run).flight);
-      expect(view.gains[0]?.name).toMatch(/^Collected [\d.]+ t of Fuel \(Drill ×1\.5\)\.$/);
+      // Since #298 a Drilled Icy yield can top the 36 t Tank, so the line may say what stays behind.
+      expect(view.gains[0]?.name).toMatch(
+        /^Collected [\d.]+ t of Fuel \(Drill ×1\.5\)(; [\d.]+ t left behind: the Tank is full)?\.$/,
+      );
       expect(view.gains[0]?.drill).toBe('×1.5');
       expect(view.fact).not.toMatch(/Drill/);
     });
@@ -353,7 +360,7 @@ describe('the Hop report', () => {
     });
 
     it('says nothing was collected after a failed Hop', () => {
-      const { run: failedRun, flight } = hopThatEnds('fell-short', 123, 'hauler', 0.2);
+      const { run: failedRun, flight } = hopThatEnds('fell-short', 123, 'hauler', 0.1);
       expect(describeReport(failedRun, flight).gains).toEqual([]);
     });
   });

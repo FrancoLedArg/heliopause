@@ -164,14 +164,15 @@ describe('replay', () => {
   });
 
   it('a replayed Run ends the same way, with the same Score', () => {
-    // Scout seed 340: the Radar finds the Heliopause and the Materials pay for a Jump Drive, but the Hop
+    // Scout seed 408: the Radar finds the Heliopause and the Materials pay for a Jump Drive, but the Hop
     // there runs out of Fuel. Re-pinned for #191 (was seed 24): only the Radar finds it now. Re-pinned
-    // for #283 (was seed 416): the Hop range sends that explorer another way.
-    const built = ready(340, 'scout');
+    // for #283 (was seed 416): the Hop range sends that explorer another way. Re-pinned for #280/#298
+    // (was seed 340): Comms Detects a Fuel source first, and every Chassis flies alike.
+    const built = ready(408, 'scout');
     const run = hopped(built, HELIOPAUSE, NO_EVENTS);
     expect(runEnd(run)?.kind).toBe('fell-short');
 
-    const replayed = replay(340, 'scout', run.choices, NO_EVENTS);
+    const replayed = replay(408, 'scout', run.choices, NO_EVENTS);
     expect(replayed).toMatchObject({
       kind: 'replayed',
       end: runEnd(run),
@@ -238,11 +239,11 @@ describe('replay', () => {
   });
 
   it('no choice follows the end of a Run', () => {
-    const ended = hopped(ready(340, 'scout'), HELIOPAUSE, NO_EVENTS);
+    const ended = hopped(ready(408, 'scout'), HELIOPAUSE, NO_EVENTS);
     // Removing the Jump Drive is a choice a landed Run would take.
     const jumpDriveSlot = ended.spacecraft.slots.indexOf('jump-drive');
     const result = replay(
-      340,
+      408,
       'scout',
       [...ended.choices, { kind: 'remove', slot: jumpDriveSlot }],
       NO_EVENTS,
