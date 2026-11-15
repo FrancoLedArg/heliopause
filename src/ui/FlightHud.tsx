@@ -2,7 +2,13 @@ import { useEffect, useState } from 'react';
 import { hasAsset, imageUrl } from '../game/assets/manifest.ts';
 import { EventBus } from '../game/EventBus.ts';
 import { FAST_FORWARD, type FlightMoment } from '../game/scenes/flightPlayback.ts';
-import { availableDeltaV, kilograms, type HopFlight, type Run } from '../game/sim/index.ts';
+import {
+  availableDeltaV,
+  kilograms,
+  starSystemNumber,
+  type HopFlight,
+  type Run,
+} from '../game/sim/index.ts';
 import { describeFlight } from './flightHudView.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
@@ -87,6 +93,7 @@ export function FlightHud({
     return (
       <>
         <TopBar
+          systemNumber={starSystemNumber(before)}
           systemName={before.starSystem.name}
           fuel={fuel}
           deltaV={deltaV}
@@ -126,6 +133,7 @@ export function FlightHud({
   return (
     <>
       <TopBar
+        systemNumber={starSystemNumber(before)}
         systemName={before.starSystem.name}
         fuel={fuel}
         deltaV={deltaV}

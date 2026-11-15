@@ -78,6 +78,15 @@ describe('the Jump Drive', () => {
     expect(remove(after, 1)).toEqual({ kind: 'refused', reason: { kind: 'last-fuel-tank' } });
   });
 
+  it('a Run in System 3 is charged 51 for the Jump Drive and refunded 25', () => {
+    const inSystem3 = { ...rich('hauler'), starSystemNumber: 3 };
+    const after = installed(install(inSystem3, 2, 'jump-drive'));
+    expect(after.materials).toBe(500 - 51);
+    const result = remove(after, 2);
+    if (result.kind !== 'removed') throw new Error('Expected a removal');
+    expect(result.refund).toBe(25);
+  });
+
   it("the Jump Drive's cost rises with the Star System number", () => {
     const costs = [1, 2, 3, 4, 5].map((n) => componentCost('jump-drive', n));
     for (let i = 1; i < costs.length; i++) expect(costs[i]).toBeGreaterThan(costs[i - 1] ?? 0);
