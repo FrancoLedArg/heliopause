@@ -37,6 +37,8 @@ export interface FlightEffects {
   readonly exhaust: (on: boolean, at: GroundSpot) => void;
   /** Tints the dust and smoke to read against the ground they rise from. */
   readonly setSurface: (color: PaletteColor) => void;
+  /** How far the dust and smoke follow the camera's scroll: below 1 they fall away slower than the ground. */
+  readonly setScrollFactor: (factor: number) => void;
   /** Hides the ground effects in space and the sparks never; clears what is in the air at a cut. */
   readonly setStage: (inSpace: boolean) => void;
   /** Particles keep pace with the playback when it is fast-forwarded. */
@@ -92,10 +94,10 @@ export function createFlightEffects(scene: Scene): FlightEffects {
   const drive = (
     emitters: readonly GameObjects.Particles.ParticleEmitter[],
     on: boolean,
-    at: GroundSpot,
+    at?: GroundSpot,
   ): void => {
     for (const emitter of emitters) {
-      emitter.setPosition(at.x, at.y);
+      if (at) emitter.setPosition(at.x, at.y);
       if (on === running.has(emitter)) continue;
       if (on) {
         emitter.start();
@@ -109,13 +111,22 @@ export function createFlightEffects(scene: Scene): FlightEffects {
 
   return {
     ground: (on, at) => {
-      drive(ground, on, at);
+      // The emitters stay at the world's origin and new puffs are born at `at`: a puff already in the air
+      // keeps its place when the next frame's spot moves (moving the emitter would carry them all along).
+      for (const emitter of ground) {
+        emitter.particleX = at.x;
+        emitter.particleY = at.y;
+      }
+      drive(ground, on);
     },
     exhaust: (on, at) => {
       drive([sparks], on, at);
     },
     setSurface: (color) => {
       for (const emitter of ground) emitter.setParticleTint(paletteNumber(color));
+    },
+    setScrollFactor: (factor) => {
+      for (const emitter of ground) emitter.setScrollFactor(factor);
     },
     setStage: (inSpace) => {
       for (const emitter of ground) {

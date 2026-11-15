@@ -17,6 +17,8 @@ import {
   type Run,
 } from '../sim/index.ts';
 import type { Flight, FlightData } from './Flight.ts';
+import type { Landed } from './Landed.ts';
+import { SHIP_PLACEMENT } from './landedView.ts';
 import { flightPlayback } from './flightPlayback.ts';
 import { SceneKey } from './keys.ts';
 import '../../style.css';
@@ -301,9 +303,10 @@ it('the particles use the real sprites, tinted: dust and smoke by surface, spark
   expect(hex('fx_spark', 0, 1)).toBe(paletteNumber('wh2'));
   expect(hex('fx_spark', 1, 1)).toBe(paletteNumber('wh3'));
   expect(smoke?.texture.getSourceImage()).toBeInstanceOf(HTMLImageElement);
-  // The Home Planet's Moon is departed from a rocky Planet: amber dust (am2); sparks are am4.
-  expect(dust?.ops.tint.current).toBe(paletteNumber('am2'));
-  expect(smoke?.ops.tint.current).toBe(paletteNumber('am2'));
+  // The Home Planet's Moon is departed from a rocky Planet: pale amber puffs (am3, lighter than the
+  // am2 mote of the Landed view so they read against the amber ground); sparks are am4.
+  expect(dust?.ops.tint.current).toBe(paletteNumber('am3'));
+  expect(smoke?.ops.tint.current).toBe(paletteNumber('am3'));
   expect(spark?.ops.tint.current).toBe(paletteNumber('am4'));
 });
 
@@ -315,4 +318,64 @@ it('the smoke rises slowly, grows 1x to 3x and fades over 2 to 3 s', async () =>
   expect(smoke?.ops.speedX.propertyValue).toEqual({ min: 8, max: 20 });
   expect(smoke?.ops.angle.propertyValue).toEqual({ min: 250, max: 290 });
   expect(smoke?.ops.alpha.propertyValue).toMatchObject({ end: 0 });
+});
+
+/** Where a world point of `emitter` shows on screen: the camera's scroll scaled by the emitter's own factor. */
+const shownAt = (
+  scene: Flight,
+  emitter: GameObjects.Particles.ParticleEmitter,
+  p: { x: number; y: number },
+) => ({
+  x: p.x + emitter.x - scene.cameras.main.scrollX * emitter.scrollFactorX,
+  y: p.y + emitter.y - scene.cameras.main.scrollY * emitter.scrollFactorY,
+});
+
+it('Takeoff dust and smoke start at the strip top edge under the Spacecraft', async () => {
+  const { scene } = await fly('scout');
+  scene.seek(60);
+  const edge = SHIP_PLACEMENT.baseY - scene.cameras.main.scrollY;
+  for (const e of emitters(scene).filter((o) => ['fx_dust', 'fx_smoke'].includes(o.texture.key))) {
+    const at = shownAt(scene, e, { x: Number(e.particleX), y: Number(e.particleY) });
+    expect(at.y).toBe(edge);
+    expect(at.x).toBe(scene.ship.x - scene.cameras.main.scrollX);
+  }
+});
+
+it('Takeoff smoke is still on screen 1.5 s after it was kicked up, while the strip has dropped away', async () => {
+  const { scene } = await fly('scout');
+  await act(() => wait(1700));
+  const smoke = emitters(scene).find((e) => e.texture.key === 'fx_smoke');
+  if (!smoke) throw new Error('no smoke emitter');
+  // The camera has climbed: the strip's top edge is off the bottom of the screen.
+  expect(SHIP_PLACEMENT.baseY - scene.cameras.main.scrollY).toBeGreaterThan(GAME_HEIGHT);
+  let visible = 0;
+  smoke.forEachAlive((p) => {
+    const at = shownAt(scene, smoke, p);
+    if (at.y > 0 && at.y < GAME_HEIGHT) visible++;
+  }, smoke);
+  expect(visible).toBeGreaterThan(0);
+});
+
+it('Landing comes down onto the strip and ends on exactly the Landed view composition', async () => {
+  const { scene, data } = await fly('scout');
+  scene.seek(scene.playback.duration - 1);
+  const arrival = scene.layers.arrival;
+  const cam = scene.cameras.main;
+  const frame = {
+    groundTop: arrival.ground.y - cam.scrollY,
+    groundX: arrival.ground.x - cam.scrollX,
+    shipX: scene.ship.x - cam.scrollX,
+    shipY: scene.ship.y - cam.scrollY,
+  };
+  const landed = nextSceneReady(SceneKey.Landed);
+  scene.seek(scene.playback.duration);
+  await landed;
+  const view = game?.scene.getScene<Landed>(SceneKey.Landed);
+  if (!view) throw new Error('no Landed view');
+  expect(data.after.status.kind).toBe('landed');
+  expect(frame.groundTop).toBeCloseTo(view.layers.ground.y, 0);
+  expect(frame.groundX).toBeCloseTo(view.layers.ground.x, 0);
+  expect(frame.shipX).toBeCloseTo(view.layers.ship.x, 0);
+  expect(frame.shipY).toBeCloseTo(view.layers.ship.y, 0);
+  expect(frame.groundTop).toBe(SHIP_PLACEMENT.baseY);
 });
