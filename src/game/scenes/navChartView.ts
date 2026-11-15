@@ -892,9 +892,9 @@ export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedL
   /**
    * A spot for the Heliopause label beside its mark, the way a Body's label sits beside its sprite:
    * nearer the mark than any Body, on one line or as "Heliopause" over "target". `undefined` when
-   * none is clear.
+   * none is clear; when `crowded`, the spot beside it that covers least instead.
    */
-  const besideMark = (text: string): LabelOption | undefined => {
+  const besideMark = (text: string, crowded: boolean): LabelOption | undefined => {
     const mark = layout.heliopause;
     const shapes: { lines: string[]; w: number; h: number }[] = [
       { lines: [text], w: text.length * LABEL.charWidth, h: LABEL.height },
@@ -917,9 +917,11 @@ export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedL
       [layout.star, ...layout.nodes].every(
         (n) => edgeDistance(option.box, n) + STRAY_LEEWAY >= option.d,
       );
-    const clear =
-      nearestFit(options, undefined, ownIsNearest) ?? nearestFit(options, undefined, () => true);
-    if (clear) return clear;
+    if (!crowded) {
+      return (
+        nearestFit(options, undefined, ownIsNearest) ?? nearestFit(options, undefined, () => true)
+      );
+    }
     // Nowhere clear (a crowded edge of the chart): the spot beside the mark that covers the fewest
     // labels and marks, and never a Body, the star or the mark itself.
     let least: { option: LabelOption; cost: number } | undefined;
@@ -973,8 +975,22 @@ export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedL
     };
     ringOptions.push({ lines: [ringText], box, d: Math.abs(dy) / 100 });
   }
+  // A ring spot clear of every sprite, label and the Heliopause's own mark, though over a ring or a
+  // focus bracket: on a crowded edge, better than a spot beside the mark that covers a Body.
+  const overMarks = (): LabelOption | undefined =>
+    ringOptions.find(
+      ({ box }) =>
+        insideBox(box) &&
+        !circleTouchesBox(layout.heliopause, box, 1) &&
+        placed.every((l) => !boxesTouch(l.box, box, 1)) &&
+        [layout.star, ...layout.nodes].every((n) => !circleTouchesBox(n, box, 1)),
+    );
   // The goal is always named: when its ring has no room, the label sits beside its mark instead.
-  const ring = nearestFit(ringOptions, undefined, () => true) ?? besideMark(ringText);
+  const ring =
+    nearestFit(ringOptions, undefined, () => true) ??
+    besideMark(ringText, false) ??
+    overMarks() ??
+    besideMark(ringText, true);
   if (ring) {
     placed.push({
       id: HELIOPAUSE,
@@ -1141,10 +1157,17 @@ export function placeTooltip(
   const far = best(reachable) ?? best(reachable, true) ?? best(anywhere);
   if (far) return far;
 
-  // Nowhere clear at all (a very full chart): the spot that hides the fewest of them, never the Body itself.
+  // Nowhere clear at all (a very full chart): the spot that hides the fewest of them, never the Body
+  // itself. A ring or bracket may go under it before the star, a kept Body or its label does.
+  const keptSprites = [
+    layout.star,
+    ...layout.nodes.filter((n) => n !== node && kept.has(n.body.id)),
+  ];
   const hides = (box: Rect): number =>
-    [ownMarks, ...keepOff].filter((f) => touches(f, box, 0)).length +
-    keepOffLabels.filter((l) => boxesTouch(l.box, box, 0)).length;
+    (keptSprites.filter((n) => circleTouchesBox(n, box, 0)).length +
+      keepOffLabels.filter((l) => boxesTouch(l.box, box, 0)).length) *
+      TOOLTIP_HIDES_KEPT +
+    [ownMarks, ...keepOff].filter((f) => touches(f, box, 0)).length;
   let least: { box: Rect; cost: number } | undefined;
   for (const box of anywhere) {
     if (circleTouchesBox(node, box, 1)) continue;
