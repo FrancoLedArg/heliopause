@@ -1,5 +1,14 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { currentBody, listBodies, startRun, type Run } from '../sim/index.ts';
+import {
+  currentBody,
+  HELIOPAUSE,
+  install,
+  listBodies,
+  materials,
+  startRun,
+  type HopTarget,
+  type Run,
+} from '../sim/index.ts';
 import {
   BRACKET_GAP,
   CHART,
@@ -187,8 +196,8 @@ describe('moving between Bodies with the arrow keys', () => {
     for (const seed of SEEDS) {
       const run = newRun(seed);
       const layout = layoutFor(seed);
-      const seen = new Set([currentBody(run).id]);
-      const queue = [currentBody(run).id];
+      const seen = new Set<HopTarget>([currentBody(run).id]);
+      const queue: HopTarget[] = [currentBody(run).id];
       for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
         for (const direction of DIRECTIONS) {
           const next = moveFocus(layout, id, direction);
@@ -205,11 +214,13 @@ describe('moving between Bodies with the arrow keys', () => {
           }
         }
       }
-      expect(seen.size, `seed ${seed}`).toBe(listBodies(run.starSystem).length);
+      // Every Body, and the Heliopause.
+      expect(seen.size, `seed ${seed}`).toBe(listBodies(run.starSystem).length + 1);
+      expect(seen.has(HELIOPAUSE)).toBe(true);
     }
   });
 
-  it('steps through the Bodies in order out from the star, and stops at either end', () => {
+  it('steps through the Bodies in order out from the star, then the Heliopause, and stops at either end', () => {
     const layout = layoutChart(newRun(9));
     const ids = layout.nodes.map((n) => n.body.id);
     const [first, second] = ids;
@@ -218,7 +229,9 @@ describe('moving between Bodies with the arrow keys', () => {
     expect(stepFocus(layout, first, 1)).toBe(second);
     expect(stepFocus(layout, second, -1)).toBe(first);
     expect(stepFocus(layout, first, -1)).toBe(first);
-    expect(stepFocus(layout, last, 1)).toBe(last);
+    expect(stepFocus(layout, last, 1)).toBe(HELIOPAUSE);
+    expect(stepFocus(layout, HELIOPAUSE, -1)).toBe(last);
+    expect(stepFocus(layout, HELIOPAUSE, 1)).toBe(HELIOPAUSE);
   });
 
   it('moves toward the key pressed, and stays put at the edge', () => {
@@ -229,9 +242,91 @@ describe('moving between Bodies with the arrow keys', () => {
       );
       expect(target?.x ?? Infinity).toBeGreaterThanOrEqual(node.x);
     }
+    // Past the outermost Body lies the Heliopause, and past it nothing.
     const rightmost = [...layout.nodes].sort((a, b) => b.x - a.x)[0];
     if (!rightmost) throw new Error('empty chart');
-    expect(moveFocus(layout, rightmost.body.id, 'right')).toBe(rightmost.body.id);
+    expect(moveFocus(layout, rightmost.body.id, 'right')).toBe(HELIOPAUSE);
+    expect(moveFocus(layout, HELIOPAUSE, 'right')).toBe(HELIOPAUSE);
+  });
+});
+
+describe('the Heliopause on the Nav Chart', () => {
+  /** The Run with a Jump Drive installed. */
+  const withJumpDrive = (run: Run): Run => {
+    const result = install({ ...run, materials: materials(100) }, 2, 'jump-drive');
+    if (result.kind !== 'installed') throw new Error('Expected an install');
+    return result.run;
+  };
+
+  it('marks the Heliopause on its ring, on the chart and clear of every Body', () => {
+    for (const seed of SEEDS) {
+      const layout = layoutFor(seed);
+      const mark = layout.heliopause;
+      expect(mark.x - mark.radius - BRACKET_GAP, `seed ${seed}`).toBeGreaterThanOrEqual(0);
+      expect(mark.x + mark.radius + BRACKET_GAP).toBeLessThanOrEqual(CHART.width);
+      expect(mark.y - mark.radius - BRACKET_GAP).toBeGreaterThanOrEqual(0);
+      expect(mark.y + mark.radius + BRACKET_GAP).toBeLessThanOrEqual(CHART.height);
+      for (const node of layout.nodes) {
+        expect(Math.hypot(node.x - mark.x, node.y - mark.y), `seed ${seed}`).toBeGreaterThan(
+          node.radius + mark.radius + BRACKET_GAP,
+        );
+      }
+    }
+    // Where its ring crosses the chart, the mark sits on it.
+    const layout = layoutFor(9);
+    const { star, heliopause } = layout;
+    expect(Math.hypot(heliopause.x - star.x, heliopause.y - star.y)).toBeCloseTo(
+      layout.heliopauseRadius,
+      -1,
+    );
+  });
+
+  it('says why the Heliopause cannot be the target without a Jump Drive', () => {
+    const run = newRun(5);
+    const status = targetStatus(run, HELIOPAUSE);
+    expect(status).toMatchObject({ valid: false, reason: 'no-jump-drive' });
+    expect(status.valid ? '' : status.why).toMatch(/Jump Drive/);
+    expect(targetStatus(withJumpDrive(run), HELIOPAUSE)).toEqual({ valid: true });
+  });
+
+  it('Enter on the focused Heliopause makes it the target only with a Jump Drive', () => {
+    const run = newRun(5);
+    const layout = layoutChart(run);
+    const focused = chartReducer(run, layout, initialChartState(run), {
+      kind: 'focus',
+      id: HELIOPAUSE,
+    });
+    expect(chartReducer(run, layout, focused, { kind: 'select' }).selectedId).toBeUndefined();
+    const ready = withJumpDrive(run);
+    expect(chartReducer(ready, layout, focused, { kind: 'select' })).toEqual({
+      focusedId: HELIOPAUSE,
+      selectedId: HELIOPAUSE,
+    });
+  });
+
+  it('keeps the labels and the tooltip off the Heliopause mark when it has focus or is the target', () => {
+    for (const seed of SEEDS.slice(0, 40)) {
+      const run = newRun(seed);
+      const layout = layoutFor(seed);
+      const mark = layout.heliopause;
+      for (const targetId of [undefined, HELIOPAUSE]) {
+        const context = { hereId: currentBody(run).id, targetId, focusedId: HELIOPAUSE };
+        const labels = placeLabels(layout, context);
+        for (const label of labels) {
+          expect(touchesCircle(label.box, mark), `seed ${seed}: ${label.text}`).toBe(false);
+        }
+        const tip = placeTooltip(layout, context, tooltipHeight('a reason that wraps'), labels);
+        expect(insideChart(tip)).toBe(true);
+        expect(touchesCircle(tip, { ...mark, radius: mark.radius + BRACKET_GAP })).toBe(false);
+      }
+    }
+  });
+
+  it('labels the targeted Heliopause as the target', () => {
+    const run = newRun(9);
+    const context = { hereId: currentBody(run).id, targetId: HELIOPAUSE, focusedId: HELIOPAUSE };
+    const label = placeLabels(layoutFor(9), context).find((l) => l.id === 'heliopause');
+    expect(label?.text).toBe('Heliopause · target');
   });
 });
 
@@ -577,7 +672,7 @@ describe('the Body tooltip', () => {
       const run = newRun(seed);
       const layout = layoutFor(seed);
       const context = initialChartState(run);
-      const labelContext = { hereId: context.focusedId, targetId: undefined, ...context };
+      const labelContext = { ...context, hereId: currentBody(run).id, targetId: undefined };
       const labels = placeLabels(layout, labelContext);
       const why = targetStatus(run, context.focusedId);
       const box = placeTooltip(

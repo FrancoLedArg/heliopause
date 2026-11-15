@@ -30,7 +30,7 @@ const OPEN_SPACE_BURNS = ['takeoff', 'transfer'] as const;
 type OpenSpaceBurn = (typeof OPEN_SPACE_BURNS)[number];
 
 /** The Heliopause as a Hop target: the outer edge of the Star System, not a Body. */
-export const HELIOPAUSE = 'heliopause';
+export const HELIOPAUSE = 'heliopause' as const;
 /** Where a Hop can go: another Body, or the Heliopause. */
 export type HopTarget = BodyId | typeof HELIOPAUSE;
 

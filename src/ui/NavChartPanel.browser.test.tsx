@@ -1,5 +1,15 @@
 import { afterEach, expect, it } from 'vitest';
-import { homePlanet, kilograms, listBodies, startRun, type BodyId } from '../game/sim/index.ts';
+import {
+  HELIOPAUSE,
+  homePlanet,
+  install,
+  kilograms,
+  listBodies,
+  materials,
+  startRun,
+  type BodyId,
+  type Run,
+} from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
 
@@ -397,4 +407,63 @@ it('names Depleted in the screen-reader entry for the Body', async () => {
   expect(option?.textContent).toContain('Depleted, yields nothing');
   const other = host.querySelector<HTMLElement>(`#nav-option-${home.id}`);
   expect(other?.textContent).not.toContain('Depleted');
+});
+
+/** A lancer on seed 1 with a Jump Drive installed: the Heliopause is within its reach. */
+function withJumpDrive(): Run {
+  const result = install({ ...startRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+  if (result.kind !== 'installed') throw new Error('Expected an install');
+  return result.run;
+}
+
+it('says on the chart why the focused Heliopause cannot be the target without a Jump Drive', async () => {
+  const host = await renderUi(
+    <NavChartPanel
+      run={startRun(1, 'lancer')}
+      state={{ focusedId: HELIOPAUSE, selectedId: undefined }}
+    />,
+  );
+  const tooltip = byTestId(host, 'inspect');
+  expect(tooltip.querySelector('h2')?.textContent).toBe('Heliopause');
+  const verdict = byTestId(tooltip, 'verdict');
+  expect(verdict.textContent).toMatch(/Jump Drive/);
+  // The reason fits inside the tooltip frame.
+  const frame = tooltip.getBoundingClientRect();
+  expect(verdict.getBoundingClientRect().bottom).toBeLessThanOrEqual(frame.bottom - 3);
+  expect(verdict.scrollWidth).toBeLessThanOrEqual(verdict.clientWidth);
+  // The listbox has an entry for it, unavailable, that a screen reader reads with the reason.
+  const option = host.querySelector<HTMLElement>(`#nav-option-${HELIOPAUSE}`);
+  expect(option?.getAttribute('aria-disabled')).toBe('true');
+  expect(option?.textContent).toMatch(/Heliopause.*Jump Drive/);
+  const chart = host.querySelector<HTMLElement>('[role="listbox"]');
+  expect(chart?.getAttribute('aria-activedescendant')).toBe(`nav-option-${HELIOPAUSE}`);
+  expect(host.querySelector('[data-testid="hop-plan"]')?.textContent).not.toMatch(/Takeoff/);
+});
+
+it('plans a Hop to the targeted Heliopause with a Jump Drive: Takeoff and Transfer, no Landing', async () => {
+  const host = await renderUi(
+    <NavChartPanel
+      run={withJumpDrive()}
+      state={{ focusedId: HELIOPAUSE, selectedId: HELIOPAUSE }}
+    />,
+  );
+  expect(byTestId(host, 'target').textContent).toContain('Heliopause');
+  expect(byTestId(host, 'inspect').querySelector('[data-testid="verdict"]')).toBeNull();
+  const rows = [...host.querySelectorAll('.nav-chart__burns tbody th')].map((th) => th.textContent);
+  expect(rows).toEqual(['Takeoff', 'Transfer']);
+  expect(byTestId(host, 'plan-summary').textContent).toMatch(/^Hop plan for the Heliopause/);
+  expect(
+    host.querySelector<HTMLButtonElement>('.nav-chart__actions button:last-of-type')?.disabled,
+  ).toBe(false);
+  // Everything in the plan sits inside its area, above the buttons, and the target block fits its frame.
+  const plan = byTestId(host, 'hop-plan');
+  expect(plan.scrollHeight).toBeLessThanOrEqual(plan.clientHeight);
+  for (const reason of host.querySelectorAll<HTMLElement>('[data-testid="burn-reason"]')) {
+    expect(reason.scrollWidth).toBeLessThanOrEqual(reason.clientWidth);
+  }
+  const kind = byTestId(host, 'target-kind');
+  expect(kind.scrollWidth).toBeLessThanOrEqual(kind.clientWidth);
+  const option = host.querySelector<HTMLElement>(`#nav-option-${HELIOPAUSE}`);
+  expect(option?.getAttribute('aria-disabled')).toBe('false');
+  expect(option?.getAttribute('aria-selected')).toBe('true');
 });
