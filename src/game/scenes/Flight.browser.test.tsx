@@ -74,8 +74,10 @@ const frame = (): Promise<void> =>
   });
 
 /**
- * Seed 2026 stood on its innermost planet (rocky, with an Icy Moon), knowing every Body: Hops play out
+ * Seed 2046 stood on its innermost planet (rocky, with an Icy Moon), knowing every Body: Hops play out
  * from where Runs opened before the Starting Moon (#96), so the playback has a rocky departure.
+ * Re-pinned for #247 (was seed 2026): the Isp rise settles seed 2026 on another Star System, whose
+ * innermost planet's first Moon is not Icy.
  */
 function onHome(run: Run): Run {
   const ids = listBodies(run.starSystem).map((body) => body.id);
@@ -88,7 +90,7 @@ function onHome(run: Run): Run {
   };
 }
 
-/** The innermost planet's nearest Moon: seed 2026's is Icy. */
+/** The innermost planet's nearest Moon: seed 2046's is Icy. */
 const homeMoonId = (run: Run) => run.starSystem.planets[0]?.moons[0]?.id;
 
 /** Mounts the whole app and starts the playback of the Hop to the home Moon on `chassis`. */
@@ -113,7 +115,7 @@ async function fly(
   });
   game = startGame('flight-test-game');
   await titleReady;
-  const run = from(onHome(startRun(2026, chassis)));
+  const run = from(onHome(startRun(2046, chassis)));
   const target = pick(run);
   if (target === undefined) throw new Error('No target to Hop to');
   const launched = launchHop(run, target);
@@ -630,7 +632,7 @@ it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clea
           launched.flight.outcome.burn === 'transfer'
         );
       })?.id,
-    // No Hop of a full hauler from seed 2026's innermost planet falls short; half its Fuel.
+    // No Hop of a full hauler from seed 2046's innermost planet falls short; half its Fuel.
     (run) => ({
       ...run,
       spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 2) },
@@ -1057,7 +1059,7 @@ const standOnHomeMoon = (run: Run): Run => {
   return { ...run, status: { kind: 'landed', bodyId: moon } };
 };
 
-it("seed 2026's Icy Moon: Landing on it and the Landed view after use the Icy strip", async () => {
+it("seed 2046's Icy Moon: Landing on it and the Landed view after use the Icy strip", async () => {
   const { scene } = await fly('scout');
   expect(groundKey(arrivalOf(scene))).toBe('surface_icy');
   expect(groundKey(scene.layers.departure)).toBe('surface_rocky');
@@ -1069,7 +1071,7 @@ it("seed 2026's Icy Moon: Landing on it and the Landed view after use the Icy st
   expect(groundKey(view.layers)).toBe('surface_icy');
 });
 
-it("Takeoff from seed 2026's Icy Moon uses the same Icy strip and Icy dust and smoke", async () => {
+it("Takeoff from seed 2046's Icy Moon uses the same Icy strip and Icy dust and smoke", async () => {
   const { scene } = await fly('scout', (run) => run.starSystem.planets[0]?.id, standOnHomeMoon);
   expect(groundKey(scene.layers.departure)).toBe('surface_icy');
   scene.seek(60);

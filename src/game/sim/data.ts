@@ -240,9 +240,10 @@ export interface ChassisTuning {
  * The Isp is 30% above its first tuning (1,230, 1,210 and 1,280 s) since #247: a new Run felt out
  * of Fuel after its first Hop. The gauge reads Fuel mass, and the rocket equation spends the
  * heaviest Fuel first: the first Hop took about 40% of the tank, most of it for the Landing on the
- * Starting Moon's planet (about 4 km/s). A bigger tank cannot fix that, since the share a Burn leaves can never top
- * e^(−Δv / exhaust velocity), about 65% here; a better Engine raises that ceiling. On average the
- * first Hop now leaves at least 60% of the tank and the starting Fuel alone lasts 3 nearby Hops.
+ * Starting Moon's planet (about 4 km/s). A bigger tank cannot fix that, since the share a Burn
+ * leaves can never top e^(−Δv / exhaust velocity), about 65% here; a better Engine raises that
+ * ceiling. On average the first Hop now leaves at least 60% of the tank and the starting Fuel alone
+ * lasts 3 nearby Hops.
  */
 export const CHASSIS_TUNING = {
   scout: { dryMass: kilograms(4_000), fuelCapacity: kilograms(21_000), engineIsp: seconds(1_600) },
