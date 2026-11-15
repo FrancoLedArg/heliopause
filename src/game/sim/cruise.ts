@@ -135,10 +135,11 @@ const TARGETS: Readonly<Record<CruiseEventKind, readonly ComponentKind[]>> = {
 
 /**
  * Where a mild Hop's `n`th event falls in the round of parts the first Hops rotate through: two
- * events per Hop at most, so consecutive Hops never hit the same part back to back (#320).
+ * events per Hop at most. The cursor steps by 1 a Hop and back 1 an event, so the next Hop's parts
+ * are never all ones the last Hop hit, unless that Hop hit every part there is (#320).
  */
 function spreadIndex(seed: Seed, hop: number, n: number): number {
-  return (stringSeed(`cruise-spread:${String(seed)}`) % 4) + hop * 2 + n;
+  return (stringSeed(`cruise-spread:${String(seed)}`) % 4) + 100 + hop - n;
 }
 
 /**

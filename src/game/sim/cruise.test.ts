@@ -5,6 +5,7 @@ import {
   cruiseSchedule,
   newSpacecraft,
   refit,
+  startRun,
   type CruiseEventKind,
 } from './index.ts';
 import { radarReach, withDamage } from './spacecraft.ts';
@@ -82,6 +83,28 @@ describe('the Cruise event schedule', () => {
       }
     }
     expect(varied / SEEDS.length).toBeGreaterThan(0.8);
+  });
+
+  it('on the real Scout, the first 3 Hops hit both Engine and Tank in most Runs, rotating from Hop to Hop', () => {
+    let both = 0;
+    for (const seed of SEEDS) {
+      const { spacecraft } = startRun(seed, 'scout');
+      const debris = [1, 2, 3].map((hop) =>
+        cruiseSchedule(seed, hop, 1, spacecraft, ['debris-field']).map((event) => event.slot),
+      );
+      for (let i = 1; i < debris.length; i++) {
+        const [prev, next] = [debris[i - 1] ?? [], debris[i] ?? []];
+        // Two events in one Hop can hit both parts of a 2-part ship; then a repeat is unavoidable.
+        if (new Set(prev).size >= 2) continue;
+        expect(next.every((slot) => prev.includes(slot))).toBe(false);
+      }
+      const real = [1, 2, 3].flatMap((hop) =>
+        cruiseSchedule(seed, hop, 1, spacecraft, CRUISE_TUNING.enabledKinds),
+      );
+      const kinds = new Set(real.map((e) => spacecraft.slots[e.slot ?? -1]?.replace(/-\d$/, '')));
+      if (kinds.has('engine') && kinds.has('fuel-tank')) both++;
+    }
+    expect(both / SEEDS.length).toBeGreaterThan(0.5);
   });
 
   it('harsh events come later, and more often in later Star Systems', () => {
