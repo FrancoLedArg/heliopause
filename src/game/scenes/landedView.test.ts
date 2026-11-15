@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { CHASSIS_IDS, currentBody, findBody, startRun, type Run } from '../sim/index.ts';
+import {
+  CHASSIS_IDS,
+  currentBody,
+  findBody,
+  listBodies,
+  startRun,
+  type LandableBody,
+  type Run,
+} from '../sim/index.ts';
 import { frameGeometry } from './chassisArt.ts';
 import {
   SHIP_PLACEMENT,
@@ -24,9 +32,37 @@ function runOnMoonOfHome(seed: number): Run {
 }
 
 describe('the Landed surface', () => {
-  it('looks like rock on a rocky planet and like a Moon on a Moon', () => {
-    expect(surfaceKind(currentBody(newRun(5)))).toBe('rocky');
-    expect(surfaceKind(currentBody(runOnMoonOfHome(5)))).toBe('moon');
+  const bodies = (run: Run): LandableBody[] =>
+    listBodies(run.starSystem).filter((b): b is LandableBody => b.landable);
+
+  it('gives an Icy Body the Icy ground and a Rocky Planet the Rocky ground', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      for (const body of bodies(newRun(seed))) {
+        if (body.composition === 'icy') expect(surfaceKind(body)).toBe('icy');
+        else if (body.kind === 'rocky-planet') expect(surfaceKind(body)).toBe('rocky');
+      }
+    }
+  });
+
+  it('keeps the grey Moon ground for Rocky Moons only', () => {
+    let rockyMoons = 0;
+    for (let seed = 1; seed <= 40; seed++) {
+      for (const body of bodies(newRun(seed))) {
+        if (body.kind === 'moon' && body.composition === 'rocky') {
+          rockyMoons++;
+          expect(surfaceKind(body)).toBe('moon');
+        }
+      }
+    }
+    expect(rockyMoons).toBeGreaterThan(0);
+  });
+
+  it('never draws an Icy label on a non-Icy ground, or a Rocky label on the Icy ground', () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      for (const body of bodies(newRun(seed))) {
+        expect(surfaceKind(body) === 'icy').toBe(body.composition === 'icy');
+      }
+    }
   });
 });
 
