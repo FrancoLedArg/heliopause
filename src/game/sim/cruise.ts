@@ -92,7 +92,7 @@ export function cruiseSchedule(
     .map((kind, i) => ({
       kind,
       tick: ticks[i] ?? startTicks.min,
-      slot: drawTarget(rng, kind, spacecraft, mild),
+      slot: drawTarget(rng, kind, spacecraft, mild ? spreadIndex(seed, hop, i) : null),
     }))
     .sort((a, b) => a.tick - b.tick);
 }
@@ -129,24 +129,40 @@ function drawKind(
 const TARGETS: Readonly<Record<CruiseEventKind, readonly ComponentKind[]>> = {
   'fuel-leak': ['fuel-tank'],
   'engine-fire': ['engine'],
-  'debris-field': ['engine', 'fuel-tank', 'drill'],
+  'debris-field': ['engine', 'fuel-tank', 'drill', 'radar'],
   'solar-flare': [],
 };
 
+/**
+ * Where a mild Hop's `n`th event falls in the round of parts the first Hops rotate through: two
+ * events per Hop at most, so consecutive Hops never hit the same part back to back (#320).
+ */
+function spreadIndex(seed: Seed, hop: number, n: number): number {
+  return (stringSeed(`cruise-spread:${String(seed)}`) % 4) + hop * 2 + n;
+}
+
+/**
+ * The Slot an event hits, or `null` for a miss. A mild Debris field never misses and rotates through
+ * the sound parts (`spread`), so the first Hops show several kinds of Damage (#320); a later one hits
+ * a random part, and misses with chance `1 - debrisHitChance`.
+ */
 function drawTarget(
   rng: Rng,
   kind: CruiseEventKind,
   spacecraft: Spacecraft,
-  mild: boolean,
+  spread: number | null,
 ): number | null {
-  if (kind === 'debris-field' && rng.next() >= CRUISE_TUNING.debrisHitChance) return null;
-  // A mild Debris field only ever hits a Fuel Tank, whose leak stops at the Cruise's floor: a
-  // Damaged Engine would cost Δv on the Landing, and a Damaged Drill yield on arrival.
-  const hits = mild && kind === 'debris-field' ? ['fuel-tank'] : TARGETS[kind];
+  if (kind === 'debris-field' && spread === null && rng.next() >= CRUISE_TUNING.debrisHitChance) {
+    return null;
+  }
+  const hits = TARGETS[kind];
   const candidates = spacecraft.slots.flatMap((slot, i) =>
     slot !== null && !spacecraft.damage[i] && hits.includes(COMPONENTS[slot].kind) ? [i] : [],
   );
   if (candidates.length === 0) return null;
+  if (kind === 'debris-field' && spread !== null) {
+    return candidates[spread % candidates.length] ?? null;
+  }
   return candidates[Math.floor(rng.next() * candidates.length)] ?? null;
 }
 

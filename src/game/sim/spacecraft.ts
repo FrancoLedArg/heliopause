@@ -217,14 +217,18 @@ export interface RadarReach {
  * What the Spacecraft's Radars reach, or `undefined` with none aboard. Stacking: the best Radar sets
  * the range, and a level-2 Radar anywhere aboard Surveys what is in it.
  */
-export function radarReach(spacecraft: Pick<Spacecraft, 'slots'>): RadarReach | undefined {
+export function radarReach(
+  spacecraft: Pick<Spacecraft, 'slots'> & Partial<Pick<Spacecraft, 'damage'>>,
+): RadarReach | undefined {
   let reach: RadarReach | undefined;
-  for (const slot of spacecraft.slots) {
+  for (const [i, slot] of spacecraft.slots.entries()) {
     if (slot === null) continue;
     const component = COMPONENTS[slot];
     if (component.kind !== 'radar') continue;
+    // A flickering (Damaged) Radar reaches less far until it is Repaired (#320).
+    const factor = spacecraft.damage?.[i] ? CRUISE_TUNING.damagedRadarRange : 1;
     reach = {
-      range: astronomicalUnits(Math.max(reach?.range ?? 0, component.range)),
+      range: astronomicalUnits(Math.max(reach?.range ?? 0, component.range * factor)),
       surveys: (reach?.surveys ?? false) || component.surveys,
     };
   }
