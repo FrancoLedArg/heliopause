@@ -1,4 +1,5 @@
 .lock-icon {
+  image-rendering: pixelated;
   flex: none;
 }
 
