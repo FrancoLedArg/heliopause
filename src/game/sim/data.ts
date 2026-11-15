@@ -98,9 +98,12 @@ export const GENERATION_TUNING = {
    * ratio: Voyager 1 crossed at about 122 AU (§5) and Neptune orbits at 30.2 AU (§1), about 4×.
    */
   heliopausePerOutermostPlanet: { min: 3.5, max: 4.5 },
-  /** Gas Giants are home to Moons; rocky planets have few. Spans 0 to 4 Moons per planet. */
+  /**
+   * Gas Giants are home to 1 to 4 Moons. Every rocky planet has two, so a Spacecraft landed on any
+   * of the three Bodies always has a short Hop onward within reach (#188: no early dead ends).
+   */
   moonCount: {
-    'rocky-planet': { min: 0, max: 2 },
+    'rocky-planet': { min: 2, max: 2 },
     'gas-giant': { min: 1, max: 4 },
   },
   /**
@@ -178,6 +181,16 @@ export const SOURCED_CONSTANTS = {
   } satisfies SourcedValue<number>,
 } as const;
 
+/**
+ * Gameplay tuning (#188): rocky planets are drawn from Mercury's size up to Mars's, the low end of
+ * the sourced range, and never Earth's. Landing on an Earth-sized planet and taking off again costs
+ * about 9.4 km/s each way, more than a starting Spacecraft has left once it gets there: the planet
+ * would be a dead end that a 100% Hop leads straight into.
+ */
+export const ROCKY_PLANET_SIZE = {
+  largestEscapeVelocity: SOURCED_CONSTANTS.marsEscapeVelocity.value,
+} as const;
+
 /** A distance in kilometres, in astronomical units. */
 export function kilometersToAu(distance: Kilometers): AstronomicalUnits {
   return astronomicalUnits(distance / SOURCED_CONSTANTS.kilometersPerAu.value);
@@ -211,9 +224,9 @@ export interface ChassisTuning {
  * Gameplay tuning for the Chassis. Not real-world figures: the engines are sci-fi, past any flown
  * engine's Isp (a hydrogen/LOX RL-10 makes 444 s, research doc §3, UNVERIFIED there), because the
  * Burns use real-world sized Δv. Calibrated so every Chassis reaches the Home Planet's Moon with
- * comfortable Margin in every Star System, starter Fuel covers roughly 2 to 4 nearby Hops, and
- * their starting Δv differs noticeably. The hauler carries the most Fuel yet has the least Δv: its
- * dry mass costs it.
+ * comfortable Margin in every Star System, starter Fuel covers roughly 3 to 6 nearby Hops (2 to 4
+ * before #188 gave every rocky planet two Moons), and their starting Δv differs noticeably. The
+ * hauler carries the most Fuel yet has the least Δv: its dry mass costs it.
  */
 export const CHASSIS_TUNING = {
   scout: { dryMass: kilograms(4_000), fuelCapacity: kilograms(21_000), engineIsp: seconds(1_230) },

@@ -50,6 +50,17 @@ const samples = (playback: FlightPlayback) =>
 const arrived = flightEnding('arrived', run);
 
 /** The Run with just enough Fuel for `fraction` of the Hop's estimated Δv. */
+/**
+ * The share of the Hop's estimate that its Takeoff and Transfer take: Fuel for just that much runs
+ * dry during the Transfer, whatever the Burns cost.
+ */
+function transferShare(): number {
+  const planned = planHop(run, moonId);
+  if (planned.kind !== 'planned') throw new Error('no plan');
+  const { takeoff, transfer } = planned.plan.estimates;
+  return (takeoff + transfer) / planned.plan.totalEstimate;
+}
+
 function shortRun(fraction: number): Run {
   const planned = planHop(run, moonId);
   if (planned.kind !== 'planned') throw new Error('no plan');
@@ -151,7 +162,8 @@ describe('Hop playback', () => {
   });
 
   it('a Hop that stops short holds its route progress where the engine cut out', () => {
-    const from = shortRun(0.97);
+    // Re-pinned for #188: was 0.97, before seed 123's Home Moon took a bigger share in Landing.
+    const from = shortRun(transferShare());
     const flight = flightEnding('fell-short', from, 'transfer');
     const playback = flightPlayback(from.spacecraft, flight, 'full');
     const stop = playback.at(playback.stopsAt).route;
@@ -161,7 +173,8 @@ describe('Hop playback', () => {
   });
 
   it('a Hop that Fell Short in the Transfer stops when the Fuel runs dry, partway through it', () => {
-    const from = shortRun(0.97);
+    // Re-pinned for #188: was 0.97, before seed 123's Home Moon took a bigger share in Landing.
+    const from = shortRun(transferShare());
     const flight = flightEnding('fell-short', from, 'transfer');
     const playback = flightPlayback(from.spacecraft, flight, 'full');
     expect(playback.stopsAt).toBeLessThan(playback.duration);
@@ -191,7 +204,8 @@ describe('Hop playback', () => {
   });
 
   it('a Hop that Crashed stops partway through the Landing, with the Fuel spent', () => {
-    const from = shortRun(0.97);
+    // Re-pinned for #188: was 0.97, before seed 123's Home Moon took a bigger share in Landing.
+    const from = shortRun(transferShare());
     const flight = flightEnding('crashed', from);
     const playback = flightPlayback(from.spacecraft, flight, 'full');
     const stop = playback.at(playback.stopsAt);

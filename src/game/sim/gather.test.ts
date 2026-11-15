@@ -140,16 +140,17 @@ describe('collection on arrival', () => {
 });
 
 describe('Fuel left behind in a real Run', () => {
-  it('seed 14, scout: the Hop to Konvin after Lydruthyx leaves Fuel behind', () => {
-    const start = startRun(14, 'scout');
+  // Re-pinned for #188 (was seed 14, Lydruthyx then Konvin): generation changed.
+  it('seed 5, scout: the Hop to Raertha after Culmusu leaves Fuel behind', () => {
+    const start = startRun(5, 'scout');
     const named = (run: Run, name: string) => {
       const body = listBodies(run.starSystem).find((b) => b.name === name);
       if (!body) throw new Error(`no Body ${name}`);
       return body.id;
     };
-    const first = launchHop(start, named(start, 'Lydruthyx'));
+    const first = launchHop(start, named(start, 'Culmusu'));
     if (first.kind !== 'flown') throw new Error('Expected a flown Hop');
-    const second = launchHop(first.run, named(first.run, 'Konvin'));
+    const second = launchHop(first.run, named(first.run, 'Raertha'));
     if (second.kind !== 'flown') throw new Error('Expected a flown Hop');
     const { collection } = second.flight;
     if (collection?.kind !== 'fuel') throw new Error('Expected Fuel collected');

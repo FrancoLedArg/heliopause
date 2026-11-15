@@ -18,7 +18,7 @@ test('title to About to Back to Credits to Back restores focus each time', async
     'rel',
     'noopener noreferrer',
   );
-  await expect(page.getByText('AI-generated art', { exact: true })).toBeVisible();
+  await expect(page.getByText('AI-generated art and music', { exact: true })).toBeVisible();
   await testInfo.attach('about', { body: await page.screenshot(), contentType: 'image/png' });
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(about).toBeFocused();
@@ -26,7 +26,7 @@ test('title to About to Back to Credits to Back restores focus each time', async
   await credits.click();
   const creditsPanel = page.getByRole('region', { name: 'Credits & References' });
   await expect(creditsPanel.getByText(/CC BY-ND 4\.0/)).toBeVisible();
-  await expect(page.getByText('AI-generated art', { exact: true })).toBeVisible();
+  await expect(page.getByText('AI-generated art and music', { exact: true })).toBeVisible();
   await testInfo.attach('credits', { body: await page.screenshot(), contentType: 'image/png' });
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(credits).toBeFocused();

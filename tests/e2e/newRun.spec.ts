@@ -18,7 +18,7 @@ test('New Run from the title screen lands on the Home Planet, seeded from the UR
 
   const newRun = page.getByRole('button', { name: 'New Run' });
   await expect(newRun).toBeVisible();
-  await expect(page.getByText('AI-generated art')).toBeVisible();
+  await expect(page.getByText('AI-generated art and music')).toBeVisible();
   await testInfo.attach('title-screen', {
     body: await page.screenshot(),
     contentType: 'image/png',
@@ -33,7 +33,7 @@ test('New Run from the title screen lands on the Home Planet, seeded from the UR
   // Scout: 1230 s Isp, 4 t dry + 21 t Fuel: 1230 × 9.80665 × ln(25 / 4) is about 22.1 km/s.
   await expect(page.getByTestId('delta-v')).toHaveText('22.1 km/s');
   await expect(page.getByTestId('game-ui')).toHaveAttribute('data-run-seed', '123');
-  await expect(page.getByText('AI-generated art')).toBeVisible();
+  await expect(page.getByText('AI-generated art and music')).toBeVisible();
   await expect(newRun).toBeHidden();
   await testInfo.attach('landed', {
     body: await page.screenshot(),
