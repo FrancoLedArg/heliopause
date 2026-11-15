@@ -6,6 +6,7 @@ import {
   isDepleted,
   marginShare,
   metersPerSecond,
+  strandsOnArrival,
   BURNS,
   type Body,
   type Burn,
@@ -39,6 +40,9 @@ export const DELTA_V_EXPLANATION =
 /** Warning when the Fuel cannot cover even the estimated Δv. */
 const NOT_ENOUGH = 'Not enough Δv for this Hop';
 
+/** The plan's one-line flag when arriving would leave the Run Stranded; the full sentence is shown beside it. */
+const STRANDS = "You'd be Stranded there";
+
 /** The Transfer between two Bodies of one planet is a short climb within that planet's pull. */
 const SAME_PLANET = "stay in one planet's pull";
 
@@ -59,10 +63,15 @@ export interface HopPlanView {
   readonly successChance: string;
   readonly low: boolean;
   /**
-   * Words that flag a low Success Chance, or stronger a Margin below zero (so it is never colour
-   * alone); undefined when neither.
+   * One line that flags, strongest first, a Margin below zero, an arrival that would leave the Run
+   * Stranded, or a low Success Chance (so it is never colour alone); undefined when none.
    */
   readonly warning: string | undefined;
+  /**
+   * The simulation's warning, in full, when the Hop flown at its estimate would leave the Run
+   * Stranded: where, the Δv leaving would need and the most there would be. The Hop can still launch.
+   */
+  readonly strandedWarning: string | undefined;
   /** Says in words that the target gives nothing more, when it is Depleted. */
   readonly yieldNote: string | undefined;
   /** The plan in one sentence, for a live region. */
@@ -132,6 +141,7 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
   const needed = formatPlanDeltaV(plan.totalEstimate);
   const available = formatPlanDeltaV(plan.availableDeltaV);
   const successChance = formatPercent(plan.successChance);
+  const strandedWarning = strandsOnArrival(run, plan.toId)?.warning;
   return {
     burns: burnRows(run, plan, from, to),
     needed,
@@ -142,8 +152,15 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
     marginIsShort: short,
     successChance,
     low,
-    warning: short ? NOT_ENOUGH : low ? 'Low chance: may run dry' : undefined,
+    warning: short
+      ? NOT_ENOUGH
+      : strandedWarning
+        ? STRANDS
+        : low
+          ? 'Low chance: may run dry'
+          : undefined,
+    strandedWarning,
     yieldNote: depleted ? 'Depleted: this Hop will yield nothing.' : undefined,
-    summary: `Hop plan for ${targetName}: needs ${needed}, you have ${available}, success chance ${successChance}.${depleted ? ' It is Depleted and will yield nothing.' : ''}`,
+    summary: `Hop plan for ${targetName}: needs ${needed}, you have ${available}, success chance ${successChance}.${depleted ? ' It is Depleted and will yield nothing.' : ''}${strandedWarning ? ` ${strandedWarning}` : ''}`,
   };
 }

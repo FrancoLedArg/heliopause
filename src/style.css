@@ -745,6 +745,11 @@ body {
   color: var(--gm5);
 }
 
+/* The Stranded warning under the chart, in the kit's amber warning colour (and in words). */
+.nav-chart__help-warning {
+  color: var(--am3);
+}
+
 /* The tooltip for the focused Body, on the chart (wireframe callout 4). */
 .nav-chart__tooltip-frame {
   position: absolute;

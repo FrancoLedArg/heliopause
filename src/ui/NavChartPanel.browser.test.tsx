@@ -467,3 +467,108 @@ it('plans a Hop to the targeted Heliopause with a Jump Drive: Takeoff and Transf
   expect(option?.getAttribute('aria-disabled')).toBe('false');
   expect(option?.getAttribute('aria-selected')).toBe('true');
 });
+
+// Seed 2's Scout: a sure Hop to Quydril leaves too little Δv to ever leave again. The plan warns of it
+// in words, and the Hop can still be launched.
+const STRANDS_ON_QUYDRIL =
+  "You'd be Stranded on Quydril: leaving needs at least 4.0 km/s and you'd have at most 2.5 km/s.";
+
+/** Seed 2's Scout with Quydril targeted and focused; renamed, Depleted, or both, for the worst cases. */
+function quydrilRun(rename?: string, depleted = false): { run: Run; id: BodyId } {
+  const base = startRun(2, 'scout');
+  const quydril = listBodies(base.starSystem).find((b) => b.name === 'Quydril');
+  if (!quydril) throw new Error('seed 2 has no Quydril');
+  const planets = base.starSystem.planets.map((planet) => ({
+    ...planet,
+    moons: planet.moons.map((m) => (m.id === quydril.id && rename ? { ...m, name: rename } : m)),
+  }));
+  const run = {
+    ...base,
+    starSystem: { ...base.starSystem, planets },
+    depleted: depleted ? [quydril.id] : [],
+  };
+  return { run, id: quydril.id };
+}
+
+it('warns in the plan and on the chart that a Hop to Quydril would leave the Run Stranded, and still launches', async () => {
+  const { run, id } = quydrilRun();
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: id, selectedId: id }} />,
+  );
+  expect(byTestId(host, 'plan-success').textContent).toContain('100%');
+  expect(byTestId(host, 'plan-warning').textContent).toBe("You'd be Stranded there");
+  expect(byTestId(host, 'plan-stranded').textContent).toBe(STRANDS_ON_QUYDRIL);
+  expect(byTestId(byTestId(host, 'inspect'), 'verdict').textContent).toBe(STRANDS_ON_QUYDRIL);
+  expect(byTestId(host, 'plan-summary').textContent).toContain(STRANDS_ON_QUYDRIL);
+  expect(
+    host.querySelector<HTMLButtonElement>('.nav-chart__actions button:last-of-type')?.disabled,
+  ).toBe(false);
+});
+
+it('says nothing of being Stranded for a Hop with somewhere to go after', async () => {
+  const run = startRun(2, 'scout');
+  const icy = listBodies(run.starSystem).find((b) => b.name === 'Vionzyliox');
+  if (!icy) throw new Error('seed 2 has no Vionzyliox');
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: icy.id, selectedId: icy.id }} />,
+  );
+  expect(host.querySelector('[data-testid="plan-stranded"]')).toBeNull();
+  expect(host.querySelector('[data-testid="plan-warning"]')).toBeNull();
+  expect(byTestId(host, 'inspect').querySelector('[data-testid="verdict"]')).toBeNull();
+});
+
+// The longest the warning gets: a 21-character name, Depleted too, so the note under the chart carries
+// both. Every line keeps real room inside its box and frame for the wider fonts CI draws.
+it('fits the Stranded warning for a 21-character Depleted target in the plan, under the chart and in the tooltip', async () => {
+  const name = 'Quaexquaexquaex Minor';
+  const { run, id } = quydrilRun(name, true);
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: id, selectedId: id }} />,
+  );
+
+  const plan = byTestId(host, 'hop-plan');
+  const warning = byTestId(host, 'plan-warning');
+  const buttons = host.querySelector<HTMLElement>('.nav-chart__actions');
+  if (!buttons || !plan.lastElementChild) throw new Error('missing plan parts');
+  expect(warning.getBoundingClientRect().height).toBeLessThanOrEqual(12);
+  expect(warning.scrollWidth).toBeLessThanOrEqual(warning.clientWidth);
+  expect(textRight(warning)).toBeLessThanOrEqual(plan.getBoundingClientRect().right - SLACK);
+  expect(plan.scrollHeight).toBeLessThanOrEqual(plan.clientHeight);
+  expect(plan.lastElementChild.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    plan.getBoundingClientRect().bottom - SLACK,
+  );
+  expect(plan.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    buttons.getBoundingClientRect().top,
+  );
+
+  // Under the chart: the whole warning and the Depleted note, inside the box and the panel frame.
+  const explain = byTestId(host, 'plan-explain');
+  const stranded = byTestId(host, 'plan-stranded');
+  const frame = host.querySelector<HTMLElement>('.nav-chart__panel');
+  if (!frame) throw new Error('no frame');
+  expect(stranded.textContent).toBe(
+    `You'd be Stranded on ${name}: leaving needs at least 4.0 km/s and you'd have at most 2.5 km/s.`,
+  );
+  expect(byTestId(host, 'plan-yield').textContent).toBe('Depleted: this Hop will yield nothing.');
+  const text = document.createRange();
+  text.selectNodeContents(explain);
+  expect(explain.scrollHeight).toBeLessThanOrEqual(explain.clientHeight);
+  expect(text.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    explain.getBoundingClientRect().bottom - SLACK,
+  );
+  expect(text.getBoundingClientRect().right).toBeLessThanOrEqual(
+    explain.getBoundingClientRect().right,
+  );
+  expect(explain.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    frame.getBoundingClientRect().bottom,
+  );
+
+  // On the chart: the tooltip grows to hold the warning, inside its frame.
+  const tooltip = byTestId(host, 'inspect');
+  const verdict = byTestId(tooltip, 'verdict');
+  expect(verdict.textContent).toBe(stranded.textContent);
+  const tipFrame = tooltip.getBoundingClientRect();
+  expect(verdict.getBoundingClientRect().bottom).toBeLessThanOrEqual(tipFrame.bottom - 3);
+  expect(verdict.scrollWidth).toBeLessThanOrEqual(verdict.clientWidth);
+  expect(textRight(verdict)).toBeLessThanOrEqual(tipFrame.right - SLACK);
+});

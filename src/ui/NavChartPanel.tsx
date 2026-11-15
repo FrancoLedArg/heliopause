@@ -28,6 +28,7 @@ import {
   HELIOPAUSE,
   isDepleted,
   planHop,
+  strandsOnArrival,
   type Body,
   type HopTarget,
   type Run,
@@ -111,12 +112,15 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
   const hasTarget = target !== undefined || targetIsEdge;
   const status = targetStatus(run, state.focusedId);
   const inspect = focused ? inspectBody(run, focused) : inspectHeliopause(run);
+  // The tooltip's verdict: why the focused Body cannot be the target, or that a Hop there would
+  // leave the Run Stranded (a warning only: it can still be the target).
+  const verdict = status.valid ? strandsOnArrival(run, state.focusedId)?.warning : status.why;
 
   // Labels and tooltip take about a millisecond, and the panel only renders when the chart changes.
   const context = { hereId: here.id, targetId: state.selectedId, focusedId: state.focusedId };
   const labels = placeLabels(layout, context);
   const kindExtra = tooltipKindExtra(inspect.kind);
-  const tipHeight = tooltipHeight(status.valid ? undefined : status.why, kindExtra);
+  const tipHeight = tooltipHeight(verdict, kindExtra);
   const tooltip = placeTooltip(layout, context, tipHeight, labels);
 
   const planned = state.selectedId === undefined ? undefined : planHop(run, state.selectedId);
@@ -274,7 +278,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         style={{ ...at(tooltip), width: TOOLTIP_SIZE.w, height: tipHeight }}
       >
         <KitFrame
-          frame={status.valid ? 'tooltip' : 'tooltip_warn'}
+          frame={verdict === undefined ? 'tooltip' : 'tooltip_warn'}
           width={TOOLTIP_SIZE.w}
           height={tipHeight}
           className="nav-chart__tooltip-frame"
@@ -292,20 +296,28 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
             <span data-testid="tip-composition">{` · ${inspect.badge.note}`}</span>
           )}
         </p>
-        {!status.valid && (
+        {verdict !== undefined && (
           <p className="nav-chart__tip-verdict" data-testid="verdict">
-            {status.why}
+            {verdict}
           </p>
         )}
       </div>
 
+      {/* A Stranded warning takes the place of the Δv explanation: the two would not fit together. */}
       <p className="nav-chart__help" data-testid="plan-explain">
+        {view?.strandedWarning && (
+          <>
+            <span className="nav-chart__help-warning" data-testid="plan-stranded">
+              {view.strandedWarning}
+            </span>{' '}
+          </>
+        )}
         {view?.yieldNote ? (
           <span data-testid="plan-yield">{view.yieldNote}</span>
-        ) : (
+        ) : view?.strandedWarning ? null : (
           'Click a Body to set it as the target.'
-        )}{' '}
-        {DELTA_V_EXPLANATION}
+        )}
+        {view?.strandedWarning ? null : ` ${DELTA_V_EXPLANATION}`}
       </p>
       <p id="nav-chart-keys" className="sr-only">
         Arrow keys look at a Body; Page Up and Page Down step through them all, out to the

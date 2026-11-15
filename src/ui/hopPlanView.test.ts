@@ -113,7 +113,8 @@ describe('the Hop plan as the player reads it', () => {
       if (result.kind !== 'planned') continue;
       const view = describeHopPlan(run, result.plan);
       expect(view.low).toBe(result.plan.successChance < LOW_SUCCESS_BELOW);
-      expect(view.warning !== undefined).toBe(view.low);
+      // A sure Hop that would leave the Run Stranded is flagged too, for that reason.
+      expect(view.warning !== undefined).toBe(view.low || view.strandedWarning !== undefined);
       chances.push(result.plan.successChance);
     }
     expect(Math.min(...chances)).toBeLessThan(Math.max(...chances));
@@ -208,5 +209,29 @@ describe('the Hop plan as the player reads it', () => {
     expect(view.summary).toBe(
       `Hop plan for ${moon.name}: needs ${view.needed}, you have ${view.available}, success chance ${view.successChance}.`,
     );
+  });
+});
+
+describe('a Hop plan whose arrival would leave the Run Stranded', () => {
+  const scout = startRun(2, 'scout');
+  const quydril = listBodies(scout.starSystem).find((b) => b.name === 'Quydril');
+  if (!quydril) throw new Error('seed 2 has no Quydril');
+  const sentence =
+    "You'd be Stranded on Quydril: leaving needs at least 4.0 km/s and you'd have at most 2.5 km/s.";
+
+  it('warns in words, though the chance of getting there is 100%', () => {
+    const view = describeHopPlan(scout, planFor(quydril.id, scout));
+    expect(view.successChance).toBe('100%');
+    expect(view.strandedWarning).toBe(sentence);
+    expect(view.warning).toBe("You'd be Stranded there");
+    expect(view.summary).toContain(sentence);
+  });
+
+  it('says nothing of it for a Hop with somewhere to go after', () => {
+    const icy = listBodies(scout.starSystem).find((b) => b.name === 'Vionzyliox');
+    if (!icy) throw new Error('seed 2 has no Vionzyliox');
+    const view = describeHopPlan(scout, planFor(icy.id, scout));
+    expect(view.strandedWarning).toBeUndefined();
+    expect(view.warning).toBeUndefined();
   });
 });
