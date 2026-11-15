@@ -343,9 +343,9 @@ export const CRUISE_TUNING = {
   ticks: 1_200,
   /**
    * The kinds a real Run schedules: the Fuel leak since #250, the first playable Cruise. The other
-   * kinds switch on with their own tickets (#251 to #253).
+   * kinds switch on with their own tickets (#251 and #252; the solar flare since #253).
    */
-  enabledKinds: ['fuel-leak'] as readonly CruiseEventKind[],
+  enabledKinds: ['fuel-leak', 'solar-flare'] as readonly CruiseEventKind[],
   /**
    * The first Hops of a Run are mild: only `mildKinds`, a Debris field only ever hits a Fuel Tank,
    * and a leak is slower and stops at the Fuel the Landing needs at its worst plus a Hop back with

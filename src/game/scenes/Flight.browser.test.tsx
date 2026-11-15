@@ -1287,3 +1287,62 @@ describe('the live Cruise (#250)', () => {
     expect(scene.live?.materials).toBeLessThan(materialsBefore);
   });
 });
+
+describe('the solar flare (#253)', () => {
+  async function flareAt(withRadar: boolean) {
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    const titleReady = nextSceneReady(SceneKey.Title);
+    act(() => {
+      root?.render(
+        <div className="stage" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }}>
+          <div id="flight-test-game" />
+          <div className="stage__ui">
+            <GameUI />
+          </div>
+        </div>,
+      );
+    });
+    game = startGame('flight-test-game');
+    await titleReady;
+    let run = onHome(startRun(2026, 'scout'));
+    const free = run.spacecraft.slots.indexOf(null);
+    if (withRadar) {
+      const slots = [...run.spacecraft.slots];
+      slots[free] = 'radar-1';
+      run = { ...run, spacecraft: refit(run.spacecraft, slots) };
+    }
+    const target = homeMoonId(run);
+    if (target === undefined) throw new Error('No target');
+    const begun = beginHop(run, target, {
+      schedule: [{ kind: 'solar-flare', tick: 100, slot: withRadar ? free : null }],
+    });
+    if (begun.kind === 'invalid-target') throw new Error('Not a Hop target');
+    const ready = nextSceneReady(SceneKey.Flight);
+    game.scene.start(SceneKey.Flight, flightDataFor(run, begun));
+    await ready;
+    const scene = game.scene.getScene<Flight>(SceneKey.Flight);
+    const cruise = scene.playback.cruise;
+    if (!cruise) throw new Error('Expected a Cruise');
+    // Tick 100 is 10 s into the Cruise: seek 0.5 s past it, mid-wash.
+    act(() => {
+      scene.seek(cruise.start + 10_500);
+    });
+    return { scene, radar: free };
+  }
+
+  it('washes the screen warm and knocks out the Radar, which flickers', async () => {
+    const { scene, radar } = await flareAt(true);
+    expect(scene.flareWash.visible).toBe(true);
+    expect(scene.flareWash.alpha).toBeGreaterThan(0.1);
+    expect(scene.live?.spacecraft.damage[radar]).toEqual({ repair: null, burning: null });
+    expect(scene.marks.shown(radar).glow).toBe(true);
+  });
+
+  it('plays as a harmless visual without a Radar', async () => {
+    const { scene } = await flareAt(false);
+    expect(scene.flareWash.visible).toBe(true);
+    expect(scene.live?.spacecraft.damage.every((damage) => damage === null)).toBe(true);
+  });
+});
