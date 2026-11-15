@@ -13,6 +13,10 @@
       "file": "sprites/body_gas_2.png"
     },
     {
+      "key": "body_heliopause",
+      "file": "sprites/body_heliopause.png"
+    },
+    {
       "key": "body_moon_0",
       "file": "sprites/body_moon_0.png"
     },
