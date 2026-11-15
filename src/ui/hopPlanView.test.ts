@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  arrivalDayFraction,
+  distanceBetween,
   astronomicalUnits,
   availableDeltaV,
   currentBody,
@@ -14,6 +16,7 @@ import {
   metersPerSecond,
   planHop,
   startRun,
+  timeOfDayWords,
   type BodyId,
   type Run,
 } from '../game/sim/index.ts';
@@ -322,6 +325,24 @@ describe('the Hop plan’s Fuel gauge', () => {
     expect(fuel.after).toBe(0);
     expect(fuel.afterText).toBe('0.0 t');
     expect(fuel.nowShare).toBeCloseTo(500 / run.spacecraft.fuelCapacity);
+  });
+});
+
+describe('the local time on arrival (#334)', () => {
+  it('is the target clock at the Run clock plus the Hop flight time, named in words', () => {
+    const view = describeHopPlan(run, planFor(moon.id));
+    const distance = distanceBetween(run.starSystem, currentBody(run), moon);
+    const fraction = arrivalDayFraction(run.starSystem, moon, run.gameHours, distance);
+    expect(view.arrival?.fraction).toBe(fraction);
+    expect(view.arrival?.label).toBe(`Arrives at ${timeOfDayWords(fraction)}`);
+  });
+
+  it('is none for a Hop to the Heliopause', () => {
+    const withDrive = install(found({ ...run, materials: materials(100) }), 2, 'jump-drive');
+    if (withDrive.kind !== 'installed') throw new Error('Expected an install');
+    const planned = planHop(withDrive.run, HELIOPAUSE);
+    if (planned.kind !== 'planned') throw new Error('expected a plan');
+    expect(describeHopPlan(withDrive.run, planned.plan).arrival).toBeUndefined();
   });
 });
 

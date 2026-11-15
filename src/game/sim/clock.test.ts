@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  arrivalDayFraction,
   flightHours,
   localDayFraction,
   ROTATION_RANGES_HOURS,
   rotationPeriodHours,
   skyDay,
+  timeOfDayWords,
 } from './clock.ts';
 import { generateStarSystem } from './generation.ts';
 import { launchHop } from './hop.ts';
@@ -106,5 +108,29 @@ describe('the sky light', () => {
     expect(skyDay(0).daylight).toBeCloseTo(0, 6);
     expect(skyDay(0.5).daylight).toBeCloseTo(1, 6);
     expect(skyDay(0.25).daylight).toBeCloseTo(0.5, 6);
+  });
+});
+
+describe('the local time on arrival (#334)', () => {
+  const system = generateStarSystem(42, 1);
+  const body = listBodies(system).find((b) => b.landable) ?? listBodies(system)[0];
+  if (!body) throw new Error('A Star System has Bodies');
+
+  it('is the target clock at the game clock plus the flight time', () => {
+    expect(arrivalDayFraction(system, body, 100, 1.5)).toBe(
+      localDayFraction(system, body, 100 + flightHours(1.5)),
+    );
+  });
+
+  it('is the same for the same inputs', () => {
+    expect(arrivalDayFraction(system, body, 7, 0.4)).toBe(arrivalDayFraction(system, body, 7, 0.4));
+  });
+
+  it('a longer Transfer can turn a day arrival into a night one', () => {
+    const seen = new Set<boolean>();
+    for (let au = 0; au < 5; au += 0.05) {
+      seen.add(timeOfDayWords(arrivalDayFraction(system, body, 0, au)) === 'night');
+    }
+    expect(seen.size).toBe(2);
   });
 });

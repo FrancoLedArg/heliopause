@@ -1,8 +1,11 @@
 // The Hop plan as words and numbers for the player. Every figure comes from the simulation's `HopPlan`;
 // this file only formats it and decides how loudly to flag a low Success Chance.
 import {
+  arrivalDayFraction,
   astronomicalUnits,
+  distanceBetween,
   findBody,
+  timeOfDayWords,
   fuelAfterBurning,
   isDepleted,
   marginShare,
@@ -96,8 +99,23 @@ export interface HopPlanView {
   readonly reach: ReachView;
   /** True when the target is not Surveyed: the Landing estimate is cautious. */
   readonly unsurveyed: boolean;
+  /** The target's local time on arrival (#334); none for the Heliopause. */
+  readonly arrival: ArrivalView | undefined;
   /** The plan in one sentence, for a live region. */
   readonly summary: string;
+}
+
+/** The local day fraction at the target when the Spacecraft arrives, with its accessible name. */
+export interface ArrivalView {
+  readonly fraction: number;
+  readonly label: string;
+}
+
+function arrivalView(run: Run, from: Body, to: Body | undefined): ArrivalView | undefined {
+  if (!to) return undefined;
+  const distance = distanceBetween(run.starSystem, from, to);
+  const fraction = arrivalDayFraction(run.starSystem, to, run.gameHours, distance);
+  return { fraction, label: `Arrives at ${timeOfDayWords(fraction)}` };
 }
 
 /** Why each Burn costs what it does: gravity of the Body you leave, the Transfer's distance, gravity of the target. */
@@ -201,6 +219,7 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
     low,
     reach,
     unsurveyed,
+    arrival: arrivalView(run, from, to),
     summary: `Hop plan for ${targetName}${unsurveyed ? ' (Unsurveyed)' : ''}: needs ${needed}, you have ${available}, success chance ${successChance}, ${reach.word}.${depleted ? ' It is Depleted and will yield nothing.' : ''}`,
   };
 }

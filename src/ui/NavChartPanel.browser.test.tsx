@@ -836,6 +836,32 @@ it('fits the badge and the verdict inside the plan at 640x360 (#190)', async () 
   expect(reach.left).toBeGreaterThanOrEqual(card.left);
 });
 
+it('shows the arrival time as a sun or moon chip named for the time, for a day and a night arrival (#334)', async () => {
+  const { run, target } = surveyedRun(true);
+  const names = new Set<string>();
+  for (const gameHours of [0, 4, 8, 12, 16, 20, 24, 30, 40, 55]) {
+    const host = await renderUi(
+      <Panel run={{ ...run, gameHours }} focusedId={target.id} selectedId={target.id} />,
+    );
+    const chip = byTestId(host, 'plan-arrival');
+    const name = chip.getAttribute('aria-label');
+    expect(name).toMatch(/^Arrives at (morning|midday|evening|night)$/);
+    names.add(name === 'Arrives at night' ? 'night' : 'day');
+    const plan = byTestId(host, 'hop-plan').getBoundingClientRect();
+    const box = chip.getBoundingClientRect();
+    expect(box.right).toBeLessThanOrEqual(plan.right);
+    expect(box.left).toBeGreaterThanOrEqual(plan.left);
+    cleanUp();
+  }
+  expect(names.size).toBe(2);
+});
+
+it('hides the arrival chip with no target (#334)', async () => {
+  const { run, target } = surveyedRun(true);
+  const host = await renderUi(<Panel run={run} focusedId={target.id} selectedId={undefined} />);
+  expect(host.querySelector('[data-testid="plan-arrival"]')).toBeNull();
+});
+
 // ---- #193: the full-screen chart, a card only on demand, then the plan ----
 
 /** Records every command the panel sends the chart, and each request to close it. */
