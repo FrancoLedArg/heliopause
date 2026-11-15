@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { firstTarget, landedOn, withDeltaV, withJumpDrive } from './testing.ts';
+import { firstTarget, heliopauseFound, landedOn, withDeltaV, withJumpDrive } from './testing.ts';
 import {
   assessStranding,
   bodyKnowledge,
@@ -121,9 +121,8 @@ describe('the opening', () => {
     }
   });
 
-  it('until the Radar (#191) can find it, the Heliopause is found from the start', () => {
-    // Without this no Run could escape: the Radar is the only other way to find the Heliopause.
-    expect(startRun(2026, 'scout').knowledge.heliopauseFound).toBe(true);
+  it('a new Run has not found the Heliopause: only the Radar finds it', () => {
+    for (const seed of SEEDS) expect(startRun(seed, 'scout').knowledge.heliopauseFound).toBe(false);
   });
 
   it('every Chassis starts on the same Starting Moon knowing the same Bodies', () => {
@@ -224,12 +223,11 @@ describe('landing and Comms', () => {
 
   it('the Heliopause is no Hop target until it is found', () => {
     const run = withJumpDrive(startRun(2026, 'scout'));
-    const unfound = { ...run, knowledge: { ...run.knowledge, heliopauseFound: false } };
-    expect(planHop(unfound, HELIOPAUSE)).toMatchObject({
+    expect(planHop(run, HELIOPAUSE)).toMatchObject({
       kind: 'invalid-target',
       reason: 'not-found',
     });
-    expect(planHop(run, HELIOPAUSE).kind).toBe('planned');
+    expect(planHop(heliopauseFound(run), HELIOPAUSE).kind).toBe('planned');
   });
 });
 
@@ -263,7 +261,7 @@ describe('Stranded and the Jump', () => {
   });
 
   it('a Jump arrives on a Starting Moon knowing nothing but the opening', () => {
-    const run = withJumpDrive(startRun(2026, 'lancer'));
+    const run = heliopauseFound(withJumpDrive(startRun(2026, 'lancer')));
     const launched = launchHop(run, HELIOPAUSE);
     if (launched.kind !== 'flown') throw new Error(launched.why);
     const after = launched.run;
@@ -272,6 +270,8 @@ describe('Stranded and the Jump', () => {
     expect(after.status).toEqual({ kind: 'landed', bodyId: moon.id });
     expect(idsAt(after, 'detected')).toHaveLength(1);
     expect(bodyKnowledge(after, moon.id)).toBe('surveyed');
+    // The new Heliopause is not found: the Radar must find it again.
+    expect(after.knowledge.heliopauseFound).toBe(false);
     // The new Starting Moon gave up its yield on arrival, as at Run start.
     expect(after.depleted).toEqual([moon.id]);
     expect(after.startingYield.kind).not.toBe('depleted');

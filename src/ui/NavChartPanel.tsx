@@ -235,17 +235,20 @@ export function NavChartPanel({ run, state, daily = false }: NavChartPanelProps)
             {body.name}, {stateWords(body)}
           </div>
         ))}
-        <div
-          id={optionId(HELIOPAUSE)}
-          role="option"
-          aria-selected={targetIsEdge}
-          aria-disabled={!edgeStatus.valid}
-          className="sr-only"
-        >
-          Heliopause, the edge of the Star System,{' '}
-          {edgeStatus.valid ? 'can be the target' : edgeStatus.why}
-          {targetIsEdge ? ', target' : ''}
-        </div>
+        {/* The Heliopause is an option only once the Radar has found it (#191). */}
+        {run.knowledge.heliopauseFound && (
+          <div
+            id={optionId(HELIOPAUSE)}
+            role="option"
+            aria-selected={targetIsEdge}
+            aria-disabled={!edgeStatus.valid}
+            className="sr-only"
+          >
+            Heliopause, the edge of the Star System,{' '}
+            {edgeStatus.valid ? 'can be the target' : edgeStatus.why}
+            {targetIsEdge ? ', target' : ''}
+          </div>
+        )}
       </div>
 
       {labels.map((label) => (
@@ -310,7 +313,7 @@ export function NavChartPanel({ run, state, daily = false }: NavChartPanelProps)
 
       <p id="nav-chart-keys" className="sr-only">
         Arrow keys look at a Body; Page Up and Page Down step through them all, out to the
-        Heliopause; Enter makes the focused Body the target; Escape closes.
+        Heliopause once found; Enter makes the focused Body the target; Escape closes.
       </p>
 
       <div className="nav-chart__side" style={{ left: SIDE.x, top: SIDE.y }}>

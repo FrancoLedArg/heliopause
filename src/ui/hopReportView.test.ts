@@ -20,6 +20,12 @@ import {
 } from '../game/sim/index.ts';
 import { describeReport, type ReportView } from './hopReportView.ts';
 
+/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
+const found = (run: Run): Run => ({
+  ...run,
+  knowledge: { ...run.knowledge, heliopauseFound: true },
+});
+
 /**
  * A New Run on `chassis` with only `share` of its Fuel left, stood on its innermost planet knowing
  * every Body (where Runs opened before #96), so any Hop can be reported.
@@ -65,7 +71,7 @@ function heliopauseHopThatEnds(
 ): { run: Run; flight: HopFlight } {
   for (let seed = 1; seed < 200; seed++) {
     const start = startRun(seed, 'lancer');
-    const built = install({ ...start, materials: materials(100) }, 2, 'jump-drive');
+    const built = install(found({ ...start, materials: materials(100) }), 2, 'jump-drive');
     if (built.kind !== 'installed') throw new Error('Expected an install');
     const { spacecraft } = built.run;
     const run = {

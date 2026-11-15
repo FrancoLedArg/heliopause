@@ -700,3 +700,27 @@ it('under reduced motion a Damaged part shows a steady glow and its badge, and n
   expect(scene.marks.shown(1)).toEqual({ glow: true, badge: true, vent: false, ring: false });
   expect(scene.marks.shown(0)).toEqual({ glow: false, badge: false, vent: false, ring: false });
 });
+
+it('sweeps a Radar ring out from the Spacecraft when one is installed, and says what it found', async () => {
+  const scene = await landOn(runWith('scout', []));
+  expect(scene.radarSweep).toBeUndefined();
+  act(() => {
+    EventBus.emit('component-install-requested', 2, 'radar-1');
+  });
+  expect(scene.radarSweep?.parentContainer).toBe(scene.layers.ship);
+  await expect
+    .poll(() => document.querySelector('[data-testid="comms-announcement"]')?.textContent)
+    .toMatch(/^Radar Detected \d+ Bod(y|ies)\.$/);
+  await expect.poll(() => scene.radarSweep, { timeout: 3000 }).toBeUndefined();
+});
+
+it('skips the Radar sweep when the player prefers reduced motion', async () => {
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
+  );
+  const scene = await landOn(runWith('scout', []));
+  act(() => {
+    EventBus.emit('component-install-requested', 2, 'radar-1');
+  });
+  expect(scene.radarSweep).toBeUndefined();
+});

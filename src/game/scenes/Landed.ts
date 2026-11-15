@@ -67,6 +67,17 @@ export const COMMS_PING = {
   stillMs: 1_400,
 } as const;
 
+/**
+ * The Radar sweep (gameplay tuning, ms and px): one wide ring grows out of the Spacecraft and fades,
+ * on a landing with a Radar aboard and when one is installed, so the Radar visibly does something
+ * (#191). Reduced motion skips it; the live region still says what it found.
+ */
+export const RADAR_SWEEP = {
+  durationMs: 1_400,
+  startRadius: 8,
+  endScale: 24,
+} as const;
+
 /** Landed view: the whole Spacecraft on the ground of the Body it stands on, under that Body's sky. */
 export class Landed extends Scene {
   private run!: Run;
@@ -81,6 +92,8 @@ export class Landed extends Scene {
   ambient!: LandedAmbient;
   /** The rings of the Comms ping while it plays, empty otherwise: tests read it. */
   commsPing: GameObjects.Graphics[] = [];
+  /** The Radar sweep's ring while it plays, `undefined` otherwise: tests read it. */
+  radarSweep: GameObjects.Graphics | undefined;
   /** The drawn Spacecraft, composed from its Chassis art and Component art. */
   spacecraft!: SpacecraftArt;
   private shadow!: GameObjects.Ellipse;
@@ -157,6 +170,15 @@ export class Landed extends Scene {
         );
       }
       this.changed(installed.run);
+      // A Radar sweeps as soon as it is installed: the ring shows it, React says what it found.
+      if (installed.sweep) {
+        this.playRadarSweep(ship.container);
+        EventBus.emit('comms-revealed', installed.run, {
+          surveyed: undefined,
+          detected: [],
+          radar: installed.sweep,
+        });
+      }
     });
     const offRemove = EventBus.on('component-remove-requested', (slotIndex) => {
       const removed = remove(this.run, slotIndex);
@@ -229,9 +251,10 @@ export class Landed extends Scene {
       // gathering moment, so the eye takes one thing at a time.
       const reveal = report?.flight.reveal;
       const ping =
-        reveal && reveal.detected.length > 0
+        reveal && (reveal.detected.length > 0 || reveal.radar)
           ? () => {
-              this.playCommsPing(ship.container);
+              if (reveal.detected.length > 0) this.playCommsPing(ship.container);
+              if (reveal.radar) this.playRadarSweep(ship.container);
               EventBus.emit('comms-revealed', run, reveal);
             }
           : undefined;
@@ -240,6 +263,32 @@ export class Landed extends Scene {
       else if (ping) this.time.delayedCall(COMMS_PING.delayMs, ping);
     }
     EventBus.emit('scene-ready', SceneKey.Landed);
+  }
+
+  /**
+   * The Radar reaching out: one cyan ring growing from the middle of the Spacecraft, wide enough to
+   * sweep the sky, and fading. Skipped under reduced motion.
+   */
+  private playRadarSweep(ship: GameObjects.Container): void {
+    if (this.reducedMotion) return;
+    this.radarSweep?.destroy();
+    const middle = -standingExtent([this.run.spacecraft.chassisId]).height / 2;
+    const ring = this.add.graphics({ x: 0, y: middle });
+    ring.lineStyle(1, paletteNumber('cy2'), 1);
+    ring.strokeCircle(0, 0, RADAR_SWEEP.startRadius);
+    ship.add(ring);
+    this.radarSweep = ring;
+    this.tweens.add({
+      targets: ring,
+      scale: { from: 1, to: RADAR_SWEEP.endScale },
+      alpha: { from: 0.9, to: 0 },
+      duration: RADAR_SWEEP.durationMs,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        if (this.radarSweep === ring) this.radarSweep = undefined;
+        ring.destroy();
+      },
+    });
   }
 
   /**
