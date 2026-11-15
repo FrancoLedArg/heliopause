@@ -840,7 +840,14 @@ body {
   pointer-events: none;
 }
 
-.nav-chart__bar-buttons {
+.nav-chart__bar-buttons,
+.nav-chart__marker,
+.nav-chart__card,
+.nav-chart__side,
+.nav-chart__target,
+.nav-chart__plan,
+.nav-chart__help,
+.nav-chart__legend {
   pointer-events: auto;
 }
 

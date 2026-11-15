@@ -889,6 +889,8 @@ it('marks known Bodies off screen at the edge, named, and a click on one sends i
   expect(markers.length).toBeGreaterThan(0);
   for (const marker of markers) {
     expect(marker.getAttribute('aria-label')).toMatch(/, off screen$/);
+    // The stage lets clicks through to the canvas; a marker takes its own.
+    expect(getComputedStyle(marker).pointerEvents).toBe('auto');
     const box = stageRect(host, marker);
     expect(box.left).toBeGreaterThanOrEqual(0);
     expect(box.right).toBeLessThanOrEqual(640);
