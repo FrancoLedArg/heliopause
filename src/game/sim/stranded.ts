@@ -6,7 +6,8 @@ import { installRefusal, withInstalled, type Outfit } from './install.ts';
 import { removalRefusal, withRemoved } from './remove.ts';
 import { currentBody, type Run } from './run.ts';
 import { availableDeltaV, carriesJumpDrive, type Spacecraft } from './spacecraft.ts';
-import { deepFreeze, listBodies } from './starSystem.ts';
+import { knownBodies } from './knowledge.ts';
+import { deepFreeze } from './starSystem.ts';
 import { metersPerSecond } from './units.ts';
 
 /**
@@ -39,7 +40,7 @@ export function assessStranding(run: Run): Stranding {
 /**
  * The same Run ended as Stranded when no change could give any Hop a chance; otherwise `run` itself,
  * as it is for a Run that is not landed on a Body. Every operation that leaves the Spacecraft on a
- * Body (`install`, `remove`, an Arrived Hop, and the Jump to a new Home Planet) returns its Run
+ * Body (`install`, `remove`, an Arrived Hop, and the Jump to a new Starting Moon) returns its Run
  * through this, so the end is part of the Run itself: a Run rebuilt from the same choices ends at
  * the same one, and takes no more.
  */
@@ -57,11 +58,15 @@ export function assertNotEnded(run: Run): void {
 }
 
 function assess(run: Run): Stranding {
+  // Only targets the player knows of count: a Body Comms has not Detected, or the Heliopause before
+  // it is found, could not save a Run the player has no way to know it is in (#96).
   const from = currentBody(run);
-  const bodies = listBodies(run.starSystem).flatMap((body) =>
+  const bodies = knownBodies(run).flatMap((body) =>
     body.landable && body.id !== from.id ? [body.id] : [],
   );
-  const targets: readonly HopTarget[] = [...bodies, HELIOPAUSE];
+  const targets: readonly HopTarget[] = run.knowledge.heliopauseFound
+    ? [...bodies, HELIOPAUSE]
+    : bodies;
   if (targets.some((target) => chance(run, target) > 0)) return CLEAR;
 
   // No Hop as built. A plan's Burns, and so the least Δv that gives it any chance, do not depend on
@@ -69,9 +74,10 @@ function assess(run: Run): Stranding {
   const bodyNeed = Math.min(...bodies.map((id) => need(run, id)));
   const designs = buildable(run);
   const withJumpDrive = designs.find((design) => carriesJumpDrive(design.spacecraft));
-  const heliopauseNeed = withJumpDrive
-    ? need({ ...run, spacecraft: withJumpDrive.spacecraft }, HELIOPAUSE)
-    : Infinity;
+  const heliopauseNeed =
+    withJumpDrive && run.knowledge.heliopauseFound
+      ? need({ ...run, spacecraft: withJumpDrive.spacecraft }, HELIOPAUSE)
+      : Infinity;
 
   let best = 0;
   let bestWithJumpDrive = 0;

@@ -10,7 +10,6 @@ import {
   CHASSIS_IDS,
   findBody,
   HELIOPAUSE,
-  homePlanet,
   install,
   kilograms,
   launchHop,
@@ -75,10 +74,28 @@ const frame = (): Promise<void> =>
     setTimeout(resolve, 40);
   });
 
-/** Mounts the whole app and starts the playback of the Hop to the Home Planet's Moon on `chassis`. */
+/**
+ * Seed 2026 stood on its innermost planet (rocky, with an Icy Moon), knowing every Body: Hops play out
+ * from where Runs opened before the Starting Moon (#96), so the playback has a rocky departure.
+ */
+function onHome(run: Run): Run {
+  const ids = listBodies(run.starSystem).map((body) => body.id);
+  const home = run.starSystem.planets[0];
+  if (!home) throw new Error('A Star System has planets');
+  return {
+    ...run,
+    status: { kind: 'landed', bodyId: home.id },
+    knowledge: { detected: ids, surveyed: ids, heliopauseFound: true },
+  };
+}
+
+/** The innermost planet's nearest Moon: seed 2026's is Icy. */
+const homeMoonId = (run: Run) => run.starSystem.planets[0]?.moons[0]?.id;
+
+/** Mounts the whole app and starts the playback of the Hop to the home Moon on `chassis`. */
 async function fly(
   chassis: ChassisId,
-  pick: (run: Run) => HopTarget | undefined = (run) => homePlanet(run.starSystem).moons[0]?.id,
+  pick: (run: Run) => HopTarget | undefined = homeMoonId,
   from: (run: Run) => Run = (run) => run,
 ): Promise<{ scene: Flight; data: FlightData }> {
   host = document.createElement('div');
@@ -97,7 +114,7 @@ async function fly(
   });
   game = startGame('flight-test-game');
   await titleReady;
-  const run = from(startRun(123, chassis));
+  const run = from(onHome(startRun(2026, chassis)));
   const target = pick(run);
   if (target === undefined) throw new Error('No target to Hop to');
   const launched = launchHop(run, target);
@@ -358,7 +375,7 @@ it('a Hop to the Heliopause never shows the Approach', async () => {
   }
 });
 
-/** A lancer on seed 1 with a Jump Drive: it reaches the Heliopause from its Home Planet. */
+/** A lancer on seed 1 with a Jump Drive: it reaches the Heliopause from its Starting Moon. */
 function readyForTheHeliopause(): Run {
   const result = install({ ...startRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
   if (result.kind !== 'installed') throw new Error('Expected an install');
@@ -413,7 +430,7 @@ function jumpAt(scene: Flight, stage: JumpStage, progress: number): number {
 }
 
 describe.each(['full', 'reduced'] as const)('the Jump, at %s motion', (pace) => {
-  it('goes dark behind the flavour text, then ends on the Landed view of the next Home Planet', async () => {
+  it('goes dark behind the flavour text, then ends on the Landed view of the next Starting Moon', async () => {
     if (pace === 'reduced') {
       vi.spyOn(window, 'matchMedia').mockImplementation(
         (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
@@ -441,7 +458,7 @@ describe.each(['full', 'reduced'] as const)('the Jump, at %s motion', (pace) => 
     expect(document.querySelector('[data-testid="phase-strip"]')).toBeNull();
     expect(scene.darkness).toBe(1);
 
-    // The hand-off: the Landed view of the next Home Planet, the top bar on System 2.
+    // The hand-off: the Landed view of the next Starting Moon, the top bar on System 2.
     const runs: Run[] = [];
     const offRun = EventBus.on('run-started', (run) => runs.push(run));
     const landed = nextSceneReady(SceneKey.Landed);
@@ -703,7 +720,7 @@ it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clea
           launched.flight.outcome.burn === 'transfer'
         );
       })?.id,
-    // Re-pinned for #188: no first Hop of a full hauler on seed 123 falls short now; half its Fuel.
+    // No Hop of a full hauler from seed 2026's innermost planet falls short; half its Fuel.
     (run) => ({
       ...run,
       spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 2) },
@@ -747,11 +764,7 @@ const withFuel =
   });
 
 it('a Spacecraft that Fell Short in the Takeoff sputters out mid-climb and sags, x fixed, then the report follows', async () => {
-  const { scene, data } = await fly(
-    'scout',
-    (run) => homePlanet(run.starSystem).moons[0]?.id,
-    withFuel(0.05),
-  );
+  const { scene, data } = await fly('scout', homeMoonId, withFuel(0.05));
   const { outcome } = data.flight;
   expect(outcome.kind === 'fell-short' && outcome.burn).toBe('takeoff');
   const { stopsAt } = scene.playback;
@@ -781,15 +794,15 @@ it('a Spacecraft that Fell Short in the Takeoff sputters out mid-climb and sags,
 });
 
 /**
- * The Run with just enough Fuel to reach the Home Planet's Moon but run dry about halfway through
+ * The Run with just enough Fuel to reach the home Moon but run dry about halfway through
  * the Landing: a Crash well above the ground, whatever the Star System generation does to Fuel.
  */
 function crashingRun(run: Run): Run {
-  const moon = homePlanet(run.starSystem).moons[0];
-  if (!moon) throw new Error('The Home Planet has no Moon');
+  const moon = homeMoonId(run);
+  if (!moon) throw new Error('The innermost planet has no Moon');
   for (let share = 1; share > 0; share -= 0.001) {
     const short = withFuel(share)(run);
-    const launched = launchHop(short, moon.id);
+    const launched = launchHop(short, moon);
     if (launched.kind !== 'flown' || launched.flight.outcome.kind !== 'crashed') continue;
     const landing = launched.flight.burns.find((burn) => burn.burn === 'landing');
     if (landing?.status === 'ran-out' && landing.delivered < landing.actual * 0.6) return short;
@@ -798,11 +811,7 @@ function crashingRun(run: Run): Run {
 }
 
 it('a Spacecraft that Crashed cuts out above the ground, drops straight down, hits hard and tips over', async () => {
-  const { scene, data } = await fly(
-    'scout',
-    (run) => homePlanet(run.starSystem).moons[0]?.id,
-    crashingRun,
-  );
+  const { scene, data } = await fly('scout', homeMoonId, crashingRun);
   expect(data.flight.outcome.kind).toBe('crashed');
   const { stopsAt } = scene.playback;
   scene.seek(stopsAt);
@@ -851,7 +860,7 @@ it('the particles use the real sprites, tinted: dust and smoke by surface, spark
   expect(hex('fx_spark', 0, 1)).toBe(paletteNumber('wh2'));
   expect(hex('fx_spark', 1, 1)).toBe(paletteNumber('wh3'));
   expect(smoke?.texture.getSourceImage()).toBeInstanceOf(HTMLImageElement);
-  // The Home Planet's Moon is departed from a rocky Planet: pale amber puffs (am3, lighter than the
+  // The home Moon is departed from a rocky Planet: pale amber puffs (am3, lighter than the
   // am2 mote of the Landed view so they read against the amber ground); sparks are am4.
   expect(dust?.ops.tint.current).toBe(paletteNumber('am3'));
   expect(smoke?.ops.tint.current).toBe(paletteNumber('am3'));
@@ -891,10 +900,12 @@ it('Takeoff dust and smoke start at the strip top edge under the Spacecraft', as
 
 it('Takeoff smoke is still on screen 1.5 s after it was kicked up, while the strip has dropped away', async () => {
   const { scene } = await fly('scout');
-  // Step the whole scene (its clock and the particles) through 1.7 s of fixed 16 ms frames, with
-  // the game loop held, so the result never depends on how busy the machine is.
+  // Step the whole scene (its clock and the particles) in fixed 16 ms frames, with the game loop
+  // held, until the playback is 1.5 s past Launch, as the name says. Counting to the playback's own
+  // time, not a number of frames, keeps it exact however much played before the loop was held
+  // (#189: from seed 2026's innermost planet, 1.7 s of frames left the smoke at the screen's edge).
   scene.game.loop.sleep();
-  for (let i = 0, time = 0; i < 106; i++, time += 16) scene.sys.step(time, 16);
+  for (let time = 0; scene.playbackMs < 1500; time += 16) scene.sys.step(time, 16);
   const smoke = emitters(scene).find((e) => e.texture.key === 'fx_smoke');
   if (!smoke) throw new Error('no smoke emitter');
   // The camera has climbed: the strip's top edge is off the bottom of the screen.
@@ -1133,12 +1144,12 @@ function groundKey(layers: { readonly ground: GameObjects.Container }): string |
 }
 
 const standOnHomeMoon = (run: Run): Run => {
-  const moon = homePlanet(run.starSystem).moons[0];
-  if (!moon) throw new Error('Home Planet has no Moon');
-  return { ...run, status: { kind: 'landed', bodyId: moon.id } };
+  const moon = homeMoonId(run);
+  if (!moon) throw new Error('The innermost planet has no Moon');
+  return { ...run, status: { kind: 'landed', bodyId: moon } };
 };
 
-it("seed 123's Icy Home Moon: Landing on it and the Landed view after use the Icy strip", async () => {
+it("seed 2026's Icy Moon: Landing on it and the Landed view after use the Icy strip", async () => {
   const { scene } = await fly('scout');
   expect(groundKey(arrivalOf(scene))).toBe('surface_icy');
   expect(groundKey(scene.layers.departure)).toBe('surface_rocky');
@@ -1150,8 +1161,8 @@ it("seed 123's Icy Home Moon: Landing on it and the Landed view after use the Ic
   expect(groundKey(view.layers)).toBe('surface_icy');
 });
 
-it("Takeoff from seed 123's Icy Home Moon uses the same Icy strip and Icy dust and smoke", async () => {
-  const { scene } = await fly('scout', (run) => homePlanet(run.starSystem).id, standOnHomeMoon);
+it("Takeoff from seed 2026's Icy Moon uses the same Icy strip and Icy dust and smoke", async () => {
+  const { scene } = await fly('scout', (run) => run.starSystem.planets[0]?.id, standOnHomeMoon);
   expect(groundKey(scene.layers.departure)).toBe('surface_icy');
   scene.seek(60);
   const tint = (key: string) =>

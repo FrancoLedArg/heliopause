@@ -104,8 +104,8 @@ export interface StarSystem {
   readonly star: Star;
   /** From the star outward. */
   readonly planets: readonly Planet[];
-  /** A small, inner rocky planet with at least one Moon: where the Spacecraft starts. */
-  readonly homePlanetId: BodyId;
+  /** The Moon where the Spacecraft is marooned at the start: in the inner half of the Star System. */
+  readonly startingMoonId: BodyId;
   /** The outer edge of the Star System. */
   readonly heliopauseRadius: AstronomicalUnits;
 }
@@ -148,44 +148,32 @@ export function drawStarSystem(seed: Seed, level = 1): StarSystem {
     ...sampleBodySize(rng, SOURCED_RANGES.gasGiant, gravityFactor),
   }));
 
-  // The Home Planet is the smallest rocky planet: close to its star and easy to leave.
-  const homeIndex = rockyPlanets.reduce(
-    (smallest, planet, index) =>
-      planet.surfaceGravity < (rockyPlanets[smallest]?.surfaceGravity ?? Infinity)
-        ? index
-        : smallest,
-    0,
-  );
-
   const planets: Planet[] = [...rockyPlanets, ...gasGiants].map((planet, index) => {
     const id = bodyId(`planet-${index + 1}`);
-    const isHome = index === homeIndex;
     const moonCount = sampleInt(rng, GENERATION_TUNING.moonCount[planet.kind]);
     const shared = {
       id,
       name: nextName(),
       orbitAngle: randomAngle(rng),
     };
-    // The Home Planet always has a Moon: the obvious first Hop.
-    const moonsFor = (forced: BodyComposition | undefined) =>
-      generateMoons(
-        rng,
-        nextName,
-        id,
-        planet.distanceFromStar,
-        isHome ? Math.max(1, moonCount) : moonCount,
-        gravityFactor,
-        (moonId) => rollResource(seed, moonId, planet.distanceFromStar, forced, level),
-      );
-    if (planet.kind === 'gas-giant') return { ...planet, ...shared, moons: moonsFor(undefined) };
+    const moons = generateMoons(
+      rng,
+      nextName,
+      id,
+      planet.distanceFromStar,
+      moonCount,
+      gravityFactor,
+      (moonId) => rollResource(seed, moonId, planet.distanceFromStar, undefined, level),
+    );
+    if (planet.kind === 'gas-giant') return { ...planet, ...shared, moons };
     return {
       ...planet,
       ...shared,
-      ...rollResource(seed, id, planet.distanceFromStar, isHome ? 'rocky' : undefined, level),
-      // The Home Planet's Moons are Icy, so the first Hop pays off with Fuel.
-      moons: moonsFor(isHome ? 'icy' : undefined),
+      ...rollResource(seed, id, planet.distanceFromStar, undefined, level),
+      moons,
     };
   });
+  const start = pickStartingMoon(seed, planets, level);
 
   // The Heliopause is anchored on the outermost planet, always a Gas Giant.
   const outermostGasGiant = gasGiants.at(-1);
@@ -202,8 +190,8 @@ export function drawStarSystem(seed: Seed, level = 1): StarSystem {
     seed,
     name,
     star: { name },
-    planets,
-    homePlanetId: bodyId(`planet-${homeIndex + 1}`),
+    planets: start.planets,
+    startingMoonId: start.moonId,
     heliopauseRadius,
   });
 }
@@ -272,13 +260,43 @@ export function findBody(system: StarSystem, id: BodyId): Body | undefined {
   return listBodies(system).find((body) => body.id === id);
 }
 
-/** The rocky planet where every Run in this Star System starts. */
-export function homePlanet(system: StarSystem): RockyPlanet {
-  const home = system.planets.find((planet) => planet.id === system.homePlanetId);
-  if (home?.kind !== 'rocky-planet') {
-    throw new Error(`Star System ${system.name} has no rocky Home Planet ${system.homePlanetId}`);
+/** The Moon where every Run in this Star System starts, marooned. */
+export function startingMoon(system: StarSystem): Moon {
+  const moon = findBody(system, system.startingMoonId);
+  if (moon?.kind !== 'moon') {
+    throw new Error(`Star System ${system.name} has no Starting Moon ${system.startingMoonId}`);
   }
-  return home;
+  return moon;
+}
+
+/**
+ * The Moon a draw starts on, picked from a stream of the seed's own among the Moons of the inner
+ * half of the planets (counted out from the star, rounded up), so the Heliopause is never the next
+ * step. A Gas Giant's Moon needs a sibling: the first Body Comms Detects there is a sibling Moon. The
+ * first planet is always rocky with two Moons, so there is always a pick. The Starting Moon is Icy or
+ * Rocky at random, whatever its distance from the star, so each Run opens with different resources
+ * (#96).
+ */
+function pickStartingMoon(
+  seed: Seed,
+  planets: readonly Planet[],
+  level: number,
+): { readonly moonId: BodyId; readonly planets: Planet[] } {
+  const inner = planets.slice(0, Math.ceil(planets.length / 2));
+  const candidates = inner.flatMap((planet) =>
+    planet.kind === 'gas-giant' && planet.moons.length < 2 ? [] : planet.moons,
+  );
+  const rng = createRng(seed ^ stringSeed('starting-moon'));
+  const moon = pick(rng, candidates);
+  const composition: BodyComposition = rng.next() < 0.5 ? 'icy' : 'rocky';
+  const resource = rollResource(seed, moon.id, moon.distanceFromStar, composition, level);
+  return {
+    moonId: moon.id,
+    planets: planets.map((planet) => ({
+      ...planet,
+      moons: planet.moons.map((m) => (m.id === moon.id ? { ...m, ...resource } : m)),
+    })),
+  };
 }
 
 /** Every Body in the Star System: each planet followed by its Moons. */

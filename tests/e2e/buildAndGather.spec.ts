@@ -1,16 +1,21 @@
 import { expect, test, type Page } from '@playwright/test';
 import { FAST_CRUISE } from './cruise.ts';
 import { formatDeltaV, formatDeltaVKmS, formatFuel } from '../../src/ui/format.ts';
-import { availableDeltaV, install, launchHop, startRun } from '../../src/game/sim/index.ts';
+import {
+  availableDeltaV,
+  firstDetectedBody,
+  install,
+  launchHop,
+  startRun,
+} from '../../src/game/sim/index.ts';
 import { describeReport } from '../../src/ui/hopReportView.ts';
 import { yieldIcon } from '../../src/ui/yieldIcon.ts';
 
 // The whole loop of spec #14 on one seed: build, plan, Hop, gather, see the Body Depleted.
 const SEED = 123;
 const run = startRun(SEED, 'scout');
-const home = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId);
-const moon = home?.moons[0];
-if (!home || !moon) throw new Error(`Seed ${SEED} has no Home Planet Moon`);
+// The one Body Comms Detected at the start: on seed 123, Viormio, an Icy Moon (#189).
+const moon = firstDetectedBody(run.starSystem);
 
 // What the simulation says the starting Materials buy: a Drill (it multiplies what landing collects).
 const slot = run.spacecraft.slots.findIndex((held) => held === null);

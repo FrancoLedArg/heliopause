@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  homePlanet,
   install,
   kilograms,
   launchHop,
+  listBodies,
   materials,
   startRun,
   type Run,
@@ -11,8 +11,9 @@ import {
 import { describeGathering } from './gathering.ts';
 
 const run = startRun(2026, 'scout');
-const moon = homePlanet(run.starSystem).moons[0];
-if (!moon) throw new Error('The Home Planet has a Moon');
+// The innermost planet's first Moon (seed 2026's is Icy), as the Home Planet's was before #189.
+const moon = run.starSystem.planets[0]?.moons[0];
+if (!moon) throw new Error('The innermost planet has a Moon');
 const onMoon: Run = { ...run, status: { kind: 'landed', bodyId: moon.id } };
 
 describe('the gathering moment', () => {
@@ -64,7 +65,14 @@ describe('the gathering moment', () => {
   });
 
   it('reads the Arrived Hop it follows without recomputing it', () => {
-    const launched = launchHop(run, moon.id);
+    // From the innermost planet, knowing every Body (Runs open on a Starting Moon since #189).
+    const ids = listBodies(run.starSystem).map((body) => body.id);
+    const onPlanet: Run = {
+      ...run,
+      status: { kind: 'landed', bodyId: moon.planetId },
+      knowledge: { detected: ids, surveyed: ids, heliopauseFound: true },
+    };
+    const launched = launchHop(onPlanet, moon.id);
     if (launched.kind !== 'flown' || launched.flight.collection?.kind !== 'fuel') {
       throw new Error('seed 2026: the Hop to the first Moon should Arrive with Fuel');
     }

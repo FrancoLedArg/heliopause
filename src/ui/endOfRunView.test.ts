@@ -14,6 +14,20 @@ describe('the End-of-Run screen text', () => {
     );
   });
 
+  it('names each icon with its number, singular for one', () => {
+    const view = describeEndOfRun({ kind: 'crashed', reason: 'x' }, none, none, false);
+    expect(view.scoreFigures.starSystems).toEqual({ count: 0, name: '0 Star Systems escaped' });
+    const one = describeEndOfRun(
+      { kind: 'crashed', reason: 'x' },
+      { starSystemsEscaped: 1, hopsFlown: 1 },
+      { starSystemsEscaped: 2, hopsFlown: 7 },
+      false,
+    );
+    expect(one.scoreFigures.starSystems.name).toBe('1 Star System escaped');
+    expect(one.scoreFigures.hops.name).toBe('1 Hop flown');
+    expect(one.bestFigures.hops).toEqual({ count: 7, name: '7 Hops flown' });
+  });
+
   it('names each way a Run ends, in words, with its reason', () => {
     const score = { starSystemsEscaped: 0, hopsFlown: 3 };
     const ends = [
@@ -22,7 +36,7 @@ describe('the End-of-Run screen text', () => {
       {
         kind: 'stranded',
         reason: 'Even the lightest Spacecraft has no Hop.',
-        bodyId: startRun(5, 'scout').starSystem.homePlanetId,
+        bodyId: startRun(5, 'scout').starSystem.startingMoonId,
         title: 'Stranded',
       },
     ] as const;

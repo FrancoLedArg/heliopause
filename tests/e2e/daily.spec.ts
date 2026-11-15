@@ -2,13 +2,14 @@ import { expect, test, type Page } from '@playwright/test';
 import { FAST_CRUISE } from './cruise.ts';
 import { dailySeed } from '../../src/game/lib/dailyStarSystem.ts';
 import {
-  homePlanet,
+  startingMoon,
+  knownBodies,
   launchHop,
-  listBodies,
   runEnd,
   score,
   startRun,
   type Body,
+  type Run,
   type Score,
 } from '../../src/game/sim/index.ts';
 import { formatScore } from '../../src/ui/endOfRunView.ts';
@@ -22,38 +23,52 @@ const NOON = '2026-11-15T12:00:00Z';
 const JUST_AFTER_MIDNIGHT = '2026-11-16T00:00:30Z';
 
 const run = startRun(dailySeed(DAY), 'scout');
-const home = homePlanet(run.starSystem);
-const nextHome = homePlanet(startRun(dailySeed(NEXT_DAY), 'scout').starSystem);
+const home = startingMoon(run.starSystem);
+const nextHome = startingMoon(startRun(dailySeed(NEXT_DAY), 'scout').starSystem);
 
 /**
- * Two Hops on the day's Star System that end the Run: the first Arrives, the second Crashes or Falls
- * Short. Launch settles every outcome from the seed, so the test knows them before flying.
+ * The shortest run of Hops on the day's Star System that ends the Run: every Hop but the last
+ * Arrives, through Bodies Comms has Detected, and the last Crashes or Falls Short. Since #189 a Run
+ * opens knowing one Body, always In reach, so the end takes a few Hops. Launch settles every outcome
+ * from the seed, so the test knows them before flying.
  */
 function endingHops(): {
-  first: Body;
-  second: Body;
+  arrivals: readonly Body[];
+  last: Body;
   title: 'Crashed' | 'Fell Short';
   score: Score;
 } {
-  for (const first of listBodies(run.starSystem)) {
-    const landed = launchHop(run, first.id);
-    if (landed.kind !== 'flown' || landed.flight.outcome.kind !== 'arrived') continue;
-    if (runEnd(landed.run)) continue;
-    for (const second of listBodies(landed.run.starSystem)) {
-      const last = launchHop(landed.run, second.id);
-      if (last.kind !== 'flown') continue;
-      const { kind } = last.flight.outcome;
+  const search = (
+    from: Run,
+    arrivals: readonly Body[],
+    depth: number,
+  ): ReturnType<typeof endingHops> | undefined => {
+    if (depth === 0 || from.status.kind !== 'landed') return undefined;
+    const here = from.status.bodyId;
+    for (const body of knownBodies(from)) {
+      if (!body.landable || body.id === here) continue;
+      const flown = launchHop(from, body.id);
+      if (flown.kind !== 'flown') continue;
+      const { kind } = flown.flight.outcome;
       if (kind === 'crashed' || kind === 'fell-short') {
         return {
-          first,
-          second,
+          arrivals,
+          last: body,
           title: kind === 'crashed' ? 'Crashed' : 'Fell Short',
-          score: score(last.run),
+          score: score(flown.run),
         };
       }
+      if (kind !== 'arrived' || runEnd(flown.run)) continue;
+      const deeper = search(flown.run, [...arrivals, body], depth - 1);
+      if (deeper) return deeper;
     }
+    return undefined;
+  };
+  for (const depth of [2, 3, 4]) {
+    const found = search(run, [], depth);
+    if (found) return found;
   }
-  throw new Error(`The ${DAY} Daily Star System has no two Hops that end the Run`);
+  throw new Error(`The ${DAY} Daily Star System has no short run of Hops that ends the Run`);
 }
 const ending = endingHops();
 
@@ -86,7 +101,7 @@ async function target(page: Page, name: string): Promise<void> {
 test('the Daily Star System: the same Star System for the day, a Daily Best kept, and a new one after 00:00 UTC', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
 
@@ -114,20 +129,29 @@ test('the Daily Star System: the same Star System for the day, a Daily Best kept
   });
 
   // 3. End the Run: the End-of-Run screen shows the Score against today's Daily Best, newly set.
-  await hopTo(page, ending.first.name);
-  const arrived = page.getByRole('dialog', { name: 'Arrived' });
-  await expect(arrived).toBeVisible({ timeout: 15_000 });
-  await arrived.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByTestId('daily-tag')).toHaveText(`Daily ${DAY} UTC`);
-  await hopTo(page, ending.second.name);
+  for (const body of ending.arrivals) {
+    await hopTo(page, body.name);
+    const arrived = page.getByRole('dialog', { name: 'Arrived' });
+    await expect(arrived).toBeVisible({ timeout: 15_000 });
+    await arrived.getByRole('button', { name: 'Continue' }).click();
+    await expect(arrived).toBeHidden();
+    await expect(page.getByTestId('daily-tag')).toHaveText(`Daily ${DAY} UTC`);
+  }
+  await hopTo(page, ending.last.name);
   const outcome = page.getByRole('alertdialog', { name: ending.title });
   await expect(outcome).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('daily-tag')).toHaveText(`Daily ${DAY} UTC`);
   await outcome.getByRole('button', { name: 'Continue' }).click();
   const score = formatScore(ending.score);
-  await expect(outcome.getByTestId('end-of-run-score')).toHaveText(score);
+  await expect(outcome.getByTestId('end-of-run-score')).toHaveAttribute(
+    'aria-label',
+    `Score: ${score}`,
+  );
   await expect(outcome).toContainText('Today’s Daily Best');
-  await expect(outcome.getByTestId('end-of-run-best')).toHaveText(`${score} (new Daily Best)`);
+  await expect(outcome.getByTestId('end-of-run-best')).toHaveAttribute(
+    'aria-label',
+    `Today’s Daily Best: ${score} (new Daily Best)`,
+  );
   await testInfo.attach('daily-end', { body: await page.screenshot(), contentType: 'image/png' });
 
   // 4. Back to the title: the Daily line shows the Score.
