@@ -5,7 +5,9 @@ import { chooseRunSeed } from '../game/lib/runSeed.ts';
 import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
 import { readBestScore, recordScore } from '../game/lib/bestScore.ts';
 import {
+  availableDeltaV,
   score,
+  starSystemNumber,
   type ChassisId,
   type HopFlight,
   type Run,
@@ -15,6 +17,7 @@ import {
 import { SceneKey } from '../game/scenes/keys.ts';
 import type { ChartState } from '../game/scenes/navChartView.ts';
 import { ChassisPicker } from './ChassisPicker.tsx';
+import { EndOfRun, type RecordedScore } from './EndOfRun.tsx';
 import { FlightHud, type FlightAfter } from './FlightHud.tsx';
 import { HopReport } from './HopReport.tsx';
 import { LandedPanels } from './LandedPanels.tsx';
@@ -23,6 +26,7 @@ import { NavChartPanel } from './NavChartPanel.tsx';
 import { SpacecraftPanel } from './SpacecraftPanel.tsx';
 import { RunMenu } from './RunMenu.tsx';
 import { TitleMenu, type TitleButton } from './TitleMenu.tsx';
+import { TopBar } from './TopBar.tsx';
 
 /**
  * The DOM layer over the canvas, in native 640×360 pixels. Shows the panels for whichever scene
@@ -51,6 +55,11 @@ export function GameUI() {
       }
     | undefined
   >(undefined);
+
+  // The Run ended as Stranded on the Body the Landed view shows, and its Score as recorded.
+  const [stranded, setStranded] = useState<{ run: Run; recorded: RecordedScore } | undefined>(
+    undefined,
+  );
 
   // The report of the Hop that just Arrived, shown beside the Landed view of its target until dismissed.
   const [arrival, setArrival] = useState<{ before: Run; flight: HopFlight } | undefined>(undefined);
@@ -83,6 +92,7 @@ export function GameUI() {
           setFlight(undefined);
           setNavFocus(0);
           setSpacecraftOpen(false);
+          setStranded(undefined);
           setFocus(leftRun.current ? 'new-run' : undefined);
           leftRun.current = false;
         }
@@ -96,6 +106,7 @@ export function GameUI() {
         setRun(started);
         setArrival(undefined);
         setFlight(undefined);
+        setStranded(undefined);
         if (afterFailure.current) {
           afterFailure.current = false;
           setNavFocus((n) => n + 1);
@@ -108,6 +119,16 @@ export function GameUI() {
     () =>
       EventBus.on('run-updated', (updated) => {
         setRun(updated);
+      }),
+    [],
+  );
+  useEffect(
+    () =>
+      EventBus.on('run-stranded', (ended) => {
+        // The Run is over: its Score is recorded here, once, as for a failed Hop.
+        setStranded({ run: ended, recorded: recordScore(score(ended)) });
+        setSpacecraftOpen(false);
+        setArrival(undefined);
       }),
     [],
   );
@@ -168,7 +189,7 @@ export function GameUI() {
       if (event.key.toLowerCase() !== 'm' || event.ctrlKey || event.metaKey || event.altKey) return;
       if (scene !== SceneKey.Landed || chart !== undefined || menuOpen || arrival !== undefined)
         return;
-      if (spacecraftOpen) return;
+      if (spacecraftOpen || stranded !== undefined) return;
       if (event.repeat) return;
       event.preventDefault();
       EventBus.emit('nav-chart-open-requested');
@@ -177,18 +198,15 @@ export function GameUI() {
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [scene, chart, menuOpen, arrival, spacecraftOpen]);
+  }, [scene, chart, menuOpen, arrival, spacecraftOpen, stranded]);
 
   const launch = (chassisId: ChassisId): void => {
     // After a Run that was played, a New Run is a different Star System even from a seeded URL.
-    const seed = chooseRunSeed(
-      window.location.search,
-      Math.random,
-      scene === SceneKey.Flight ? runSeed : undefined,
-    );
+    const afterRun = scene === SceneKey.Flight || stranded !== undefined;
+    const seed = chooseRunSeed(window.location.search, Math.random, afterRun ? runSeed : undefined);
     setRunSeed(seed);
     setLaunching(true);
-    afterFailure.current = scene === SceneKey.Flight;
+    afterFailure.current = afterRun;
     // The address bar follows the Run being played, so a reload or a shared link replays this Star System.
     syncUrl(seed, chassisId);
     EventBus.emit('new-run-requested', seed, chassisId);
@@ -237,11 +255,12 @@ export function GameUI() {
       {scene === SceneKey.Title && info === 'about' && <AboutPanel onBack={closeInfo} />}
       {scene === SceneKey.Title && info === 'credits' && <CreditsPanel onBack={closeInfo} />}
       {(scene === SceneKey.Title ||
-        (scene === SceneKey.Flight && flight?.after?.kind === 'ended')) &&
+        (scene === SceneKey.Flight && flight?.after?.kind === 'ended') ||
+        (scene === SceneKey.Landed && stranded !== undefined)) &&
         picking && (
           <ChassisPicker
             launching={launching}
-            initial={flight?.before.spacecraft.chassisId}
+            initial={flight?.before.spacecraft.chassisId ?? stranded?.run.spacecraft.chassisId}
             onLaunch={launch}
             onBack={() => {
               setPicking(false);
@@ -249,7 +268,24 @@ export function GameUI() {
             }}
           />
         )}
-      {scene === SceneKey.Landed && run !== undefined && (
+      {scene === SceneKey.Landed && stranded !== undefined && !picking && (
+        <>
+          <TopBar
+            systemNumber={starSystemNumber(stranded.run)}
+            systemName={stranded.run.starSystem.name}
+            fuel={stranded.run.spacecraft.fuelMass}
+            deltaV={availableDeltaV(stranded.run.spacecraft)}
+            materials={stranded.run.materials}
+          />
+          <EndOfRun
+            run={stranded.run}
+            recorded={stranded.recorded}
+            onNewRun={startNewRun}
+            onLeave={leaveRun}
+          />
+        </>
+      )}
+      {scene === SceneKey.Landed && run !== undefined && stranded === undefined && (
         <LandedPanels
           run={run}
           chartOpen={chart !== undefined}
@@ -258,26 +294,33 @@ export function GameUI() {
           focusRequest={navFocus}
         />
       )}
-      {scene === SceneKey.Landed && run !== undefined && arrival !== undefined && (
-        <HopReport
-          before={arrival.before}
-          flight={arrival.flight}
-          actions={[{ label: 'Continue', onClick: dismissArrival, primary: true }]}
-          onEscape={dismissArrival}
-        />
-      )}
-      {scene === SceneKey.Landed && run !== undefined && chart !== undefined && (
-        <NavChartPanel run={run} state={chart} />
-      )}
-      {scene === SceneKey.Landed && run !== undefined && spacecraftOpen && (
-        <SpacecraftPanel
-          run={run}
-          onClose={() => {
-            setSpacecraftOpen(false);
-          }}
-        />
-      )}
-      {scene === SceneKey.Landed && run !== undefined && (
+      {scene === SceneKey.Landed &&
+        run !== undefined &&
+        stranded === undefined &&
+        arrival !== undefined && (
+          <HopReport
+            before={arrival.before}
+            flight={arrival.flight}
+            actions={[{ label: 'Continue', onClick: dismissArrival, primary: true }]}
+            onEscape={dismissArrival}
+          />
+        )}
+      {scene === SceneKey.Landed &&
+        run !== undefined &&
+        stranded === undefined &&
+        chart !== undefined && <NavChartPanel run={run} state={chart} />}
+      {scene === SceneKey.Landed &&
+        run !== undefined &&
+        stranded === undefined &&
+        spacecraftOpen && (
+          <SpacecraftPanel
+            run={run}
+            onClose={() => {
+              setSpacecraftOpen(false);
+            }}
+          />
+        )}
+      {scene === SceneKey.Landed && run !== undefined && stranded === undefined && (
         <RunMenu open={menuOpen} onOpenChange={setMenuOpen} onLeave={leaveRun} />
       )}
       {scene === SceneKey.Flight && flight !== undefined && !picking && (
