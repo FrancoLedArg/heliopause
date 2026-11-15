@@ -65,3 +65,12 @@ export function currentBody(run: Run): LandableBody {
   }
   return body;
 }
+
+/**
+ * Which Star System the Run is in, 1 for the first. Until the difficulty levels land, every Run is
+ * in the first one; this is the seam the Jump Drive's cost reads, so the real number plugs in here.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- the seam the real number plugs into
+export function starSystemNumber(_run: Run): number {
+  return 1;
+}

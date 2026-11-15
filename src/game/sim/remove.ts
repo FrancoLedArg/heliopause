@@ -1,5 +1,5 @@
-import { COMPONENTS } from './catalogue.ts';
-import type { Run } from './run.ts';
+import { COMPONENTS, componentCost } from './catalogue.ts';
+import { starSystemNumber, type Run } from './run.ts';
 import { refit, SLOT_COUNT } from './spacecraft.ts';
 import { deepFreeze } from './starSystem.ts';
 import { kilograms, materials, type Kilograms, type Materials } from './units.ts';
@@ -51,7 +51,7 @@ export function remove(run: Run, slotIndex: number): RemoveResult {
     run.spacecraft,
     slots.map((slot, index) => (index === slotIndex ? null : slot)),
   );
-  const refund = materials(Math.floor(COMPONENTS[held].cost / 2));
+  const refund = materials(Math.floor(componentCost(held, starSystemNumber(run)) / 2));
   return {
     kind: 'removed',
     run: deepFreeze({ ...run, spacecraft, materials: materials(run.materials + refund) }),

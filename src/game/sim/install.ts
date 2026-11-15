@@ -1,5 +1,5 @@
-import { COMPONENTS, type ComponentId } from './catalogue.ts';
-import type { Run } from './run.ts';
+import { componentCost, type ComponentId } from './catalogue.ts';
+import { starSystemNumber, type Run } from './run.ts';
 import { refit, SLOT_COUNT } from './spacecraft.ts';
 import { deepFreeze } from './starSystem.ts';
 import { materials, type Materials } from './units.ts';
@@ -38,7 +38,7 @@ export function install(run: Run, slotIndex: number, componentId: ComponentId): 
   if (holds !== null && holds !== undefined) {
     return refused({ kind: 'slot-taken', slot: slotIndex, holds });
   }
-  const cost = COMPONENTS[componentId].cost;
+  const cost = componentCost(componentId, starSystemNumber(run));
   if (run.materials < cost) {
     return refused({
       kind: 'not-enough-materials',
