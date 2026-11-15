@@ -51,6 +51,12 @@ export interface Run {
   /** How many Hops the Run has flown: each Hop draws its Burns from its own stream of the seed. */
   readonly hopsFlown: number;
   /**
+   * The game clock, in hours since the Run began: each Hop adds its flight time, and it carries over
+   * the Jump. It only colours the Landed sky's day and night (#192); the slow drift while Landed is
+   * the view's alone, so the clock is a pure function of the choice log.
+   */
+  readonly gameHours: number;
+  /**
    * The raw stock Components are paid in. `Materials` is also the unit of a Rocky Body's yield:
    * landing on one adds its yield here.
    */

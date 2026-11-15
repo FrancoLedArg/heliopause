@@ -98,21 +98,16 @@ describe('Slots', () => {
     }
   });
 
-  it("a new Spacecraft's starting Components give exactly Spec A's dry mass, Fuel capacity and Δv", () => {
-    // Spec A's CHASSIS_TUNING, before Components: the Δv is Isp × g0 × ln(wet mass / dry mass).
-    // The Isp is 30% above Spec A's since #247, so the first Hop leaves a healthy Fuel gauge.
-    const specA = {
-      scout: { dryMass: 4_000, fuelCapacity: 21_000, engineIsp: 1_600, deltaV: 28_754.38 },
-      hauler: { dryMass: 15_000, fuelCapacity: 66_000, engineIsp: 1_575, deltaV: 26_047.23 },
-      lancer: { dryMass: 6_000, fuelCapacity: 36_000, engineIsp: 1_665, deltaV: 31_772.96 },
-    };
+  it("a new Spacecraft's starting Components give exactly the shared tuning's dry mass, Fuel capacity and Δv", () => {
+    // One tuning for every Chassis since #298 (ADR 0006): 4 t dry, a 36 t Tank started full and a
+    // 1,600 s Engine. The Δv is Isp × g0 × ln(wet mass / dry mass) = 1,600 × 9.80665 × ln(10).
     for (const id of CHASSIS_IDS) {
       const spacecraft = newSpacecraft(id);
-      expect(spacecraft.dryMass).toBe(specA[id].dryMass);
-      expect(spacecraft.fuelCapacity).toBe(specA[id].fuelCapacity);
-      expect(spacecraft.fuelMass).toBe(specA[id].fuelCapacity);
-      expect(spacecraft.engineIsp).toBe(specA[id].engineIsp);
-      expect(availableDeltaV(spacecraft)).toBeCloseTo(specA[id].deltaV, 2);
+      expect(spacecraft.dryMass).toBe(4_000);
+      expect(spacecraft.fuelCapacity).toBe(36_000);
+      expect(spacecraft.fuelMass).toBe(36_000);
+      expect(spacecraft.engineIsp).toBe(1_600);
+      expect(availableDeltaV(spacecraft)).toBeCloseTo(36_129.03, 2);
     }
   });
 });
@@ -130,10 +125,10 @@ describe('what the installed Components make of the Spacecraft', () => {
         levelOne + levelTwo,
       );
     }
-    // Worked example: the scout's 21 t level-1 Tank, twice.
+    // Worked example: the 36 t level-1 Tank every Chassis starts with (#298), twice.
     expect(
       refit(newSpacecraft('scout'), ['engine-1', 'fuel-tank-1', 'fuel-tank-1', null]).fuelCapacity,
-    ).toBe(42_000);
+    ).toBe(72_000);
   });
 
   it('a level-2 Engine gives more Δv from the same Fuel', () => {
@@ -236,10 +231,10 @@ describe('the Chassis', () => {
       expect(componentEffect(id, 'engine-1')).toEqual({ kind: 'engine', isp: start.engineIsp });
       expect(componentEffect(id, 'drill-2')).toEqual({ kind: 'drill', yieldMultiplier: 2 });
     }
-    // Worked example: the hauler's level-1 Tank holds 66 t, against the catalogue's 6 t.
+    // Worked example: a level-1 Tank holds 36 t on every Chassis (#298), against the catalogue's 6 t.
     expect(componentEffect('hauler', 'fuel-tank-1')).toEqual({
       kind: 'fuel-tank',
-      fuelCapacity: 66_000,
+      fuelCapacity: 36_000,
     });
   });
 
@@ -263,7 +258,8 @@ describe('the Chassis', () => {
     }
   });
 
-  it('the same Component changes each Chassis differently', () => {
+  // #298, ADR 0006: was "the same Component changes each Chassis differently".
+  it('the same Component changes every Chassis alike', () => {
     const added = CHASSIS_IDS.map((id) => {
       const start = newSpacecraft(id);
       const refitted = refit(start, ['engine-2', 'fuel-tank-1', 'fuel-tank-1', null]);
@@ -272,8 +268,8 @@ describe('the Chassis', () => {
         engineIsp: refitted.engineIsp - start.engineIsp,
       };
     });
-    expect(new Set(added.map((a) => a.fuelCapacity)).size).toBe(CHASSIS_IDS.length);
-    expect(new Set(added.map((a) => a.engineIsp)).size).toBe(CHASSIS_IDS.length);
+    expect(new Set(added.map((a) => a.fuelCapacity)).size).toBe(1);
+    expect(new Set(added.map((a) => a.engineIsp)).size).toBe(1);
   });
 
   it('a refit keeps the Chassis', () => {

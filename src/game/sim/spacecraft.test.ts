@@ -50,29 +50,13 @@ describe('Chassis', () => {
     }
   });
 
-  it('the Chassis differ in dry mass, Fuel capacity and engine', () => {
+  // #298, ADR 0006: a Chassis is cosmetic. Was "the Chassis differ in dry mass, Fuel capacity and
+  // engine", with their Δv at least 10% apart.
+  it('every Chassis flies the same: one dry mass, Fuel capacity, engine and Δv', () => {
     const chassis = CHASSIS_IDS.map((id) => newSpacecraft(id));
-    for (const key of ['dryMass', 'fuelCapacity', 'engineIsp'] as const) {
-      expect(new Set(chassis.map((spacecraft) => spacecraft[key])).size).toBe(3);
+    for (const key of ['dryMass', 'fuelCapacity', 'engineIsp', 'fuelMass'] as const) {
+      expect(new Set(chassis.map((spacecraft) => spacecraft[key])).size).toBe(1);
     }
-  });
-
-  it("the Chassis' starting Δv differs noticeably: each at least 10% apart", () => {
-    const deltaVs = CHASSIS_IDS.map((id) => availableDeltaV(newSpacecraft(id))).sort(
-      (a, b) => a - b,
-    );
-    for (let i = 1; i < deltaVs.length; i++) {
-      expect(deltaVs[i]).toBeGreaterThanOrEqual((deltaVs[i - 1] ?? Infinity) * 1.1);
-    }
-  });
-
-  it('the Chassis with the most Fuel is not the one with the most Δv: mass matters', () => {
-    const byFuel = [...CHASSIS_IDS].sort(
-      (a, b) => newSpacecraft(b).fuelCapacity - newSpacecraft(a).fuelCapacity,
-    );
-    const byDeltaV = [...CHASSIS_IDS].sort(
-      (a, b) => availableDeltaV(newSpacecraft(b)) - availableDeltaV(newSpacecraft(a)),
-    );
-    expect(byFuel[0]).not.toBe(byDeltaV[0]);
+    expect(new Set(chassis.map(availableDeltaV)).size).toBe(1);
   });
 });

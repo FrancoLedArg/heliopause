@@ -62,17 +62,17 @@ function fittedWith(from: Run, slots: readonly Slot[]): Run {
 }
 
 /**
- * Seed 5's Scout after Hopping to Driovae, Ryvynsio, Cyxxaer-7 and back to Ryvynsio, `extra` Materials
+ * Seed 97's Scout after Hopping to Risrol, Harzo, back to Risrol and on to Violios, `extra` Materials
  * added at the start: a Run that only swapping in the level-2 Engine (60 Materials) could save, each
  * plan sure yet the last Arriving Stranded as built. Re-pinned for #283 (was seed 27's Dryli,
  * Siolmel, Teskae and Dryli): the Hop range keeps Teskae out of reach from Siolmel. Re-pinned for
- * #280 (was seed 44's Vilthioqui): Comms Detects a Fuel source first, so Quutyrvex-4 is never Detected.
+ * #280 (was seed 44's Vilthioqui): Comms Detects a Fuel source first, and (#298) every Chassis flies alike (was seed 5, then seed 44).
  */
-function backOnRyvynsio(extra: number): Run {
-  let run = startRun(5, 'scout');
+function onViolios(extra: number): Run {
+  let run = startRun(97, 'scout');
   // Stranded follows the plans the player sees (#190): every Body but the three flown to is Surveyed,
   // so the others' plans are the real ones and the Hops land (and Survey) as they did before.
-  const flownTo = ['Driovae', 'Ryvynsio', 'Cyxxaer-7', 'Ryvynsio'];
+  const flownTo = ['Risrol', 'Harzo', 'Risrol', 'Violios'];
   const surveyed = listBodies(run.starSystem)
     .filter((b) => !flownTo.includes(b.name))
     .map((b) => b.id);
@@ -83,10 +83,10 @@ function backOnRyvynsio(extra: number): Run {
   };
   for (const name of flownTo) {
     const body = listBodies(run.starSystem).find((b) => b.name === name);
-    if (!body) throw new Error(`Seed 5 has no ${name}`);
+    if (!body) throw new Error(`Seed 97 has no ${name}`);
     const landed = launchHop(run, body.id);
     if (landed.kind !== 'flown' || landed.flight.outcome.kind !== 'arrived') {
-      throw new Error(`Seed 5: the Hop to ${name} should Arrive`);
+      throw new Error(`Seed 97: the Hop to ${name} should Arrive`);
     }
     run = landed.run;
   }
@@ -239,27 +239,27 @@ describe('what could still save a Run', () => {
   });
 
   it('a rescue the Materials cannot pay for in the order the changes must be made does not count', () => {
-    // Seed 5: back on Ryvynsio, 22 Materials added, the Run has 59. Swapping the level-1 Engine for the level-2
+    // Seed 97: on Violios, 10 Materials added, the Run has 59. Swapping the level-1 Engine for the level-2
     // one would save it, but the new Engine (60) must be installed before the old one can be
     // removed for its refund, so the swap can never be paid for.
-    const landed = backOnRyvynsio(22);
+    const landed = onViolios(10);
     expect(landed.materials).toBe(59);
     expect(landed.status).toMatchObject({ kind: 'ended', end: { kind: 'stranded' } });
     // With 1 more Material, 60 on Landing, the same Run can still be saved.
-    const richer = backOnRyvynsio(23);
+    const richer = onViolios(11);
     expect(richer.materials).toBe(60);
     expect(assessStranding(richer).kind).toBe('warning');
   });
 
   it('a second full Fuel Tank can save a Run that the lightest configuration cannot', () => {
-    // Bodies 5.5 times as hard to leave; two level-1 Tanks and a Drill, the Tanks 60% full. Was 4
-    // times until #247: the Chassis Isp rose 30%, so the Bodies must be heavier to strand it. Seed 7
-    // since #280 (was seed 1, which now opens on another draw).
+    // Bodies 9 times as hard to leave; two level-1 Tanks and a Drill, the Tanks full. Was 4 times
+    // until #247 (the Isp rose 30%), 5.5 times with the Tanks 60% full until #298 (one 36 t Tank
+    // for every Chassis, so less Fuel spills). Seed 7 since #280 (seed 1 now opens on another draw).
     const start = onSmallPlanet(startRun(7, 'hauler'));
     const heavy = Object.fromEntries(
       listBodies(start.starSystem).map((body) => [
         body.id,
-        { escapeVelocity: metersPerSecond(body.escapeVelocity * 5.5) },
+        { escapeVelocity: metersPerSecond(body.escapeVelocity * 9) },
       ]),
     );
     const design = fittedWith(withBodies(start, heavy), [
@@ -268,7 +268,7 @@ describe('what could still save a Run', () => {
       'fuel-tank-1',
       'drill-2',
     ]);
-    const fuelMass = kilograms(design.spacecraft.fuelCapacity * 0.6);
+    const fuelMass = kilograms(design.spacecraft.fuelCapacity * 1);
     const fuelled = { ...design, spacecraft: { ...design.spacecraft, fuelMass } };
     expect(anyBodyHop(fuelled)).toBe(false);
     expect(anyBodyHop(removeSlots(fuelled, [3]))).toBe(true); // the Drill alone removed
@@ -350,7 +350,7 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('installing a Component that spends the Materials a rescue needed ends the Run as Stranded', () => {
-    const saveable = backOnRyvynsio(23);
+    const saveable = onViolios(11);
     const spent = install(saveable, 2, 'drill-1');
     if (spent.kind !== 'installed') throw new Error('expected an install');
     expect(spent.run.status).toMatchObject(stranded);
@@ -361,7 +361,7 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('a Stranded Run takes no more choices', () => {
-    const ended = backOnRyvynsio(0);
+    const ended = onViolios(0);
     expect(() => install(ended, 2, 'drill-1')).toThrow(/ended/);
     expect(() => remove(ended, 1)).toThrow(/ended/);
     const someBody = listBodies(ended.starSystem).find((body) => body.landable);
@@ -370,24 +370,25 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('a replayed Run ends Stranded where the game did, and takes no choice after it', () => {
-    // Seed 1, played as the player sees it (every Body Unsurveyed until landed on): the fourth Hop
+    // Seed 47, played as the player sees it (every Body Unsurveyed until landed on): the fourth Hop
     // strands it. Re-pinned for #283 (was seed 4's four Hops): the Hop range keeps Prumal out of reach.
-    // Re-pinned for #280 (was seed 1's five Hops): Comms Detects a Fuel source first.
-    let run = startRun(1, 'scout');
-    for (const name of ['Thiolsaer-7', 'Mamil', 'Thiolsaer-7', 'Kuntho-6']) {
+    // Re-pinned for #280/#298 (was seed 1's five Hops): Comms Detects a Fuel source first, and every
+    // Chassis flies alike.
+    let run = startRun(47, 'scout');
+    for (const name of ['Noxiol', 'Kyrtio', 'Lanpraer', 'Noxiol']) {
       const body = listBodies(run.starSystem).find((b) => b.name === name);
-      if (!body) throw new Error(`Seed 1 has no ${name}`);
+      if (!body) throw new Error(`Seed 47 has no ${name}`);
       const flown = launchHop(run, body.id);
-      if (flown.kind !== 'flown') throw new Error(`Seed 1: no Hop to ${name}`);
+      if (flown.kind !== 'flown') throw new Error(`Seed 47: no Hop to ${name}`);
       run = flown.run;
     }
     expect(run.status).toMatchObject(stranded);
-    const replayed = replay(1, 'scout', run.choices);
+    const replayed = replay(47, 'scout', run.choices);
     expect(replayed).toMatchObject({ kind: 'replayed', end: { kind: 'stranded' } });
     if (replayed.kind !== 'replayed') return;
     expect(replayed.run.status).toEqual(run.status);
     // A choice made after the end is refused.
-    const after = replay(1, 'scout', [
+    const after = replay(47, 'scout', [
       ...run.choices,
       { kind: 'install', slot: 2, componentId: 'drill-1' },
     ]);

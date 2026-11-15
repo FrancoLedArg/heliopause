@@ -67,7 +67,7 @@ function Plan({ view }: { view: HopPlanView }) {
           </span>
         </span>
       </p>
-      <DeltaVBar bar={view.bar} />
+      <DeltaVBar bar={view.bar} unsureLanding={view.unsurveyed} />
       <p className="hop-plan__row">
         <span className="hop-plan__label">{view.marginIsShort ? 'Short' : 'Margin'}</span>
         <span

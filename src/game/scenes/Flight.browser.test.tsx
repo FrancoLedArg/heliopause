@@ -168,24 +168,22 @@ function cruiseSpan(scene: Flight): { start: number; end: number } {
   return { start: span.start, end: span.end - 1 };
 }
 
-it('the departure Body stays in view, clear of the HUD, and shrinks behind through the Cruise', async () => {
+it('no Body zooms past in the Cruise: deep space holds only the sun glint and the one small target', async () => {
+  // The human's playtest asked for the planets zooming in and out to go (#284).
   const { scene } = await fly('scout');
   const { start } = cruiseSpan(scene);
-  const sizes: { from: number; to: number }[] = [];
-  for (const into of [3000, 20_000]) {
+  const space = scene.children.list.find(
+    (o): o is GameObjects.Container =>
+      o instanceof GameObjects.Container && o.list.includes(scene.toBody),
+  );
+  if (!space) throw new Error('no deep space');
+  for (const into of [3000, 20_000, 40_000]) {
     scene.seek(start + into);
     await act(frame);
-    const b = scene.fromBody.getBounds();
-    const body: Box = { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
-    // On screen, and no panel covers any of it.
-    expect(scene.fromBody.visible).toBe(true);
-    expect(body.left).toBeGreaterThanOrEqual(0);
-    expect(body.top).toBeGreaterThanOrEqual(0);
-    for (const panel of hudPanels()) expect(overlaps(body, panel)).toBe(false);
-    sizes.push({ from: b.width, to: scene.toBody.getBounds().width });
+    const images = space.list.filter((o) => o instanceof GameObjects.Image && o.visible);
+    expect(images).toHaveLength(2);
+    expect(images).toContain(scene.toBody);
   }
-  const [early, later] = sizes;
-  expect(later?.from).toBeLessThan(early?.from ?? 0);
 });
 
 it.each([
@@ -272,7 +270,7 @@ it('the Cruise draws its event layer between the starfield and the Spacecraft', 
   scene.seek(cruiseSpan(scene).start + 5000);
   const list = scene.children.list;
   const space = list.findIndex(
-    (o) => o instanceof GameObjects.Container && o.list.includes(scene.fromBody),
+    (o) => o instanceof GameObjects.Container && o.list.includes(scene.toBody),
   );
   expect(scene.eventLayer.visible).toBe(true);
   expect(list.indexOf(scene.eventLayer)).toBeGreaterThan(space);

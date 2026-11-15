@@ -3,6 +3,7 @@ import {
   firstTarget,
   heliopauseFound,
   heliopauseInRange,
+  isFuelSourceInReach,
   landedOn,
   withDeltaV,
   withJumpDrive,
@@ -152,18 +153,6 @@ function arrive(run: Run, target: string): ReturnType<typeof flyHop> {
   const planned = planHop(run, target as BodyId);
   if (planned.kind !== 'planned') throw new Error(`No plan to ${target}: ${planned.why}`);
   return flyHop(run, planned.plan, AT_ESTIMATE);
-}
-
-/**
- * Whether `body` is a Fuel source In reach of the landed Run: an Icy Body with Fuel left that a Hop
- * shows In reach (at least 70%, #190), whether or not Comms has Detected it yet.
- */
-function isFuelSourceInReach(run: Run, body: Body): boolean {
-  if (!body.landable || body.composition !== 'icy' || body.baseYield <= 0) return false;
-  if (isDepleted(run, body.id) || body.id === currentBody(run).id) return false;
-  const knowing = { ...run, knowledge: { ...run.knowledge, detected: [body.id] } };
-  const planned = planHop(knowing, body.id);
-  return planned.kind === 'planned' && planned.plan.successChance >= 0.7;
 }
 
 describe('landing and Comms', () => {

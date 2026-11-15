@@ -85,7 +85,7 @@ The player's one vehicle, built on the Chassis picked at New Run, kept and modif
 _Avoid_: Ship, satellite, rocket, vessel
 
 **Chassis**:
-The starting design of the Spacecraft, picked at New Run. It sets the Spacecraft's shape and its starting dry mass, Fuel capacity and engine.
+How the Spacecraft looks, picked at New Run: its art and silhouette. It is cosmetic. Every Chassis flies the same, with the same mass, engine, Fuel Tank, starting Fuel and Slots (ADR 0006).
 _Avoid_: Hull, frame, model, class
 
 **Component**:

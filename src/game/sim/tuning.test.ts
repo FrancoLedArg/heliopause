@@ -2,21 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { createRng } from '../lib/rng.ts';
 import {
   CHASSIS_IDS,
-  currentBody,
   flyHop,
   generateSystem,
-  isDepleted,
   knownBodies,
   launchHop,
+  newSpacecraft,
   listBodies,
   planHop,
   startRun,
-  type Body,
   type ChassisId,
   type HopPlan,
   type Run,
 } from './index.ts';
-import { firstTarget, plan, startingRun } from './testing.ts';
+import { firstTarget, isFuelSourceInReach, plan, readyToJump, startingRun } from './testing.ts';
 
 /** Many Star Systems, so the tuning is checked across the generator's spread, not one lucky seed. */
 const SEEDS = Array.from({ length: 2_000 }, (_, i) => i * 7_919 + 13);
@@ -138,18 +136,6 @@ describe.each(CHASSIS_IDS)(
   },
 );
 
-/**
- * Whether `body` is a Fuel source In reach of the landed Run: an Icy Body with Fuel left that a Hop
- * shows In reach (at least 70%, #190), Detected or not.
- */
-function fuelSourceInReach(run: Run, body: Body): boolean {
-  if (!body.landable || body.composition !== 'icy' || body.baseYield <= 0) return false;
-  if (isDepleted(run, body.id) || body.id === currentBody(run).id) return false;
-  const knowing = { ...run, knowledge: { ...run.knowledge, detected: [body.id] } };
-  const planned = planHop(knowing, body.id);
-  return planned.kind === 'planned' && planned.plan.successChance >= 0.7;
-}
-
 /** After one landing: whether a Fuel source is Detected and In reach, and whether one is In reach at all. */
 interface Lifeline {
   readonly detected: boolean;
@@ -176,8 +162,8 @@ function lifelinesAfterLandings(start: Run, seed: number): Lifeline[] {
     visited.add(next.toId);
     const landed = run;
     found.push({
-      detected: knownBodies(landed).some((body) => fuelSourceInReach(landed, body)),
-      any: listBodies(landed.starSystem).some((body) => fuelSourceInReach(landed, body)),
+      detected: knownBodies(landed).some((body) => isFuelSourceInReach(landed, body)),
+      any: listBodies(landed.starSystem).some((body) => isFuelSourceInReach(landed, body)),
     });
   }
 }
@@ -197,4 +183,26 @@ describe.each(CHASSIS_IDS)('the Fuel lifeline for the %s', { timeout: 60_000 }, 
     // The first landing always has one.
     expect(landings.filter((landing) => landing.hop === 0 && !landing.detected)).toEqual([]);
   });
+});
+
+// #298, ADR 0006: a Chassis is cosmetic, so every one flies the same.
+describe('one gameplay tuning for every Chassis', () => {
+  it('every Chassis starts with the same Fuel, Tank, mass, Engine and Slots', () => {
+    const [first, ...others] = CHASSIS_IDS.map((id) => ({ ...newSpacecraft(id), chassisId: null }));
+    for (const other of others) expect(other).toEqual(first);
+    expect(first?.fuelMass).toBe(36_000);
+    expect(first?.fuelCapacity).toBe(36_000);
+  });
+
+  // The human's target (#298): a careful explorer gets out of Star System 1 in about half of Runs.
+  // Measured over these 500 seeds; every Chassis flies alike, so one stands for all.
+  it(
+    'the careful explorer escapes Star System 1 in about half of all Runs',
+    { timeout: 300_000 },
+    () => {
+      const out = FIRST_HOP_SEEDS.filter((seed) => readyToJump(seed, 'scout') !== undefined);
+      expect(out.length / FIRST_HOP_SEEDS.length).toBeGreaterThanOrEqual(0.5);
+      expect(out.length / FIRST_HOP_SEEDS.length).toBeLessThanOrEqual(0.7);
+    },
+  );
 });

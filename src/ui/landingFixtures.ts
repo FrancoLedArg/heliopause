@@ -68,35 +68,42 @@ export function landing(
 }
 
 /**
- * Seed 7 with a level-1 Drill, landed on Sekiox by way of Rasprux, Rynlior and Prioxquiol (re-pinned
- * for #280, was seed 105's Verpry): no Hop as built,
+ * Seed 78 with a level-1 Drill, back on Quesrol after Quesrol, Tudru and Lioxex: no Hop as built,
  * but removing the Drill saves the Run, with every Body Unsurveyed until landed on as in real play
- * (pass `preSurvey` false). Re-pinned for #190 (was seed 156's Rymoquox): Stranded and the warning
- * follow the plans the player sees, and the old route only warned with its other Bodies Surveyed.
+ * (pass `preSurvey` false). Re-pinned for #190 (was seed 156's Rymoquox), #283 (was seed 105's
+ * Verpry) and #280/#298 (was seed 14's Hunce): Comms Detects a Fuel source first, and every Chassis
+ * now flies with one shared tuning.
  */
 export const SAVE_BY_REMOVING = {
-  seed: 7,
-  path: ['Rasprux', 'Rynlior', 'Prioxquiol', 'Sekiox'],
+  seed: 78,
+  path: ['Quesrol', 'Tudru', 'Lioxex', 'Quesrol'],
   fit: 'drill-1',
 } as const;
 
 /**
- * Seed 5, back on Ryvynsio after Driovae, Ryvynsio and Cyxxaer-7 (re-pinned for #280, was seed 27's
- * Dryli): the last Hop's plan is sure, and no change
- * to the Spacecraft could give any Hop a chance. Re-pinned for #189 (was seed 305's Lyquin): Runs
- * open on a Starting Moon and Hop only to Bodies Comms Detected. Re-pinned for #247 (was seed 12's
- * Laquun): the Chassis Isp rose 30%, so that Run is no longer Stranded.
+ * Seed 47, back on Noxiol after Noxiol, Kyrtio and Lanpraer: every plan sure, yet no change to the
+ * Spacecraft could give any Hop a chance after the last, in real play as well as with the Bodies off
+ * the path pre-Surveyed. Re-pinned for #189 (was seed 305's Lyquin), #247 (was seed 12's Laquun),
+ * #283 (was seed 27's Dryli) and #280/#298 (was seed 5's Driovae): Comms Detects a Fuel source
+ * first, and every Chassis now flies with one shared tuning.
  */
 export const STRANDED_ON_LANDING = {
-  seed: 5,
-  path: ['Driovae', 'Ryvynsio', 'Cyxxaer-7', 'Ryvynsio'],
+  seed: 47,
+  path: ['Noxiol', 'Kyrtio', 'Lanpraer', 'Noxiol'],
 } as const;
 
 /**
- * Seed 5's same path with 23 Materials more than it would have, landing with 60: only swapping in the
- * level-2 Engine (60) saves the Run, so spending any of them on another Component strands it.
- * Without it, the Landing itself strands it. Re-pinned for #189 (was seed 57's Vekyr).
+ * Seed 97, back on Risrol after Risrol, Harzo and Violios, with 11 Materials more than it would
+ * have, landing with 60: only swapping in the level-2 Engine (60) saves the Run, so spending any of
+ * them on another Component strands it. With one fewer, the Landing itself strands it. Its own seed
+ * since #280/#298 (was `STRANDED_ON_LANDING`'s path with extra Materials): no path strands both in
+ * real play and one Material short of the Engine swap.
  */
+export const SAVE_BY_REFITTING = {
+  seed: 97,
+  path: ['Risrol', 'Harzo', 'Risrol', 'Violios'],
+} as const;
+
 export function saveByRefitting(): Run {
-  return landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path, undefined, 23).run;
+  return landing(SAVE_BY_REFITTING.seed, SAVE_BY_REFITTING.path, undefined, 11).run;
 }

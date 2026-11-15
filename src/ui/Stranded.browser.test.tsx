@@ -76,10 +76,10 @@ it('a Run Stranded on Landing goes straight to the End-of-Run screen with the St
   expect(screen?.querySelector('h2')?.textContent).toBe('Stranded');
   expect(find(ui, 'end-of-run-why')?.textContent).toBe(
     // Re-pinned for #189: seed 12, back on Laquun (was seed 305's Lyquin); for #247: seed 27, back on
-    // Dryli (seed 12's Run no longer strands once the Isp rose 30%); for #280: seed 10, back on
-    // Lanpraen (Comms Detects a Fuel source first, so seed 27's Siolmel is never Detected).
-    'However you change its Components, your Spacecraft has at most 4.3 km/s of Δv, and the ' +
-      'cheapest Hop needs 4.8 km/s.',
+    // Dryli; for #283: seed 5, back on Driovae; for #280/#298: seed 47, back on Noxiol (Comms Detects
+    // a Fuel source first, and every Chassis flies alike).
+    'However you change its Components, your Spacecraft has at most 4.7 km/s of Δv, and the ' +
+      'cheapest Hop needs 5.3 km/s.',
   );
   expect(find(ui, 'end-of-run-score')?.getAttribute('aria-label')).toBe(
     'Score: 0 Star Systems escaped, 4 Hops flown',

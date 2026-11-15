@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { stringSeed } from '../lib/stringSeed.ts';
-import { AT_ESTIMATE, earlyDeadEnds, startingRun } from './testing.ts';
+import { AT_ESTIMATE, earlyDeadEnds, isFuelSourceInReach, startingRun } from './testing.ts';
 import {
   BODY_TUNING,
   CHASSIS_IDS,
@@ -10,7 +10,6 @@ import {
   flyHop,
   generateStarSystem,
   install,
-  isDepleted,
   listBodies,
   marginShare,
   OPENING_TUNING,
@@ -208,10 +207,11 @@ describe('Icy and Rocky Bodies', () => {
     }
   });
 
-  it('an Icy yield is a meaningful share of the smallest Fuel tank (21,000 kg)', () => {
+  // The Tank is 36 t on every Chassis since #298, and Icy yields three times their first tuning.
+  it('an Icy yield is a meaningful share of the Fuel tank (36,000 kg)', () => {
     const icy = landable.filter((b) => b.composition === 'icy');
-    expect(Math.min(...icy.map((b) => b.baseYield))).toBeGreaterThanOrEqual(21_000 * 0.1);
-    expect(Math.max(...icy.map((b) => b.baseYield))).toBeLessThan(21_000);
+    expect(Math.min(...icy.map((b) => b.baseYield))).toBeGreaterThanOrEqual(36_000 * 0.2);
+    expect(Math.max(...icy.map((b) => b.baseYield))).toBeLessThan(36_000);
   });
 
   it('a Gas Giant has no resource type or yield', () => {
@@ -297,13 +297,7 @@ describe('a fair opening (#96), with no early dead ends (#188)', () => {
           const { run } = flyHop(start, planned.plan, AT_ESTIMATE);
           if (run.status.kind !== 'landed') continue;
           const here = run.status.bodyId;
-          const lifeline = listBodies(system).some((body) => {
-            if (!body.landable || body.composition !== 'icy' || body.id === here) return false;
-            if (isDepleted(run, body.id) || body.baseYield <= 0) return false;
-            const knowing = { ...run, knowledge: { ...run.knowledge, detected: [body.id] } };
-            const plan = planHop(knowing, body.id);
-            return plan.kind === 'planned' && plan.plan.successChance >= 0.7;
-          });
+          const lifeline = listBodies(system).some((body) => isFuelSourceInReach(run, body));
           if (!lifeline)
             found.push(`seed ${system.seed} level ${level} ${chassis}: none from ${here}`);
         }
@@ -340,7 +334,8 @@ describe('Star System difficulty levels', { timeout: 60_000 }, () => {
     // Re-pinned for #191: the Heliopause lies just past the outermost planet, where the Radar finds it.
     // Re-pinned for #283: fairness weighs only Hops within the Hop range, so some seeds keep other draws.
     // Re-pinned for #280: a draw is preferred when a Fuel source is In reach after the first Hop.
-    expect(stringSeed(json)).toBe(516314147);
+    // Re-pinned for #298: Icy yields tripled and every Chassis shares one tuning.
+    expect(stringSeed(json)).toBe(52245929);
   });
 
   it('a higher difficulty level raises gravity', () => {
