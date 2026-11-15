@@ -65,7 +65,7 @@ export interface GameEvents {
    * Phaser -> React: the playback of a Fell Short or Crashed Hop is over, and the Run with it. An
    * Arrived Hop goes on to the Landed view instead.
    */
-  'hop-failed': [flight: HopFlight];
+  'hop-failed': [flight: HopFlight, ended: Run];
   /**
    * Phaser -> React: the playback of a Hop that reached the Heliopause is over; the Spacecraft holds
    * at the edge of the Star System. For now its report is a placeholder: the Jump (#157) takes over here.

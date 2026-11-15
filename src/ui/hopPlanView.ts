@@ -6,10 +6,11 @@ import {
   isDepleted,
   marginShare,
   metersPerSecond,
-  plannedBurns,
+  BURNS,
   type Body,
   type Burn,
   type HopPlan,
+  type MetersPerSecond,
   type Run,
 } from '../game/sim/index.ts';
 import {
@@ -87,9 +88,33 @@ function burnReasons(from: Body, to: Body): Record<Burn, string> {
 const leaveReason = (from: Body): string => `leave ${formatGravity(from.surfaceGravity)} gravity`;
 
 /** The Burns of a Hop to the Heliopause: leave the Body, then climb out to the edge of the Star System. */
-function heliopauseReasons(run: Run, from: Body): Partial<Record<Burn, string>> {
+function heliopauseReasons(run: Run, from: Body): Record<'takeoff' | 'transfer', string> {
   const gap = astronomicalUnits(run.starSystem.heliopauseRadius - from.distanceFromStar);
   return { takeoff: leaveReason(from), transfer: `climb ${formatDistanceAu(gap)} to the edge` };
+}
+
+/** One row of the plan: a Burn of the Hop, its estimate and its reason, both keyed by the same Burns. */
+function burnRow<B extends Burn>(
+  burn: B,
+  estimates: Readonly<Record<B, MetersPerSecond>>,
+  reasons: Readonly<Record<B, string>>,
+): HopPlanView['burns'][number] {
+  return {
+    label: BURN_LABEL[burn],
+    estimate: formatPlanDeltaV(estimates[burn]),
+    reason: reasons[burn],
+  };
+}
+
+/** The plan's Burn rows in the order they are flown: a Hop to the Heliopause has no Landing. */
+function burnRows(run: Run, plan: HopPlan, from: Body, to: Body | undefined): HopPlanView['burns'] {
+  if (plan.destination === 'heliopause') {
+    const reasons = heliopauseReasons(run, from);
+    return (['takeoff', 'transfer'] as const).map((burn) => burnRow(burn, plan.estimates, reasons));
+  }
+  if (!to) throw new Error(`Hop plan names unknown Body ${plan.toId}`);
+  const reasons = burnReasons(from, to);
+  return BURNS.map((burn) => burnRow(burn, plan.estimates, reasons));
 }
 
 export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
@@ -98,7 +123,6 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
   const to = plan.destination === 'body' ? findBody(run.starSystem, plan.toId) : undefined;
   if (plan.destination === 'body' && !to)
     throw new Error(`Hop plan names unknown Body ${plan.toId}`);
-  const reasons = to ? burnReasons(from, to) : heliopauseReasons(run, from);
   const targetName = to?.name ?? 'the Heliopause';
   const short = plan.margin < 0;
   const depleted = to !== undefined && isDepleted(run, to.id);
@@ -109,11 +133,7 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
   const available = formatPlanDeltaV(plan.availableDeltaV);
   const successChance = formatPercent(plan.successChance);
   return {
-    burns: plannedBurns(plan).map(({ burn, estimate }) => ({
-      label: BURN_LABEL[burn],
-      estimate: formatPlanDeltaV(estimate),
-      reason: reasons[burn] ?? '',
-    })),
+    burns: burnRows(run, plan, from, to),
     needed,
     available,
     availableBasis: `${formatMass(run.spacecraft.dryMass)} craft + ${formatFuel(run.spacecraft.fuelMass)} Fuel`,

@@ -2,7 +2,6 @@
 // sentence, the Mass bar and the reasons an install is refused. No React here, so it is unit tested.
 import {
   availableDeltaV,
-  carriesJumpDrive,
   COMPONENT_IDS,
   COMPONENTS,
   componentCost,
@@ -11,6 +10,7 @@ import {
   metersPerSecond,
   preview,
   SLOT_COUNT,
+  standingRefusal,
   starSystemNumber,
   type Preview,
   type ProposedChange,
@@ -70,9 +70,6 @@ export function describeEffect(chassisId: ChassisId, id: ComponentId): string {
   }
 }
 
-/** Why a second Jump Drive is refused, and why the panel greys it out. */
-const ONE_JUMP_DRIVE = 'You already carry a Jump Drive.';
-
 /** Why an install was refused, for the player. */
 export function describeRefusal(reason: InstallRefusal): string {
   switch (reason.kind) {
@@ -84,7 +81,7 @@ export function describeRefusal(reason: InstallRefusal): string {
       return `Slot ${String(reason.slot + 1)} already holds ${article} ${label}.`;
     }
     case 'jump-drive-installed':
-      return ONE_JUMP_DRIVE;
+      return 'You already carry a Jump Drive.';
     case 'not-enough-materials':
       return `Not enough Materials: it costs ${String(reason.cost)} and you have ${String(reason.have)}, ${String(reason.short)} short.`;
   }
@@ -149,6 +146,8 @@ export function panelRows(run: Run): readonly PanelRow[] {
   return COMPONENT_IDS.map((id) => {
     const component = COMPONENTS[id];
     const cost = componentCost(id, starSystemNumber(run));
+    // The simulation's own rule, so the panel and `install` never disagree.
+    const standing = standingRefusal(run, id);
     return {
       id,
       name: componentName(id),
@@ -159,10 +158,7 @@ export function panelRows(run: Run): readonly PanelRow[] {
       effect: describeEffect(run.spacecraft.chassisId, id),
       affordable: run.materials >= cost,
       short: Math.max(0, cost - run.materials),
-      unavailable:
-        component.kind === 'jump-drive' && carriesJumpDrive(run.spacecraft)
-          ? ONE_JUMP_DRIVE
-          : undefined,
+      unavailable: standing ? describeRefusal(standing) : undefined,
     };
   });
 }

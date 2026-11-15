@@ -260,15 +260,14 @@ export function flyHop(
   if (plan.destination === 'body' && !target?.landable) {
     throw new Error(`${plan.toId} is not a Hop target`);
   }
-  const success: HopOutcome = { kind: target ? 'arrived' : 'reached-heliopause' };
-
   let remaining = available;
-  let outcome: HopOutcome = success;
+  /** Set when the Fuel runs out: the Burns after it are not flown. */
+  let failure: Extract<HopOutcome, { kind: 'fell-short' | 'crashed' }> | undefined;
   const burns: BurnResult[] = [];
   for (const { burn, estimate: estimated } of plannedBurns(plan)) {
     // Every Burn draws its factor, flown or not, so a Hop always consumes the Rng the same way.
     const factor = DISPERSION.min + (DISPERSION.max - DISPERSION.min) * rng.next();
-    if (outcome.kind !== success.kind) {
+    if (failure) {
       burns.push({ status: 'not-flown', burn, estimated });
       continue;
     }
@@ -280,16 +279,16 @@ export function flyHop(
       continue;
     }
     const shortfall = metersPerSecond(actual - remaining);
-    outcome =
+    failure =
       burn === 'landing' ? { kind: 'crashed', shortfall } : { kind: 'fell-short', burn, shortfall };
     burns.push({ status: 'ran-out', burn, estimated, actual, delivered: remaining });
     remaining = metersPerSecond(0);
   }
 
-  const fuelRemaining =
-    outcome.kind === success.kind
-      ? fuelAfterBurning(run.spacecraft, metersPerSecond(available - remaining))
-      : kilograms(0);
+  const outcome: HopOutcome = failure ?? { kind: target ? 'arrived' : 'reached-heliopause' };
+  const fuelRemaining = failure
+    ? kilograms(0)
+    : fuelAfterBurning(run.spacecraft, metersPerSecond(available - remaining));
   const flight: HopFlight = {
     plan,
     outcome,
@@ -309,7 +308,10 @@ export function flyHop(
   switch (outcome.kind) {
     case 'fell-short':
     case 'crashed':
-      return deepFreeze({ flight, run: flown({ kind: 'ended', outcome: outcome.kind }) });
+      return deepFreeze({
+        flight,
+        run: flown({ kind: 'ended', end: { kind: outcome.kind, reason: flight.why } }),
+      });
     case 'reached-heliopause':
       return deepFreeze({ flight, run: flown({ kind: 'at-heliopause' }) });
     case 'arrived': {

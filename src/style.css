@@ -184,6 +184,16 @@ body {
   color: var(--gm5);
 }
 
+.title-menu__best {
+  position: absolute;
+  top: 304px;
+  left: 0;
+  width: 640px;
+  text-align: center;
+  font: 16px/16px var(--font-pixel-body);
+  color: var(--am3);
+}
+
 .title-menu__build {
   right: 6px;
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { HopFlight, Run } from '../game/sim/index.ts';
+import { trapTab } from './focusTrap.ts';
 import { describeReport } from './hopReportView.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
@@ -53,19 +54,8 @@ export function HopReport({ before, flight, actions, onEscape }: HopReportProps)
           onEscape();
           return;
         }
-        if (event.key !== 'Tab') return;
         // Focus stays inside the report: Tab and Shift+Tab cycle through its buttons.
-        const found = buttons.current?.querySelectorAll('button') ?? [];
-        const first = found[0];
-        const last = found[found.length - 1];
-        if (!first || !last) return;
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
+        trapTab(event, buttons.current);
       }}
     >
       <KitFrame frame="panel_metal" width={PANEL.width} height={PANEL.height} />

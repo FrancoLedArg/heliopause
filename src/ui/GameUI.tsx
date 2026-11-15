@@ -3,11 +3,19 @@ import { EventBus } from '../game/EventBus.ts';
 import { chooseUrlChassis } from '../game/lib/runChassis.ts';
 import { chooseRunSeed } from '../game/lib/runSeed.ts';
 import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
-import type { ChassisId, HopFlight, Run, Seed } from '../game/sim/index.ts';
+import { readBestScore, recordScore } from '../game/lib/bestScore.ts';
+import {
+  score,
+  type ChassisId,
+  type HopFlight,
+  type Run,
+  type Score,
+  type Seed,
+} from '../game/sim/index.ts';
 import { SceneKey } from '../game/scenes/keys.ts';
 import type { ChartState } from '../game/scenes/navChartView.ts';
 import { ChassisPicker } from './ChassisPicker.tsx';
-import { FlightHud } from './FlightHud.tsx';
+import { FlightHud, type FlightAfter } from './FlightHud.tsx';
 import { HopReport } from './HopReport.tsx';
 import { LandedPanels } from './LandedPanels.tsx';
 import { AboutPanel, CreditsPanel } from './InfoPanels.tsx';
@@ -24,6 +32,8 @@ export function GameUI() {
   const [scene, setScene] = useState<SceneKey | undefined>(undefined);
   const [runSeed, setRunSeed] = useState<Seed | undefined>(undefined);
   const [run, setRun] = useState<Run | undefined>(undefined);
+  // The Best Score on this device, read each time the title comes up.
+  const [bestScore, setBestScore] = useState<Score | undefined>(undefined);
   const [picking, setPicking] = useState(false);
   const [info, setInfo] = useState<'about' | 'credits' | undefined>(undefined);
   // The title button to focus when the menu comes back from the screen it opened.
@@ -36,9 +46,8 @@ export function GameUI() {
         before: Run;
         flight: HopFlight;
         moment?: FlightMoment;
-        failed: boolean;
-        /** The playback of a Hop to the Heliopause is over (its placeholder report shows). */
-        reachedHeliopause: boolean;
+        /** What follows the playback once it is over. */
+        after?: FlightAfter;
       }
     | undefined
   >(undefined);
@@ -66,6 +75,7 @@ export function GameUI() {
           setLaunching(false);
         }
         if (key === SceneKey.Title) {
+          setBestScore(readBestScore());
           setRunSeed(undefined);
           setRun(undefined);
           setInfo(undefined);
@@ -112,16 +122,22 @@ export function GameUI() {
   useEffect(() => {
     const offs = [
       EventBus.on('hop-flight-started', (before, hop) => {
-        setFlight({ before, flight: hop, failed: false, reachedHeliopause: false });
+        setFlight({ before, flight: hop });
       }),
       EventBus.on('hop-flight-moment', (moment) => {
         setFlight((now) => now && { ...now, moment });
       }),
-      EventBus.on('hop-failed', () => {
-        setFlight((now) => now && { ...now, failed: true });
+      EventBus.on('hop-failed', (_failed, ended) => {
+        // The Run is over: its Score is recorded here, once, whatever the end screen does after.
+        const recorded = recordScore(score(ended));
+        setFlight(
+          (now) =>
+            now && { ...now, after: { kind: 'ended', run: ended, recorded, step: 'report' } },
+        );
       }),
       EventBus.on('hop-reached-heliopause', () => {
-        setFlight((now) => now && { ...now, reachedHeliopause: true });
+        // No Score: the Run is not over, the Jump (#157) takes over from here.
+        setFlight((now) => now && { ...now, after: { kind: 'reached-heliopause' } });
       }),
     ];
     return () => {
@@ -214,12 +230,14 @@ export function GameUI() {
           onCredits={() => {
             setInfo('credits');
           }}
+          best={bestScore}
           focus={focus}
         />
       )}
       {scene === SceneKey.Title && info === 'about' && <AboutPanel onBack={closeInfo} />}
       {scene === SceneKey.Title && info === 'credits' && <CreditsPanel onBack={closeInfo} />}
-      {(scene === SceneKey.Title || (scene === SceneKey.Flight && flight?.failed === true)) &&
+      {(scene === SceneKey.Title ||
+        (scene === SceneKey.Flight && flight?.after?.kind === 'ended')) &&
         picking && (
           <ChassisPicker
             launching={launching}
@@ -267,8 +285,13 @@ export function GameUI() {
           before={flight.before}
           flight={flight.flight}
           moment={flight.moment}
-          failed={flight.failed}
-          reachedHeliopause={flight.reachedHeliopause}
+          after={flight.after}
+          onContinue={() => {
+            // From the failed Hop's report on to the End-of-Run screen.
+            setFlight((now) =>
+              now?.after?.kind === 'ended' ? { ...now, after: { ...now.after, step: 'end' } } : now,
+            );
+          }}
           onNewRun={startNewRun}
           onLeave={leaveRun}
         />

@@ -113,7 +113,7 @@ describe('flying to the Heliopause', () => {
     expect(flight.outcome).toMatchObject({ kind: 'fell-short', burn: 'transfer' });
     expect(flight.burns.map((burn) => burn.status)).toEqual(['completed', 'ran-out']);
     expect(flight.why).toMatch(/Fuel ran out during the Transfer/);
-    expect(next.status).toEqual({ kind: 'ended', outcome: 'fell-short' });
+    expect(next.status).toEqual({ kind: 'ended', end: { kind: 'fell-short', reason: flight.why } });
   });
 
   it('launching to the Heliopause replays from the Run seed', () => {

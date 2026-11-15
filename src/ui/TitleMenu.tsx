@@ -1,5 +1,7 @@
 import { formatBuildLabel } from '../game/lib/buildLabel.ts';
 import { TITLE_PANEL_HEIGHT as PANEL_HEIGHT } from '../game/lib/titleLayout.ts';
+import type { Score } from '../game/sim/index.ts';
+import { formatScore } from './endOfRunView.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 
@@ -15,12 +17,14 @@ interface TitleMenuProps {
   onNewRun: () => void;
   onAbout: () => void;
   onCredits: () => void;
+  /** The Best Score remembered on this device; `undefined` before any Run has ended. */
+  best?: Score | undefined;
   /** Put keyboard focus on a button, e.g. when coming back from the screen it opened. */
   focus?: TitleButton | undefined;
 }
 
 /** Title screen panels: the logo, the New Run, About and Credits actions and the build label. */
-export function TitleMenu({ starting, onNewRun, onAbout, onCredits, focus }: TitleMenuProps) {
+export function TitleMenu({ starting, onNewRun, onAbout, onCredits, best, focus }: TitleMenuProps) {
   return (
     <section className="title-menu" aria-labelledby="title-logo">
       <h1 id="title-logo" className="title-menu__logo">
@@ -59,6 +63,9 @@ export function TitleMenu({ starting, onNewRun, onAbout, onCredits, focus }: Tit
           Credits
         </KitButton>
       </div>
+      <p className="title-menu__best" data-testid="title-best-score">
+        Best Score: {best === undefined ? 'none yet' : formatScore(best)}
+      </p>
       <p className="hud-tag title-menu__build">{formatBuildLabel(BUILD_INFO)}</p>
     </section>
   );

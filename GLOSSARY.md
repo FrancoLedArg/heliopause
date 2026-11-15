@@ -29,7 +29,7 @@ A Run's end when no Hop could have any Success Chance, even after removing every
 _Avoid_: Stuck, softlock
 
 **Score**:
-The number of Star Systems escaped in a Run, with Hops flown as the tie-breaker. The Best Score is the highest one reached on this device.
+The number of Star Systems escaped in a Run, with fewer Hops flown as the tie-breaker. The Best Score is the highest one reached on this device.
 _Avoid_: Points, high score
 
 **Escape**:
