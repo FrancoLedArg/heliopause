@@ -3,12 +3,20 @@ import { EventBus } from '../game/EventBus.ts';
 import { chooseUrlChassis } from '../game/lib/runChassis.ts';
 import { chooseRunSeed } from '../game/lib/runSeed.ts';
 import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
-import { readBestScore } from '../game/lib/bestScore.ts';
-import type { ChassisId, HopFlight, Run, Score, Seed } from '../game/sim/index.ts';
+import { readBestScore, recordScore } from '../game/lib/bestScore.ts';
+import {
+  score,
+  type ChassisId,
+  type HopFlight,
+  type Run,
+  type Score,
+  type Seed,
+} from '../game/sim/index.ts';
 import { SceneKey } from '../game/scenes/keys.ts';
 import type { ChartState } from '../game/scenes/navChartView.ts';
 import { ChassisPicker } from './ChassisPicker.tsx';
 import { FlightHud } from './FlightHud.tsx';
+import type { RecordedScore } from './EndOfRun.tsx';
 import { HopReport } from './HopReport.tsx';
 import { LandedPanels } from './LandedPanels.tsx';
 import { AboutPanel, CreditsPanel } from './InfoPanels.tsx';
@@ -35,7 +43,14 @@ export function GameUI() {
   const [menuOpen, setMenuOpen] = useState(false);
   // The Hop being played back: the Run at Launch, the flight, where the playback is, and whether it failed.
   const [flight, setFlight] = useState<
-    | { before: Run; flight: HopFlight; moment?: FlightMoment; ended?: Run; reportDone?: boolean }
+    | {
+        before: Run;
+        flight: HopFlight;
+        moment?: FlightMoment;
+        ended?: Run;
+        recorded?: RecordedScore;
+        reportDone?: boolean;
+      }
     | undefined
   >(undefined);
 
@@ -115,7 +130,9 @@ export function GameUI() {
         setFlight((now) => now && { ...now, moment });
       }),
       EventBus.on('hop-failed', (_failed, ended) => {
-        setFlight((now) => now && { ...now, ended });
+        // The Run is over: its Score is recorded here, once, whatever the end screen does after.
+        const recorded = recordScore(score(ended));
+        setFlight((now) => now && { ...now, ended, recorded });
       }),
     ];
     return () => {
@@ -263,6 +280,7 @@ export function GameUI() {
           flight={flight.flight}
           moment={flight.moment}
           ended={flight.ended}
+          recorded={flight.recorded}
           reportDone={flight.reportDone === true}
           onContinue={() => {
             setFlight((now) => now && { ...now, reportDone: true });

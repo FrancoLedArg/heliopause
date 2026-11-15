@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { readBestScore, recordScore } from '../game/lib/bestScore.ts';
-import { isBetterScore, runEnd, score, type Run } from '../game/sim/index.ts';
+import { useEffect, useMemo, useRef } from 'react';
+import { runEnd, score, type Run, type Score } from '../game/sim/index.ts';
 import { describeEndOfRun } from './endOfRunView.ts';
 import { trapTab } from './focusTrap.ts';
 import { KitButton } from './kit/KitButton.tsx';
@@ -9,9 +8,17 @@ import './EndOfRun.css';
 
 const PANEL = { width: 392, height: 226 } as const;
 
+/** What recording a finished Run's Score did to the Best Score (see `recordScore`). */
+export interface RecordedScore {
+  readonly best: Score;
+  readonly isNewBest: boolean;
+}
+
 interface EndOfRunProps {
   /** The Run that ended. */
   run: Run;
+  /** The Best Score after this Run's Score was recorded, once, when the Run ended. */
+  recorded: RecordedScore;
   onNewRun: () => void;
   onLeave: () => void;
 }
@@ -21,20 +28,15 @@ interface EndOfRunProps {
  * Run ended and why, the Best Score, and the way on (New Run, or back to the title). How it ended is
  * always text; colour only backs it up. New Run takes focus, and Tab stays inside the screen.
  */
-export function EndOfRun({ run, onNewRun, onLeave }: EndOfRunProps) {
+export function EndOfRun({ run, recorded, onNewRun, onLeave }: EndOfRunProps) {
   const end = runEnd(run);
   const buttons = useRef<HTMLDivElement>(null);
   const finalScore = useMemo(() => score(run), [run]);
-  // Read once when the screen opens: what was the Best Score before this Run?
-  const [previous] = useState(() => readBestScore());
-  const newBest = previous === undefined || isBetterScore(finalScore, previous);
-  const best = newBest ? finalScore : previous;
   useEffect(() => {
-    recordScore(finalScore);
     buttons.current?.querySelector<HTMLButtonElement>('button[data-primary]')?.focus();
-  }, [finalScore]);
+  }, []);
   if (!end) throw new Error('The End-of-Run screen needs a Run that has ended');
-  const view = describeEndOfRun(end, finalScore, best, newBest);
+  const view = describeEndOfRun(end, finalScore, recorded.best, recorded.isNewBest);
 
   return (
     <section
@@ -75,6 +77,7 @@ export function EndOfRun({ run, onNewRun, onLeave }: EndOfRunProps) {
             </dd>
           </div>
         </dl>
+        <p className="end-of-run__rule">{view.rule}</p>
         <div ref={buttons} className="end-of-run__actions">
           <KitButton width={100} onClick={onLeave}>
             Back to title

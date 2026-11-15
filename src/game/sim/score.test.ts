@@ -16,18 +16,18 @@ describe('Score', () => {
     expect(score(inSystem(startRun(5, 'scout'), 1, 7)).hopsFlown).toBe(7);
   });
 
-  it('a Score with more Star Systems escaped is better, however few Hops it took', () => {
+  it('a Score with more Star Systems escaped is better, however many Hops it took', () => {
     const more = { starSystemsEscaped: 2, hopsFlown: 2 };
     const fewer = { starSystemsEscaped: 1, hopsFlown: 40 };
     expect(isBetterScore(more, fewer)).toBe(true);
     expect(isBetterScore(fewer, more)).toBe(false);
   });
 
-  it('with the same Star Systems escaped, more Hops flown breaks the tie', () => {
+  it('fewer Hops breaks a tie in Star Systems escaped', () => {
     const more = { starSystemsEscaped: 1, hopsFlown: 9 };
     const fewer = { starSystemsEscaped: 1, hopsFlown: 4 };
-    expect(isBetterScore(more, fewer)).toBe(true);
-    expect(isBetterScore(fewer, more)).toBe(false);
+    expect(isBetterScore(fewer, more)).toBe(true);
+    expect(isBetterScore(more, fewer)).toBe(false);
   });
 
   it('an equal Score is not better', () => {

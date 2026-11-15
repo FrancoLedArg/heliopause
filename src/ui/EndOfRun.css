@@ -75,6 +75,12 @@
   color: var(--am3);
 }
 
+.end-of-run__rule {
+  margin: 6px 0 0;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--gm5);
+}
+
 .end-of-run__new {
   color: var(--gr3);
 }

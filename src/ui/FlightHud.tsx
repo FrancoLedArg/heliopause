@@ -12,7 +12,7 @@ import {
 import { describeFlight } from './flightHudView.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
-import { EndOfRun } from './EndOfRun.tsx';
+import { EndOfRun, type RecordedScore } from './EndOfRun.tsx';
 import { HopReport } from './HopReport.tsx';
 import { TopBar } from './TopBar.tsx';
 import './FlightHud.css';
@@ -39,6 +39,8 @@ interface FlightHudProps {
   ended: Run | undefined;
   /** The player has read the failed Hop's report and moved on to the End-of-Run screen. */
   reportDone: boolean;
+  /** The Best Score after the ended Run's Score was recorded; present with `ended`. */
+  recorded: RecordedScore | undefined;
   /** Continue from the failed Hop's report to the End-of-Run screen. */
   onContinue: () => void;
   /** New Run after a failure: asks for a Chassis, then a new Star System. */
@@ -57,6 +59,7 @@ export function FlightHud({
   moment,
   ended,
   reportDone,
+  recorded,
   onContinue,
   onNewRun,
   onLeave,
@@ -89,7 +92,7 @@ export function FlightHud({
       ? Math.max(FILL_MIN_WIDTH, Math.round((FUEL_BAR.width - 2 * FUEL_BAR.inset) * view.fuelShare))
       : 0;
 
-  if (ended) {
+  if (ended && recorded) {
     // The Run is over: the End-of-Run screen takes the place of the playback's panels.
     return (
       <>
@@ -101,7 +104,7 @@ export function FlightHud({
           materials={before.materials}
         />
         {reportDone ? (
-          <EndOfRun run={ended} onNewRun={onNewRun} onLeave={onLeave} />
+          <EndOfRun run={ended} recorded={recorded} onNewRun={onNewRun} onLeave={onLeave} />
         ) : (
           <HopReport
             before={before}

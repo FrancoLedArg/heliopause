@@ -1,6 +1,6 @@
 import type { Run, RunEnd } from './run.ts';
 
-/** A Run's Score: Star Systems escaped first, Hops flown as the tie-breaker. */
+/** A Run's Score: Star Systems escaped first, and with those equal, fewer Hops flown is better. */
 export interface Score {
   readonly starSystemsEscaped: number;
   readonly hopsFlown: number;
@@ -14,12 +14,12 @@ export function score(run: Run): Score {
   return { starSystemsEscaped: run.starSystemNumber - 1, hopsFlown: run.hopsFlown };
 }
 
-/** Whether `a` beats `b`: more Star Systems escaped, then more Hops flown. Equal Scores beat nothing. */
+/** Whether `a` beats `b`: more Star Systems escaped, then fewer Hops flown. Equal Scores beat nothing. */
 export function isBetterScore(a: Score, b: Score): boolean {
   if (a.starSystemsEscaped !== b.starSystemsEscaped) {
     return a.starSystemsEscaped > b.starSystemsEscaped;
   }
-  return a.hopsFlown > b.hopsFlown;
+  return a.hopsFlown < b.hopsFlown;
 }
 
 /** How the Run ended; `undefined` while it is still being played. */

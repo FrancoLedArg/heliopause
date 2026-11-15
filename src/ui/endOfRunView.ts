@@ -13,6 +13,8 @@ export interface EndOfRunView {
   readonly best: string;
   /** This Run set the Best Score: said in words, not only by colour. */
   readonly newBest: boolean;
+  /** How Scores are compared, said once on the screen. */
+  readonly rule: string;
 }
 
 /** "2 Star Systems escaped, 5 Hops flown". */
@@ -21,6 +23,9 @@ export function formatScore(score: Score): string {
   const hops = score.hopsFlown === 1 ? 'Hop' : 'Hops';
   return `${String(score.starSystemsEscaped)} ${systems} escaped, ${String(score.hopsFlown)} ${hops} flown`;
 }
+
+/** The Score rule in one line. */
+export const SCORE_RULE = 'More Star Systems escaped wins; fewer Hops breaks a tie.';
 
 const ENDS: Record<RunEnd['kind'], Pick<EndOfRunView, 'title' | 'summary'>> = {
   'fell-short': { title: 'Fell Short', summary: 'The Fuel ran out in flight.' },
@@ -41,5 +46,6 @@ export function describeEndOfRun(
     score: formatScore(score),
     best: formatScore(best),
     newBest,
+    rule: SCORE_RULE,
   };
 }

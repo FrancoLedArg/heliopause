@@ -33,7 +33,7 @@ describe('Best Score', () => {
     expect(readBestScore(storage)).toEqual(first);
   });
 
-  it('is replaced only when the new Score is better', () => {
+  it('a better Score replaces the Best Score', () => {
     const storage = memory();
     const good = { starSystemsEscaped: 2, hopsFlown: 5 };
     recordScore(good, storage);
@@ -41,9 +41,10 @@ describe('Best Score', () => {
       best: good,
       isNewBest: false,
     });
+    expect(recordScore({ starSystemsEscaped: 2, hopsFlown: 6 }, storage).isNewBest).toBe(false);
     expect(recordScore({ ...good }, storage).isNewBest).toBe(false);
     expect(readBestScore(storage)).toEqual(good);
-    const better = { starSystemsEscaped: 2, hopsFlown: 6 };
+    const better = { starSystemsEscaped: 2, hopsFlown: 4 };
     expect(recordScore(better, storage)).toEqual({ best: better, isNewBest: true });
     expect(readBestScore(storage)).toEqual(better);
   });

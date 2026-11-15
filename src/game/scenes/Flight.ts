@@ -525,6 +525,11 @@ export class Flight extends Scene {
         this.drift();
         EventBus.emit('hop-failed', this.flight, this.after);
         return;
+      default: {
+        // A new outcome kind must be handled above: this stops type-checking until it is.
+        const unhandled: never = this.flight.outcome;
+        throw new Error(`Unhandled Hop outcome ${JSON.stringify(unhandled)}`);
+      }
     }
   }
 
