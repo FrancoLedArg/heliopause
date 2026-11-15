@@ -3,15 +3,19 @@ import { FAST_CRUISE } from './cruise.ts';
 import { waitForOpening } from './opening.ts';
 import { firstDetectedBody, startRun } from '../../src/game/sim/index.ts';
 
-// Re-pinned for #189 (was 305): a Run opens knowing one Body, always In reach, so the far Body is
-// the one Comms Detects after the first landing. On seed 1442 that is Korxel, seen from Thosny: a
-// lancer reaches it at a low chance with some Margin, a hauler cannot reach it at all.
-const SEED = 1442;
+// Re-pinned for #189 (was 305): a Run opens knowing one Body, always In reach, so a far Body takes
+// a few landings to find. On seed 179, after the first target Hehaequan, then Dryspraes Tau and
+// Querrelys, the way back to the Starting Moon, Thylthiolhiol, is far: a lancer reaches it at a low
+// chance with some Margin, a hauler cannot reach it at all. Re-pinned for #247 (was seed 1442's
+// Korxel, seen from Thosny): the Chassis Isp rose 30%, so a lancer makes that Hop for sure.
+const SEED = 179;
 const run = startRun(SEED, 'scout');
 const homeMoon = firstDetectedBody(run.starSystem);
-const FAR = 'Korxel';
-/** The other Body known on Thosny: the Starting Moon, Xylxen, a sure Hop for a lancer. */
-const NEAR = 'Xylxen';
+/** The Hops that Arrive on the way, every Chassis alike; the first is the first target. */
+const PATH = ['Hehaequan', 'Dryspraes Tau', 'Querrelys'] as const;
+const FAR = 'Thylthiolhiol';
+/** Another Body known on Querrelys: Lycio, a sure Hop for a lancer. */
+const NEAR = 'Lycio';
 
 async function openNavChart(page: Page, chassis = 'scout'): Promise<void> {
   // The fast Cruise (#246): two tests fly the first Hop before the far Body is known (#189).
@@ -22,15 +26,19 @@ async function openNavChart(page: Page, chassis = 'scout'): Promise<void> {
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
 }
 
-/** A New Run on `chassis` that lands on its first target, then opens the Nav Chart there. */
-async function openNavChartAfterFirstHop(page: Page, chassis: string): Promise<void> {
+/** A New Run on `chassis` that lands on every Body of PATH, then opens the Nav Chart there. */
+async function openNavChartAfterPath(page: Page, chassis: string): Promise<void> {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openNavChart(page, chassis);
-  await target(page, homeMoon.name);
-  await page.getByRole('button', { name: 'Launch' }).click();
-  const report = page.getByRole('dialog', { name: 'Arrived' });
-  await expect(report).toBeVisible({ timeout: 20_000 });
-  await report.getByRole('button', { name: 'Continue' }).click();
+  for (const [i, name] of PATH.entries()) {
+    if (i > 0) await page.getByRole('button', { name: /Nav Chart/ }).click();
+    await target(page, name);
+    await page.getByRole('button', { name: 'Launch' }).click();
+    const report = page.getByRole('dialog', { name: 'Arrived' });
+    await expect(report).toBeVisible({ timeout: 20_000 });
+    await report.getByRole('button', { name: 'Continue' }).click();
+    await expect(report).toBeHidden();
+  }
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
 }
@@ -66,10 +74,10 @@ test('the Hop plan for the first target shows Success Chance, a Δv bar of three
   // One Δv bar, in km/s like the top bar, with a segment for each Burn and the Margin as the gap.
   const bar = page.getByRole('img', { name: /^Δv: / });
   await expect(bar).toHaveAccessibleName(
-    /^Δv: Takeoff \d+\.\d{1,2} km\/s, Transfer \d+\.\d{1,2} km\/s, Landing \d+\.\d{1,2} km\/s\. Needs \d+\.\d{1,2} of 22\.1 km\/s, Margin \+\d+\.\d{1,2} km\/s\.$/,
+    /^Δv: Takeoff \d+\.\d{1,2} km\/s, Transfer \d+\.\d{1,2} km\/s, Landing \d+\.\d{1,2} km\/s\. Needs \d+\.\d{1,2} of 28\.8 km\/s, Margin \+\d+\.\d{1,2} km\/s\.$/,
   );
-  await expect(page.getByTestId('plan-available')).toHaveText('22.1 km/s');
-  await expect(page.getByTestId('delta-v')).toHaveText('22.1 km/s');
+  await expect(page.getByTestId('plan-available')).toHaveText('28.8 km/s');
+  await expect(page.getByTestId('delta-v')).toHaveText('28.8 km/s');
   // The Margin is bigger than the estimate, so it shows plain Δv, with no percentage.
   await expect(page.getByTestId('plan-margin')).toHaveText(/^\+\d+\.\d{1,2} km\/s$/);
   await expect(page.getByRole('img', { name: /^Fuel: 21\.0 t now, / })).toBeVisible();
@@ -101,16 +109,17 @@ test('the Hop plan for the first target shows Success Chance, a Δv bar of three
 test('a far Body has a lower Success Chance, flagged in words when low; Cancel clears and another target updates', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(60_000);
-  await openNavChartAfterFirstHop(page, 'lancer');
+  // Three Hops of playback on a loaded machine.
+  test.setTimeout(120_000);
+  await openNavChartAfterPath(page, 'lancer');
   await target(page, NEAR);
   const nearPercent = await percentOf(page);
 
   await target(page, FAR);
   const farPercent = await percentOf(page);
   expect(farPercent).toBeLessThan(nearPercent);
-  // Seed 1442's Korxel is 61% for the lancer from Thosny: below the low-chance line, with a thin
-  // Margin.
+  // Seed 179's Thylthiolhiol is 57% for the lancer from Querrelys: below the low-chance line, with a
+  // thin Margin.
   await expect(page.getByTestId('plan-warning')).toHaveText('Low chance: may run dry');
   await expect(page.getByTestId('plan-margin')).toHaveText(/^\+\d+\.\d{1,2} km\/s \(\d+%\)$/);
   await testInfo.attach('hop-plan-far', {
@@ -153,8 +162,9 @@ test('Tab reaches Cancel and Launch from the chart, then Tell me more and the "?
 test('a Margin below zero is signed and warned about more strongly than a low chance', async ({
   page,
 }) => {
-  test.setTimeout(60_000);
-  await openNavChartAfterFirstHop(page, 'hauler');
+  // Three Hops of playback on a loaded machine.
+  test.setTimeout(120_000);
+  await openNavChartAfterPath(page, 'hauler');
   await target(page, FAR);
   await expect(page.getByTestId('plan-margin')).toHaveText(/^−\d+\.\d{1,2} km\/s \(\d+%\)$/);
   await expect(page.getByTestId('plan-warning')).toHaveText('Not enough Δv for this Hop');
