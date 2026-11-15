@@ -474,6 +474,24 @@ it('installing a Drill adds its Component art to the drawn Spacecraft, and remov
   expect(removed.pieces.map((p) => p.piece)).not.toContain('drill-1.0.front');
 });
 
+it('keeps every spark and fading art on the Spacecraft through changes in quick succession', async () => {
+  const scene = await landOn(runWith('scout', []));
+  const [art] = scene.spacecraft.objects;
+  if (!(art instanceof GameObjects.Container)) throw new Error('the Spacecraft is not a container');
+  const sparks = () =>
+    art.list.filter((o) => o instanceof GameObjects.Particles.ParticleEmitter).length;
+  act(() => {
+    EventBus.emit('component-install-requested', 2, 'drill-1');
+    EventBus.emit('component-install-requested', 3, 'fuel-tank-1');
+    EventBus.emit('component-remove-requested', 2);
+  });
+  // Both installs' sparks still fly from the Spacecraft, and the removed Drill fades on it.
+  expect(sparks()).toBe(2);
+  expect(drawnImages(scene)).toHaveLength(5);
+  await expect.poll(() => sparks(), { timeout: 3000 }).toBe(0);
+  await expect.poll(() => drawnImages(scene).length, { timeout: 3000 }).toBe(4);
+});
+
 it('pops a new Component art in at its place and fades a removed one out', async () => {
   const scene = await landOn(runWith('lancer', []));
   const count = drawnImages(scene).length;

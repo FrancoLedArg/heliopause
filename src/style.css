@@ -700,13 +700,13 @@ body {
   left: 476px;
 }
 
-/* Left of the Nav Chart button, in the same row: right of the location plate (ends x 296), below the sweep. */
 /* The drawn Spacecraft's text alternative: read, never seen; kept in the corner, off the Spacecraft. */
 .landed-spacecraft-alt {
   top: 0;
   left: 0;
 }
 
+/* Left of the Nav Chart button, in the same row: right of the location plate (ends x 296), below the sweep. */
 .landed-spacecraft-button {
   position: absolute;
   top: 322px;

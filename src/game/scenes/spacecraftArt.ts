@@ -261,19 +261,37 @@ export function addSpacecraftArt(
     return { object: drawPlate(scene, entry.kind, rect), standIn: true };
   };
 
-  /** Lays the current drawing into the container, back to front, with anything fading out kept at its depth. */
-  const arrange = (fading: { object: Drawable; back: boolean }[]): void => {
+  /**
+   * What outlives a recomposition for a moment: art fading out (kept at its depth, behind or in
+   * front of the Chassis art) and the install sparks. Each leaves the set when it is destroyed, so
+   * installs in quick succession never orphan one.
+   */
+  const passing = new Set<{ readonly object: GameObjects.GameObject; readonly back: boolean }>();
+
+  /** Lays the current drawing into the container, back to front, with anything passing kept at its depth. */
+  const arrange = (): void => {
     container.removeAll(false);
     if (standIn) container.add([standIn.art, standIn.lamp]);
-    container.add(fading.filter((f) => f.back).map((f) => f.object));
+    const lingering = [...passing];
+    container.add(lingering.filter((p) => p.back).map((p) => p.object));
     for (const { id } of drawing.layers) {
       const drawn = objects.get(id);
       if (drawn) container.add(drawn.object);
     }
-    container.add(fading.filter((f) => !f.back).map((f) => f.object));
+    container.add(lingering.filter((p) => !p.back).map((p) => p.object));
   };
 
-  const pop = (object: Drawable, rect: Rect): void => {
+  /** Keeps `object` in the container until `destroy` runs, then destroys it. */
+  const linger = (object: GameObjects.GameObject, back: boolean): (() => void) => {
+    const entry = { object, back };
+    passing.add(entry);
+    return () => {
+      passing.delete(entry);
+      object.destroy();
+    };
+  };
+
+  const pop = (id: string, object: Drawable, rect: Rect): void => {
     const centre = { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
     const scaleAboutCentre = (s: number): void => {
       object
@@ -290,7 +308,9 @@ export function addSpacecraftArt(
         scaleAboutCentre(tween.getValue() ?? 1);
       },
       onComplete: () => {
-        place(object, rect);
+        // The art may have moved to another mount point while it popped in: settle where it is now.
+        const now = drawing.layers.find((entry) => entry.id === id);
+        if (now && objects.get(id)?.object === object) place(object, now.layer.rect);
       },
     });
   };
@@ -307,13 +327,11 @@ export function addSpacecraftArt(
     });
     container.add(emitter);
     emitter.explode(SPARKS.count);
-    scene.time.delayedCall(SPARKS.lifespan + 50, () => {
-      emitter.destroy();
-    });
+    scene.time.delayedCall(SPARKS.lifespan + 50, linger(emitter, false));
   };
 
   for (const entry of drawing.layers) objects.set(entry.id, create(entry));
-  arrange([]);
+  arrange();
 
   const show = (next: ShipFrame): void => {
     frame = next;
@@ -337,7 +355,6 @@ export function addSpacecraftArt(
     slots = next;
     drawing = compose();
     const kept = new Set(drawing.layers.map((l) => l.id));
-    const fading: { object: Drawable; back: boolean }[] = [];
     for (const old of before.layers) {
       const drawn = objects.get(old.id);
       if (kept.has(old.id) || !drawn) continue;
@@ -346,14 +363,11 @@ export function addSpacecraftArt(
         drawn.object.destroy();
         continue;
       }
-      fading.push({ object: drawn.object, back: old.back });
       scene.tweens.add({
         targets: drawn.object,
         alpha: 0,
         duration: FADE_MS,
-        onComplete: () => {
-          drawn.object.destroy();
-        },
+        onComplete: linger(drawn.object, old.back),
       });
     }
     const added = new Set<number>();
@@ -369,10 +383,10 @@ export function addSpacecraftArt(
       }
       const created = create(entry);
       objects.set(entry.id, created);
-      if (!reducedMotion) pop(created.object, entry.layer.rect);
+      if (!reducedMotion) pop(entry.id, created.object, entry.layer.rect);
       if (entry.layer.slot !== null) added.add(entry.layer.slot);
     }
-    arrange(fading);
+    arrange();
     if (!reducedMotion) {
       for (const slot of added) {
         const centre = drawing.components.get(slot)?.anchors.centre;
