@@ -18,6 +18,7 @@ import {
   type HopFlight,
   type Run,
 } from '../sim/index.ts';
+import { DEBRIS_FIELD, debrisRocks } from './debrisField.ts';
 import { createDamageMarks, repairClickAt, type DamageMarks } from './damageMarks.ts';
 import {
   advancePlayback,
@@ -263,6 +264,10 @@ const EXPLOSION = { frames: 8, frameMs: 70, scale: 2 } as const;
 const DEBRIS_COUNT = 14;
 /** How many different chunks the debris art has. */
 const DEBRIS_CHUNKS = 6;
+/** The Debris fields' rocks kept ready: two fields at most in a Cruise. */
+const ROCK_POOL = 2 * DEBRIS_FIELD.rocks;
+/** The Cruise's rocks are drawn this big, so they read at 640x360. */
+const ROCK_SCALE = 2;
 /** Where a Spacecraft that Fell Short in the Transfer drifts to, right of the report. */
 const DRIFT_REST = { x: 470, y: 160 } as const;
 
@@ -374,6 +379,8 @@ export class Flight extends Scene {
    * Debris fields (#197) add their pieces here and pose them from the Cruise clock in `cruise`.
    */
   eventLayer!: GameObjects.Container;
+  /** The Debris fields' rocks (#252), pooled in the event layer: a fixed few per field. */
+  private rocks: (GameObjects.Image | GameObjects.Rectangle)[] = [];
   /** The Cruise's star layers, far to near, each drifting at its own pace. */
   private starLayers: GameObjects.TileSprite[] = [];
   private glint!: GameObjects.Image;
@@ -446,6 +453,14 @@ export class Flight extends Scene {
     this.puffColors = { departure: departurePuff, arrival: atTarget?.puffColor };
     const space = this.buildSpace();
     this.eventLayer = this.add.container(0, 0).setScrollFactor(0);
+    this.rocks = Array.from({ length: ROCK_POOL }, () => {
+      const rock = hasAsset('fx_debris')
+        ? this.add.image(0, 0, 'fx_debris', 'chunk_0').setScale(ROCK_SCALE)
+        : this.add.rectangle(0, 0, 6, 6, paletteNumber('wh1'));
+      rock.setVisible(false);
+      this.eventLayer.add(rock);
+      return rock;
+    });
     const approach = this.buildApproach();
     this.shadow = this.add.ellipse(
       SHIP_PLACEMENT.x,
@@ -604,6 +619,35 @@ export class Flight extends Scene {
       case 'destroyed':
         throw new Error('An Engine fire in the Cruise arrives with #251');
     }
+  }
+
+  /**
+   * The Debris fields (#252) of the Cruise at Cruise tick `now`: the live schedule while the Cruise
+   * runs, the struck events once it has settled. A hit aims at its Component, a miss at the Spacecraft.
+   */
+  private drawDebris(now: number): void {
+    const status = this.live?.status;
+    const fields = (
+      status?.kind === 'cruising' ? status.cruise.schedule : this.flight.cruiseEvents
+    ).filter((event) => event.kind === 'debris-field');
+    const bounds = this.componentBounds();
+    let used = 0;
+    for (const field of fields) {
+      const rect = field.slot === null ? undefined : bounds.get(field.slot);
+      const target = rect
+        ? { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }
+        : { x: this.ship.x, y: this.ship.y };
+      for (const pose of debrisRocks(field.tick, now, target, rect !== undefined)) {
+        const rock = this.rocks[used++];
+        if (!rock) break;
+        if ('setFrame' in rock) rock.setFrame(`chunk_${String(pose.chunk % DEBRIS_CHUNKS)}`);
+        rock
+          .setPosition(Math.round(pose.x), Math.round(pose.y))
+          .setAngle(pose.angle)
+          .setVisible(true);
+      }
+    }
+    for (const rock of this.rocks.slice(used)) rock.setVisible(false);
   }
 
   /** The live Cruise changed: a new event drops the fast-forward (#210), and the HUD follows. */
@@ -811,6 +855,7 @@ export class Flight extends Scene {
     this.puff(live);
     if (this.live) this.marks.show(this.live, this.componentBounds(), ms);
     else this.marks.hide();
+    this.drawDebris(((ms - window.start) / window.length) * CRUISE_TUNING.ticks);
 
     // How far the stars have drifted: faster through the boost, slowing to a crawl once the engine died.
     const travel = flown + BOOST_GAIN * Math.min(flown, CRUISE_BOOST_MS) + since * 0.15;

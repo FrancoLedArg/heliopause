@@ -1284,4 +1284,62 @@ describe('the live Cruise (#250)', () => {
     expect(scene.live?.spacecraft.damage[fuelTank]).toBeNull();
     expect(scene.live?.materials).toBeLessThan(materialsBefore);
   });
+
+  it.each([
+    { name: 'hit', hits: true },
+    { name: 'miss', hits: false },
+  ])(
+    'a Debris field that must $name drifts in, and Damages the Tank only on a hit (#252)',
+    async ({ hits }) => {
+      host = document.createElement('div');
+      document.body.append(host);
+      root = createRoot(host);
+      const titleReady = nextSceneReady(SceneKey.Title);
+      act(() => {
+        root?.render(
+          <div className="stage" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }}>
+            <div id="flight-test-game" />
+            <div className="stage__ui">
+              <GameUI />
+            </div>
+          </div>,
+        );
+      });
+      game = startGame('flight-test-game');
+      await titleReady;
+      const run = onHome(startRun(2026, 'scout'));
+      const target = homeMoonId(run);
+      if (target === undefined) throw new Error('No target');
+      const fuelTank = run.spacecraft.slots.findIndex((id) => id === 'fuel-tank-1');
+      const begun = beginHop(run, target, {
+        schedule: [{ kind: 'debris-field', tick: 100, slot: hits ? fuelTank : null }],
+      });
+      if (begun.kind === 'invalid-target') throw new Error('Not a Hop target');
+      const ready = nextSceneReady(SceneKey.Flight);
+      game.scene.start(SceneKey.Flight, flightDataFor(run, begun));
+      await ready;
+      const scene = game.scene.getScene<Flight>(SceneKey.Flight);
+      const cruise = scene.playback.cruise;
+      if (!cruise) throw new Error('Expected a Cruise');
+      const rocksShown = () =>
+        scene.eventLayer.list.filter((rock) => (rock as { visible?: boolean }).visible).length;
+
+      // Tick 100 is 10 s into the Cruise: 2 s before it the field is already in view, nothing struck.
+      act(() => {
+        scene.seek(cruise.start + 8_000);
+      });
+      expect(rocksShown()).toBeGreaterThan(0);
+      expect(scene.live?.spacecraft.damage[fuelTank]).toBeNull();
+      act(() => {
+        scene.seek(cruise.start + 10_050);
+      });
+      expect(rocksShown()).toBeGreaterThan(0);
+      expect(scene.live?.spacecraft.damage[fuelTank] !== null).toBe(hits);
+      // Long after, the field has drifted off.
+      act(() => {
+        scene.seek(cruise.start + 20_000);
+      });
+      expect(rocksShown()).toBe(0);
+    },
+  );
 });
