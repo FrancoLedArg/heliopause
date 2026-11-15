@@ -1,6 +1,8 @@
 import { Core, Sound, type Game } from 'phaser';
 import { EventBus } from '../EventBus.ts';
 import type { Shot } from '../scenes/flightPlayback.ts';
+import type { Run } from '../sim/index.ts';
+import { cruiseCues } from './cruiseSfx.ts';
 import { sfx as defaultSfx, type Sfx, type SfxPlayer } from './sfx.ts';
 import { RECIPES } from './sfxRecipes.ts';
 
@@ -65,10 +67,20 @@ function synthPlayer(context: AudioContext, destination: AudioNode): SfxPlayer {
 export function wireSfx(target: Sfx): () => void {
   let shot: Shot | undefined;
   let touchedDown = false;
+  let cruise: Run | undefined;
   const offs = [
     EventBus.on('hop-flight-started', () => {
       shot = undefined;
       touchedDown = false;
+      cruise = undefined;
+    }),
+    // Cruise events: a strike, a Repair beginning or finishing, a Rush (#264).
+    EventBus.on('cruise-updated', (run) => {
+      if (cruise) for (const cue of cruiseCues(cruise, run)) target.play(cue);
+      cruise = run;
+    }),
+    EventBus.on('hop-flight-settled', () => {
+      cruise = undefined;
     }),
     EventBus.on('hop-flight-moment', (moment) => {
       if (moment.shot !== shot) {
