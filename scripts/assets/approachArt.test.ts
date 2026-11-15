@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { SPRITE_PREFIX, VARIANTS as BODY_VARIANTS } from '../../src/game/scenes/landedView.ts';
 
 // Seam: the committed Approach art as the game sees it, through manifest.json and the PNGs.
 const ASSETS = new URL('../../public/assets/', import.meta.url);
@@ -7,12 +8,10 @@ const APPROACH_SIZE = 256;
 const PNG_SIGNATURE = '89504e470d0a1a0a';
 const RGBA_COLOUR_TYPE = 6;
 
-/** Every Body variant's small sprite key: 4 rocky planets, 3 gas giants, 4 Moons (the star and the Heliopause have no Approach). */
-const VARIANTS = [
-  ...[0, 1, 2, 3].map((n) => `body_rocky_${n}`),
-  ...[0, 1, 2].map((n) => `body_gas_${n}`),
-  ...[0, 1, 2, 3].map((n) => `body_moon_${n}`),
-];
+/** Every Body variant's small sprite key, from the game data (the star and the Heliopause have no Approach). */
+const VARIANTS = (Object.keys(BODY_VARIANTS) as (keyof typeof BODY_VARIANTS)[]).flatMap((kind) =>
+  Array.from({ length: BODY_VARIANTS[kind] }, (_, n) => `${SPRITE_PREFIX[kind]}${n}`),
+);
 
 const manifest = JSON.parse(
   readFileSync(new URL('../../src/game/assets/manifest.json', import.meta.url), 'utf8'),

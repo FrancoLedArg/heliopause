@@ -316,7 +316,12 @@ def rocky(kind, size=24):
 
         def f(x, y, l, nx, ny):
             k = ramp_pick(ramp, l, CUTS5)
-            if ny < -0.82 and l > 0.25:
+            if size != 24:
+                # Approach art: a curved cap that follows the limb, with a ragged lower edge, in one colour.
+                reach = 0.62 + 0.05 * math.sin(nx * 21.0 + 1.0) + 0.035 * math.sin(nx * 47.0)
+                if math.hypot(nx + 0.08, ny + 1.22) < reach:
+                    return "wh2"
+            elif ny < -0.82 and l > 0.25:
                 return "rd4" if l > 0.6 else "wh1"
             band = math.sin(nx * 4.0 + ny * 6.5) + 0.6 * math.sin(nx * 9 - ny * 3)
             if band > 0.95 and k not in ("rd0",):
