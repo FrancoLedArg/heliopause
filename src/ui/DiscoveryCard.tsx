@@ -88,10 +88,12 @@ export function DiscoveryCard({ reveal, starSystem, waiting, onContinue }: Disco
           <TellMeMoreToggle className="discovery-card__more" />
           <DisclosurePanel className="discovery-card__details">
             <p>{entry.tellMore}</p>
-            <p className="discovery-card__place">{entry.place}</p>
-            <a href={entry.source} target="_blank" rel="noopener noreferrer">
-              Source: NASA
-            </a>
+            <p className="discovery-card__place">
+              {entry.place} ·{' '}
+              <a href={entry.source} target="_blank" rel="noopener noreferrer">
+                Source: NASA
+              </a>
+            </p>
           </DisclosurePanel>
         </Disclosure>
         <div ref={button} className="discovery-card__actions">
