@@ -9,6 +9,8 @@ export {
   startRun,
   STARTING_MATERIALS,
 } from './run.ts';
+export { CHOICE_LOG_VERSION, parseChoiceLog, storedChoiceLog } from './choiceLog.ts';
+export type { Choice, ChoiceLog, StoredChoiceLog } from './choiceLog.ts';
 export { collectYield, isDepleted } from './gather.ts';
 export type { Collection, Landing } from './gather.ts';
 export { install, standingRefusal } from './install.ts';
@@ -17,6 +19,8 @@ export { preview } from './preview.ts';
 export type { Preview, ProposedChange } from './preview.ts';
 export { remove } from './remove.ts';
 export type { RemoveRefusal, RemoveResult } from './remove.ts';
+export { replay } from './replay.ts';
+export type { ReplayResult } from './replay.ts';
 export type { Run, RunEnd, RunStatus } from './run.ts';
 export { isBetterScore, runEnd, score } from './score.ts';
 export type { Score } from './score.ts';
