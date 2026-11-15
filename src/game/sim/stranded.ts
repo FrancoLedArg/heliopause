@@ -1,13 +1,15 @@
 // Stranded: the Run's end when no Hop could have any Success Chance, even after removing every
 // removable Component, and the warning while a change to the Spacecraft could still save the Run.
+import type { Rng } from '../lib/rng.ts';
 import type { ComponentId } from './catalogue.ts';
-import { formatDeltaV, HELIOPAUSE, leastDeltaV, planHop, type HopTarget } from './hop.ts';
+import { DISPERSION } from './data.ts';
+import { flyHop, formatDeltaV, HELIOPAUSE, leastDeltaV, planHop, type HopTarget } from './hop.ts';
 import { installRefusal, withInstalled, type Outfit } from './install.ts';
 import { removalRefusal, withRemoved } from './remove.ts';
 import { currentBody, type Run } from './run.ts';
 import { availableDeltaV, carriesJumpDrive, type Spacecraft } from './spacecraft.ts';
-import { deepFreeze, listBodies } from './starSystem.ts';
-import { metersPerSecond } from './units.ts';
+import { deepFreeze, findBody, listBodies } from './starSystem.ts';
+import { metersPerSecond, type MetersPerSecond } from './units.ts';
 
 /**
  * Whether the Spacecraft can still Hop from the Body it is on. `clear`: some Hop has a Success
@@ -17,7 +19,14 @@ import { metersPerSecond } from './units.ts';
 export type Stranding =
   | { readonly kind: 'clear' }
   | { readonly kind: 'warning'; readonly warning: string }
-  | { readonly kind: 'stranded'; readonly reason: string };
+  | {
+      readonly kind: 'stranded';
+      readonly reason: string;
+      /** The most Δv any Spacecraft the player could build here has. */
+      readonly deltaV: MetersPerSecond;
+      /** The least Δv that gives the cheapest Hop to a Body any chance: more than `deltaV`. */
+      readonly cheapestHop: MetersPerSecond;
+    };
 
 const CLEAR: Stranding = { kind: 'clear' };
 
@@ -49,6 +58,59 @@ export function endIfStranded(run: Run): Run {
   if (verdict.kind !== 'stranded') return run;
   const end = { kind: 'stranded', reason: verdict.reason, bodyId: run.status.bodyId } as const;
   return deepFreeze({ ...run, status: { kind: 'ended', end } });
+}
+
+/** A Hop whose arrival would leave the Run Stranded: what the Hop plan warns of before Launch. */
+export interface StrandedArrival {
+  /** Plain language, for the player: where, the Δv leaving would need, and the most there would be. */
+  readonly warning: string;
+}
+
+/** Every Burn at exactly its estimate: the draw that makes the dispersion factor 1. */
+const AT_ESTIMATE: Rng = {
+  next: () => (1 - DISPERSION.min) / (DISPERSION.max - DISPERSION.min),
+  int: () => {
+    throw new Error('A Hop flown at its estimate draws no integers');
+  },
+};
+
+const arrivals = new WeakMap<Run, Map<HopTarget, StrandedArrival | undefined>>();
+
+/**
+ * Whether a Hop to `target` would leave the Run Stranded: flies it at its estimate (no dispersion),
+ * collects the yield, and asks `assessStranding` of the Body it lands on. Undefined when it would
+ * not, when the estimate does not even get there (the plan already says so), when the target cannot
+ * be chosen, and always for the Heliopause, where arriving means a Jump. A warning, not a rule: the
+ * Hop can still be launched. Kept per Run and target, so the plan and the chart can ask on every
+ * render. Throws for a Run that is on no Body.
+ */
+export function strandsOnArrival(run: Run, target: HopTarget): StrandedArrival | undefined {
+  let known = arrivals.get(run);
+  if (!known) {
+    known = new Map();
+    arrivals.set(run, known);
+  }
+  if (known.has(target)) return known.get(target);
+  const arrival = arriveAtEstimate(run, target);
+  known.set(target, arrival);
+  return arrival;
+}
+
+function arriveAtEstimate(run: Run, target: HopTarget): StrandedArrival | undefined {
+  if (target === HELIOPAUSE) return undefined;
+  const planned = planHop(run, target);
+  if (planned.kind !== 'planned') return undefined;
+  const flown = flyHop(run, planned.plan, AT_ESTIMATE).run;
+  if (flown.status.kind !== 'ended' || flown.status.end.kind !== 'stranded') return undefined;
+  // The Run as it landed, before its end: its verdict holds the figures the warning names.
+  const landed: Run = { ...flown, status: { kind: 'landed', bodyId: target } };
+  const verdict = assessStranding(landed);
+  if (verdict.kind !== 'stranded') throw new Error(`Arrival on ${target} ended a saveable Run`);
+  const [have, needs] = distinct(verdict.deltaV, verdict.cheapestHop);
+  const name = findBody(run.starSystem, target)?.name ?? target;
+  return {
+    warning: `You'd be Stranded on ${name}: leaving needs at least ${needs} and you'd have at most ${have}.`,
+  };
 }
 
 /** Throws for a Run that has ended: it takes no more choices (a programmer error, or a forged log). */
@@ -103,6 +165,8 @@ function assess(run: Run): Stranding {
       return {
         kind: 'stranded',
         reason: strandedWhy(best, bodyNeed, heliopauseNeed, bestWithJumpDrive),
+        deltaV: metersPerSecond(best),
+        cheapestHop: metersPerSecond(bodyNeed),
       };
   }
 }
