@@ -8,20 +8,19 @@ import {
   findBody,
   marginShare,
   metersPerSecond,
-  type Burn,
   type BurnResult,
   type HopFlight,
   type MetersPerSecond,
   type Run,
 } from '../game/sim/index.ts';
-import { formatFuel, formatMarginShare, formatPlanDeltaV as formatDeltaV } from './format.ts';
+import { BURN_LABEL, deltaVBar, type DeltaVBarBurn, type DeltaVBarView } from './deltaVBarView.ts';
+import {
+  formatDeltaVKmS as formatDeltaV,
+  formatFuel,
+  formatMarginShare,
+  kmPerSecondFigure,
+} from './format.ts';
 import type { YieldResource } from './yieldIcon.ts';
-
-const BURN_LABEL: Record<Burn, string> = {
-  takeoff: 'Takeoff',
-  transfer: 'Transfer',
-  landing: 'Landing',
-};
 
 export interface ReportRow {
   readonly label: string;
@@ -50,28 +49,29 @@ export interface ReportGain {
 
 export interface ReportView {
   readonly title: 'Arrived' | 'Reached the Heliopause' | 'Fell Short' | 'Crashed';
-  /** One line saying what happened, before the table. */
-  readonly headline: string;
+  /** Each Burn's estimate against its actual Δv, as the bar draws them (a Burn that never flew is left out). */
+  readonly bar: DeltaVBarView;
+  /** The Burn table, behind "Tell me more". */
   readonly rows: readonly ReportRow[];
-  /** The Margin left after the Hop, or that none was left. */
+  /** The Margin left after the Hop, or that none was left; behind "Tell me more". */
   readonly margin: string;
   /** The icon row: what landing gathered. Empty when nothing came aboard (a Depleted Body, a failed Hop). */
   readonly gains: readonly ReportGain[];
-  /** The ice-to-propellant line, the first time the Run collects Fuel. */
-  readonly note?: string;
-  /** The simulation's explanation, as written. */
+  /** The real-missions fact (ice to propellant), the first time the Run collects Fuel; behind "Tell me more". */
+  readonly fact?: string;
+  /** The one line the report shows: why the Hop ended as it did, a single sentence. */
   readonly why: string;
+  /** What happened, the simulation's first sentence ("Fuel ran out during the Transfer."); behind "Tell me more". */
+  readonly outcomeLine?: string;
 }
 
 /** What the report shows for `flight`, flown from the Run `before`. */
 export function describeReport(before: Run, flight: HopFlight): ReportView {
   const { outcome } = flight;
   const { plan } = flight;
-  const targetName =
-    plan.destination === 'body'
-      ? (findBody(before.starSystem, plan.toId)?.name ?? plan.toId)
-      : 'the Heliopause';
   const rows = flight.burns.map(row);
+  const bar = deltaVBar(flown(flight.burns), plan.availableDeltaV, { verb: 'Used' });
+  const { why, outcomeLine } = splitWhy(flight);
   const { margin } = flight.plan;
   // The same minus sign the Hop plan uses.
   const share = formatMarginShare(marginShare(flight.plan));
@@ -80,43 +80,80 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
     case 'arrived':
       return {
         title: 'Arrived',
-        headline: `Landed on ${targetName}.`,
+        bar,
         rows,
         margin: `Margin left: ${formatDeltaV(flight.deltaVRemaining)} of Δv (${planned})`,
         gains: gains(flight.collection, drillMultiplier(before.spacecraft)),
         ...(flight.collection?.kind === 'fuel' &&
-          !hadFuelBefore(before) && { note: FUEL_NOTE.text }),
-        why: flight.why,
+          !hadFuelBefore(before) && { fact: FUEL_NOTE.text }),
+        why,
+        ...(outcomeLine !== undefined && { outcomeLine }),
       };
     // The game plays the Jump instead of this report; kept so every outcome has one.
     case 'reached-heliopause':
       return {
         title: 'Reached the Heliopause',
         gains: [],
-        headline: 'The Spacecraft reached the edge of the Star System.',
+        bar,
         rows,
         margin: `Margin left: ${formatDeltaV(flight.deltaVRemaining)} of Δv (${planned})`,
-        why: flight.why,
+        why,
+        ...(outcomeLine !== undefined && { outcomeLine }),
       };
     case 'fell-short':
       return {
         title: 'Fell Short',
         gains: [],
-        headline: `Fuel ran out during the ${BURN_LABEL[outcome.burn]}, short by ${formatDeltaV(outcome.shortfall)}.`,
+        bar,
         rows,
         margin: `Margin: none left (${planned})`,
-        why: flight.why,
+        why,
+        ...(outcomeLine !== undefined && { outcomeLine }),
       };
     case 'crashed':
       return {
         title: 'Crashed',
         gains: [],
-        headline: `The Transfer succeeded, but the Landing lacked ${formatDeltaV(outcome.shortfall)} of Δv.`,
+        bar,
         rows,
         margin: `Margin: none left (${planned})`,
-        why: flight.why,
+        why,
+        ...(outcomeLine !== undefined && { outcomeLine }),
       };
   }
+}
+
+/** The Burns the bar draws: each with what it cost, the Burn that ran out with what the Fuel gave it. */
+function flown(burns: readonly BurnResult[]): DeltaVBarBurn[] {
+  return burns.flatMap((result): DeltaVBarBurn[] => {
+    switch (result.status) {
+      case 'completed':
+        return [{ burn: result.burn, estimate: result.estimated, actual: result.actual }];
+      case 'ran-out':
+        return [{ burn: result.burn, estimate: result.estimated, actual: result.delivered }];
+      case 'not-flown':
+        return [];
+    }
+  });
+}
+
+/**
+ * The report's one why line, and what waits behind "Tell me more". An Arrived or Heliopause Hop drops
+ * the simulation's first sentence (it repeats the title and bar) and keeps the rest. A failed Hop
+ * names the Burn that ran out and by how much, from the flight's own figures, and keeps the whole
+ * explanation behind the toggle.
+ */
+function splitWhy(flight: HopFlight): { why: string; outcomeLine?: string } {
+  const { outcome } = flight;
+  if (outcome.kind === 'fell-short' || outcome.kind === 'crashed') {
+    const burn = outcome.kind === 'crashed' ? 'landing' : outcome.burn;
+    return {
+      why: `Fuel ran out in the ${BURN_LABEL[burn]}: Δv short by ${formatDeltaV(outcome.shortfall)}.`,
+      outcomeLine: flight.why,
+    };
+  }
+  const [first = flight.why, ...rest] = flight.why.split(/(?<=[.!?])\s+/);
+  return rest.length > 0 ? { why: rest.join(' '), outcomeLine: first } : { why: first };
 }
 
 function row(result: BurnResult): ReportRow {
@@ -142,9 +179,9 @@ function row(result: BurnResult): ReportRow {
   }
 }
 
-/** "13,889 of 14,311 m/s": what the last Fuel gave of what the Burn needed, the unit said once. */
+/** "13.9 of 14.3 km/s": what the last Fuel gave of what the Burn needed, the unit said once. */
 function deliveredOf(delivered: MetersPerSecond, needed: MetersPerSecond): string {
-  return `${formatDeltaV(delivered).replace(' m/s', '')} of ${formatDeltaV(needed)}`;
+  return `${kmPerSecondFigure(delivered)} of ${formatDeltaV(needed)}`;
 }
 
 /** A change as a whole signed percentage: "+2%", "−4%", "±0%". */
