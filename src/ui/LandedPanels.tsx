@@ -7,8 +7,10 @@ import {
 } from '../game/sim/index.ts';
 import { useEffect, useRef } from 'react';
 import { EventBus } from '../game/EventBus.ts';
+import { SHIP_PLACEMENT, SHIP_SWEEP } from '../game/scenes/landedView.ts';
 import type { GatheringReadout } from '../game/scenes/gathering.ts';
 import { bodyFullLabel, formatDistanceAu, formatGravity } from './format.ts';
+import { FuelGauge } from './FuelGauge.tsx';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import { ResourceIcon } from './ResourceIcon.tsx';
@@ -16,6 +18,11 @@ import { describeSpacecraft } from './spacecraftPanelView.ts';
 import { yieldIcon } from './yieldIcon.ts';
 import { TopBar } from './TopBar.tsx';
 
+/**
+ * The Fuel tank against the Spacecraft's flank: standing on the ship's base line, its right edge a small gap
+ * left of everything the ship sweeps (the ship drifts, so it can't touch), under the Fuel icon.
+ */
+const FUEL_TANK = { width: 16, height: 72, iconRow: 24, gap: 4 } as const;
 const PLATE_WIDTH = 284;
 const PLATE_HEIGHT = 62;
 /** The Stranded warning: as wide as the plate, tall enough for its heading and three lines of advice. */
@@ -95,6 +102,7 @@ export function LandedPanels({
         systemNumber={starSystemNumber(run)}
         systemName={run.starSystem.name}
         fuel={spacecraft.fuelMass}
+        fuelCapacity={spacecraft.fuelCapacity}
         deltaV={availableDeltaV(spacecraft)}
         materials={materials}
         dailyDay={dailyDay}
@@ -151,6 +159,29 @@ export function LandedPanels({
               {formatDistanceAu(body.distanceFromStar)} from the star
             </p>
           </section>
+          <div
+            className="landed-fuel-tank"
+            style={{
+              left: SHIP_SWEEP.left - FUEL_TANK.gap - FUEL_TANK.width,
+              top: SHIP_PLACEMENT.baseY - FUEL_TANK.height - FUEL_TANK.iconRow,
+              width: FUEL_TANK.width,
+              height: FUEL_TANK.height + FUEL_TANK.iconRow,
+            }}
+          >
+            <ResourceIcon
+              resource="fuel"
+              size={FUEL_TANK.width}
+              className="landed-fuel-tank__icon"
+              testId="spacecraft-fuel-icon"
+            />
+            <FuelGauge
+              fuel={spacecraft.fuelMass}
+              capacity={spacecraft.fuelCapacity}
+              shape="tank"
+              testId="spacecraft-fuel-gauge"
+              className="landed-fuel-meter"
+            />
+          </div>
           <div ref={spacecraftSlot} className="landed-spacecraft-button">
             <KitButton width={116} onClick={onOpenSpacecraft}>
               Spacecraft
