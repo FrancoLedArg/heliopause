@@ -121,7 +121,7 @@ The Component that Detects every Body within its range, and at level 2 also Surv
 _Avoid_: Sensor, scanner, telescope
 
 **Comms**:
-The Spacecraft's built-in communications system, not a Component: after every landing it Detects the nearest landable Body not yet Detected.
+The Spacecraft's built-in communications system, not a Component: after every landing it Detects the nearest landable Body not yet Detected. When no Fuel source is Detected and In reach, it Detects the nearest Fuel source In reach instead, if there is one (the Fuel lifeline).
 _Avoid_: Radio, antenna, beacon
 
 **Damaged**:
@@ -163,6 +163,14 @@ _Avoid_: Delta-V, dv, thrust, range
 **Success Chance**:
 The probability, shown before launch, that the Spacecraft's Fuel covers the actual Δv of every Burn in a Hop, for the Spacecraft as it stands at launch; Cruise events are not included.
 _Avoid_: Odds, risk, probability
+
+**In reach**:
+A Body a Hop from where the Spacecraft is landed reaches with a Success Chance above 0%, with the Fuel on board.
+_Avoid_: Reachable, in range
+
+**Fuel source**:
+An Icy Body that has not been Depleted in this Run. Generation makes sure one is In reach after the first Hop.
+_Avoid_: Fuel station, refuel point
 
 **Margin**:
 The Δv left over after a Hop's Burns; spare capacity against Burns costing more than estimated.
