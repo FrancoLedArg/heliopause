@@ -283,6 +283,8 @@ describe.each(['full', 'reduced'] as const)('the Jump, at %s motion', (pace) => 
     // The Landed view's own composition, as a New Run on that Body opens on: nothing jumps into place.
     const view = game?.scene.getScene<Landed>(SceneKey.Landed);
     if (!view) throw new Error('no Landed view');
+    // The ambient drift starts at once at full motion: compare at its rest, where it begins.
+    view.ambient.seekDrift(0);
     expect(view.cameras.main.scrollX).toBe(0);
     expect(view.cameras.main.scrollY).toBe(0);
     expect(view.layers.ground.y).toBe(SHIP_PLACEMENT.baseY);
