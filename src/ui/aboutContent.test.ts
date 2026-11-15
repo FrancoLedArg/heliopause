@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { COMPONENTS } from '../game/sim/catalogue.ts';
 import { FUEL_NOTE, ICE_LINE, SOURCED_CONSTANTS, SOURCED_RANGES } from '../game/sim/data.ts';
-import { ABOUT, CREDITS, type ContentLink } from './aboutContent.ts';
+import { SLOT_COUNT } from '../game/sim/spacecraft.ts';
+import { ABOUT, CREDITS, HOW_TO_PLAY, KIND_NAMES, type ContentLink } from './aboutContent.ts';
 
 /** Every URL the simulation data cites in a `source` field or a Component's sourced provenance. */
 function citedUrls(): Set<string> {
@@ -116,5 +117,51 @@ describe('About and Credits content', () => {
 
   it('shows no NASA logo, insignia or image in any credit', () => {
     expect(JSON.stringify(CREDITS)).not.toMatch(/\.(png|svg|jpg)|insignia|meatball|worm/i);
+  });
+});
+
+describe('How to play', () => {
+  const text = (): string => JSON.stringify(HOW_TO_PLAY.steps);
+
+  it('names every Component kind in the catalogue', () => {
+    const kinds = new Set(Object.values(COMPONENTS).map((c) => c.kind));
+    expect(kinds.size).toBeGreaterThan(0);
+    for (const kind of kinds) expect(text()).toContain(KIND_NAMES[kind]);
+  });
+
+  it("states the Spacecraft's Slot count from the data", () => {
+    expect(text()).toContain(`${String(SLOT_COUNT)} Slots`);
+  });
+
+  it('has the eight steps in order, each a heading and one or two sentences', () => {
+    expect(HOW_TO_PLAY.steps.map((s) => s.heading)).toEqual([
+      'Goal',
+      'The opening',
+      'Hop',
+      'Gather',
+      'Build',
+      'The end',
+      'Score',
+      'Keys',
+    ]);
+    for (const step of HOW_TO_PLAY.steps) {
+      expect(step.body.length).toBeGreaterThanOrEqual(1);
+      expect(step.body.length).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it('uses the glossary words for the Hop, the end and the Score', () => {
+    for (const word of [
+      'Success Chance',
+      'Margin',
+      'Stranded',
+      'Fell Short',
+      'Crashed',
+      'Depleted',
+      'Daily Star System',
+      'Heliopause',
+      'Jump Drive',
+    ])
+      expect(text()).toContain(word);
   });
 });

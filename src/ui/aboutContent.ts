@@ -1,3 +1,6 @@
+import { COMPONENTS, type ComponentKind } from '../game/sim/catalogue.ts';
+import { SLOT_COUNT } from '../game/sim/spacecraft.ts';
+
 /**
  * Everything the About and Credits screens say, in one place so the team can edit text, links and
  * the team list without touching the components. Text only: no NASA logos, insignia or mission
@@ -261,6 +264,87 @@ export const CREDITS: {
           'Every figure we use, with its source',
           `${REPO_BLOB}/docs/research/`,
         ),
+      ],
+    },
+  ],
+  back: 'Back',
+};
+
+/** How the player reads each Component kind; keyed by the catalogue's kinds so a new kind fails to typecheck here. */
+export const KIND_NAMES: Record<ComponentKind, string> = {
+  engine: 'Engine',
+  'fuel-tank': 'Fuel Tank',
+  drill: 'Drill',
+  'jump-drive': 'Jump Drive',
+};
+
+/** The kinds the catalogue holds, as the player reads them, in catalogue order. */
+const KIND_LIST = [...new Set(Object.values(COMPONENTS).map((c) => KIND_NAMES[c.kind]))].join(', ');
+
+export interface HowToPlayStep {
+  heading: string;
+  /** One or two plain sentences. */
+  body: readonly string[];
+}
+
+/** Keys have no single definition in the code, so they are written here, beside the text that names them. */
+export const HOW_TO_PLAY: { heading: string; steps: readonly HowToPlayStep[]; back: string } = {
+  heading: 'How to play',
+  steps: [
+    {
+      heading: 'Goal',
+      body: [
+        'Build a Jump Drive, Hop to the Heliopause and make the Jump.',
+        'Then keep escaping, one Star System after another.',
+      ],
+    },
+    {
+      heading: 'The opening',
+      body: [
+        'You start on a Home Planet with an Engine and a Fuel Tank, some Fuel and some Materials.',
+        'Land on Bodies to gather more.',
+      ],
+    },
+    {
+      heading: 'Hop',
+      body: [
+        'Open the Nav Chart, pick a target, read its Δv, Success Chance and Margin, then Launch.',
+        'If no Hop could have any Success Chance, the Run ends as Stranded, and you are warned first.',
+      ],
+    },
+    {
+      heading: 'Gather',
+      body: [
+        'An Icy Body gives Fuel and a Rocky Body gives Materials, once each.',
+        'After that the Body is Depleted.',
+      ],
+    },
+    {
+      heading: 'Build',
+      body: [
+        `Install Components (${KIND_LIST}) in your ${String(SLOT_COUNT)} Slots; each costs Materials.`,
+        'Every Component has mass, and mass costs Δv.',
+      ],
+    },
+    {
+      heading: 'The end',
+      body: [
+        'A Hop can end in Fell Short (out of Fuel) or Crashed (not enough Δv to land).',
+        'A Run also ends when you are Stranded.',
+      ],
+    },
+    {
+      heading: 'Score',
+      body: [
+        'Your Score is the Star Systems you escaped, and fewer Hops break a tie.',
+        'The Daily Star System is one Star System, the same for everyone, each day.',
+      ],
+    },
+    {
+      heading: 'Keys',
+      body: [
+        'Tab moves between buttons, Enter presses one and Esc goes back.',
+        'M opens the Nav Chart: arrow keys look at a Body, Page Up and Page Down step through them.',
       ],
     },
   ],

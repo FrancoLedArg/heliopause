@@ -21,7 +21,7 @@ import { EndOfRun, type RecordedScore } from './EndOfRun.tsx';
 import { FlightHud, type FlightAfter } from './FlightHud.tsx';
 import { HopReport } from './HopReport.tsx';
 import { LandedPanels } from './LandedPanels.tsx';
-import { AboutPanel, CreditsPanel } from './InfoPanels.tsx';
+import { AboutPanel, CreditsPanel, HowToPlayPanel } from './InfoPanels.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
 import { SpacecraftPanel } from './SpacecraftPanel.tsx';
 import { RunMenu } from './RunMenu.tsx';
@@ -39,7 +39,7 @@ export function GameUI() {
   // The Best Score on this device, read each time the title comes up.
   const [bestScore, setBestScore] = useState<Score | undefined>(undefined);
   const [picking, setPicking] = useState(false);
-  const [info, setInfo] = useState<'about' | 'credits' | undefined>(undefined);
+  const [info, setInfo] = useState<'how-to-play' | 'about' | 'credits' | undefined>(undefined);
   // The title button to focus when the menu comes back from the screen it opened.
   const [focus, setFocus] = useState<TitleButton | undefined>(undefined);
   // Whether the in-Run Menu is open; while it is, it is the topmost overlay and takes every key.
@@ -261,6 +261,9 @@ export function GameUI() {
         <TitleMenu
           starting={launching}
           onNewRun={startNewRun}
+          onHowToPlay={() => {
+            setInfo('how-to-play');
+          }}
           onAbout={() => {
             setInfo('about');
           }}
@@ -271,6 +274,7 @@ export function GameUI() {
           focus={focus}
         />
       )}
+      {scene === SceneKey.Title && info === 'how-to-play' && <HowToPlayPanel onBack={closeInfo} />}
       {scene === SceneKey.Title && info === 'about' && <AboutPanel onBack={closeInfo} />}
       {scene === SceneKey.Title && info === 'credits' && <CreditsPanel onBack={closeInfo} />}
       {(scene === SceneKey.Title ||
