@@ -193,7 +193,9 @@ function noteFor(
   if (component.kind !== 'fuel-tank') return component.explanation;
   const filledNow = availableDeltaV({ ...spacecraft, fuelMass: spacecraft.fuelCapacity });
   const direction = after.filledDeltaV >= filledNow ? 'up' : 'down';
-  return `Starts empty, so Δv drops. Filled up: ${formatDeltaV(after.filledDeltaV)}, ${direction} from ${formatDeltaV(filledNow)}.`;
+  return `Starts empty, so Δv drops. Filled up: ${formatDeltaV(after.filledDeltaV)}, ${direction} from ${formatDeltaV(filledNow)}.`
+    .replaceAll(' km/s', '\u00a0km/s')
+    .replaceAll(' m/s', '\u00a0m/s');
 }
 
 /**

@@ -129,7 +129,8 @@ describe('the Nav Chart layout', () => {
         // The corners sit 2 px outside the sprite's box and within the bracket corners (radius + 6).
         expect(Math.abs(x - node.x)).toBe(node.radius + 2);
         expect(Math.abs(y - node.y)).toBe(node.radius + 2);
-        expect(node.radius + 2).toBeLessThan(BRACKET_GAP + node.radius);
+        // The brackets sit at radius + BRACKET_GAP, so the X's corner is clear of them by the difference.
+        expect(BRACKET_GAP + node.radius - Math.abs(x - node.x)).toBeGreaterThanOrEqual(4);
       }
     }
   });
