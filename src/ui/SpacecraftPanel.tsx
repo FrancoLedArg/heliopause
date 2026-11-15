@@ -414,7 +414,8 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
               <KitButton
                 width={INSTALL_WIDTH}
                 className="spacecraft-panel__install"
-                aria-label={`Install ${componentLabel(row.id)}, ${row.mass}, ${row.cost}`}
+                title={row.realName}
+                aria-label={`Install ${componentLabel(row.id)}${row.realName === undefined ? '' : ` (${row.realName})`}, ${row.mass}, ${row.cost}`}
                 aria-describedby={`${titleId}-effect-${row.id}`}
                 onFocus={() => {
                   setFocusedId(row.id);

@@ -509,7 +509,7 @@ it.each(CHASSIS_IDS)(
       expect(area.top).toBeGreaterThanOrEqual(picture.getBoundingClientRect().bottom);
     };
     for (const id of COMPONENT_IDS) {
-      await tabTo(new RegExp(`Install ${componentLabel(id)},`));
+      await tabTo(new RegExp(`Install ${componentLabel(id)}( [(].*[)])?,`));
       check();
       await userEvent.keyboard('{Tab}');
     }
@@ -762,7 +762,7 @@ it('keeps to the text budget: one short line beside the picture, one in each cat
 it('keeps the lesson behind "Tell me more", and opens it by keyboard', async () => {
   const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
   // The last catalogue entry: Tab then goes round by Close, the Slots and Remove to the toggle.
-  await tabTo(/Install Sample lab,/);
+  await tabTo(/Install Sample lab [(]/);
   expect(button(host, /Tell me more/).getAttribute('aria-expanded')).toBe('false');
   expect(byTestId(host, 'preview-more').checkVisibility()).toBe(false);
   await tabTo(/Tell me more/);
@@ -844,9 +844,9 @@ it('lists the three Instruments, builds a Camera in the first empty Slot and rem
   );
   expect(names.slice(-3)).toEqual(['Camera', 'Chemistry scanner', 'Sample lab']);
   // Its real name is in the row for assistive technology, and the Sample lab says it needs a Drill.
-  expect(host.textContent).toContain('(Imager)');
+  expect(installButton(host, /^Install Camera [(]Imager[)],/).title).toBe('Imager');
   expect(host.textContent).toContain('idle without a Drill');
-  await tabTo(/Install Camera,/);
+  await tabTo(/Install Camera [(]Imager[)],/);
   await userEvent.keyboard('{Enter}');
   expect(byTestId(host, 'install-status').textContent).toBe(
     `Installed Camera in Slot 3. ${String(25 - COMPONENTS.camera.cost)} Materials left.`,

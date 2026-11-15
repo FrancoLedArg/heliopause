@@ -184,7 +184,7 @@ test('a Camera can be built on the Starting Moon with the starting Materials and
   await expect(panel).toBeVisible();
   // Six Slots: the Engine, the Fuel Tank and four empty.
   await expect(panel.getByRole('radio', { name: /^Slot 6, empty/ })).toBeVisible();
-  const camera = panel.getByRole('button', { name: /^Install Camera,/ });
+  const camera = panel.getByRole('button', { name: /^Install Camera [(]Imager[)],/ });
   await camera.scrollIntoViewIfNeeded();
   await camera.click();
   await expect(page.getByTestId('install-status')).toContainText('Installed Camera in Slot 3.');
