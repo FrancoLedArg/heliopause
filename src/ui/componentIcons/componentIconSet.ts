@@ -6,7 +6,6 @@ import { paletteCss, type PaletteColor } from '../kit/palette.ts';
  * so that art drops in through `hasAsset` with no code change. Self-contained so the composed Spacecraft
  * (#230) can reuse or replace it.
  */
-// `radar` is a placeholder until the Radar Component lands in the sim (#191).
 export const COMPONENT_ICON_KINDS = [
   'engine',
   'fuel-tank',

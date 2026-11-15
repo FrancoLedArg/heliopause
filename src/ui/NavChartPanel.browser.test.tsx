@@ -19,6 +19,12 @@ import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
 import { expectTextBudget } from './textBudget.ts';
 
+/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
+const found = (run: Run): Run => ({
+  ...run,
+  knowledge: { ...run.knowledge, heliopauseFound: true },
+});
+
 afterEach(cleanUp);
 
 /**
@@ -462,7 +468,11 @@ it('names Depleted in the screen-reader entry for the Body', async () => {
 
 /** A lancer on seed 1 with a Jump Drive installed: the Heliopause is within its reach. */
 function withJumpDrive(): Run {
-  const result = install({ ...newRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+  const result = install(
+    found({ ...newRun(1, 'lancer'), materials: materials(100) }),
+    2,
+    'jump-drive',
+  );
   if (result.kind !== 'installed') throw new Error('Expected an install');
   return result.run;
 }

@@ -26,6 +26,12 @@ import {
 } from './format.ts';
 import { describeHopPlan, LOW_SUCCESS_BELOW } from './hopPlanView.ts';
 
+/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
+const found = (run: Run): Run => ({
+  ...run,
+  knowledge: { ...run.knowledge, heliopauseFound: true },
+});
+
 const mps = metersPerSecond;
 const run: Run = startRun(123, 'scout');
 /** The first Body Comms Detected: seed 123 opens on a Gas Giant's Moon, so it is a sibling Moon. */
@@ -60,7 +66,7 @@ describe('a Hop plan to a Depleted Body', () => {
 });
 
 describe('a Hop plan to the Heliopause', () => {
-  const withDrive = install({ ...run, materials: materials(100) }, 2, 'jump-drive');
+  const withDrive = install(found({ ...run, materials: materials(100) }), 2, 'jump-drive');
   if (withDrive.kind !== 'installed') throw new Error('Expected an install');
   const ready = withDrive.run;
   const planned = planHop(ready, HELIOPAUSE);

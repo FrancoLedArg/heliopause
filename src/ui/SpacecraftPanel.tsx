@@ -34,6 +34,7 @@ const SLOT_CODES = {
   engine: 'ENG',
   'fuel-tank': 'TANK',
   drill: 'DRL',
+  radar: 'RDR',
   'jump-drive': 'JUMP',
 } as const;
 

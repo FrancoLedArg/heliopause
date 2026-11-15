@@ -1,4 +1,5 @@
 import { createRng, type Rng } from '../lib/rng.ts';
+import { RADAR_TUNING } from './catalogue.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
 import {
   BODY_TUNING,
@@ -26,6 +27,9 @@ import {
   type MetersPerSecondSquared,
   type Radians,
 } from './units.ts';
+
+/** The farthest past the outermost planet the Heliopause lies, as a share of a level-2 Radar's range. */
+const HELIOPAUSE_WITHIN_LEVEL_2 = 0.95;
 
 /** A Run's seed: any integer; the same seed always generates the same Star System. */
 export type Seed = number;
@@ -175,15 +179,18 @@ export function drawStarSystem(seed: Seed, level = 1): StarSystem {
   });
   const start = pickStartingMoon(seed, planets, level);
 
-  // The Heliopause is anchored on the outermost planet, always a Gas Giant.
+  // The Heliopause is anchored on the outermost planet, always a Gas Giant, a little less than a
+  // level-1 Radar's range past it. Deeper Star Systems push it out, but never past what a level-2
+  // Radar reaches from there: every Heliopause can be found.
   const outermostGasGiant = gasGiants.at(-1);
   if (!outermostGasGiant) throw new Error(`Star System ${name} generated no Gas Giant`);
-  const outermost = outermostGasGiant.distanceFromStar;
-  const heliopauseRadius = astronomicalUnits(
-    outermost *
-      sampleFloat(rng, GENERATION_TUNING.heliopausePerOutermostPlanet) *
+  const beyond = Math.min(
+    sampleFloat(rng, GENERATION_TUNING.heliopauseBeyondOutermostPlanet) *
+      RADAR_TUNING.range[1] *
       difficultyFactor(DIFFICULTY_TUNING.heliopauseRadius, level),
+    HELIOPAUSE_WITHIN_LEVEL_2 * RADAR_TUNING.range[2],
   );
+  const heliopauseRadius = astronomicalUnits(outermostGasGiant.distanceFromStar + beyond);
 
   // Frozen: Bodies do not move, and nothing outside the rules can change them.
   return deepFreeze({

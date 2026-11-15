@@ -33,6 +33,12 @@ import { JUMP_FLAVOUR_TEXT } from '../../ui/jumpFlavour.ts';
 import { SceneKey } from './keys.ts';
 import '../../style.css';
 
+/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
+const found = (run: Run): Run => ({
+  ...run,
+  knowledge: { ...run.knowledge, heliopauseFound: true },
+});
+
 let root: Root | undefined;
 let game: Phaser.Game | undefined;
 let host: HTMLElement | undefined;
@@ -287,7 +293,11 @@ it.each(['takeoff', 'cruise', 'landing'] as const)(
 
 /** A lancer on seed 1 with a Jump Drive: it reaches the Heliopause from its Starting Moon. */
 function readyForTheHeliopause(): Run {
-  const result = install({ ...startRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+  const result = install(
+    found({ ...startRun(1, 'lancer'), materials: materials(100) }),
+    2,
+    'jump-drive',
+  );
   if (result.kind !== 'installed') throw new Error('Expected an install');
   return result.run;
 }

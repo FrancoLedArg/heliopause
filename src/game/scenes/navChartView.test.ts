@@ -57,6 +57,12 @@ const newRun = (seed: number): Run => {
     knowledge: { detected: ids, surveyed: ids, heliopauseFound: true },
   };
 };
+/** The Heliopause's mark on a chart whose Run has found it. */
+function markOf(layout: ChartLayout): NonNullable<ChartLayout['heliopause']> {
+  if (!layout.heliopause) throw new Error('The Heliopause is not found on this chart');
+  return layout.heliopause;
+}
+
 const SEEDS = Array.from({ length: 150 }, (_, i) => i + 1);
 
 /** The innermost planet's nearest Moon. */
@@ -298,6 +304,20 @@ describe('moving between Bodies with the arrow keys', () => {
 });
 
 describe('the Heliopause on the Nav Chart', () => {
+  it('is not on the chart until the Radar finds it: no ring mark, no focus stop and no label', () => {
+    for (const seed of SEEDS.slice(0, 20)) {
+      const run = freshRun(seed);
+      const layout = layoutChart(run);
+      expect(layout.heliopause).toBeUndefined();
+      const here = homeMoon(run).id;
+      let id: HopTarget = here;
+      for (let step = 0; step < 10; step += 1) id = stepFocus(layout, id, 1);
+      expect(id).not.toBe(HELIOPAUSE);
+      const context: LabelContext = { hereId: here, focusedId: here, targetId: undefined };
+      expect(placeLabels(layout, context).filter((l) => l.kind === 'heliopause')).toEqual([]);
+    }
+  });
+
   /** The Run with a Jump Drive installed. */
   const withJumpDrive = (run: Run): Run => {
     const result = install({ ...run, materials: materials(100) }, 2, 'jump-drive');
@@ -308,7 +328,7 @@ describe('the Heliopause on the Nav Chart', () => {
   it('marks the Heliopause on its ring, on the chart and clear of every Body', () => {
     for (const seed of SEEDS) {
       const layout = layoutFor(seed);
-      const mark = layout.heliopause;
+      const mark = markOf(layout);
       expect(mark.x - mark.radius - BRACKET_GAP, `seed ${seed}`).toBeGreaterThanOrEqual(0);
       expect(mark.x + mark.radius + BRACKET_GAP).toBeLessThanOrEqual(CHART.width);
       expect(mark.y - mark.radius - BRACKET_GAP).toBeGreaterThanOrEqual(0);
@@ -321,7 +341,8 @@ describe('the Heliopause on the Nav Chart', () => {
     }
     // Where its ring crosses the chart, the mark sits on it.
     const layout = layoutFor(9);
-    const { star, heliopause } = layout;
+    const { star } = layout;
+    const heliopause = markOf(layout);
     expect(Math.hypot(heliopause.x - star.x, heliopause.y - star.y)).toBeCloseTo(
       layout.heliopauseRadius,
       -1,
@@ -355,7 +376,7 @@ describe('the Heliopause on the Nav Chart', () => {
     for (const seed of SEEDS.slice(0, 40)) {
       const run = newRun(seed);
       const layout = layoutFor(seed);
-      const mark = layout.heliopause;
+      const mark = markOf(layout);
       for (const targetId of [undefined, HELIOPAUSE]) {
         const context = { hereId: currentBody(run).id, targetId, focusedId: HELIOPAUSE };
         const labels = placeLabels(layout, context);
@@ -391,7 +412,7 @@ describe('the Heliopause on the Nav Chart', () => {
         }
         if (!insideChart(edge.box)) problems.push(`${where}: off the chart`);
         problems.push(...farLabels({ where, layout, context, labels: [edge] }));
-        if (touchesCircle(edge.box, layout.heliopause)) problems.push(`${where}: on its mark`);
+        if (touchesCircle(edge.box, markOf(layout))) problems.push(`${where}: on its mark`);
         for (const n of [...layout.nodes, layout.star]) {
           if (touchesCircle(edge.box, n)) problems.push(`${where}: on a Body`);
         }
@@ -631,7 +652,7 @@ function farLabels({ where, layout, labels }: ChartCase): string[] {
       );
       const fromRing = Math.min(...inside);
       // Hanging just inside its ring, or, where the ring has no room, beside its mark.
-      const fromMark = edgeDistance(label.box, layout.heliopause);
+      const fromMark = edgeDistance(label.box, markOf(layout));
       if ((fromRing > 8 || fromRing < 0) && fromMark > 8) {
         problems.push(
           `${where}: Heliopause ${fromRing} px from its ring, ${fromMark} from its mark`,

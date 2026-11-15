@@ -25,6 +25,12 @@ import {
   type Shot,
 } from './flightPlayback.ts';
 
+/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
+const found = (run: Run): Run => ({
+  ...run,
+  knowledge: { ...run.knowledge, heliopauseFound: true },
+});
+
 const run = startRun(123, 'scout');
 /** The first Body Comms Detected: every Hop in these tests goes there. */
 const moonId: BodyId = firstDetectedBody(run.starSystem).id;
@@ -263,7 +269,11 @@ describe('Hop playback', () => {
 });
 
 describe('the playback of a Hop to the Heliopause', () => {
-  const built = install({ ...startRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+  const built = install(
+    found({ ...startRun(1, 'lancer'), materials: materials(100) }),
+    2,
+    'jump-drive',
+  );
   if (built.kind !== 'installed') throw new Error('Expected an install');
   const launched = launchHop(built.run, HELIOPAUSE);
   if (launched.kind !== 'flown') throw new Error('Expected a flight');
@@ -375,7 +385,11 @@ describe('the shots of a Hop’s playback', () => {
   });
 
   it('a Hop to the Heliopause has no Approach and no Landing: Takeoff, then the Cruise', () => {
-    const built = install({ ...startRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+    const built = install(
+      found({ ...startRun(1, 'lancer'), materials: materials(100) }),
+      2,
+      'jump-drive',
+    );
     if (built.kind !== 'installed') throw new Error('Expected an install');
     const launched = launchHop(built.run, HELIOPAUSE);
     if (launched.kind !== 'flown') throw new Error('Expected a flight');

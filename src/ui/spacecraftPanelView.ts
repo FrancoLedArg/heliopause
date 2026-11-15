@@ -30,6 +30,7 @@ import {
   chassisName,
   deltaVUnit,
   formatDeltaV,
+  formatDistanceAu,
   formatFuel,
   formatIsp,
   formatMass,
@@ -39,6 +40,7 @@ const KIND_NAMES: Readonly<Record<ComponentKind, string>> = {
   engine: 'Engine',
   'fuel-tank': 'Fuel Tank',
   drill: 'Drill',
+  radar: 'Radar',
   'jump-drive': 'Jump Drive',
 };
 
@@ -87,6 +89,10 @@ export function describeEffect(chassisId: ChassisId, id: ComponentId): string {
       return `Yields ${String(effect.yieldMultiplier)}× from each Body.`;
     case 'jump-drive':
       return 'Escapes the Star System, at the Heliopause only.';
+    case 'radar':
+      return effect.surveys
+        ? `Range ${formatDistanceAu(effect.range)}: finds and Surveys Bodies.`
+        : `Range ${formatDistanceAu(effect.range)}: finds Bodies and the Heliopause.`;
   }
 }
 

@@ -284,6 +284,7 @@ export const KIND_NAMES: Record<ComponentKind, string> = {
   engine: 'Engine',
   'fuel-tank': 'Fuel Tank',
   drill: 'Drill',
+  radar: 'Radar',
   'jump-drive': 'Jump Drive',
 };
 

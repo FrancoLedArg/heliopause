@@ -94,10 +94,13 @@ export const GENERATION_TUNING = {
   /** At least two rocky planets, and always at least one Gas Giant. */
   rockyPlanetCount: { min: 2, max: 4 },
   /**
-   * The Heliopause as a multiple of the outermost planet's distance. Centred on the Solar System's
-   * ratio: Voyager 1 crossed at about 122 AU (§5) and Neptune orbits at 30.2 AU (§1), about 4×.
+   * How far past the outermost planet the Heliopause lies, as a share of a level-1 Radar's range: a
+   * little less than one range, so that Radar finds it from that planet's Moons and a Run reaches it
+   * in about 10 to 15 Hops from the Starting Moon (#96). Gameplay tuning: the real heliopause is
+   * about 4× Neptune's distance (Voyager 1 crossed at about 122 AU, §5), too far for the Radar to
+   * reach from any Body.
    */
-  heliopausePerOutermostPlanet: { min: 3.5, max: 4.5 },
+  heliopauseBeyondOutermostPlanet: { min: 0.75, max: 0.95 },
   /**
    * Gas Giants are home to 1 to 4 Moons. Every rocky planet has two, so a Spacecraft landed on any
    * of the three Bodies always has a short Hop onward within reach (#188: no early dead ends).
@@ -259,7 +262,10 @@ export const DIFFICULTY_TUNING = {
   iceLineDistance: { perLevel: 0.25, floor: 1 },
   /** Base yields of both types shrink. */
   yield: { perLevel: -0.08, floor: 0.5 },
-  /** The Heliopause lies farther out. */
+  /**
+   * The Heliopause lies farther past the outermost planet, until only a level-2 Radar there finds it
+   * (see `drawStarSystem`).
+   */
   heliopauseRadius: { perLevel: 0.1, floor: 1 },
 } as const satisfies Record<string, { perLevel: number; floor: number }>;
 

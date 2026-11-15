@@ -72,7 +72,8 @@ export class NavChart extends Scene {
       this.add.image(this.layout.star.x, this.layout.star.y, 'body_star').setOrigin(0.5, 0.5),
     );
     for (const node of this.layout.nodes) chart.add(this.addBody(node));
-    chart.add(this.addHeliopauseMark());
+    const mark = this.addHeliopauseMark();
+    if (mark) chart.add(mark);
     this.yieldMarks = this.add.container(0, 0);
     this.yieldStrikes = this.add.graphics();
     chart.add([this.yieldMarks, this.yieldStrikes]);
@@ -122,7 +123,7 @@ export class NavChart extends Scene {
     }
   }
 
-  /** The orbit rings of known planets, and the Heliopause (dashed violet), clipped to the chart. */
+  /** The orbit rings of known planets, and the Heliopause once found (dashed violet), clipped to the chart. */
   private drawRings(): GameObjects.Graphics {
     const graphics = this.add.graphics();
     graphics.lineStyle(1, paletteNumber('cy0'));
@@ -135,6 +136,7 @@ export class NavChart extends Scene {
         graphics.lineBetween(...from, ...to);
       }
     }
+    if (!this.layout.heliopause) return graphics;
     graphics.lineStyle(1, paletteNumber('vi2'));
     const segments = ringSegments(this.layout.star, this.layout.heliopauseRadius);
     // Every other short segment: a dashed ring.
@@ -165,9 +167,10 @@ export class NavChart extends Scene {
 
   /**
    * The Heliopause's mark: a violet diamond on its ring (a shape, not just a colour), with a hit
-   * circle for the mouse like a Body's.
+   * circle for the mouse like a Body's. None until the Radar finds it.
    */
-  private addHeliopauseMark(): GameObjects.Graphics {
+  private addHeliopauseMark(): GameObjects.Graphics | undefined {
+    if (!this.layout.heliopause) return undefined;
     const { x, y, radius } = this.layout.heliopause;
     const mark = this.add.graphics({ x, y });
     mark.fillStyle(paletteNumber('vi4'));
