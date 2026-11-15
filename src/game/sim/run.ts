@@ -18,10 +18,19 @@ import { materials, type Materials } from './units.ts';
  */
 export const STARTING_MATERIALS: Materials = materials(25);
 
+/**
+ * How a Run ended, each with its plain-language reason. Fell Short and Crashed come from a flown Hop
+ * (the reason is the Hop's why); Stranded is set when no Hop could have any Success Chance.
+ */
+export type RunEnd =
+  | { readonly kind: 'fell-short'; readonly reason: string }
+  | { readonly kind: 'crashed'; readonly reason: string }
+  | { readonly kind: 'stranded'; readonly reason: string };
+
 /** Where the Run stands: landed on a Body and free to plan a Hop, or ended by a failed Hop. */
 export type RunStatus =
   | { readonly kind: 'landed'; readonly bodyId: BodyId }
-  | { readonly kind: 'ended'; readonly outcome: 'fell-short' | 'crashed' };
+  | { readonly kind: 'ended'; readonly end: RunEnd };
 
 /** One attempt from a fresh start. Replays identically from its seed. */
 export interface Run {

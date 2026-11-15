@@ -17,7 +17,9 @@ export { preview } from './preview.ts';
 export type { Preview, ProposedChange } from './preview.ts';
 export { remove } from './remove.ts';
 export type { RemoveRefusal, RemoveResult } from './remove.ts';
-export type { Run, RunStatus } from './run.ts';
+export type { Run, RunEnd, RunStatus } from './run.ts';
+export { isBetterScore, runEnd, score } from './score.ts';
+export type { Score } from './score.ts';
 export { BURNS, flyHop, launchHop, marginShare, planHop } from './hop.ts';
 export type {
   Burn,

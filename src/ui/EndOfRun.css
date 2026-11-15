@@ -1,0 +1,94 @@
+/* ---- End-of-Run screen: left of the Spacecraft, like the Hop report (8 to 400) ---- */
+
+.end-of-run {
+  position: absolute;
+  top: 40px;
+  left: 8px;
+  pointer-events: auto;
+}
+
+.end-of-run > .kit-frame:first-child {
+  position: absolute;
+  inset: 0;
+}
+
+.end-of-run__body {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 14px 10px;
+  /* Longer text must not push the buttons out of the frame. */
+  overflow: hidden;
+}
+
+.end-of-run__badge {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin: 0;
+  font: 8px/12px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--rd3);
+}
+
+.game-ui .end-of-run__title {
+  margin: 2px 0 0;
+  font: 16px/16px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--wh3);
+}
+
+.end-of-run__summary {
+  margin: 2px 0 0;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--wh2);
+}
+
+.end-of-run__why {
+  margin: 6px 0 0;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--gm6);
+}
+
+.end-of-run__scores {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0 0;
+}
+
+.end-of-run__score {
+  display: flex;
+  flex-direction: column;
+}
+
+.end-of-run__score dt {
+  font: 8px/10px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.end-of-run__score dd {
+  margin: 0;
+  font: 16px/14px var(--font-pixel-body);
+  color: var(--am3);
+}
+
+.end-of-run__rule {
+  margin: 6px 0 0;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--gm5);
+}
+
+.end-of-run__new {
+  color: var(--gr3);
+}
+
+.end-of-run__actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  margin-top: auto;
+  flex: none;
+}

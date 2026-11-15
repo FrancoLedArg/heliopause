@@ -12,6 +12,7 @@ import {
 import { describeFlight } from './flightHudView.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { EndOfRun, type RecordedScore } from './EndOfRun.tsx';
 import { HopReport } from './HopReport.tsx';
 import { TopBar } from './TopBar.tsx';
 import './FlightHud.css';
@@ -34,8 +35,14 @@ interface FlightHudProps {
   flight: HopFlight;
   /** Where the playback is; undefined until its first moment. */
   moment: FlightMoment | undefined;
-  /** The playback of a failed Hop is over: show what happened and the way out. */
-  failed: boolean;
+  /** The Run the failed Hop ended, once its playback is over: the End-of-Run screen shows it. */
+  ended: Run | undefined;
+  /** The player has read the failed Hop's report and moved on to the End-of-Run screen. */
+  reportDone: boolean;
+  /** The Best Score after the ended Run's Score was recorded; present with `ended`. */
+  recorded: RecordedScore | undefined;
+  /** Continue from the failed Hop's report to the End-of-Run screen. */
+  onContinue: () => void;
   /** New Run after a failure: asks for a Chassis, then a new Star System. */
   onNewRun: () => void;
   onLeave: () => void;
@@ -46,13 +53,23 @@ interface FlightHudProps {
  * Transfer → Landing), the Fuel bar and the flight log. Panels keep to the left and the top, clear of
  * the Spacecraft. The in-Run Menu is not offered here: the playback runs to its end.
  */
-export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }: FlightHudProps) {
+export function FlightHud({
+  before,
+  flight,
+  moment,
+  ended,
+  reportDone,
+  recorded,
+  onContinue,
+  onNewRun,
+  onLeave,
+}: FlightHudProps) {
   const view = describeFlight(before, flight, moment);
   const fuel = moment?.fuel ?? flight.fuelAtLaunch;
   const deltaV = availableDeltaV({ ...before.spacecraft, fuelMass: kilograms(fuel) });
   const current = view.phases.find((phase) => phase.state === 'current');
   const [fast, setFast] = useState(false);
-  const over = failed || moment?.ended === true;
+  const over = ended !== undefined || moment?.ended === true;
   const setSpeed = (next: boolean): void => {
     setFast(next);
     EventBus.emit('hop-fast-forward-requested', next);
@@ -75,8 +92,8 @@ export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }:
       ? Math.max(FILL_MIN_WIDTH, Math.round((FUEL_BAR.width - 2 * FUEL_BAR.inset) * view.fuelShare))
       : 0;
 
-  if (failed && flight.outcome.kind !== 'arrived') {
-    // The Run is over: the report takes the place of the playback's panels.
+  if (ended && recorded) {
+    // The Run is over: the End-of-Run screen takes the place of the playback's panels.
     return (
       <>
         <TopBar
@@ -86,14 +103,16 @@ export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }:
           deltaV={deltaV}
           materials={before.materials}
         />
-        <HopReport
-          before={before}
-          flight={flight}
-          actions={[
-            { label: 'Back to title', onClick: onLeave },
-            { label: 'New Run', onClick: onNewRun, primary: true },
-          ]}
-        />
+        {reportDone ? (
+          <EndOfRun run={ended} recorded={recorded} onNewRun={onNewRun} onLeave={onLeave} />
+        ) : (
+          <HopReport
+            before={before}
+            flight={flight}
+            actions={[{ label: 'Continue', onClick: onContinue, primary: true }]}
+            onEscape={onContinue}
+          />
+        )}
       </>
     );
   }
