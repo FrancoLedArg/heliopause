@@ -57,11 +57,21 @@ export function deltaVUnit(deltaV: MetersPerSecond): 'm/s' | 'km/s' {
 export function formatDeltaV(deltaV: MetersPerSecond | undefined, unit?: 'm/s' | 'km/s'): string {
   if (deltaV === undefined) return '—';
   return (unit ?? deltaVUnit(deltaV)) === 'km/s'
-    ? `${(deltaV / 1000).toFixed(1)} km/s`
+    ? formatDeltaVKmS(deltaV)
     : `${WHOLE.format(deltaV)} m/s`;
 }
 
-/** Δv in the Hop plan: always whole m/s, so Burns, Needed, Available and Margin add up by eye. */
+/** Δv in km/s to one decimal, as the top bar shows it: the Hop plan's unit at every size. */
+export function formatDeltaVKmS(deltaV: MetersPerSecond): string {
+  return `${kmPerSecondFigure(deltaV)} km/s`;
+}
+
+/** The number of a km/s Δv without its unit, for a pair that shares one: "7.8 of 22.1 km/s". */
+export function kmPerSecondFigure(deltaV: MetersPerSecond): string {
+  return (deltaV / 1000).toFixed(1);
+}
+
+/** Δv in whole m/s, so the Flight log's and the Hop report's Burns add up by eye. */
 export function formatPlanDeltaV(deltaV: MetersPerSecond): string {
   return `${WHOLE.format(deltaV)} m/s`;
 }
