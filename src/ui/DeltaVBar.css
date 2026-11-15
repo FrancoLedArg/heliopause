@@ -36,6 +36,11 @@
   background: var(--cy1);
 }
 
+/* An Unsurveyed target's Landing is a cautious guess: hatched, not solid (#193). */
+.dv-bar__segment--unsure {
+  background: repeating-linear-gradient(135deg, var(--cy1) 0 2px, var(--scr0) 2px 4px);
+}
+
 .dv-bar__glyph {
   flex: none;
   fill: var(--scr0);

@@ -68,8 +68,9 @@ export interface GameEvents {
    * React -> Phaser: the player pressed Launch on the Hop plan for `target` (a Body or the
    * Heliopause), at any Success Chance. The Landed scene settles the Hop in the simulation and starts
    * its playback.
+   * `daily` is set for a Daily Run, which never takes the test-only Cruise leak (`?cruiseLeak=`).
    */
-  'hop-launch-requested': [target: HopTarget];
+  'hop-launch-requested': [target: HopTarget, daily?: boolean];
   /**
    * Phaser -> React: a Hop's playback begins (sent just before the Flight's `scene-ready`). `before`
    * is the Run at Launch; `flight` already holds the outcome; `pace` is how long each Burn plays.
@@ -79,6 +80,27 @@ export interface GameEvents {
   'hop-flight-moment': [moment: FlightMoment];
   /** React -> Phaser: the player turned the Hop playback's fast-forward on or off. It only scales the clock. */
   'hop-fast-forward-requested': [fast: boolean];
+  /**
+   * Phaser -> React: the Run in its Cruise changed (a Cruise event struck, a leak drained Fuel, a
+   * Repair ran on, a Repair or Rush was made). The HUD draws the Damage, the Fuel and the Materials
+   * from it (#250). Sent while the Cruise runs, at most once per Cruise tick.
+   */
+  'cruise-updated': [run: Run];
+  /** Phaser -> React: a Cruise event struck, so the fast-forward dropped back to normal speed (#210). */
+  'cruise-event-struck': [];
+  /**
+   * Phaser -> React: the Cruise reached its end and the Hop is settled: the Landing plays from this
+   * result (`after` is the Run after the Hop), which the Cruise's Repairs may have changed.
+   */
+  'hop-flight-settled': [flight: HopFlight, after: Run];
+  /**
+   * React -> Phaser: start the Repair of the Damaged Component in Slot `slot` (0-based), from its
+   * systems light or the Spacecraft panel. The scene that owns the Run (the Flight in the Cruise, the
+   * Landed view between Hops) applies it and answers with `cruise-updated` or `run-updated`.
+   */
+  'repair-requested': [slot: number];
+  /** React -> Phaser: Rush the Repair in Slot `slot`, paying its Materials; answered like a Repair. */
+  'rush-requested': [slot: number];
   /**
    * Phaser -> React: the playback of a Fell Short or Crashed Hop is over, and the Run with it. An
    * Arrived Hop goes on to the Landed view instead.

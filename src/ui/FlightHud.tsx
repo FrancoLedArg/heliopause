@@ -19,6 +19,7 @@ import { FuelGauge } from './FuelGauge.tsx';
 import { HopReport } from './HopReport.tsx';
 import { SystemsLights } from './SystemsLights.tsx';
 import { JUMP_FLAVOUR_TEXT } from './jumpFlavour.ts';
+import { missionGoals } from './missionTrackerView.ts';
 import { TopBar } from './TopBar.tsx';
 import './FlightHud.css';
 
@@ -71,6 +72,8 @@ interface FlightHudProps {
   fast: boolean;
   /** The player turned the fast-forward on or off. */
   onFastChange: (fast: boolean) => void;
+  /** The Run in its Cruise while the Cruise runs (#250): its Damage, Fuel and Materials. */
+  live?: Run | undefined;
 }
 
 /**
@@ -89,6 +92,7 @@ export function FlightHud({
   dailyDay,
   fast,
   onFastChange,
+  live,
 }: FlightHudProps) {
   const view = describeFlight(before, flight, moment);
   const fuel = moment?.fuel ?? flight.fuelAtLaunch;
@@ -114,6 +118,7 @@ export function FlightHud({
       <>
         <TopBar
           systemNumber={starSystemNumber(before)}
+          goals={missionGoals(before)}
           systemName={before.starSystem.name}
           fuel={fuel}
           fuelCapacity={before.spacecraft.fuelCapacity}
@@ -140,26 +145,38 @@ export function FlightHud({
     );
   }
 
+  // The Escape lights as the Jump Drive fires; the bar stays up through the flash and the dark.
+  const escaped = after?.kind === 'jumping' && after.stage !== 'charge';
+  const topBar = (
+    <TopBar
+      systemNumber={starSystemNumber(before)}
+      goals={missionGoals(before, escaped)}
+      systemName={before.starSystem.name}
+      fuel={fuel}
+      fuelCapacity={before.spacecraft.fuelCapacity}
+      deltaV={deltaV}
+      materials={(live ?? before).materials}
+      dailyDay={dailyDay}
+    />
+  );
+
   if (after?.kind === 'jumping' && after.stage !== 'charge') {
     // The Jump Drive fires: the panels give way to the flash, then the flavour text over the black.
-    return after.stage === 'dark' ? (
-      <p className="jump-caption" role="status" data-testid="jump-caption">
-        {JUMP_FLAVOUR_TEXT}
-      </p>
-    ) : null;
+    return (
+      <>
+        {topBar}
+        {after.stage === 'dark' && (
+          <p className="jump-caption" role="status" data-testid="jump-caption">
+            {JUMP_FLAVOUR_TEXT}
+          </p>
+        )}
+      </>
+    );
   }
 
   return (
     <>
-      <TopBar
-        systemNumber={starSystemNumber(before)}
-        systemName={before.starSystem.name}
-        fuel={fuel}
-        fuelCapacity={before.spacecraft.fuelCapacity}
-        deltaV={deltaV}
-        materials={before.materials}
-        dailyDay={dailyDay}
-      />
+      {topBar}
 
       {/* The shot on screen (`data-shot`) is for tests: the canvas shows it. */}
       <section
@@ -255,6 +272,7 @@ export function FlightHud({
             moment.cruise,
             before.spacecraft.slots.filter((slot) => slot !== null).length,
           )}
+          run={live}
         />
       )}
 

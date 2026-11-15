@@ -85,14 +85,24 @@ describe('the Cruise event schedule', () => {
     );
   });
 
-  it('only the kinds switched on are scheduled, and real Runs switch none on yet', () => {
+  it('only the kinds switched on are scheduled', () => {
     for (const seed of SEEDS.slice(0, 50)) {
       expect(
-        cruiseSchedule(seed, 6, 2, fullSpacecraft, ['fuel-leak']).every(
-          (e) => e.kind === 'fuel-leak',
+        cruiseSchedule(seed, 6, 2, fullSpacecraft, ['debris-field']).every(
+          (e) => e.kind === 'debris-field',
         ),
       ).toBe(true);
-      expect(cruiseSchedule(seed, 6, 2, fullSpacecraft, CRUISE_TUNING.enabledKinds)).toEqual([]);
+    }
+  });
+
+  it('every Cruise of a real Run has one or two Fuel leaks, mild ones on the first Hops (#250)', () => {
+    for (const hop of [1, 2, 3, 6]) {
+      for (const seed of SEEDS) {
+        const schedule = cruiseSchedule(seed, hop, 1, fullSpacecraft, CRUISE_TUNING.enabledKinds);
+        expect(schedule.length).toBeGreaterThanOrEqual(1);
+        expect(schedule.length).toBeLessThanOrEqual(2);
+        expect(schedule.every((event) => event.kind === 'fuel-leak')).toBe(true);
+      }
     }
   });
 

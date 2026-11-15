@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { FAST_CRUISE } from './cruise.ts';
+import { FAST_CRUISE, NO_CRUISE_EVENTS } from './cruise.ts';
 import { waitForOpening } from './opening.ts';
 import { recordShots, shotsSeen } from './shots.ts';
 import { formatFuel } from '../../src/ui/format.ts';
@@ -32,7 +32,9 @@ if (moonHop.kind !== 'flown' || moonHop.flight.outcome.kind !== 'arrived') {
 // Rioquunlaen, then back to the Starting Moon, Maethu. The scout Crashes on Maethu at a 23% chance
 // and the hauler Falls Short in the Transfer (found by a scan over seeds and paths). Re-pinned for
 // #247 (was seed 1442's Thosny then Korxel): the Chassis Isp rose 30%, so no second Hop fails.
+// Flown with no Cruise events (#250): a Fuel leak on the way would move where it fails.
 const FAIL_SEED = 46;
+const CALM = { schedule: [] } as const;
 /** The Hops that Arrive on the way, every Chassis alike; the first is the first target. */
 const PATH = ['Voprin', 'Quioxevex', 'Rioquunlaen'] as const;
 const FAR = 'Maethu';
@@ -48,13 +50,13 @@ function lastHop(chassis: 'scout' | 'hauler'): { before: Run; why: string } {
     return body.id;
   };
   for (const name of PATH) {
-    const hop = launchHop(before, id(name));
+    const hop = launchHop(before, id(name), CALM);
     if (hop.kind !== 'flown' || hop.flight.outcome.kind !== 'arrived') {
       throw new Error(`Seed ${String(FAIL_SEED)}: the ${chassis}'s Hop to ${name} should Arrive`);
     }
     before = hop.run;
   }
-  const last = launchHop(before, id(FAR));
+  const last = launchHop(before, id(FAR), CALM);
   if (last.kind !== 'flown') throw new Error('unreachable');
   return { before, why: last.flight.why };
 }
@@ -92,7 +94,7 @@ async function hopAndLand(page: Page, name: string): Promise<void> {
 
 /** The failure seed's scout, Landed at the end of PATH, with the Nav Chart open on FAR's Hop. */
 async function onTheWayToFail(page: Page): Promise<void> {
-  await page.goto(`/?seed=${String(FAIL_SEED)}&chassis=scout&${FAST_CRUISE}`);
+  await page.goto(`/?seed=${String(FAIL_SEED)}&chassis=scout&${FAST_CRUISE}&${NO_CRUISE_EVENTS}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await waitForOpening(page);
   for (const name of PATH) await hopAndLand(page, name);
@@ -384,7 +386,7 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   test.setTimeout(120_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   // No Chassis in the URL: the picker is part of the New Run path.
-  await page.goto(`/?seed=${String(FAIL_SEED)}&${FAST_CRUISE}`);
+  await page.goto(`/?seed=${String(FAIL_SEED)}&${FAST_CRUISE}&${NO_CRUISE_EVENTS}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await expect(page.getByRole('radio', { name: /Scout/ })).toBeFocused();
   await page.keyboard.press('ArrowRight');

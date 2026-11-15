@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { FAST_CRUISE } from './cruise.ts';
+import { FAST_CRUISE, NO_CRUISE_EVENTS } from './cruise.ts';
 import { recordShots, shotsSeen } from './shots.ts';
 import {
   findBody,
@@ -24,13 +24,15 @@ import { JUMP_FLAVOUR_TEXT } from '../../src/ui/jumpFlavour.ts';
 // Moon. The route is a careful explorer's (`readyToJump`): seed 121 gets out in 5 Hops. Re-pinned for
 // #191 (was seed 28, whose first target paid for the Jump Drive with the Heliopause already found).
 const SEED = 121;
+// Flown with no Cruise events (#250), as `readyToJump` flies it: this pins the way out on the Burns.
+const CALM = { schedule: [] } as const;
 const ready = readyToJump(SEED, 'scout');
 if (!ready) throw new Error(`Seed ${String(SEED)} should have a way out`);
 const run = startRun(SEED, 'scout');
 
 /** The explorer's choices, each with the Run it leaves: a Radar, the Hops out, then the Jump Drive. */
 const route = ready.choices.map((choice, index) => {
-  const replayed = replay(SEED, 'scout', ready.choices.slice(0, index + 1));
+  const replayed = replay(SEED, 'scout', ready.choices.slice(0, index + 1), { events: [] });
   if (replayed.kind !== 'replayed') throw new Error('The route should replay');
   return { choice, after: replayed.run };
 });
@@ -44,7 +46,7 @@ const firstFind = hops.findIndex((hop) => hop.finds);
 if (firstFind < 0) throw new Error('The route should find the Heliopause');
 
 const planned = planHop(ready, HELIOPAUSE);
-const escape = launchHop(ready, HELIOPAUSE);
+const escape = launchHop(ready, HELIOPAUSE, CALM);
 if (planned.kind !== 'planned' || escape.kind !== 'flown') throw new Error('Expected a plan');
 if (escape.flight.outcome.kind !== 'reached-heliopause') {
   throw new Error(`Seed ${String(SEED)}: the Hop to the Heliopause should reach it`);
@@ -52,7 +54,7 @@ if (escape.flight.outcome.kind !== 'reached-heliopause') {
 // The Jump maroons the Run on System 2's Starting Moon, with Fuel for a sure Hop to its first target.
 const system2 = escape.run;
 const nextMoon = firstDetectedBody(system2.starSystem);
-const onward = launchHop(system2, nextMoon.id);
+const onward = launchHop(system2, nextMoon.id, CALM);
 if (onward.kind !== 'flown' || onward.run.status.kind !== 'landed') {
   throw new Error(`Seed ${String(SEED)}: the Hop on from System 2's Starting Moon should land`);
 }
@@ -61,7 +63,7 @@ if (onward.kind !== 'flown' || onward.run.status.kind !== 'landed') {
 const doomedId = onward.flight.reveal?.detected[0];
 const doomed = doomedId && findBody(system2.starSystem, doomedId);
 if (!doomed) throw new Error(`Seed ${String(SEED)}: Comms should Detect a Body in System 2`);
-const doomedHop = launchHop(onward.run, doomed.id);
+const doomedHop = launchHop(onward.run, doomed.id, CALM);
 if (doomedHop.kind !== 'flown') throw new Error('unreachable');
 const finalEnd = runEnd(doomedHop.run);
 if (finalEnd?.kind !== 'fell-short') throw new Error('The doomed Hop should end the Run');
@@ -142,7 +144,7 @@ test('build a Radar to find the Heliopause, then a Jump Drive, reach it by keybo
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
 
-  await page.goto(`/?seed=${String(SEED)}&chassis=scout&${FAST_CRUISE}`);
+  await page.goto(`/?seed=${String(SEED)}&chassis=scout&${FAST_CRUISE}&${NO_CRUISE_EVENTS}`);
   await expect(page.getByRole('button', { name: 'New Run' })).toBeVisible();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
@@ -171,11 +173,16 @@ test('build a Radar to find the Heliopause, then a Jump Drive, reach it by keybo
     'true',
   );
   await page.keyboard.press('Enter');
-  await expect(page.getByTestId('target')).toContainText('None chosen');
+  // #193: no target, so no Hop plan; the card stays with its reason.
+  await expect(page.getByTestId('target')).toHaveCount(0);
+  await expect(page.getByTestId('verdict')).toContainText('Jump Drive');
   await testInfo.attach('heliopause-found-needs-a-jump-drive', {
     body: await page.screenshot(),
     contentType: 'image/png',
   });
+  // #193: the first Escape closes the Heliopause's card, the second the chart.
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('inspect')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(chart).toBeHidden();
 
@@ -246,7 +253,7 @@ test('a Run that escaped a Star System ends in the next one with its Score, and 
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
 
-  await page.goto(`/?seed=${String(SEED)}&chassis=scout&${FAST_CRUISE}`);
+  await page.goto(`/?seed=${String(SEED)}&chassis=scout&${FAST_CRUISE}&${NO_CRUISE_EVENTS}`);
   await expect(page.getByRole('button', { name: 'New Run' })).toBeVisible();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');

@@ -2,6 +2,7 @@ import { act } from 'react';
 import { BlendModes, GameObjects } from 'phaser';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { GameUI } from '../../ui/GameUI.tsx';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
@@ -407,10 +408,13 @@ async function until(ready: () => boolean, ms = 4_000): Promise<void> {
   }
 }
 
-/** Seed 2026's Scout after its first Hop, to the Body Comms Detected at the start. */
+/**
+ * Seed 2026's Scout after its first Hop, to the Body Comms Detected at the start. Flown with no
+ * Cruise events (#250): it lands sound, so these tests see only the Comms ping and the yield.
+ */
 function firstLanding(): { run: Run; report: NonNullable<LandedData['report']> } {
   const before = startRun(2026, 'scout');
-  const launched = launchHop(before, firstDetectedBody(before.starSystem).id);
+  const launched = launchHop(before, firstDetectedBody(before.starSystem).id, { schedule: [] });
   if (launched.kind !== 'flown') throw new Error('Expected the first Hop to fly');
   return { run: launched.run, report: { before, flight: launched.flight } };
 }
@@ -656,6 +660,53 @@ it('draws a stand-in plate at the mount point of a Component whose art is missin
       : undefined;
   const at = composeSpacecraft('scout', run.spacecraft.slots, 'landed').components.get(2)?.bounds;
   expect([plate?.x, plate?.y]).toEqual([at?.x, at?.y]);
+});
+
+/** Seed 2026's Scout on its Starting Moon with its Fuel Tank (Slot 1) Damaged by a leak (#250). */
+function leakingOnTheMoon(): Run {
+  const run = startRun(2026, 'scout');
+  const damage = run.spacecraft.damage.map((d, slot) =>
+    slot === 1 ? { repair: null, burning: null } : d,
+  );
+  return { ...run, spacecraft: { ...run.spacecraft, damage } };
+}
+
+it('a click on the Damaged part on the Landed view starts its Repair, and no later click on it Rushes it (#250)', async () => {
+  const scene = await landOn(leakingOnTheMoon());
+  const rect = scene.spacecraft.componentBounds().get(1);
+  if (!rect) throw new Error('The Tank is drawn');
+  const canvas = scene.game.canvas;
+  const scale = canvas.getBoundingClientRect().width / GAME_WIDTH;
+  const { scrollX, scrollY } = scene.cameras.main;
+  const at = {
+    x: (rect.x - scrollX + rect.width / 2) * scale,
+    y: (rect.y - scrollY + rect.height / 2) * scale,
+  };
+  const updates: Run[] = [];
+  const off = EventBus.on('run-updated', (run) => updates.push(run));
+  await userEvent.click(canvas, { position: at });
+  await userEvent.click(canvas, { position: at });
+  // A double-click 1 px inside the part's bottom-right corner, where the ring's line runs close by.
+  const corner = {
+    x: (rect.x - scrollX + rect.width - 1) * scale,
+    y: (rect.y - scrollY + rect.height - 1) * scale,
+  };
+  await userEvent.dblClick(canvas, { position: corner });
+  off();
+  expect(updates).toHaveLength(1);
+  const started = updates[0];
+  expect(started?.spacecraft.damage[1]).toEqual({ repair: 0, burning: null });
+  expect(started?.materials).toBe(startRun(2026, 'scout').materials);
+});
+
+it('under reduced motion a Damaged part shows a steady glow and its badge, and no venting (#250)', async () => {
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
+  );
+  const scene = await landOn(leakingOnTheMoon());
+  expect(scene.reducedMotion).toBe(true);
+  expect(scene.marks.shown(1)).toEqual({ glow: true, badge: true, vent: false, ring: false });
+  expect(scene.marks.shown(0)).toEqual({ glow: false, badge: false, vent: false, ring: false });
 });
 
 it('sweeps a Radar ring out from the Spacecraft when one is installed, and says what it found', async () => {

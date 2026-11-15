@@ -90,3 +90,54 @@ it.each([
   expect(byTestId(host, 'delta-v').textContent).toBe(shown);
   expect(byTestId(host, 'delta-v').textContent).toBe(formatDeltaVKmS(metersPerSecond(deltaV)));
 });
+
+// The mission tracker (#289): three goal icons that fit in the bar beside the speaker and light per state.
+const withGoals = (found: boolean, built: boolean) => (
+  <TopBar
+    systemNumber={12}
+    systemName="Quydril Prime Longname"
+    fuel={kilograms(1234)}
+    fuelCapacity={kilograms(5000)}
+    deltaV={metersPerSecond(9876)}
+    materials={materials(100)}
+    dailyDay="2026-11-15"
+    goals={[
+      {
+        id: 'heliopause',
+        done: found,
+        label: found ? 'Heliopause: found' : 'Heliopause: not found yet',
+      },
+      {
+        id: 'jump-drive',
+        done: built,
+        label: built ? 'Jump Drive: built' : 'Jump Drive: not built yet',
+      },
+      { id: 'escape', done: false, label: 'Escape: not made yet' },
+    ]}
+  />
+);
+
+it('fits the mission tracker inside the bar, clear of the speaker controls and the other readouts', async () => {
+  const host = await renderUi(withGoals(false, false));
+  const frame = host.querySelector<HTMLElement>('.top-bar')?.getBoundingClientRect();
+  const tracker = byTestId(host, 'mission-tracker').getBoundingClientRect();
+  const music = host.querySelector<HTMLElement>('.music-controls--bar')?.getBoundingClientRect();
+  const materialsValue = byTestId(host, 'materials').getBoundingClientRect();
+  if (!frame || !music) throw new Error('no bar');
+  expect(tracker.left).toBeGreaterThanOrEqual(music.right);
+  expect(tracker.left).toBeGreaterThanOrEqual(materialsValue.right);
+  expect(tracker.right).toBeLessThanOrEqual(frame.right);
+  expect(tracker.top).toBeGreaterThanOrEqual(frame.top);
+  expect(tracker.bottom).toBeLessThanOrEqual(frame.bottom);
+});
+
+it('lights each goal per state and names it, state included', async () => {
+  const host = await renderUi(withGoals(true, false));
+  const heliopause = byTestId(host, 'goal-heliopause');
+  const drive = byTestId(host, 'goal-jump-drive');
+  expect(heliopause.getAttribute('aria-label')).toBe('Heliopause: found');
+  expect(heliopause.getAttribute('data-done')).toBe('true');
+  expect(drive.getAttribute('aria-label')).toBe('Jump Drive: not built yet');
+  expect(drive.getAttribute('data-done')).toBe('false');
+  expect(byTestId(host, 'goal-escape').getAttribute('aria-label')).toBe('Escape: not made yet');
+});
