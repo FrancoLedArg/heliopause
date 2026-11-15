@@ -70,210 +70,319 @@
   color: var(--gm6);
 }
 
-/* ---- Slots ---- */
+/* ---- The picture: the Spacecraft as the Landed view draws it, a callout per Slot ---- */
 
-.spacecraft-panel__left > .spacecraft-panel__label:first-child {
+.spacecraft-figure {
   left: 0;
   top: 0;
 }
 
-.spacecraft-panel__slots {
-  left: 0;
-  top: 12px;
-  display: flex;
-  gap: 8px;
+.spacecraft-figure > * {
+  position: absolute;
 }
 
-.spacecraft-panel .spacecraft-panel__remove {
-  left: 172px;
-  top: 18px;
-}
-
-.slot-button {
-  position: relative;
-  display: block;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-  color: var(--wh3);
-}
-
-.slot-button__face {
+.spacecraft-figure__art > * {
   position: absolute;
   inset: 0;
-  visibility: hidden;
 }
 
-.slot-button__face--empty {
-  visibility: visible;
+.spacecraft-figure__stand-in {
+  background: no-repeat center / contain;
+  image-rendering: pixelated;
 }
 
-.slot-button:hover .slot-button__face--hover,
-.slot-button--selected .slot-button__face--selected {
-  visibility: visible;
+.spacecraft-figure__lines {
+  left: 0;
+  top: 0;
+  overflow: visible;
 }
 
-.slot-button:focus-visible {
+.callout-line {
+  fill: var(--gm5);
+}
+
+.callout-line polyline {
+  fill: none;
+  stroke: var(--gm5);
+  stroke-width: 1;
+}
+
+.callout-line--lit {
+  fill: var(--cy3);
+}
+
+.callout-line--lit polyline {
+  stroke: var(--cy3);
+}
+
+.spacecraft-figure__slots {
+  inset: 0;
+}
+
+.slot-callout {
+  position: absolute;
+  display: block;
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--gm4);
+  background: var(--ink);
+  cursor: pointer;
+  color: var(--wh2);
+}
+
+/* Empty: an outline with room in it, dashed so it does not read as a fitted part by colour alone. */
+.slot-callout--empty {
+  border-style: dashed;
+  border-color: var(--gm4);
+  background: transparent;
+}
+
+.slot-callout:hover {
+  border-color: var(--cy1);
+}
+
+.slot-callout--selected,
+.slot-callout--selected:hover {
+  border: 1px solid var(--cy3);
+  box-shadow: inset 0 0 0 1px var(--cy1);
+}
+
+.slot-callout:focus-visible {
   outline: 1px solid var(--cy3);
   outline-offset: 2px;
 }
 
-.slot-button__code {
+.slot-callout__number {
   position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font: 8px/8px var(--font-pixel);
-}
-
-.slot-button__number {
-  position: absolute;
-  top: 38px;
-  left: 0;
-  right: 0;
-  text-align: center;
+  left: 3px;
+  top: 6px;
   font: 8px/8px var(--font-pixel);
   color: var(--gm5);
 }
 
-.slot-button--selected .slot-button__number {
+.slot-callout--selected .slot-callout__number {
   color: var(--cy3);
 }
 
-.spacecraft-panel__slot-caption {
-  left: 0;
-  top: 62px;
-  width: 228px;
-  font: 12px/12px var(--font-pixel-body);
-  color: var(--wh2);
-}
-
-/* ---- Mass bar and figures ---- */
-
-.spacecraft-panel__mass {
-  left: 0;
-  top: 82px;
-  width: 228px;
-  height: 28px;
-}
-
-.spacecraft-panel__mass-label {
+.slot-callout__part {
   position: absolute;
-  left: 0;
-  top: 0;
-  white-space: nowrap;
-  font: 12px/12px var(--font-pixel-body);
-  color: var(--wh2);
-}
-
-.spacecraft-panel__bar {
-  position: absolute;
-  left: 0;
-  top: 15px;
-  height: 10px;
-}
-
-.spacecraft-panel__bar > .kit-frame {
-  position: absolute;
-}
-
-.spacecraft-panel__bar-fill {
-  left: 2px;
+  left: 11px;
   top: 2px;
+  height: 16px;
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  animation: callout-fit 240ms steps(4) both;
 }
 
-.spacecraft-panel__figures {
-  left: 0;
-  top: 114px;
-  width: 228px;
-  margin: 0;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  row-gap: 2px;
-  font: 12px/12px var(--font-pixel-body);
+.slot-callout__icon {
+  display: block;
 }
 
-.spacecraft-panel__figures dt {
-  color: var(--gm5);
-}
-
-.spacecraft-panel__figures dd {
-  margin: 0;
+.slot-callout__level {
+  font: 8px/8px var(--font-pixel);
   color: var(--wh2);
-  text-align: right;
 }
 
-/* The before-you-pay preview: dry mass, Fuel capacity and Δv before → after, then one lesson line. */
+/* A Component just fitted drops into its callout. */
+@keyframes callout-fit {
+  from {
+    transform: translateY(-6px) scale(1.5);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slot-callout__part {
+    animation: none;
+  }
+}
+
+.spacecraft-panel .spacecraft-panel__remove {
+  left: 0;
+  top: 128px;
+}
+
+/* ---- Before you pay: the stat bars, the one-line why, and the lesson behind "Tell me more" ---- */
+
 .spacecraft-panel__preview {
   left: 0;
-  top: 154px;
+  top: 128px;
   width: 228px;
-  height: 92px;
+  height: 126px;
+  /* It shares its top line with the Remove button beside its heading: only its toggle takes clicks. */
+  pointer-events: none;
 }
 
 .spacecraft-panel__preview > * {
   position: absolute;
-  left: 0;
-  width: 228px;
   margin: 0;
 }
 
 .spacecraft-panel__preview > .spacecraft-panel__label {
+  left: 64px;
+  top: 8px;
+  width: 164px;
+  overflow: hidden;
+}
+
+.spacecraft-panel__stats {
+  left: 0;
+  top: 26px;
+  width: 228px;
+}
+
+.stat-bar {
+  position: relative;
+  height: 20px;
+  --bar: var(--wh3);
+}
+
+.stat-bar--fuel {
+  --bar: var(--am3);
+}
+
+.stat-bar--delta-v {
+  --bar: var(--cy3);
+}
+
+.stat-bar__label,
+.stat-bar__figures,
+.stat-bar__change {
+  position: absolute;
   top: 0;
+  white-space: nowrap;
+  font: 12px/10px var(--font-pixel-body);
 }
 
-.spacecraft-panel__forecast {
-  top: 11px;
-  display: grid;
-  row-gap: 0;
-  font: 12px/12px var(--font-pixel-body);
-}
-
-.spacecraft-panel__forecast-line {
-  display: grid;
-  grid-template-columns: 54px 1fr;
-}
-
-.spacecraft-panel__forecast dt {
+.stat-bar__label {
+  left: 0;
   color: var(--gm5);
 }
 
-.spacecraft-panel__forecast dd {
-  margin: 0;
+.stat-bar__figures {
+  right: 0;
+  color: var(--bar);
+}
+
+.stat-bar__then {
   color: var(--wh2);
 }
 
-.spacecraft-panel__change {
-  margin-left: 6px;
-  color: var(--gm6);
+.stat-bar__track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 11px;
+  height: 6px;
+  outline: 1px solid var(--gm3);
+  background: var(--ink);
 }
 
-/* Δv: its change is a line of its own, a word as well as a colour. */
-.spacecraft-panel__change--up,
-.spacecraft-panel__change--down,
-.spacecraft-panel__change--same {
-  display: block;
-  margin-left: 0;
+.stat-bar--preview .stat-bar__track {
+  right: 36px;
 }
 
-.spacecraft-panel__change--down {
-  color: var(--am3);
+.stat-bar__track > * {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  transition: width 200ms steps(5);
 }
 
-.spacecraft-panel__change--up {
+.stat-bar__now {
+  background: var(--bar);
+}
+
+/* Before and after: the figure now along the top half, the figure after along the bottom half. */
+.stat-bar--preview .stat-bar__now {
+  height: 3px;
+  opacity: 0.55;
+}
+
+.stat-bar__after {
+  top: 3px;
+  height: 3px;
+  background: var(--bar);
+}
+
+/* The stretch the change adds or takes away, striped so it reads without its colour. */
+.stat-bar .stat-bar__delta {
+  height: 100%;
+  transition: none;
+}
+
+.stat-bar__delta--good {
+  background: repeating-linear-gradient(135deg, var(--gr3) 0 2px, var(--gr1) 2px 4px);
+}
+
+.stat-bar__delta--bad {
+  background: repeating-linear-gradient(135deg, var(--rd2) 0 2px, var(--ink) 2px 4px);
+}
+
+.stat-bar__change {
+  top: 9px;
+  right: 0;
+  width: 32px;
+  text-align: right;
+}
+
+.stat-bar__change--good {
   color: var(--gr3);
 }
 
+.stat-bar__change--bad {
+  color: var(--am3);
+}
+
+.stat-bar__change--same {
+  color: var(--gm5);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stat-bar__track > * {
+    transition: none;
+  }
+}
+
 .spacecraft-panel__note {
-  top: 60px;
+  left: 0;
+  top: 88px;
+  width: 228px;
+  white-space: nowrap;
   font: 12px/12px var(--font-pixel-body);
   color: var(--wh3);
 }
 
-/* With no figures to show, the sentence takes the top of the block. */
-.spacecraft-panel .spacecraft-panel__note--first {
-  top: 0;
+/* With no change to show, the reason it cannot happen may take two lines. */
+.spacecraft-panel .spacecraft-panel__note--long {
+  white-space: normal;
+  color: var(--am3);
+}
+
+.spacecraft-panel .spacecraft-panel__more {
+  left: 0;
+  top: 102px;
+}
+
+/* The lesson opens over the picture, where it has room, and closes with the same toggle. */
+.spacecraft-panel .spacecraft-panel__details {
+  left: 0;
+  top: -128px;
+  width: 228px;
+  height: 124px;
+  box-sizing: border-box;
+  padding: 6px;
+  border: 1px solid var(--cy1);
+  background: var(--ink);
+  z-index: 2;
+}
+
+.spacecraft-panel__details p {
+  margin: 0 0 6px;
+  font: 12px/12px var(--font-pixel-body);
+  color: var(--wh2);
 }
 
 /* ---- Catalogue ---- */
@@ -324,11 +433,17 @@
   border-color: var(--cy3);
 }
 
+.spacecraft-panel .spacecraft-panel__row-icon {
+  position: absolute;
+  left: 4px;
+  top: 5px;
+}
+
 .spacecraft-panel__row-head {
   position: absolute;
-  left: 5px;
+  left: 24px;
   top: 2px;
-  width: 280px;
+  width: 268px;
   display: flex;
   align-items: baseline;
   gap: 8px;
@@ -347,6 +462,22 @@
   color: var(--gm6);
 }
 
+.spacecraft-panel__row-cost {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font: 12px/10px var(--font-pixel-body);
+  color: var(--wh2);
+}
+
+.spacecraft-panel__row-cost-icon {
+  image-rendering: pixelated;
+}
+
+.spacecraft-panel__row--costly .spacecraft-panel__row-cost {
+  color: var(--am3);
+}
+
 .spacecraft-panel__row-tag {
   font: 12px/10px var(--font-pixel-body);
   color: var(--am3);
@@ -354,9 +485,9 @@
 
 .spacecraft-panel__row-effect {
   position: absolute;
-  left: 5px;
+  left: 24px;
   top: 13px;
-  width: 280px;
+  width: 268px;
   white-space: nowrap;
   font: 12px/12px var(--font-pixel-body);
   color: var(--wh3);
@@ -368,7 +499,8 @@
 
 /* Greyed out: it cannot be installed whatever the Materials. The reason is its effect line, in words. */
 .spacecraft-panel__row--unavailable .spacecraft-panel__row-name,
-.spacecraft-panel__row--unavailable .spacecraft-panel__row-stats {
+.spacecraft-panel__row--unavailable .spacecraft-panel__row-stats,
+.spacecraft-panel__row--unavailable .spacecraft-panel__row-cost {
   color: var(--gm5);
 }
 
@@ -401,11 +533,11 @@
   top: 226px;
 }
 
-/* ---- Remove: the question sits over the figures, above the preview ---- */
+/* ---- Remove: the question sits over the picture, above the preview ---- */
 
 .spacecraft-panel__confirm {
   left: 0;
-  top: 54px;
+  top: 12px;
   width: 228px;
   height: 100px;
   box-sizing: border-box;

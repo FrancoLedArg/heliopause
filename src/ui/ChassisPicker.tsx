@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
-import { atlasImageUrl, hasAsset, imageUrl } from '../game/assets/manifest.ts';
-import { frameGeometry, standingExtent } from '../game/scenes/chassisArt.ts';
+import { hasAsset, imageUrl } from '../game/assets/manifest.ts';
+import { standingExtent } from '../game/scenes/chassisArt.ts';
 import { composeSpacecraft } from '../game/scenes/spacecraftComposition.ts';
 import { CHASSIS_IDS, newSpacecraft, type ChassisId } from '../game/sim/index.ts';
 import { chassisBars, type ChassisBar } from './chassisPickView.ts';
@@ -8,7 +8,7 @@ import { Disclosure, DisclosurePanel, TellMeMoreToggle } from './Disclosure.tsx'
 import { chassisName } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
-import { useAtlasFrames } from './useAtlasFrames.ts';
+import { SpacecraftLayers } from './SpacecraftLayers.tsx';
 
 const CARD_WIDTH = 192;
 const BUTTON_WIDTH = 96;
@@ -195,41 +195,16 @@ function ChassisSprite({ id }: { id: ChassisId }) {
   );
 }
 
-/** The composed Spacecraft in the DOM: one span per layer, cut from the atlas image, back to front. */
+/** The new Spacecraft of this Chassis, composed as the Landed view draws it. */
 function ComposedSprite({ id, atlasKey }: { id: ChassisId; atlasKey: string }) {
-  const frames = useAtlasFrames(atlasKey);
-  const { width, height, pivot } = frameGeometry(id, 'landed');
-  const { layers } = composeSpacecraft(id, newSpacecraft(id).slots, 'landed');
+  const composition = composeSpacecraft(id, newSpacecraft(id).slots, 'landed');
+  const { width, height } = composition.geometry;
   return (
-    <span
-      aria-hidden="true"
+    <SpacecraftLayers
+      composition={composition}
+      atlasKey={atlasKey}
       className="chassis-card__sprite"
-      style={{
-        width,
-        height,
-        left: (CARD_WIDTH - width) / 2,
-        top: SPRITE_TOP + ART_BOX_HEIGHT - height,
-      }}
-    >
-      {frames &&
-        layers.map(({ frame, rect }) => {
-          const at = frames.get(frame);
-          if (!at) return null;
-          return (
-            <span
-              key={frame}
-              className="chassis-card__layer"
-              style={{
-                left: pivot.x + rect.x,
-                top: pivot.y + rect.y,
-                width: rect.width,
-                height: rect.height,
-                backgroundImage: `url(${atlasImageUrl(atlasKey)})`,
-                backgroundPosition: `${String(-at.x)}px ${String(-at.y)}px`,
-              }}
-            />
-          );
-        })}
-    </span>
+      style={{ left: (CARD_WIDTH - width) / 2, top: SPRITE_TOP + ART_BOX_HEIGHT - height }}
+    />
   );
 }
