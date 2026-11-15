@@ -7,6 +7,8 @@ interface KitFrameProps {
   /** Size in native (640×360) pixels; defaults to the frame's own size. Sliced frames stretch. */
   width?: number;
   height?: number;
+  /** Shows the frame this many times its drawn size (an icon at half size: 0.5). Pixels stay square. */
+  scale?: number;
   className?: string;
 }
 
@@ -14,7 +16,7 @@ interface KitFrameProps {
  * Draws one UI kit frame (panel, button face, title bar, divider, icon) at any size its slices
  * allow, pixel for pixel from the kit atlas. Decorative: hidden from assistive technology.
  */
-export function KitFrame({ frame, width, height, className }: KitFrameProps) {
+export function KitFrame({ frame, width, height, scale = 1, className }: KitFrameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const atlas = useKitAtlas();
   const natural = kitFrameSize(frame);
@@ -48,7 +50,7 @@ export function KitFrame({ frame, width, height, className }: KitFrameProps) {
       height={h}
       aria-hidden="true"
       className={className ? `kit-frame ${className}` : 'kit-frame'}
-      style={{ width: w, height: h }}
+      style={{ width: w * scale, height: h * scale }}
     />
   );
 }
