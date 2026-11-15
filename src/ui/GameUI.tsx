@@ -299,6 +299,18 @@ export function GameUI() {
             now && { ...now, after: { kind: 'ended', run: ended, recorded, step: 'report' } },
         );
       }),
+      // Destroyed in the Cruise (#251): no Hop to report, so straight on to the End-of-Run screen.
+      EventBus.on('hop-destroyed', (ended) => {
+        const recorded = recordEnd(ended, dailyRef.current);
+        setFlight(
+          (now) =>
+            now && {
+              ...now,
+              live: undefined,
+              after: { kind: 'ended', run: ended, recorded, step: 'end' },
+            },
+        );
+      }),
       EventBus.on('jump-stage', (stage) => {
         // No Score: the Run is not over, it goes on in the next Star System.
         afterJump.current = true;

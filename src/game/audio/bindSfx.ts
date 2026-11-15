@@ -79,6 +79,11 @@ export function wireSfx(target: Sfx): () => void {
       if (cruise) for (const cue of cruiseCues(cruise, run)) target.play(cue);
       cruise = run;
     }),
+    // An Engine fire left alone reached the Fuel (#251).
+    EventBus.on('spacecraft-exploded', () => {
+      target.play('sfx_explosion');
+      cruise = undefined;
+    }),
     EventBus.on('hop-flight-settled', () => {
       cruise = undefined;
     }),

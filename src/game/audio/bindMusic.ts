@@ -91,6 +91,10 @@ export function bindMusic(game: Game, target: Music = music): void {
     EventBus.on('hop-failed', () => {
       target.setEnded(true);
     }),
+    EventBus.on('hop-destroyed', () => {
+      target.setCruiseEvent(false);
+      target.setEnded(true);
+    }),
     // The Cruise's music turns tense while anything aboard is Damaged, until it is Repaired (#250).
     EventBus.on('cruise-updated', (run) => {
       target.setCruiseEvent(anyDamaged(run));
