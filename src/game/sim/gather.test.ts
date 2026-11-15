@@ -251,11 +251,17 @@ describe('a Drill multiplies yields', () => {
       ...away(),
       starSystem: {
         ...base.starSystem,
-        planets: base.starSystem.planets.map((planet) =>
-          planet.id === home.id
+        // The sure Rocky target may be a planet or a Moon.
+        planets: base.starSystem.planets.map((planet) => ({
+          ...(planet.id === home.id
             ? { ...planet, composition: 'rocky' as const, baseYield: materials(baseYield) }
-            : planet,
-        ),
+            : planet),
+          moons: planet.moons.map((m) =>
+            m.id === home.id
+              ? { ...m, composition: 'rocky' as const, baseYield: materials(baseYield) }
+              : m,
+          ),
+        })),
       },
     });
     function away(): Run {

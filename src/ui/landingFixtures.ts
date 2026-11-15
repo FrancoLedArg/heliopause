@@ -53,28 +53,33 @@ export function landing(
 }
 
 /**
- * Seed 15 with a level-1 Drill, back on Pripro after Pripro and Lylion: no Hop as built, but removing
- * the Drill saves the Run. Re-pinned for #189 (was seed 45's Mavar, then seed 11 before a Rocky
- * opening stopped adding Materials over a New Run's).
+ * Seed 156 with a level-1 Drill, landed on Rymoquox by way of Zuzin and Rama: no Hop as built, but
+ * removing the Drill saves the Run. Re-pinned for #189 (was seed 45's Mavar, then seed 11 before a
+ * Rocky opening stopped adding Materials over a New Run's) and for #247 (was seed 15's Pripro): the
+ * Chassis Isp rose 30%, so seed 15's Run has a Hop there.
  */
 export const SAVE_BY_REMOVING = {
-  seed: 15,
-  path: ['Pripro', 'Lylion', 'Pripro'],
+  seed: 156,
+  path: ['Zuzin', 'Rama', 'Rymoquox'],
   fit: 'drill-1',
 } as const;
 
 /**
- * Seed 12, back on Laquun after Laquun and Prahen: the last Hop's plan is sure but its Burns run
- * long, and no change to the Spacecraft could give any Hop a chance. Re-pinned for #189 (was seed
- * 305's Lyquin): Runs open on a Starting Moon and Hop only to Bodies Comms Detected.
+ * Seed 27, back on Dryli after Dryli, Siolmel and Teskae: the last Hop's plan is sure, and no change
+ * to the Spacecraft could give any Hop a chance. Re-pinned for #189 (was seed 305's Lyquin): Runs
+ * open on a Starting Moon and Hop only to Bodies Comms Detected. Re-pinned for #247 (was seed 12's
+ * Laquun): the Chassis Isp rose 30%, so that Run is no longer Stranded.
  */
-export const STRANDED_ON_LANDING = { seed: 12, path: ['Laquun', 'Prahen', 'Laquun'] } as const;
+export const STRANDED_ON_LANDING = {
+  seed: 27,
+  path: ['Dryli', 'Siolmel', 'Teskae', 'Dryli'],
+} as const;
 
 /**
- * Seed 12's same path with 16 Materials more than it would have (60, not 44): only swapping in the
+ * Seed 27's same path with 1 Material more than it would have (60, not 59): only swapping in the
  * level-2 Engine (60) saves the Run, so spending any of them on another Component strands it.
  * Without it, the Landing itself strands it. Re-pinned for #189 (was seed 57's Vekyr).
  */
 export function saveByRefitting(): Run {
-  return landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path, undefined, 16).run;
+  return landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path, undefined, 1).run;
 }

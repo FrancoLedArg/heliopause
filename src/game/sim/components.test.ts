@@ -91,10 +91,11 @@ describe('Slots', () => {
 
   it("a new Spacecraft's starting Components give exactly Spec A's dry mass, Fuel capacity and Δv", () => {
     // Spec A's CHASSIS_TUNING, before Components: the Δv is Isp × g0 × ln(wet mass / dry mass).
+    // The Isp is 30% above Spec A's since #247, so the first Hop leaves a healthy Fuel gauge.
     const specA = {
-      scout: { dryMass: 4_000, fuelCapacity: 21_000, engineIsp: 1_230, deltaV: 22_104.93 },
-      hauler: { dryMass: 15_000, fuelCapacity: 66_000, engineIsp: 1_210, deltaV: 20_010.89 },
-      lancer: { dryMass: 6_000, fuelCapacity: 36_000, engineIsp: 1_280, deltaV: 24_426.06 },
+      scout: { dryMass: 4_000, fuelCapacity: 21_000, engineIsp: 1_600, deltaV: 28_754.38 },
+      hauler: { dryMass: 15_000, fuelCapacity: 66_000, engineIsp: 1_575, deltaV: 26_047.23 },
+      lancer: { dryMass: 6_000, fuelCapacity: 36_000, engineIsp: 1_665, deltaV: 31_772.96 },
     };
     for (const id of CHASSIS_IDS) {
       const spacecraft = newSpacecraft(id);
