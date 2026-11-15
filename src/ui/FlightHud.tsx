@@ -120,6 +120,7 @@ export function FlightHud({
           systemNumber={starSystemNumber(before)}
           systemName={before.starSystem.name}
           fuel={fuel}
+          fuelCapacity={before.spacecraft.fuelCapacity}
           deltaV={deltaV}
           materials={before.materials}
           dailyDay={dailyDay}
@@ -158,6 +159,7 @@ export function FlightHud({
         systemNumber={starSystemNumber(before)}
         systemName={before.starSystem.name}
         fuel={fuel}
+        fuelCapacity={before.spacecraft.fuelCapacity}
         deltaV={deltaV}
         materials={before.materials}
         dailyDay={dailyDay}
