@@ -1,7 +1,7 @@
+import { recordChoice } from './choiceLog.ts';
 import { COMPONENTS, componentCost, type ComponentId } from './catalogue.ts';
 import { starSystemNumber, type Run } from './run.ts';
 import { carriesJumpDrive, refit, SLOT_COUNT } from './spacecraft.ts';
-import { deepFreeze } from './starSystem.ts';
 import { materials, type Materials } from './units.ts';
 
 /** Why a Component cannot be installed: expected outcomes a player causes, so results, not exceptions. */
@@ -67,14 +67,17 @@ export function install(run: Run, slotIndex: number, componentId: ComponentId): 
   }
   return {
     kind: 'installed',
-    run: deepFreeze({
-      ...run,
-      spacecraft: refit(
-        run.spacecraft,
-        slots.map((slot, index) => (index === slotIndex ? componentId : slot)),
-      ),
-      materials: materials(run.materials - cost),
-    }),
+    run: recordChoice(
+      {
+        ...run,
+        spacecraft: refit(
+          run.spacecraft,
+          slots.map((slot, index) => (index === slotIndex ? componentId : slot)),
+        ),
+        materials: materials(run.materials - cost),
+      },
+      { kind: 'install', slot: slotIndex, componentId },
+    ),
   };
 }
 
