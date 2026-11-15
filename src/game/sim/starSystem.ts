@@ -1,6 +1,6 @@
 import { createRng, type Rng } from '../lib/rng.ts';
-import { RADAR_TUNING } from './catalogue.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
+import { RADAR_TUNING } from './catalogue.ts';
 import {
   BODY_TUNING,
   DIFFICULTY_TUNING,

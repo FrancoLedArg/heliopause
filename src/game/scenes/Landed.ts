@@ -20,6 +20,8 @@ import { standingExtent } from './chassisArt.ts';
 import { describeGathering, type Gathering } from './gathering.ts';
 import { playGatheringMoment } from './gatheringMoment.ts';
 import { SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
+import { openingKnowledge } from '../sim/opening.ts';
+import { radarSweep, type Reveal } from '../sim/knowledge.ts';
 import { SceneKey } from './keys.ts';
 import type { Point } from './chassisArt.ts';
 import { flightDataFor } from './Flight.ts';
@@ -85,6 +87,8 @@ export const RADAR_SWEEP = {
 export class Landed extends Scene {
   private run!: Run;
   private report: LandedData['report'];
+  /** The Nav Chart has opened since this landing, and pinged what Comms Detected. */
+  private blipsPinged = false;
   private afterJump = false;
   private gathering: Gathering | undefined;
   /** The layers, back to front: ambient motion (parallax drift) moves these. */
@@ -117,6 +121,7 @@ export class Landed extends Scene {
   init(data: LandedData): void {
     this.run = data.run;
     this.report = data.report;
+    this.blipsPinged = false;
     this.afterJump = data.afterJump ?? false;
     this.gathering =
       data.gathering ??
@@ -137,7 +142,10 @@ export class Landed extends Scene {
     // The Nav Chart runs as its own scene over this one, which keeps running (dimmed) beneath it.
     const offOpen = EventBus.on('nav-chart-open-requested', () => {
       if (this.scene.isActive(SceneKey.NavChart) || this.run.status.kind !== 'landed') return;
-      const data: NavChartData = { run: this.run };
+      // The chart pings a newly Detected Body only the first time it opens after that landing.
+      const newBlips = this.blipsPinged ? [] : (this.report?.flight.reveal?.detected ?? []);
+      this.blipsPinged = true;
+      const data: NavChartData = { run: this.run, newBlips };
       this.scene.launch(SceneKey.NavChart, data);
     });
     // Launch settles the Hop in the simulation, then hands it to the Flight to play back. Starting
@@ -185,12 +193,20 @@ export class Landed extends Scene {
       // A Radar sweeps as soon as it is installed: the ring shows it, React says what it found.
       if (installed.sweep) {
         this.playRadarSweep(ship.container);
+        sweptBehindPanel = true;
         EventBus.emit('comms-revealed', installed.run, {
           surveyed: undefined,
           detected: [],
           radar: installed.sweep,
         });
       }
+    });
+    // The install sweep played behind the open panel: play it again when the panel closes.
+    let sweptBehindPanel = false;
+    const offPanelClosed = EventBus.on('spacecraft-panel-closed', () => {
+      if (!sweptBehindPanel) return;
+      sweptBehindPanel = false;
+      this.playRadarSweep(ship.container);
     });
     const offRemove = EventBus.on('component-remove-requested', (slotIndex) => {
       const removed = remove(this.run, slotIndex);
@@ -205,6 +221,7 @@ export class Landed extends Scene {
       offOpen();
       offInstall();
       offRemove();
+      offPanelClosed();
       offLaunch();
       offRepair();
       offRush();
@@ -261,7 +278,7 @@ export class Landed extends Scene {
       if (report) EventBus.emit('hop-arrived', report.before, report.flight);
       // Comms Detected something on this landing: the ping shows it, React says it. It follows the
       // gathering moment, so the eye takes one thing at a time.
-      const reveal = report?.flight.reveal;
+      const reveal = report?.flight.reveal ?? this.arrivalReveal();
       const ping =
         reveal && (reveal.detected.length > 0 || reveal.radar)
           ? () => {
@@ -275,6 +292,16 @@ export class Landed extends Scene {
       else if (ping) this.time.delayedCall(COMMS_PING.delayMs, ping);
     }
     EventBus.emit('scene-ready', SceneKey.Landed);
+  }
+
+  /** What the carried Radar's sweep found on arrival after a Jump: the sim swept from the opening. */
+  private arrivalReveal(): Reveal | undefined {
+    if (!this.afterJump) return undefined;
+    const { sweep } = radarSweep({
+      ...this.run,
+      knowledge: openingKnowledge(this.run.starSystem),
+    });
+    return sweep && { surveyed: undefined, detected: [], radar: sweep };
   }
 
   /** The fraction of the local day now: the Run's clock plus the slow drift of the time spent standing here. */
