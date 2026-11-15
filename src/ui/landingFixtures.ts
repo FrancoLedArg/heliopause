@@ -70,33 +70,37 @@ export function landing(
 }
 
 /**
- * Seed 105 with a level-1 Drill, landed on Verpry by way of Husox and Liokioher: no Hop as built,
- * but removing the Drill saves the Run, with every Body Unsurveyed until landed on as in real play
- * (pass `preSurvey` false). Re-pinned for #190 (was seed 156's Rymoquox): Stranded and the warning
- * follow the plans the player sees, and the old route only warned with its other Bodies Surveyed.
+ * Seed 14 with a level-1 Drill, landed on Hunce by way of Radraes Prime, Kescaen Tau and Xulxal: no
+ * Hop as built, but removing the Drill saves the Run, with every Body Unsurveyed until landed on as
+ * in real play (pass `preSurvey` false). Re-pinned for #190 (was seed 156's Rymoquox): Stranded and
+ * the warning follow the plans the player sees. Re-pinned for #283 (was seed 105's Verpry): the
+ * fairness check within the Hop range keeps another Star System for seed 105.
  */
 export const SAVE_BY_REMOVING = {
-  seed: 105,
-  path: ['Husox', 'Liokioher', 'Verpry'],
+  seed: 14,
+  path: ['Radraes Prime', 'Kescaen Tau', 'Xulxal', 'Hunce'],
   fit: 'drill-1',
 } as const;
 
 /**
- * Seed 27, back on Dryli after Dryli, Siolmel and Teskae: the last Hop's plan is sure, and no change
- * to the Spacecraft could give any Hop a chance. Re-pinned for #189 (was seed 305's Lyquin): Runs
- * open on a Starting Moon and Hop only to Bodies Comms Detected. Re-pinned for #247 (was seed 12's
- * Laquun): the Chassis Isp rose 30%, so that Run is no longer Stranded.
+ * Seed 5, back on Driovae after Driovae, Cyxxaer-7, Raertha, Ryvynsio and Cyxxaer-7: every plan sure,
+ * yet no change to the Spacecraft could give any Hop a chance after the last, in real play as well as
+ * with the Bodies off the path pre-Surveyed. Re-pinned for #189 (was seed 305's Lyquin): Runs open on
+ * a Starting Moon and Hop only to Bodies Comms Detected. Re-pinned for #247 (was seed 12's Laquun):
+ * the Chassis Isp rose 30%. Re-pinned for #283 (was seed 27's Dryli, Siolmel, Teskae and Dryli):
+ * Teskae is past the Hop range from Siolmel.
  */
 export const STRANDED_ON_LANDING = {
-  seed: 27,
-  path: ['Dryli', 'Siolmel', 'Teskae', 'Dryli'],
+  seed: 5,
+  path: ['Driovae', 'Cyxxaer-7', 'Raertha', 'Ryvynsio', 'Cyxxaer-7', 'Driovae'],
 } as const;
 
 /**
- * Seed 27's same path with 1 Material more than it would have (60, not 59): only swapping in the
+ * Seed 5's same path with 4 Materials more than it would have (60, not 56): only swapping in the
  * level-2 Engine (60) saves the Run, so spending any of them on another Component strands it.
- * Without it, the Landing itself strands it. Re-pinned for #189 (was seed 57's Vekyr).
+ * Without them, the Landing itself strands it. Re-pinned for #189 (was seed 57's Vekyr), and for
+ * #283 with `STRANDED_ON_LANDING` (was 1 Material on seed 27).
  */
 export function saveByRefitting(): Run {
-  return landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path, undefined, 1).run;
+  return landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path, undefined, 4).run;
 }

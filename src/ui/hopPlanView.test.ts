@@ -6,6 +6,7 @@ import {
   firstDetectedBody,
   flyHop,
   HELIOPAUSE,
+  isInHopRange,
   install,
   kilograms,
   listBodies,
@@ -25,12 +26,13 @@ import {
   formatDeltaVKmS,
 } from './format.ts';
 import { describeHopPlan, LOW_SUCCESS_BELOW } from './hopPlanView.ts';
+import { heliopauseFound } from '../game/sim/testing.ts';
 
-/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
-const found = (run: Run): Run => ({
-  ...run,
-  knowledge: { ...run.knowledge, heliopauseFound: true },
-});
+/**
+ * The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target, and
+ * only within the Hop range (#283).
+ */
+const found = heliopauseFound;
 
 const mps = metersPerSecond;
 const run: Run = startRun(123, 'scout');
@@ -128,9 +130,10 @@ describe('the Hop plan as the player reads it', () => {
 
   it('flags a low Success Chance in words, and not a high one', () => {
     // Re-pinned for #188: a full scout reaches every Body of seed 123 for sure, so half its Fuel.
+    // Re-pinned for #283: a fifth, as half still reaches every Body within the Hop range for sure.
     const half: Run = onInnerPlanet({
       ...run,
-      spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 2) },
+      spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 5) },
     });
     const chances: number[] = [];
     for (const body of listBodies(half.starSystem)) {
@@ -156,10 +159,14 @@ describe('the Hop plan as the player reads it', () => {
   });
 
   it('gives each Burn a reason drawn from the Bodies involved', () => {
-    // Re-pinned for #189: Rexsio, a Gas Giant's Moon far out, stands in for Sircer.
+    // Re-pinned for #189: Rexsio, a Gas Giant's Moon far out, stands in for Sircer. Re-pinned for
+    // #283: the farthest Body of another planet within the Hop range stands in for Rexsio.
     const knowing = knowingAll(run);
-    const far = listBodies(run.starSystem).find((b) => b.name === 'Rexsio');
     const here = currentBody(run);
+    const far = listBodies(run.starSystem)
+      .filter((b) => b.landable && b.distanceFromStar !== here.distanceFromStar)
+      .filter((b) => isInHopRange(knowing, b.id))
+      .sort((a, b) => b.distanceFromStar - a.distanceFromStar)[0];
     if (!far) throw new Error('seed 123 setup');
     const view = describeHopPlan(knowing, planFor(far.id, knowing));
     const [takeoff, transfer, landing] = view.burns.map((b) => b.reason);
@@ -232,15 +239,16 @@ describe('the Hop plan as the player reads it', () => {
 
   it('gives the same percentage as the why text for a hauler Hop on seed 123 that is short', () => {
     // Re-pinned for #189: from the innermost planet, a half-fuelled hauler's Hop to Rexsio is short.
-    // #247's Isp leaves it less short.
+    // #247's Isp leaves it less short. Re-pinned for #283: Rexsio is past the Hop range, so a hauler
+    // with a fifth of its Fuel plans for Tiosli.
     const full = onInnerPlanet(startRun(123, 'hauler'));
     const hauler: Run = {
       ...full,
-      spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 2) },
+      spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 5) },
     };
-    const rexsio = listBodies(hauler.starSystem).find((body) => body.name === 'Rexsio');
-    if (!rexsio) throw new Error('seed 123 has no Rexsio');
-    expect(describeHopPlan(hauler, planFor(rexsio.id, hauler)).margin).toBe('−2.9 km/s (14%)');
+    const tiosli = listBodies(hauler.starSystem).find((body) => body.name === 'Tiosli');
+    if (!tiosli) throw new Error('seed 123 has no Tiosli');
+    expect(describeHopPlan(hauler, planFor(tiosli.id, hauler)).margin).toBe('−5.0 km/s (34%)');
   });
 
   it('drops the percentage once the Margin is as big as the estimate', () => {

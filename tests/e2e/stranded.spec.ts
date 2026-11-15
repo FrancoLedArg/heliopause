@@ -7,7 +7,15 @@ import { landing, SAVE_BY_REMOVING, STRANDED_ON_LANDING } from '../../src/ui/lan
 // a Hop a chance ends the Run; one that a lighter Spacecraft could leave warns instead.
 // Since #189 a Run opens knowing one Body, always In reach, so both take a few Hops through what
 // Comms Detects on the way.
-const strandedLanding = landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path);
+// Played as in the game, every Body Unsurveyed until landed on (#283: seed 5's why differs from
+// the pre-Surveyed fixture's).
+const strandedLanding = landing(
+  STRANDED_ON_LANDING.seed,
+  STRANDED_ON_LANDING.path,
+  undefined,
+  0,
+  false,
+);
 const strandedVerdict = runEnd(strandedLanding.run);
 if (strandedVerdict?.kind !== 'stranded')
   throw new Error(`Seed ${String(STRANDED_ON_LANDING.seed)} should strand at the end of its path`);

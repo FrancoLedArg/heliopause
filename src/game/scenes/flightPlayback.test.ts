@@ -27,12 +27,13 @@ import {
   type FlightPlayback,
   type Shot,
 } from './flightPlayback.ts';
+import { heliopauseFound } from '../sim/testing.ts';
 
-/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
-const found = (run: Run): Run => ({
-  ...run,
-  knowledge: { ...run.knowledge, heliopauseFound: true },
-});
+/**
+ * The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target, and
+ * only within the Hop range (#283).
+ */
+const found = heliopauseFound;
 
 const run = startRun(123, 'scout');
 /** The first Body Comms Detected: every Hop in these tests goes there. */

@@ -541,6 +541,7 @@ export function GameUI() {
             run={run}
             onClose={() => {
               setSpacecraftOpen(false);
+              EventBus.emit('spacecraft-panel-closed');
             }}
           />
         )}
