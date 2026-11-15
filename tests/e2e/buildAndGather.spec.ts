@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { formatDeltaV, formatFuel, formatPlanDeltaV } from '../../src/ui/format.ts';
+import { formatDeltaV, formatDeltaVKmS, formatFuel } from '../../src/ui/format.ts';
 import { availableDeltaV, install, launchHop, startRun } from '../../src/game/sim/index.ts';
 import { describeReport } from '../../src/ui/hopReportView.ts';
 import { yieldIcon } from '../../src/ui/yieldIcon.ts';
@@ -75,7 +75,7 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   await expect(newRun).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('delta-v')).toHaveText(
-    formatDeltaV(availableDeltaV(run.spacecraft)),
+    formatDeltaVKmS(availableDeltaV(run.spacecraft)),
   );
 
   // 2. Open the Spacecraft panel by keyboard.
@@ -121,7 +121,7 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   await page.keyboard.press('m');
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
   await target(page, moon.name);
-  await expect(page.getByTestId('plan-available')).toHaveText(formatPlanDeltaV(afterDeltaV));
+  await expect(page.getByTestId('plan-available')).toHaveText(formatDeltaVKmS(afterDeltaV));
   // The target Moon shows what it yields, on its card and on the Hop plan's target.
   await expect(page.getByTestId('target').getByRole('img', { name: moonYield.name })).toBeVisible();
   await expect(
