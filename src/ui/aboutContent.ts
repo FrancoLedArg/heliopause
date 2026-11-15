@@ -6,6 +6,8 @@
 
 export interface ContentLink {
   label: string;
+  /** The accessible name when the visible label is too short to tell links apart. */
+  accessibleName?: string;
   /** Always an absolute https URL: it opens in a new tab. */
   url: string;
 }
@@ -91,7 +93,11 @@ export const ABOUT = {
 };
 
 function ref(label: string, detail: string, url: string): CreditEntry {
-  return { name: label, detail, link: { label: `Source: ${label}`, url } };
+  return {
+    name: label,
+    detail,
+    link: { label: 'Source', accessibleName: `Source: ${label}`, url },
+  };
 }
 
 export const CREDITS: {
@@ -165,7 +171,7 @@ export const CREDITS: {
       heading: 'Inspiration',
       entries: [
         {
-          name: 'NASA Space Apps Challenge 2026 challenge: Lunar Landing Site Navigator',
+          name: 'NASA Space Apps Challenge 2026: "Lunar Landing Site Navigator"',
           detail: 'The challenge behind our day and night and temperature ideas',
           link: {
             label: 'Challenge page: Lunar Landing Site Navigator',

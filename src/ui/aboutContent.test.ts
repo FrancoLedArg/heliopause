@@ -91,9 +91,9 @@ describe('About and Credits content', () => {
   });
 
   it('gives every Reference link a distinct accessible name', () => {
-    const labels = (group('References')?.entries ?? []).map((e) => e.link?.label);
-    expect(new Set(labels).size).toBe(labels.length);
-    for (const label of labels) expect(label).toMatch(/^Source: /);
+    const names = (group('References')?.entries ?? []).map((e) => e.link?.accessibleName);
+    expect(new Set(names).size).toBe(names.length);
+    for (const name of names) expect(name).toMatch(/^Source: \S/);
   });
 
   it('is named Credits & References', () => {

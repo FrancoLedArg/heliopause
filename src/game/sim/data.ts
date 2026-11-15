@@ -141,6 +141,8 @@ export const BODY_TUNING = {
  * comes from. Not a game figure, so it has no value.
  */
 export const FUEL_NOTE = {
+  /** Shown the first time a Run collects Fuel: real missions, not a claim of NASA's. */
+  text: 'Real missions plan to split lunar water ice into hydrogen and oxygen, so rockets could refuel on the Moon.',
   source:
     'Sanders, Kleinhenz and Linne (NASA), "NASA Plans for In Situ Resource Utilization (ISRU) Development, Demonstration, and Implementation", NTRS 20220008799 https://ntrs.nasa.gov/citations/20220008799; docs/research/ice-and-resources.md',
 } as const;

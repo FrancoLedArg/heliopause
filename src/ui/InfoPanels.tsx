@@ -17,7 +17,13 @@ interface InfoPanelProps {
 /** A link that opens in a new tab (another site, or the notices file) and never hands the opener over. */
 function ExternalLink({ link }: { link: ContentLink }) {
   return (
-    <a className="info-link" href={link.url} target="_blank" rel="noopener noreferrer">
+    <a
+      className="info-link"
+      href={link.url}
+      aria-label={link.accessibleName}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
       {link.label}
     </a>
   );
