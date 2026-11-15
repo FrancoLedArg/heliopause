@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { FAST_CRUISE } from './cruise.ts';
 import { formatDeltaVKmS, formatFuel } from '../../src/ui/format.ts';
 import { availableDeltaV, install, launchHop, startRun } from '../../src/game/sim/index.ts';
 import { describeReport } from '../../src/ui/hopReportView.ts';
@@ -68,7 +69,7 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   page.on('pageerror', (error) => errors.push(error.message));
 
   // 1. Start a Run.
-  await page.goto(`/?seed=${String(SEED)}&chassis=scout`);
+  await page.goto(`/?seed=${String(SEED)}&chassis=scout&${FAST_CRUISE}`);
   const newRun = page.getByRole('button', { name: 'New Run' });
   await expect(newRun).toBeVisible();
   await page.keyboard.press('Tab');

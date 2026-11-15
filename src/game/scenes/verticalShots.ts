@@ -46,7 +46,7 @@ const PLUME_STRETCH = 0.6;
 
 /**
  * The flashes and kicks of the rumble: how strong at their start, and over what share of the shot
- * they die away (presentation tuning, all in shares of the 3.8 s shot, so they scale with the pace).
+ * they die away (presentation tuning, all in shares of the shot, so they follow its length in the playback clock and the pace).
  */
 const IGNITION_FLASH = { alpha: 0.22, over: 0.07 } as const;
 const TOUCHDOWN_FLASH = { alpha: 0.12, over: 0.05 } as const;
