@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { formatDeltaV, formatFuel, formatPlanDeltaV } from '../../src/ui/format.ts';
+import { formatDeltaV, formatDeltaVKmS, formatFuel } from '../../src/ui/format.ts';
 import { availableDeltaV, install, launchHop, startRun } from '../../src/game/sim/index.ts';
 import { describeReport } from '../../src/ui/hopReportView.ts';
 
@@ -102,7 +102,7 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   await page.keyboard.press('m');
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
   await target(page, moon.name);
-  await expect(page.getByTestId('plan-available')).toHaveText(formatPlanDeltaV(afterDeltaV));
+  await expect(page.getByTestId('plan-available')).toHaveText(formatDeltaVKmS(afterDeltaV));
 
   // 5. Hop to the Icy Moon; the report says what was collected, naming the Drill.
   // On the Hop plan, Tab goes to Cancel and then to Launch.

@@ -1,4 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import {
   HELIOPAUSE,
   homePlanet,
@@ -8,12 +9,42 @@ import {
   materials,
   startRun,
   type BodyId,
+  type HopTarget,
   type Run,
 } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
+import { expectTextBudget } from './textBudget.ts';
 
 afterEach(cleanUp);
+
+/** The Hop plan's "Tell me more" toggle. */
+const tellMeMore = (host: HTMLElement): HTMLElement =>
+  host.querySelector<HTMLElement>('[data-testid="hop-plan"] button') ??
+  (() => {
+    throw new Error('no Tell me more in the Hop plan');
+  })();
+
+/** The chart header's "?" toggle for the Δv help. */
+const helpToggle = (host: HTMLElement): HTMLElement =>
+  host.querySelector<HTMLElement>('button[aria-label="What is Δv?"]') ??
+  (() => {
+    throw new Error('no ? toggle on the chart');
+  })();
+
+/** Where the lowest part of `box` that is shown ends. */
+const lowestShown = (box: HTMLElement): number =>
+  Math.max(
+    ...[...box.children]
+      .filter((el) => el.checkVisibility())
+      .map((el) => el.getBoundingClientRect().bottom),
+  );
+
+/** Focuses `el` and presses a key on it, as a keyboard player would. */
+async function press(el: HTMLElement, key: string): Promise<void> {
+  el.focus();
+  await userEvent.keyboard(key);
+}
 
 /** Renders the panel at native scale with focus on one Body, once the pixel fonts have loaded. */
 async function showFocused(seed: number, focusedId: string): Promise<HTMLElement> {
@@ -44,10 +75,10 @@ it.each([
 });
 
 // The Hop plan is the densest block on the panel. Its longest states (a low chance, and a Margin below
-// zero with its stronger warning) must keep every line, reason and note inside the plan area, above
-// the buttons, and the explanation under the chart must fit its box and the frame.
+// zero with its stronger warning) must keep every gauge and line inside the plan area, above the
+// buttons, with its details open as well as closed, and the Δv help under the chart must fit the frame.
 it.each(['scout', 'hauler'] as const)(
-  'keeps the whole Hop plan above Cancel and Launch, and the Δv explanation inside the frame (%s, seed 123 Thakyxy)',
+  'keeps the whole Hop plan above Cancel and Launch, open or closed, and the Δv help inside the frame (%s, seed 123 Thakyxy)',
   async (chassis) => {
     const run = startRun(123, chassis);
     const far = listBodies(run.starSystem).find((b) => b.name === 'Thakyxy');
@@ -55,28 +86,48 @@ it.each(['scout', 'hauler'] as const)(
     const host = await renderUi(
       <NavChartPanel run={run} state={{ focusedId: far.id, selectedId: far.id }} />,
     );
-    const plan = host.querySelector<HTMLElement>('[data-testid="hop-plan"]');
-    const warning = host.querySelector<HTMLElement>('[data-testid="plan-warning"]');
-    const explain = host.querySelector<HTMLElement>('[data-testid="plan-explain"]');
+    const plan = byTestId(host, 'hop-plan');
+    const warning = byTestId(host, 'plan-warning');
     const frame = host.querySelector<HTMLElement>('.nav-chart__panel');
     const buttons = host.querySelector<HTMLElement>('.nav-chart__actions');
-    if (!plan || !warning || !explain || !frame || !buttons) throw new Error('missing plan parts');
+    if (!frame || !buttons) throw new Error('missing plan parts');
     const buttonsTop = buttons.getBoundingClientRect().top;
-    expect(warning.getBoundingClientRect().bottom).toBeLessThanOrEqual(buttonsTop);
-    // Everything in the plan, down to its last line, sits inside the plan area and above the buttons.
+    const inPlan = (el: Element): void => {
+      const [box, area] = [el.getBoundingClientRect(), plan.getBoundingClientRect()];
+      expect(box.top).toBeGreaterThanOrEqual(area.top);
+      expect(box.bottom).toBeLessThanOrEqual(Math.min(area.bottom, buttonsTop));
+      expect(box.left).toBeGreaterThanOrEqual(area.left);
+      expect(box.right).toBeLessThanOrEqual(area.right);
+    };
     expect(plan.scrollHeight).toBeLessThanOrEqual(plan.clientHeight);
-    expect(plan.lastElementChild?.getBoundingClientRect().bottom ?? 0).toBeLessThanOrEqual(
-      buttonsTop,
-    );
+    for (const part of plan.children) if (part.checkVisibility()) inPlan(part);
     // One line of 11 px, and not cut off.
     expect(warning.getBoundingClientRect().height).toBeLessThanOrEqual(12);
     expect(warning.scrollWidth).toBeLessThanOrEqual(warning.clientWidth);
-    for (const reason of host.querySelectorAll<HTMLElement>('[data-testid="burn-reason"]')) {
+
+    // Opened, the details cover the plan and every reason shows whole, inside it.
+    await press(tellMeMore(host), '{Enter}');
+    const reasons = host.querySelectorAll<HTMLElement>('[data-testid="burn-reason"]');
+    expect(reasons).toHaveLength(3);
+    for (const reason of reasons) {
+      expect(reason.checkVisibility()).toBe(true);
       expect(reason.scrollWidth).toBeLessThanOrEqual(reason.clientWidth);
+      inPlan(reason);
     }
-    // The explanation under the chart is not cut off by its box or the panel frame.
-    expect(explain.scrollHeight).toBeLessThanOrEqual(explain.clientHeight);
+    inPlan(byTestId(host, 'plan-basis'));
+    expect(plan.scrollHeight).toBeLessThanOrEqual(plan.clientHeight);
+
+    // The Δv help under the chart is not cut off by its box or the panel frame.
+    await press(helpToggle(host), '{Enter}');
+    const explain = byTestId(host, 'plan-explain');
+    const box = explain.parentElement;
+    if (!box) throw new Error('no help box');
+    expect(explain.checkVisibility()).toBe(true);
+    expect(box.scrollHeight).toBeLessThanOrEqual(box.clientHeight);
     expect(explain.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      box.getBoundingClientRect().bottom,
+    );
+    expect(box.getBoundingClientRect().bottom).toBeLessThanOrEqual(
       frame.getBoundingClientRect().bottom,
     );
   },
@@ -143,7 +194,7 @@ it('keeps the tallest plan, with a 21-character target and a Margin warning, cle
   const targetName = host.querySelector<HTMLElement>('.nav-chart__target-name');
   const plan = byTestId(host, 'hop-plan');
   const buttons = host.querySelector<HTMLElement>('.nav-chart__actions');
-  if (!targetName || !buttons || !plan.lastElementChild) throw new Error('missing plan parts');
+  if (!targetName || !buttons) throw new Error('missing plan parts');
   expect(targetName.textContent.toLowerCase()).toBe(name.toLowerCase());
   // The head row carries the badge and the composition ("Landable · Icy") beside the label.
   const head = byTestId(host, 'target');
@@ -162,9 +213,7 @@ it('keeps the tallest plan, with a 21-character target and a Margin warning, cle
   );
   expect(badge.getBoundingClientRect().height).toBeLessThanOrEqual(12);
   expect(plan.scrollHeight).toBeLessThanOrEqual(plan.clientHeight);
-  expect(plan.lastElementChild.getBoundingClientRect().bottom).toBeLessThanOrEqual(
-    plan.getBoundingClientRect().bottom - 6,
-  );
+  expect(lowestShown(plan)).toBeLessThanOrEqual(plan.getBoundingClientRect().bottom - 6);
   expect(plan.getBoundingClientRect().bottom).toBeLessThanOrEqual(
     buttons.getBoundingClientRect().top,
   );
@@ -335,31 +384,13 @@ it('keeps the tallest plan, 21-character target, Margin warning and Depleted, cl
     <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
   );
   expect(byTestId(host, 'plan-warning').textContent).not.toBe('');
-  const note = byTestId(host, 'plan-yield');
-  expect(note.textContent).toBe('Depleted: this Hop will yield nothing.');
+  // The live summary still says the Hop will yield nothing; the head badge shows it.
+  expect(byTestId(host, 'plan-summary').textContent).toContain('will yield nothing');
   const plan = byTestId(host, 'hop-plan');
   const buttons = host.querySelector<HTMLElement>('.nav-chart__actions');
   if (!buttons) throw new Error('no buttons');
-  // The note leads the text under the chart, which still fits its box and the frame with all of the
-  // Δv explanation after it; the plan beside it keeps the room it had.
-  const explain = byTestId(host, 'plan-explain');
-  const frame = host.querySelector<HTMLElement>('.nav-chart__panel');
-  if (!frame) throw new Error('no frame');
-  expect(explain.scrollHeight).toBeLessThanOrEqual(explain.clientHeight);
-  expect(explain.textContent).toContain('Δv is how much');
-  expect(explain.getBoundingClientRect().bottom).toBeLessThanOrEqual(
-    frame.getBoundingClientRect().bottom,
-  );
-  const text = document.createRange();
-  text.selectNodeContents(explain);
-  expect(text.getBoundingClientRect().bottom).toBeLessThanOrEqual(
-    explain.getBoundingClientRect().bottom,
-  );
-  expect(text.getBoundingClientRect().right).toBeLessThanOrEqual(
-    explain.getBoundingClientRect().right,
-  );
   expect(plan.lastElementChild?.getBoundingClientRect().bottom ?? 0).toBeLessThanOrEqual(
-    plan.getBoundingClientRect().bottom - SLACK,
+    plan.getBoundingClientRect().bottom,
   );
   expect(plan.scrollHeight).toBeLessThanOrEqual(plan.clientHeight);
   expect(plan.getBoundingClientRect().bottom).toBeLessThanOrEqual(
@@ -380,16 +411,6 @@ it('keeps the tallest plan, 21-character target, Margin warning and Depleted, cl
   expect(label.getBoundingClientRect().right + 6).toBeLessThanOrEqual(
     badge.getBoundingClientRect().left,
   );
-});
-
-it('says nothing about yield in a plan to a Body that is not Depleted', async () => {
-  const run = startRun(123, 'scout');
-  const moon = homePlanet(run.starSystem).moons[0];
-  if (!moon) throw new Error('no moon');
-  const host = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
-  );
-  expect(host.querySelector('[data-testid="plan-yield"]')).toBeNull();
 });
 
 it('names Depleted in the screen-reader entry for the Body', async () => {
@@ -449,7 +470,12 @@ it('plans a Hop to the targeted Heliopause with a Jump Drive: Takeoff and Transf
   );
   expect(byTestId(host, 'target').textContent).toContain('Heliopause');
   expect(byTestId(host, 'inspect').querySelector('[data-testid="verdict"]')).toBeNull();
-  const rows = [...host.querySelectorAll('.nav-chart__burns tbody th')].map((th) => th.textContent);
+  // The bar has a segment for each Burn, and its name reads them; the details list them too.
+  const bar = byTestId(host, 'dv-bar');
+  expect(bar.querySelectorAll('[data-burn]')).toHaveLength(2);
+  expect(bar.getAttribute('aria-label')).toMatch(/Takeoff .*Transfer /);
+  expect(bar.getAttribute('aria-label')).not.toMatch(/Landing/);
+  const rows = [...host.querySelectorAll('.nav-chart__details th')].map((th) => th.textContent);
   expect(rows).toEqual(['Takeoff', 'Transfer']);
   expect(byTestId(host, 'plan-summary').textContent).toMatch(/^Hop plan for the Heliopause/);
   expect(
@@ -466,4 +492,113 @@ it('plans a Hop to the targeted Heliopause with a Jump Drive: Takeoff and Transf
   const option = host.querySelector<HTMLElement>(`#nav-option-${HELIOPAUSE}`);
   expect(option?.getAttribute('aria-disabled')).toBe('false');
   expect(option?.getAttribute('aria-selected')).toBe('true');
+});
+
+// Show, don't tell (#222): Success Chance first, then the Δv bar, then the Fuel after the Hop.
+it('leads the Hop plan with Success Chance, then the Δv bar, then the Fuel gauge, each named in words', async () => {
+  const run = startRun(123, 'scout');
+  const moon = homePlanet(run.starSystem).moons[0];
+  if (!moon) throw new Error('no moon');
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
+  );
+  const top = (id: string): number => byTestId(host, id).getBoundingClientRect().top;
+  expect(top('plan-success')).toBeLessThan(top('dv-bar'));
+  expect(top('dv-bar')).toBeLessThan(top('plan-fuel'));
+  // Seed 123's Moon: 7.8 of 22.1 km/s, and the bar's segments, gap and words agree.
+  const bar = byTestId(host, 'dv-bar');
+  expect(bar.getAttribute('role')).toBe('img');
+  expect(bar.getAttribute('aria-label')).toBe(
+    'Δv: Takeoff 5.6 km/s, Transfer 1.9 km/s, Landing 0.2 km/s. Needs 7.8 of 22.1 km/s, Margin +14.3 km/s.',
+  );
+  expect(byTestId(host, 'plan-needed').textContent).toBe('7.8');
+  expect(byTestId(host, 'plan-available').textContent).toBe('22.1 km/s');
+  expect(byTestId(host, 'plan-margin').textContent).toBe('+14.3 km/s');
+  const fuel = byTestId(host, 'plan-fuel');
+  expect(fuel.getAttribute('role')).toBe('img');
+  expect(fuel.getAttribute('aria-label')).toMatch(/^Fuel: 21\.0 t now, \d+\.\d t after the Hop\.$/);
+  // The bar's segments sit end to end, in Burn order, and the Margin fills the rest of the bar.
+  const [takeoff, transfer, landing] = [...bar.querySelectorAll<HTMLElement>('[data-burn]')].map(
+    (el) => el.getBoundingClientRect(),
+  );
+  const gap = bar.querySelector<HTMLElement>('[data-gap]')?.getBoundingClientRect();
+  if (!takeoff || !transfer || !landing || !gap) throw new Error('missing bar parts');
+  expect(transfer.left).toBeCloseTo(takeoff.right, 0);
+  expect(landing.left).toBeCloseTo(transfer.right, 0);
+  expect(gap.left).toBeCloseTo(landing.right, 0);
+  // Up to the bar's 1 px frame.
+  expect(bar.getBoundingClientRect().right - gap.right).toBeGreaterThanOrEqual(0);
+  expect(bar.getBoundingClientRect().right - gap.right).toBeLessThanOrEqual(1);
+});
+
+it('opens the Hop plan details by keyboard: each Burn with its reason, and the mass behind the Δv', async () => {
+  const run = startRun(123, 'scout');
+  const moon = homePlanet(run.starSystem).moons[0];
+  if (!moon) throw new Error('no moon');
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
+  );
+  const toggle = tellMeMore(host);
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  expect(byTestId(host, 'plan-basis').checkVisibility()).toBe(false);
+  await press(toggle, '{Enter}');
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  const reasons = [...host.querySelectorAll<HTMLElement>('[data-testid="burn-reason"]')];
+  expect(reasons.map((r) => r.checkVisibility())).toEqual([true, true, true]);
+  expect(reasons[1]?.textContent).toBe("stay in one planet's pull");
+  expect(byTestId(host, 'plan-basis').textContent).toBe('from 4.0 t craft + 21.0 t Fuel');
+  await press(toggle, ' ');
+  expect(byTestId(host, 'plan-basis').checkVisibility()).toBe(false);
+});
+
+it('the text-budget helper passes on the Hop plan, in every state, and on the chart under it', async () => {
+  const scout = startRun(123, 'scout');
+  const hauler = startRun(123, 'hauler');
+  const far = listBodies(scout.starSystem).find((b) => b.name === 'Thakyxy');
+  const moon = homePlanet(scout.starSystem).moons[0];
+  if (!far || !moon) throw new Error('seed 123 setup');
+  const states: [Run, HopTarget | undefined][] = [
+    [scout, undefined],
+    [scout, moon.id],
+    [scout, far.id],
+    [hauler, far.id],
+    [{ ...scout, depleted: [moon.id] }, moon.id],
+    [withJumpDrive(), HELIOPAUSE],
+  ];
+  for (const [run, selectedId] of states) {
+    const host = await renderUi(
+      <NavChartPanel run={run} state={{ focusedId: selectedId ?? moon.id, selectedId }} />,
+    );
+    expectTextBudget([byTestId(host, 'target'), byTestId(host, 'hop-plan')]);
+    // Nothing is written under the chart until the player asks with "?".
+    expect(byTestId(host, 'plan-explain').checkVisibility()).toBe(false);
+    cleanUp();
+  }
+});
+
+it('opens the Δv help under the chart with the "?" in its header, by keyboard', async () => {
+  const run = startRun(123, 'scout');
+  const host = await renderUi(
+    <NavChartPanel
+      run={run}
+      state={{ focusedId: run.starSystem.homePlanetId, selectedId: undefined }}
+    />,
+  );
+  const toggle = helpToggle(host);
+  const titlebar = host.querySelector<HTMLElement>('.nav-chart__titlebar');
+  if (!titlebar) throw new Error('no titlebar');
+  // The "?" sits in the chart's title bar.
+  const [t, bar] = [toggle.getBoundingClientRect(), titlebar.getBoundingClientRect()];
+  expect(t.left).toBeGreaterThanOrEqual(bar.left);
+  expect(t.right).toBeLessThanOrEqual(bar.right);
+  expect(t.top).toBeLessThanOrEqual(bar.bottom);
+  expect(t.bottom).toBeGreaterThanOrEqual(bar.top);
+  expect(byTestId(host, 'plan-explain').checkVisibility()).toBe(false);
+  await press(toggle, '{Enter}');
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  expect(byTestId(host, 'plan-explain').textContent).toContain(
+    'Δv is how much your speed can change',
+  );
+  expect(byTestId(host, 'plan-explain').checkVisibility()).toBe(true);
+  expectTextBudget(byTestId(host, 'plan-explain'));
 });

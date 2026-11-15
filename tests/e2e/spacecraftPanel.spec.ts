@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { formatDeltaV, formatPlanDeltaV } from '../../src/ui/format.ts';
+import { formatDeltaV, formatDeltaVKmS } from '../../src/ui/format.ts';
 import {
   availableDeltaV,
   COMPONENTS,
@@ -99,7 +99,7 @@ test('the cheapest Component can be installed with the starting Materials using 
     await page.keyboard.press('PageDown');
   }
   await page.keyboard.press('Enter');
-  await expect(page.getByTestId('plan-available')).toHaveText(formatPlanDeltaV(afterDeltaV));
+  await expect(page.getByTestId('plan-available')).toHaveText(formatDeltaVKmS(afterDeltaV));
   expect(errors).toEqual([]);
 });
 
