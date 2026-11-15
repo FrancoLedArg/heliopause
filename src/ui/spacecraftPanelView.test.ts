@@ -3,8 +3,9 @@ import {
   COMPONENT_IDS,
   collectYield,
   COMPONENTS,
-  homePlanet,
   install,
+  listBodies,
+  type Moon,
   kilograms,
   materials,
   newSpacecraft,
@@ -47,8 +48,11 @@ describe('a Component’s effect is shown as the Chassis scales it', () => {
   it('keeps its promise: the multiplier the panel says is the one a landing applies', () => {
     for (const id of ['drill-1', 'drill-2'] as const) {
       const run = startRun(2026, 'scout');
-      const moon = homePlanet(run.starSystem).moons[0];
-      if (!moon) throw new Error('The Home Planet has a Moon');
+      const moon = listBodies(run.starSystem).find(
+        (b): b is Moon =>
+          b.kind === 'moon' && b.composition === 'icy' && !run.depleted.includes(b.id),
+      );
+      if (!moon) throw new Error('Seed 2026 has an Icy Moon to gather on');
       const said = /([\d.]+)×/.exec(describeEffect('scout', id))?.[1];
       const fitted = {
         ...run,
@@ -77,7 +81,8 @@ describe('a Component’s effect is shown as the Chassis scales it', () => {
 });
 
 describe('a refusal says why in words', () => {
-  const run = startRun(7, 'scout');
+  // Seed 5 opens on an Icy Starting Moon, so the Run has a New Run's 25 Materials (was seed 7, #189).
+  const run = startRun(5, 'scout');
 
   it('names the Materials that are missing', () => {
     const poor = { ...run, materials: materials(10) };
@@ -118,7 +123,7 @@ describe('which Slot an install goes into', () => {
 });
 
 describe('the catalogue rows', () => {
-  const run = startRun(7, 'scout');
+  const run = startRun(5, 'scout');
 
   it('list every Component with its mass, Materials cost and effect', () => {
     const rows = panelRows(run);
@@ -269,7 +274,7 @@ describe('the stat bars', () => {
 });
 
 describe('the Jump Drive in the panel', () => {
-  const run = startRun(7, 'scout');
+  const run = startRun(5, 'scout');
 
   it('is listed from the first screen with its cost, and the Run cannot afford it yet', () => {
     const row = panelRows(run).find((r) => r.id === 'jump-drive');

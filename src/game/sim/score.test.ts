@@ -46,7 +46,7 @@ describe('how a Run ended', () => {
     const end = {
       kind: 'stranded',
       reason: 'No Hop is possible.',
-      bodyId: run.starSystem.homePlanetId,
+      bodyId: run.starSystem.startingMoonId,
     } as const;
     const stranded: Run = { ...run, status: { kind: 'ended', end } };
     expect(runEnd(stranded)).toEqual(end);

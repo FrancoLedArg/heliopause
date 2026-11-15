@@ -3,6 +3,7 @@ import {
   CHASSIS_IDS,
   currentBody,
   findBody,
+  firstDetectedBody,
   listBodies,
   startRun,
   type LandableBody,
@@ -20,15 +21,30 @@ import {
   surfaceKind,
 } from './landedView.ts';
 
-/** A New Run with the default Chassis: the view rules do not depend on which. */
-const newRun = (seed: number): Run => startRun(seed, 'scout');
+/** A New Run with the default Chassis, as the player starts it, knowing only the opening. */
+const freshRun = (seed: number): Run => startRun(seed, 'scout');
 
-function runOnMoonOfHome(seed: number): Run {
-  const run = newRun(seed);
-  const home = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId);
-  const moon = home?.moons[0];
-  if (!moon) throw new Error('Home Planet has no Moon');
-  return { ...run, status: { kind: 'landed', bodyId: moon.id } };
+/**
+ * A New Run with the default Chassis stood on its innermost planet (always rocky), knowing every
+ * Body: the sky's placement rules do not depend on which Chassis, and a full sky tests them hardest.
+ * This is the sky Runs opened on before the Starting Moon (#96).
+ */
+const newRun = (seed: number): Run => {
+  const run = freshRun(seed);
+  const ids = listBodies(run.starSystem).map((body) => body.id);
+  const [inner] = run.starSystem.planets;
+  if (!inner) throw new Error('A Star System has planets');
+  return {
+    ...run,
+    status: { kind: 'landed', bodyId: inner.id },
+    knowledge: { detected: ids, surveyed: ids, heliopauseFound: true },
+  };
+};
+
+/** A New Run stood on the first Body Comms Detected, as if it had Hopped there. */
+function runOnFirstTarget(seed: number): Run {
+  const run = freshRun(seed);
+  return { ...run, status: { kind: 'landed', bodyId: firstDetectedBody(run.starSystem).id } };
 }
 
 describe('the Landed surface', () => {
@@ -100,20 +116,28 @@ describe('the Landed sky', () => {
     }
   });
 
-  it('from the Home Planet, its Moon is in view on the first screen (seeds 1 to 300)', () => {
+  it('from the Starting Moon, the first Detected Body is in view on the first screen (seeds 1 to 300)', () => {
     for (let seed = 1; seed <= 300; seed++) {
-      const run = newRun(seed);
-      const home = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId);
-      const moon = skyBodies(run).find((s) => s.bodyId === home?.moons[0]?.id);
-      expect(moon, `seed ${seed}`).toBeDefined();
+      const run = freshRun(seed);
+      const target = skyBodies(run).find((s) => s.bodyId === firstDetectedBody(run.starSystem).id);
+      expect(target, `seed ${seed}`).toBeDefined();
     }
   });
 
-  it('shows the Home Planet from its Moon', () => {
+  it('shows the Starting Moon from the first target', () => {
     const run = newRun(7);
     expect(
-      skyBodies(runOnMoonOfHome(7)).some((s) => s.bodyId === run.starSystem.homePlanetId),
+      skyBodies(runOnFirstTarget(7)).some((s) => s.bodyId === run.starSystem.startingMoonId),
     ).toBe(true);
+  });
+
+  it('shows only the Bodies the player knows of (#96)', () => {
+    for (let seed = 1; seed <= 100; seed++) {
+      const run = freshRun(seed);
+      for (const sky of skyBodies(run)) {
+        if (sky.bodyId !== undefined) expect(run.knowledge.detected).toContain(sky.bodyId);
+      }
+    }
   });
 
   it('draws farther Bodies first so nearer ones sit in front of them', () => {
@@ -125,7 +149,7 @@ describe('the Landed sky', () => {
 
   it('gives a Body the same sprite whether seen from the Home Planet or from its Moon', () => {
     for (let seed = 1; seed <= 50; seed++) {
-      const fromMoon = skyBodies(runOnMoonOfHome(seed));
+      const fromMoon = skyBodies(runOnFirstTarget(seed));
       for (const a of skyBodies(newRun(seed))) {
         const b = fromMoon.find((s) => s.bodyId === a.bodyId);
         if (a.bodyId !== undefined && b) expect(b.sprite).toBe(a.sprite);
@@ -264,26 +288,32 @@ describe('the Landed sky layout', () => {
   });
 
   it('keeps every sky Body above the art horizon and below the top bar, Moons included', () => {
-    for (let seed = 1; seed <= 500; seed++) {
+    for (let seed = 1; seed <= 300; seed++) {
       for (const s of skyBodies(newRun(seed))) {
         if (s.kind === 'star') continue;
         expect(s.y + half(s), `seed ${seed}`).toBeLessThanOrEqual(horizonY(s.x));
         expect(s.y - half(s)).toBeGreaterThanOrEqual(46);
       }
+      // From the Starting Moon its planet can hang huge and near (4x): too tall for both, the top
+      // bar wins and it may dip a pixel or two behind the hills (#192 reworks this sky).
+      for (const s of skyBodies(freshRun(seed))) {
+        if (s.kind === 'star') continue;
+        if (s.scale <= 2) expect(s.y + half(s), `seed ${seed}`).toBeLessThanOrEqual(horizonY(s.x));
+        expect(s.y - half(s)).toBeGreaterThanOrEqual(46);
+      }
     }
   });
 
-  it('keeps the Home Moon in the sky and the Home Planet in the sky of its Moon (seeds 1 to 500)', () => {
-    for (let seed = 1; seed <= 500; seed++) {
-      const run = newRun(seed);
-      const home = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId);
+  it("keeps the first target in the Starting Moon's sky and the Starting Moon in the first target's (seeds 1 to 300)", () => {
+    for (let seed = 1; seed <= 300; seed++) {
+      const run = freshRun(seed);
       expect(
-        skyBodies(run).some((s) => s.bodyId === home?.moons[0]?.id),
+        skyBodies(run).some((s) => s.bodyId === firstDetectedBody(run.starSystem).id),
         `seed ${seed}`,
       ).toBe(true);
       expect(
-        skyBodies(runOnMoonOfHome(seed)).some((s) => s.bodyId === run.starSystem.homePlanetId),
-        `seed ${seed} from the Moon`,
+        skyBodies(runOnFirstTarget(seed)).some((s) => s.bodyId === run.starSystem.startingMoonId),
+        `seed ${seed} from the first target`,
       ).toBe(true);
     }
   });

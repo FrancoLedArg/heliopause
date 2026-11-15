@@ -113,6 +113,15 @@ export const GENERATION_TUNING = {
   moonDistanceFromPlanet: { min: kilometers(150_000), max: kilometers(1_900_000) },
 } as const satisfies Record<string, TuningRange | Record<string, TuningRange>>;
 
+/**
+ * Gameplay tuning for a fair opening (#96): the first Body Comms Detects is In reach with room to
+ * spare for every Chassis's new Spacecraft. Comfortable is a 100% Success Chance with a Margin of at
+ * least a fifth of the Hop's estimate. Not real-world figures.
+ */
+export const OPENING_TUNING = {
+  firstHop: { successChance: 1, marginShare: 0.2 },
+} as const;
+
 /** Real-world figure behind what landable Bodies are made of. */
 export const ICE_LINE = {
   /**
@@ -223,7 +232,7 @@ export interface ChassisTuning {
 /**
  * Gameplay tuning for the Chassis. Not real-world figures: the engines are sci-fi, past any flown
  * engine's Isp (a hydrogen/LOX RL-10 makes 444 s, research doc §3, UNVERIFIED there), because the
- * Burns use real-world sized Δv. Calibrated so every Chassis reaches the Home Planet's Moon with
+ * Burns use real-world sized Δv. Calibrated so every Chassis reaches the first Detected Body (#96) with
  * comfortable Margin in every Star System, starter Fuel covers roughly 3 to 6 nearby Hops (2 to 4
  * before #188 gave every rocky planet two Moons), and their starting Δv differs noticeably. The
  * hauler carries the most Fuel yet has the least Δv: its dry mass costs it.

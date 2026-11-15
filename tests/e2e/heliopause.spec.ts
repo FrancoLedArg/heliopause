@@ -1,14 +1,15 @@
 import { expect, test, type Page } from '@playwright/test';
 import { FAST_CRUISE } from './cruise.ts';
 import {
+  findBody,
+  firstDetectedBody,
   HELIOPAUSE,
-  homePlanet,
   install,
   launchHop,
-  listBodies,
   planHop,
   runEnd,
   score,
+  startingMoon,
   startRun,
 } from '../../src/game/sim/index.ts';
 import { formatScore } from '../../src/ui/endOfRunView.ts';
@@ -16,39 +17,38 @@ import { kmPerSecondFigure } from '../../src/ui/format.ts';
 import { JUMP_FLAVOUR_TEXT } from '../../src/ui/jumpFlavour.ts';
 
 // Spec #15's way out, on one seed, by keyboard alone: the Heliopause says it needs a Jump Drive;
-// gather Materials on a Rocky Body, build the Jump Drive, target the Heliopause, Launch, reach it,
-// Jump to Star System 2 and Hop on from its Home Planet.
-const SEED = 35;
+// gather Materials on the first target, build the Jump Drive, target the Heliopause, Launch, reach
+// it, Jump to Star System 2 and Hop on from its Starting Moon. Re-pinned for #189 (was seed 35's
+// Tisquul): seed 1033's first target, Hytol Minor, pays for the Jump Drive (was seed 62's Sekus
+// before a Rocky opening stopped adding Materials over a New Run's).
+const SEED = 1033;
 const run = startRun(SEED, 'scout');
-const rocky = listBodies(run.starSystem).find((body) => body.name === 'Tisquul');
-if (!rocky) throw new Error(`Seed ${String(SEED)} has no Tisquul`);
+const rocky = firstDetectedBody(run.starSystem);
 const gathered = launchHop(run, rocky.id);
 if (gathered.kind !== 'flown' || gathered.flight.outcome.kind !== 'arrived') {
   throw new Error(`Seed ${String(SEED)}: the Hop to ${rocky.name} should Arrive`);
 }
 const built = install(gathered.run, gathered.run.spacecraft.slots.indexOf(null), 'jump-drive');
-if (built.kind !== 'installed') throw new Error('Tisquul should pay for the Jump Drive');
+if (built.kind !== 'installed') throw new Error(`${rocky.name} should pay for the Jump Drive`);
 const planned = planHop(built.run, HELIOPAUSE);
 const escape = launchHop(built.run, HELIOPAUSE);
 if (planned.kind !== 'planned' || escape.kind !== 'flown') throw new Error('Expected a plan');
 if (escape.flight.outcome.kind !== 'reached-heliopause') {
   throw new Error(`Seed ${String(SEED)}: the Hop to the Heliopause should reach it`);
 }
-// The Jump lands the Run on System 2's Home Planet, with Fuel for a sure Hop to one of its Moons.
+// The Jump maroons the Run on System 2's Starting Moon, with Fuel for a sure Hop to its first target.
 const system2 = escape.run;
-const nextMoon = homePlanet(system2.starSystem).moons.find((moon) => {
-  const onward = planHop(system2, moon.id);
-  return onward.kind === 'planned' && onward.plan.successChance === 1;
-});
-if (!nextMoon) throw new Error(`Seed ${String(SEED)}: no sure Hop on from System 2's Home Planet`);
+const nextMoon = firstDetectedBody(system2.starSystem);
+const onward = launchHop(system2, nextMoon.id);
+if (onward.kind !== 'flown' || onward.run.status.kind !== 'landed') {
+  throw new Error(`Seed ${String(SEED)}: the Hop on from System 2's Starting Moon should land`);
+}
 
-// ...and where the Run ends in System 2: a Hop to a Body this Spacecraft cannot land on.
-const doomed = listBodies(system2.starSystem).find((body) => {
-  const flown = launchHop(system2, body.id);
-  return flown.kind === 'flown' && flown.flight.outcome.kind === 'crashed';
-});
-if (!doomed) throw new Error(`Seed ${String(SEED)}: System 2 has no Hop that Crashes`);
-const doomedHop = launchHop(system2, doomed.id);
+// ...and where the Run ends in System 2: from there, a Hop to the Body Comms Detected Crashes.
+const doomedId = onward.flight.reveal?.detected[0];
+const doomed = doomedId && findBody(system2.starSystem, doomedId);
+if (!doomed) throw new Error(`Seed ${String(SEED)}: Comms should Detect a Body in System 2`);
+const doomedHop = launchHop(onward.run, doomed.id);
 if (doomedHop.kind !== 'flown') throw new Error('unreachable');
 const finalEnd = runEnd(doomedHop.run);
 if (finalEnd?.kind !== 'crashed') throw new Error('The doomed Hop should end the Run');
@@ -117,7 +117,7 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
     contentType: 'image/png',
   });
 
-  // 2. Gather Materials on a Rocky Body.
+  // 2. Gather Materials on the first target, a Rocky Body.
   await focusOnChart(page, rocky.name);
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('target')).toContainText(rocky.name);
@@ -166,7 +166,8 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
   await expect(caption).toHaveText(JUMP_FLAVOUR_TEXT, { timeout: 30_000 });
   await testInfo.attach('the-jump', { body: await page.screenshot(), contentType: 'image/png' });
 
-  // 6. The Landed view of System 2's Home Planet: the Jump Drive burnt out, Materials kept.
+  // 6. The Landed view of System 2's Starting Moon: the Jump Drive burnt out, Materials kept and its
+  // yield gathered.
   await expect(page.getByTestId('system-number')).toHaveText('System 2', { timeout: 15_000 });
   await expect(caption).toBeHidden();
   await expect(page.getByTestId('materials')).toHaveText(String(system2.materials));
@@ -176,7 +177,7 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
     contentType: 'image/png',
   });
 
-  // 7. Hop on in System 2, to its Home Planet's Moon.
+  // 7. Hop on in System 2, to the one Body Comms Detected there.
   await page.keyboard.press('m');
   await expect(chart).toBeVisible();
   await focusOnChart(page, nextMoon.name);
@@ -231,6 +232,13 @@ test('a Run that escaped a Star System ends in the next one with its Score, and 
   await expect(page.getByTestId('system-number')).toHaveText('System 2', { timeout: 45_000 });
   await expect(page.getByRole('button', { name: /^Nav Chart/ })).toBeFocused();
 
+  // A sure Hop on from the new Starting Moon, then the Body Comms Detects there.
+  await hopTo(nextMoon.name);
+  const onwardReport = page.getByRole('dialog', { name: 'Arrived' });
+  await expect(onwardReport).toBeVisible({ timeout: 30_000 });
+  await page.keyboard.press('Enter');
+  await expect(onwardReport).toBeHidden();
+
   // The Run ends in System 2: Hop report, Continue, then the End-of-Run screen.
   await hopTo(doomed.name);
   const outcome = page.getByRole('alertdialog', { name: 'Crashed' });
@@ -254,7 +262,7 @@ test('a Run that escaped a Star System ends in the next one with its Score, and 
   await expect(page.getByTestId('system-number')).toHaveText('System 1');
   await expect(
     page.getByRole('heading', {
-      name: homePlanet(startRun(SEED + 1, 'scout').starSystem).name,
+      name: startingMoon(startRun(SEED + 1, 'scout').starSystem).name,
       level: 1,
     }),
   ).toBeVisible();

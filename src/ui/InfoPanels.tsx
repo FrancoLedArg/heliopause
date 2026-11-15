@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { ABOUT, CREDITS, HOW_TO_PLAY, type ContentLink, type CreditEntry } from './aboutContent.ts';
 import { KitButton } from './kit/KitButton.tsx';
+import { ResourceIcon } from './ResourceIcon.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 
 const PLATE_LEFT = 24;
@@ -149,6 +150,21 @@ export function CreditsPanel({ onBack }: InfoPanelProps) {
   );
 }
 
+/** The resources a How to play line can show as an icon, by placeholder, with the words they stand for. */
+const INLINE_ICONS = {
+  '{fuel}': { resource: 'fuel', label: 'Fuel' },
+  '{materials}': { resource: 'materials', label: 'Materials' },
+} as const;
+
+/** A How to play line with its `{fuel}` and `{materials}` placeholders drawn as the yield icons. */
+function withIcons(line: string): ReactNode[] {
+  return line.split(/(\{fuel\}|\{materials\})/).map((part, index) => {
+    if (part !== '{fuel}' && part !== '{materials}') return part;
+    const { resource, label } = INLINE_ICONS[part];
+    return <ResourceIcon key={`${part}-${String(index)}`} resource={resource} label={label} />;
+  });
+}
+
 /** The rules in eight short steps, in glossary terms. */
 export function HowToPlayPanel({ onBack }: InfoPanelProps) {
   return (
@@ -161,7 +177,7 @@ export function HowToPlayPanel({ onBack }: InfoPanelProps) {
       {HOW_TO_PLAY.steps.map((step) => (
         <section key={step.heading}>
           <h2>{step.heading}</h2>
-          <p>{step.body.join(' ')}</p>
+          <p>{withIcons(step.body.join(' '))}</p>
         </section>
       ))}
     </InfoShell>

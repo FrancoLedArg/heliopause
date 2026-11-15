@@ -5,6 +5,7 @@ import { EventBus } from './EventBus.ts';
 import { Boot } from './scenes/Boot.ts';
 import { Flight } from './scenes/Flight.ts';
 import { Landed, type LandedData } from './scenes/Landed.ts';
+import { describeGathering } from './scenes/gathering.ts';
 import { SceneKey } from './scenes/keys.ts';
 import { startRun } from './sim/index.ts';
 import { NavChart } from './scenes/NavChart.ts';
@@ -39,11 +40,14 @@ export function startGame(parent: string | HTMLElement): Game {
 
 /**
  * A New Run can be asked for from any scene (the Title, or the report of a failed Hop), so the game
- * itself answers it: whatever is on screen is stopped and the Run starts on its Home Planet.
+ * itself answers it: whatever is on screen is stopped and the Run starts on its Starting Moon.
  */
 function startNewRuns(game: Game): void {
   const off = EventBus.on('new-run-requested', (seed, chassisId) => {
-    const data: LandedData = { run: startRun(seed, chassisId) };
+    const run = startRun(seed, chassisId);
+    // Marooned on the Starting Moon: its yield flows in as the view comes up (#189).
+    const gathering = describeGathering(run, run.startingYield);
+    const data: LandedData = gathering ? { run, gathering } : { run };
     for (const scene of game.scene.getScenes(true)) game.scene.stop(scene.scene.key);
     game.scene.start(SceneKey.Landed, data);
   });

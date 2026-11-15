@@ -6,7 +6,7 @@ import { GameUI } from '../../ui/GameUI.tsx';
 import { formatFuel } from '../../ui/format.ts';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
-import { homePlanet, launchHop, startRun } from '../sim/index.ts';
+import { firstDetectedBody, launchHop, startRun } from '../sim/index.ts';
 import { READOUT_ICON } from './gathering.ts';
 import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
@@ -26,13 +26,13 @@ afterEach(() => {
   root = host = game = undefined;
 });
 
-// An Arrived Hop that collects Fuel: seed 2026's Scout to the Home Planet's first Moon (an Icy Moon).
-const before = startRun(2026, 'scout');
-const moon = homePlanet(before.starSystem).moons[0];
-if (!moon) throw new Error('seed 2026 has a Home Planet Moon');
+// An Arrived Hop that collects Fuel: seed 123's Scout to its first target, Viormio (an Icy Moon).
+// Re-pinned for #189 (was seed 2026's Home Moon).
+const before = startRun(123, 'scout');
+const moon = firstDetectedBody(before.starSystem);
 const launched = launchHop(before, moon.id);
 if (launched.kind !== 'flown' || launched.flight.collection?.kind !== 'fuel') {
-  throw new Error('seed 2026: the Scout should Arrive on the first Moon and collect Fuel');
+  throw new Error('seed 123: the Scout should Arrive on its first target and collect Fuel');
 }
 const arrival: LandedData = { run: launched.run, report: { before, flight: launched.flight } };
 /** What the top bar reads before the Fuel arrives (what the Hop left) and once it has. */

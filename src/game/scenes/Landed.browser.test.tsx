@@ -19,17 +19,20 @@ import {
 } from './landedView.ts';
 import { groundTexture, SKY_X } from './landscape.ts';
 import {
-  homePlanet,
+  firstDetectedBody,
   install,
+  launchHop,
   materials,
   startRun,
   type ChassisId,
   type ComponentId,
+  type RockyPlanet,
   type Run,
 } from '../sim/index.ts';
 import { manifest, type AssetEntry } from '../assets/manifest.ts';
 import { SceneKey } from './keys.ts';
-import { SPACECRAFT_ATTRIBUTE, type Landed } from './Landed.ts';
+import { COMMS_PING, SPACECRAFT_ATTRIBUTE, type Landed, type LandedData } from './Landed.ts';
+import type { Gathering } from './gathering.ts';
 import '../../style.css';
 
 let root: Root | undefined;
@@ -67,8 +70,19 @@ function nextSceneReady(wanted: SceneKey): Promise<void> {
   });
 }
 
+/** The innermost planet: always rocky, with two Moons (seed 2026's has an Icy one). */
+function homeOf(run: Run): RockyPlanet {
+  const [planet] = run.starSystem.planets;
+  if (planet?.kind !== 'rocky-planet') throw new Error('The innermost planet is rocky');
+  return planet;
+}
+
 /** Mounts the whole app, then lands the given Run, resolving once the Landed scene is on screen. */
-async function landOn(run: Run, beforeLanding?: (game: Phaser.Game) => void): Promise<Landed> {
+async function landOn(
+  run: Run,
+  beforeLanding?: (game: Phaser.Game) => void,
+  report?: LandedData['report'],
+): Promise<Landed> {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -88,7 +102,8 @@ async function landOn(run: Run, beforeLanding?: (game: Phaser.Game) => void): Pr
   await titleReady;
   const landedReady = nextSceneReady(SceneKey.Landed);
   beforeLanding?.(game);
-  game.scene.start(SceneKey.Landed, { run });
+  const data: LandedData = report ? { run, report } : { run };
+  game.scene.start(SceneKey.Landed, data);
   await landedReady;
   await act(() => Promise.resolve());
   return game.scene.getScene<Landed>(SceneKey.Landed);
@@ -138,10 +153,10 @@ async function seek(scene: Landed, ms: number): Promise<void> {
 }
 
 for (const chassis of CHASSIS) {
-  for (const where of ['Home Planet', 'Moon'] as const) {
+  for (const where of ['Planet', 'Moon'] as const) {
     it(`no panel covers the ${chassis} Spacecraft on the ${where}, at any point of the drift`, async () => {
       const fresh = startRun(2026, chassis);
-      const home = homePlanet(fresh.starSystem);
+      const home = homeOf(fresh);
       const bodyId = where === 'Moon' ? home.moons[0]?.id : home.id;
       if (!bodyId) throw new Error('no body to land on');
       const run: Run = { ...fresh, status: { kind: 'landed', bodyId } };
@@ -182,7 +197,7 @@ for (const chassis of CHASSIS) {
     const fresh = startRun(2026, chassis);
     const scene = await landOn({
       ...fresh,
-      status: { kind: 'landed', bodyId: homePlanet(fresh.starSystem).id },
+      status: { kind: 'landed', bodyId: homeOf(fresh).id },
     });
     const glows = scene.layers.ship.list.filter(
       (child): child is GameObjects.Ellipse =>
@@ -203,7 +218,7 @@ for (const chassis of CHASSIS) {
 
 function landedRun(): Run {
   const fresh = startRun(2026, 'scout');
-  return { ...fresh, status: { kind: 'landed', bodyId: homePlanet(fresh.starSystem).id } };
+  return { ...fresh, status: { kind: 'landed', bodyId: homeOf(fresh).id } };
 }
 
 it('drifts the ground further than the sky, the Spacecraft with the ground, and never shows a layer edge', async () => {
@@ -242,10 +257,10 @@ it('holds everything still when the player prefers reduced motion', async () => 
   expect([ground.x, ship.x]).toEqual(before);
 });
 
-for (const where of ['Home Planet', 'Moon'] as const) {
+for (const where of ['Planet', 'Moon'] as const) {
   it(`draws the ${where}'s ground as one flat strip with the Spacecraft on its top edge`, async () => {
     const fresh = startRun(2026, 'scout');
-    const home = homePlanet(fresh.starSystem);
+    const home = homeOf(fresh);
     const bodyId = where === 'Moon' ? home.moons[0]?.id : home.id;
     if (!bodyId) throw new Error('no body to land on');
     const scene = await landOn({ ...fresh, status: { kind: 'landed', bodyId } });
@@ -375,6 +390,84 @@ it('uses the generated ground art, with mortar no stone fills and dust that read
   }
 });
 
+/** Resolves once `ready` holds, checking every frame; fails after `ms`. */
+async function until(ready: () => boolean, ms = 4_000): Promise<void> {
+  const start = performance.now();
+  while (!ready()) {
+    if (performance.now() - start > ms) throw new Error('Timed out waiting');
+    await pause(16);
+  }
+}
+
+/** Seed 2026's Scout after its first Hop, to the Body Comms Detected at the start. */
+function firstLanding(): { run: Run; report: NonNullable<LandedData['report']> } {
+  const before = startRun(2026, 'scout');
+  const launched = launchHop(before, firstDetectedBody(before.starSystem).id);
+  if (launched.kind !== 'flown') throw new Error('Expected the first Hop to fly');
+  return { run: launched.run, report: { before, flight: launched.flight } };
+}
+
+it('a New Run opens with the gathering moment for the Starting Moon’s yield, and ends with the Run’s own value', async () => {
+  await landOn(startRun(2026, 'scout'));
+  const run = startRun(7, 'scout');
+  // Seed 7 opens on a Rocky Starting Moon: its Materials flow in.
+  expect(run.startingYield.kind).toBe('materials');
+  const started = new Promise<Gathering>((resolve) => {
+    const off = EventBus.on('gathering-started', (gathering) => {
+      off();
+      resolve(gathering);
+    });
+  });
+  const ended = new Promise<void>((resolve) => {
+    const off = EventBus.on('gathering-ended', () => {
+      off();
+      resolve();
+    });
+  });
+  act(() => {
+    EventBus.emit('new-run-requested', 7, 'scout');
+  });
+  const gathering = await started;
+  expect(gathering).toMatchObject({ resource: 'materials', to: run.materials });
+  expect(gathering.from).toBeLessThan(gathering.to);
+  await ended;
+  await act(() => Promise.resolve());
+  expect(document.querySelector('[data-testid="materials"]')?.textContent).toBe(
+    String(run.materials),
+  );
+});
+
+it('after a landing, Comms pings from the Spacecraft and says what it Detected in a polite live region', async () => {
+  const { run, report } = firstLanding();
+  expect(report.flight.reveal?.detected).toHaveLength(1);
+  const scene = await landOn(run, undefined, report);
+  expect(scene.commsPing).toEqual([]);
+  await until(() => scene.commsPing.length > 0);
+  // Rings out of the top of the Spacecraft, riding its container.
+  expect(scene.commsPing.length).toBeGreaterThan(0);
+  for (const ring of scene.commsPing) expect(ring.parentContainer).toBe(scene.layers.ship);
+  const status = document.querySelector('[data-testid="comms-announcement"]');
+  expect(status?.getAttribute('role')).toBe('status');
+  expect(status?.textContent).toMatch(/Comms Detected a new Body, [\d.,]+ (AU|km) away\.$/);
+  // And it is gone once played.
+  await until(() => scene.commsPing.length === 0);
+});
+
+it('under reduced motion the Comms ping is one still ring, gone after a moment', async () => {
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
+  );
+  const { run, report } = firstLanding();
+  const scene = await landOn(run, undefined, report);
+  await until(() => scene.commsPing.length > 0);
+  expect(scene.commsPing).toHaveLength(1);
+  const [ring] = scene.commsPing;
+  const scale = ring?.scale;
+  await pause(300);
+  expect(ring?.scale).toBe(scale);
+  await until(() => scene.commsPing.length === 0, COMMS_PING.stillMs * 3);
+});
+
 /** Every image the drawn Spacecraft is made of: its Chassis art and Component art. */
 function drawnImages(scene: Landed): GameObjects.Image[] {
   const [art] = scene.spacecraft.objects;
@@ -401,13 +494,13 @@ function drawnShip(): DrawnShip {
   return JSON.parse(value) as DrawnShip;
 }
 
-/** A Run landed on its Home Planet with `extra` installed in its empty Slots, Materials to spare. */
+/** A Run landed on its innermost planet with `extra` installed in its empty Slots, Materials to spare. */
 function runWith(chassis: ChassisId, extra: readonly ComponentId[]): Run {
   const fresh = startRun(2026, chassis);
   let run: Run = {
     ...fresh,
     materials: materials(1000),
-    status: { kind: 'landed', bodyId: homePlanet(fresh.starSystem).id },
+    status: { kind: 'landed', bodyId: homeOf(fresh).id },
   };
   for (const id of extra) {
     const done = install(run, run.spacecraft.slots.indexOf(null), id);

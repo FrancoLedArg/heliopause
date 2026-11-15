@@ -68,25 +68,25 @@ const find = (within: HTMLElement, id: string): HTMLElement | null =>
   within.querySelector<HTMLElement>(`[data-testid="${id}"]`);
 
 it('a Run Stranded on Landing goes straight to the End-of-Run screen with the Stranded why, and records its Score once', async () => {
-  const { seed, body } = STRANDED_ON_LANDING;
-  const { before, flight, run } = landing(seed, body);
+  const { seed, path } = STRANDED_ON_LANDING;
+  const { before, flight, run } = landing(seed, path);
   const ui = await land({ run, report: { before, flight } });
 
   const screen = find(ui, 'end-of-run');
   expect(screen?.querySelector('h2')?.textContent).toBe('Stranded');
   expect(find(ui, 'end-of-run-why')?.textContent).toBe(
-    // Re-pinned for #188: seed 305's Lyquin (was seed 2's Quydril).
-    'However you change its Components, your Spacecraft has at most 807 m/s of Δv, and the ' +
-      'cheapest Hop needs 3.0 km/s.',
+    // Re-pinned for #189: seed 12, back on Laquun (was seed 305's Lyquin).
+    'However you change its Components, your Spacecraft has at most 5.3 km/s of Δv, and the ' +
+      'cheapest Hop needs 5.8 km/s.',
   );
   expect(find(ui, 'end-of-run-score')?.getAttribute('aria-label')).toBe(
-    'Score: 0 Star Systems escaped, 1 Hop flown',
+    'Score: 0 Star Systems escaped, 3 Hops flown',
   );
   // No Hop report, and nothing left to plan with: the Run is over.
   expect(find(ui, 'hop-report')).toBeNull();
   expect(ui.querySelector('.landed-plate')).toBeNull();
   expect(ui.querySelector('.landed-nav-button')).toBeNull();
-  expect(readBestScore()).toEqual({ starSystemsEscaped: 0, hopsFlown: 1 });
+  expect(readBestScore()).toEqual({ starSystemsEscaped: 0, hopsFlown: 3 });
   expect(document.activeElement?.textContent).toBe('New Run');
   // M does not open the Nav Chart under the End-of-Run screen.
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
@@ -95,10 +95,10 @@ it('a Run Stranded on Landing goes straight to the End-of-Run screen with the St
 });
 
 it('a Run that arrives in a new Star System with no way out ends there too, whatever started the Landed view', async () => {
-  // As after a Jump: the Landed view comes up on a Home Planet with no Hop report, in System 2,
+  // As after a Jump: the Landed view comes up with no Hop report, in System 2,
   // with about 250 kg of Fuel (the case PR #180 found on seed 5). The Jump returns its Run through
   // `endIfStranded`, like every operation that leaves the Spacecraft on a Body.
-  const { before } = landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.body);
+  const { before } = landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path);
   const lowFuel = { ...before.spacecraft, fuelMass: kilograms(250) };
   const arrived = endIfStranded({
     ...before,
@@ -127,12 +127,12 @@ it('spending the Materials that could have saved the Run strands it on the spot'
   await act(() => Promise.resolve());
   expect(find(ui, 'end-of-run')?.querySelector('h2')?.textContent).toBe('Stranded');
   expect(find(ui, 'stranded-warning')).toBeNull();
-  expect(readBestScore()).toEqual({ starSystemsEscaped: 0, hopsFlown: 1 });
+  expect(readBestScore()).toEqual({ starSystemsEscaped: 0, hopsFlown: 3 });
 });
 
 it('New Run from a Stranded Run asks for a Chassis, then starts a new Star System', async () => {
-  const { seed, body } = STRANDED_ON_LANDING;
-  const { before, flight, run } = landing(seed, body);
+  const { seed, path } = STRANDED_ON_LANDING;
+  const { before, flight, run } = landing(seed, path);
   const ui = await land({ run, report: { before, flight } });
   const newRun = [...ui.querySelectorAll('button')].find((b) => b.textContent === 'New Run');
   act(() => {

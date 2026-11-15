@@ -1,29 +1,44 @@
 import { expect, test, type Page } from '@playwright/test';
+import { waitForOpening } from './opening.ts';
 import { CHART, layoutChart } from '../../src/game/scenes/navChartView.ts';
-import { startRun, type Body } from '../../src/game/sim/index.ts';
+import {
+  findBody,
+  firstDetectedBody,
+  startingMoon,
+  startRun,
+  type Body,
+} from '../../src/game/sim/index.ts';
 
+// Re-pinned for #189: seed 123 opens on a Moon of a Gas Giant, so the chart shows the Starting
+// Moon, its Gas Giant (Surveyed, shown as one) and the sibling Moon Comms Detected.
 const SEED = 123;
 const run = startRun(SEED, 'scout');
-const home = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId);
-const homeMoon = home?.moons[0];
-const gasGiant = run.starSystem.planets.find((p) => p.kind === 'gas-giant');
-if (!home || !homeMoon || !gasGiant)
-  throw new Error(`Seed ${SEED} has no Home Planet Moon or Gas Giant`);
+const home = startingMoon(run.starSystem);
+const homeMoon = firstDetectedBody(run.starSystem);
+const gasGiant = findBody(run.starSystem, home.planetId);
+if (gasGiant?.kind !== 'gas-giant') throw new Error(`Seed ${SEED} opens on a Gas Giant's Moon`);
 
 const homeName = home.name;
 
 async function openNavChart(page: Page): Promise<void> {
   await page.goto(`/?seed=${SEED}&chassis=scout`);
   await page.getByRole('button', { name: 'New Run' }).click();
+  await waitForOpening(page);
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
 }
 
-/** Presses PageDown until the inspector shows `body`, the way a keyboard player steps through the chart. */
+/**
+ * Steps through the chart (PageDown, then back with PageUp: they do not wrap) until the inspector
+ * shows `body`, the way a keyboard player steps through it.
+ */
 async function stepTo(page: Page, body: Body): Promise<void> {
-  for (let i = 0; i < 40; i += 1) {
-    if (await page.getByRole('heading', { name: body.name, level: 2 }).isVisible()) return;
-    await page.keyboard.press('PageDown');
+  const shown = page.getByRole('heading', { name: body.name, level: 2 });
+  for (const key of ['PageDown', 'PageUp']) {
+    for (let i = 0; i < 40; i += 1) {
+      if (await shown.isVisible()) return;
+      await page.keyboard.press(key);
+    }
   }
   throw new Error(`Never reached ${body.name}`);
 }
@@ -36,6 +51,13 @@ test('the Nav Chart opens over the Landed view, names the Spacecraft Body and cl
   await expect(here.getByRole('heading', { name: homeName })).toBeVisible();
   await expect(page.getByTestId('verdict')).toContainText('already on');
   await expect(page.getByText('Heliopause', { exact: true })).toBeVisible();
+  // Only what the player knows: the Starting Moon, its Gas Giant and the one Body Comms Detected,
+  // and the Heliopause (found from the start until the Radar, #191).
+  const options = page.getByRole('option');
+  await expect(options).toHaveCount(4);
+  for (const body of [home, gasGiant, homeMoon]) {
+    await expect(page.getByRole('option', { name: new RegExp(`^${body.name},`) })).toBeAttached();
+  }
   await testInfo.attach('nav-chart', { body: await page.screenshot(), contentType: 'image/png' });
 
   const opener = page.getByRole('button', { name: 'Nav Chart (M)' });
@@ -98,7 +120,7 @@ test('the Spacecraft and Nav Chart buttons sit side by side right of the locatio
   }
 });
 
-test('from the keyboard: select the Home Planet Moon, and a Gas Giant says why it is not a target', async ({
+test('from the keyboard: select the first target, and a Gas Giant says why it is not a target', async ({
   page,
 }, testInfo) => {
   await openNavChart(page);
@@ -157,6 +179,7 @@ test('with the mouse: hover inspects a Body, a click on the Moon selects it, a G
 test('M while the in-Run Menu is open does not open the Nav Chart under it', async ({ page }) => {
   await page.goto(`/?seed=${SEED}&chassis=scout`);
   await page.getByRole('button', { name: 'New Run' }).click();
+  await waitForOpening(page);
   await page.getByRole('button', { name: 'Menu' }).click();
   await expect(page.getByRole('dialog', { name: 'Menu' })).toBeVisible();
   await page.keyboard.press('m');
