@@ -1,11 +1,12 @@
 import { act } from 'react';
-import { GameObjects } from 'phaser';
+import { BlendModes, GameObjects } from 'phaser';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { GameUI } from '../../ui/GameUI.tsx';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
 import { paletteNumber } from '../../ui/kit/palette.ts';
+import { nozzleExits } from './chassisArt.ts';
 import { DRIFT_PERIOD_MS } from './landedMotion.ts';
 import {
   GROUND_HEIGHT,
@@ -165,6 +166,28 @@ for (const chassis of CHASSIS) {
       }
     });
   }
+}
+
+for (const chassis of CHASSIS) {
+  it(`the ${chassis}'s engines idle with a glow at every nozzle exit, not under the base`, async () => {
+    const fresh = startRun(2026, chassis);
+    const scene = await landOn({
+      ...fresh,
+      status: { kind: 'landed', bodyId: homePlanet(fresh.starSystem).id },
+    });
+    const glows = scene.layers.ship.list.filter(
+      (child): child is GameObjects.Ellipse =>
+        child instanceof GameObjects.Ellipse && child.blendMode === BlendModes.ADD,
+    );
+    const exits = nozzleExits(chassis, 'standing');
+    expect(glows).toHaveLength(exits.length);
+    for (const exit of exits) {
+      expect(
+        glows.some((glow) => Math.abs(glow.x - exit.x) < 0.5 && Math.abs(glow.y - exit.y) < 2),
+        `a glow at (${String(exit.x)}, ${String(exit.y)})`,
+      ).toBe(true);
+    }
+  });
 }
 
 function landedRun(): Run {

@@ -1,6 +1,7 @@
 import type { GameObjects, Scene } from 'phaser';
 import { paletteNumber, type PaletteColor } from '../../ui/kit/palette.ts';
 import { hasAsset } from '../assets/manifest.ts';
+import type { Point } from './chassisArt.ts';
 
 /** Texture keys of the particle art. Until the art is in the manifest, white stand-ins are drawn at the same sizes (code tints both). */
 const TEXTURES = {
@@ -33,8 +34,8 @@ export interface GroundSpot {
 export interface FlightEffects {
   /** Dust and smoke kicked up by the engine near the ground, while `on`. */
   readonly ground: (on: boolean, at: GroundSpot) => void;
-  /** A trail of sparks from the rear nozzle while `on`. */
-  readonly exhaust: (on: boolean, at: GroundSpot) => void;
+  /** A trail of sparks from the nozzles firing rearward (their exits in the world) while `on`, taking turns. */
+  readonly exhaust: (on: boolean, nozzles: readonly Point[]) => void;
   /** Tints the dust and smoke to read against the ground they rise from. */
   readonly setSurface: (color: PaletteColor) => void;
   /** How far the dust and smoke follow the camera's scroll: below 1 they fall away slower than the ground. */
@@ -87,6 +88,20 @@ export function createFlightEffects(scene: Scene): FlightEffects {
     alpha: { start: 0.9, end: 0 },
     maxAliveParticles: 24,
   });
+  // Each spark leaves the next nozzle in turn: offsets from the emitter, which sits at the first nozzle.
+  const sparkExits: Point[] = [];
+  let nextExit = 0;
+  sparks.addEmitZone({
+    type: 'random',
+    source: {
+      getRandomPoint: (point) => {
+        const exit = sparkExits[nextExit % Math.max(sparkExits.length, 1)];
+        nextExit++;
+        point.x = exit?.x ?? 0;
+        point.y = exit?.y ?? 0;
+      },
+    },
+  });
   const ground = [dust, smoke];
   const all = [dust, smoke, sparks];
   const running = new Set<GameObjects.Particles.ParticleEmitter>();
@@ -119,8 +134,13 @@ export function createFlightEffects(scene: Scene): FlightEffects {
       }
       drive(ground, on);
     },
-    exhaust: (on, at) => {
-      drive([sparks], on, at);
+    exhaust: (on, nozzles) => {
+      const [first] = nozzles;
+      sparkExits.length = 0;
+      for (const exit of nozzles) {
+        sparkExits.push({ x: exit.x - (first?.x ?? 0), y: exit.y - (first?.y ?? 0) });
+      }
+      drive([sparks], on, first);
     },
     setSurface: (color) => {
       for (const emitter of ground) emitter.setParticleTint(paletteNumber(color));

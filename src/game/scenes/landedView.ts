@@ -88,7 +88,7 @@ export const SURFACE_WIDTH = 800;
 /** Width of the sky layer: wider than the 640 px screen so it can drift with parallax later. */
 export const SKY_WIDTH = 960;
 /** The screen width: the sky layer is centred on it. */
-const SCREEN_WIDTH = 640;
+export const SCREEN_WIDTH = 640;
 /** Gameplay tuning: keeps even the biggest sprite (the 2x star, 128 px) fully on the first screen. */
 const SKY_MARGIN = 64;
 /**

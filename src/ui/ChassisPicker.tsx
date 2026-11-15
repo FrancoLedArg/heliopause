@@ -14,9 +14,10 @@ const SPRITE_TOP = 24;
 const SPRITE_GAP = 6;
 const STATS_HEIGHT = 50;
 const CARD_PADDING = 8;
+/** The art box: as tall as the tallest Chassis art; every ship stands on its bottom line (px). */
+const ART_BOX_HEIGHT = standingExtent(CHASSIS_IDS).height;
 /** The card is as tall as its tallest Chassis art needs: art, then the three stat rows. */
-const CARD_HEIGHT =
-  SPRITE_TOP + standingExtent(CHASSIS_IDS).height + SPRITE_GAP + STATS_HEIGHT + CARD_PADDING;
+const CARD_HEIGHT = SPRITE_TOP + ART_BOX_HEIGHT + SPRITE_GAP + STATS_HEIGHT + CARD_PADDING;
 /** Where the cards start, and the gaps below them to the note and below the note to the buttons (px). */
 const CARDS_TOP = 52;
 const NOTE_GAP = 6;
@@ -122,10 +123,7 @@ function ChassisCard({ id, selected, onSelect }: ChassisCardProps) {
         </span>
       )}
       <ChassisSprite id={id} />
-      <dl
-        className="chassis-card__stats"
-        style={{ top: SPRITE_TOP + standingExtent(CHASSIS_IDS).height + SPRITE_GAP }}
-      >
+      <dl className="chassis-card__stats" style={{ top: SPRITE_TOP + ART_BOX_HEIGHT + SPRITE_GAP }}>
         <dt>Dry mass</dt>
         <dd>{formatMass(spacecraft.dryMass)}</dd>
         <dt>Fuel capacity</dt>
@@ -154,7 +152,7 @@ function ChassisSprite({ id }: { id: ChassisId }) {
           width,
           height,
           left: (CARD_WIDTH - width) / 2,
-          top: SPRITE_TOP + standingExtent(CHASSIS_IDS).height - height,
+          top: SPRITE_TOP + ART_BOX_HEIGHT - height,
           backgroundImage: `url(${atlasImageUrl(key)})`,
         }}
       />

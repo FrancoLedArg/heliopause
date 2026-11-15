@@ -37,10 +37,11 @@ describe('About and Credits content', () => {
     expect(ABOUT.team.members.every((m) => m.placeholder === true)).toBe(true);
   });
 
-  it('credits the Voxel Spaceships pack as a style reference under its licence', () => {
+  it('credits the Voxel Spaceships pack, under its licence, as the style reference of the earlier art', () => {
     const voxel = CREDITS.groups.flatMap((g) => g.entries).find((e) => e.name.includes('Voxel'));
     expect(voxel?.detail).toContain('CC BY-ND 4.0');
-    expect(voxel?.detail).toContain('style reference');
+    expect(voxel?.detail).toMatch(/style reference for the earlier Spacecraft art/i);
+    expect(voxel?.detail).toContain('nothing from the pack is used in the game');
   });
 
   it('lists shipped libraries apart from dev-only tools', () => {
