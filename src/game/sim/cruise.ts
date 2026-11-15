@@ -39,6 +39,12 @@ export interface Cruise {
   readonly struck: readonly StruckEvent[];
   /** The Fuel leaks have lost so far. */
   readonly fuelLost: Kilograms;
+  /**
+   * The Fuel a leak never drains below: on a mild Hop, what the Landing needs at its worst for the
+   * Hop to end no worse than one flown at its estimates, so mild events never threaten #188's
+   * opening; 0 on any other Hop.
+   */
+  readonly fuelFloor: Kilograms;
 }
 
 /** Whether a Hop of a Run, counted from 1, is one of its mild first Hops. */
@@ -134,8 +140,9 @@ function drawTarget(
   mild: boolean,
 ): number | null {
   if (kind === 'debris-field' && rng.next() >= CRUISE_TUNING.debrisHitChance) return null;
-  // A mild Debris field never hits an Engine: a Damaged Engine costs Δv on the Landing.
-  const hits = TARGETS[kind].filter((target) => !(mild && target === 'engine'));
+  // A mild Debris field only ever hits a Fuel Tank, whose leak stops at the Cruise's floor: a
+  // Damaged Engine would cost Δv on the Landing, and a Damaged Drill yield on arrival.
+  const hits = mild && kind === 'debris-field' ? ['fuel-tank'] : TARGETS[kind];
   const candidates = spacecraft.slots.flatMap((slot, i) =>
     slot !== null && !spacecraft.damage[i] && hits.includes(COMPONENTS[slot].kind) ? [i] : [],
   );
@@ -143,8 +150,12 @@ function drawTarget(
   return candidates[Math.floor(rng.next() * candidates.length)] ?? null;
 }
 
-/** A Cruise about to start, with its schedule. */
-export function startCruise(schedule: readonly ScheduledEvent[], mild: boolean): Cruise {
+/** A Cruise about to start, with its schedule, and on a mild Hop the floor its leaks stop at. */
+export function startCruise(
+  schedule: readonly ScheduledEvent[],
+  mild: boolean,
+  fuelFloor: Kilograms,
+): Cruise {
   const latestFire = CRUISE_TUNING.ticks - CRUISE_TUNING.fireTicks;
   for (const event of schedule) {
     const late = event.kind === 'engine-fire' ? latestFire : CRUISE_TUNING.ticks - 1;
@@ -158,6 +169,7 @@ export function startCruise(schedule: readonly ScheduledEvent[], mild: boolean):
     schedule: [...schedule].sort((a, b) => a.tick - b.tick),
     struck: [],
     fuelLost: kilograms(0),
+    fuelFloor,
   };
 }
 
@@ -201,10 +213,11 @@ export type CruiseSteps =
     };
 
 /**
- * Steps the Cruise tick by tick up to `toTick`. On each tick, in this order: scheduled events strike,
- * leaking Fuel Tanks drain, running Repairs advance (one that is done clears its Damage), and burning
- * Engines burn on (one that has burned `fireTicks` with no Repair started explodes). The fixed order
- * and whole ticks make a replay match to the last kilogram.
+ * Steps the Cruise tick by tick up to `toTick`. On each tick, in this order: burning Engines burn on
+ * (one that has burned `fireTicks` ticks after the one it caught fire on, with no Repair started,
+ * explodes), scheduled events strike, leaking Fuel Tanks drain (never below `fuelFloor`), and running
+ * Repairs advance (one that is done clears its Damage). The fixed order and whole ticks make a
+ * replay match to the last kilogram.
  */
 export function stepCruise(cruise: Cruise, spacecraft: Spacecraft, toTick: number): CruiseSteps {
   const damage: SlotDamage[] = [...spacecraft.damage];
@@ -232,6 +245,13 @@ export function stepCruise(cruise: Cruise, spacecraft: Spacecraft, toTick: numbe
   if (quiet) return { kind: 'cruising', ...settle(Math.max(cruise.tick, toTick)) };
 
   for (let tick = cruise.tick + 1; tick <= toTick; tick++) {
+    for (const [slot, slotDamage] of damage.entries()) {
+      if (!slotDamage) continue;
+      if (slotDamage.burning === null) continue;
+      const burning = slotDamage.burning + 1;
+      damage[slot] = { ...slotDamage, burning };
+      if (burning >= CRUISE_TUNING.fireTicks) return { kind: 'destroyed', ...settle(tick) };
+    }
     for (const event of cruise.schedule) {
       if (event.tick !== tick) continue;
       // An event never hits a Component that is already Damaged: the later of two on one part misses.
@@ -241,7 +261,7 @@ export function stepCruise(cruise: Cruise, spacecraft: Spacecraft, toTick: numbe
     }
     damage.forEach((slotDamage, slot) => {
       if (!slotDamage || kindAt(slot) !== 'fuel-tank') return;
-      const loss = Math.min(fuel, leakPerTick);
+      const loss = Math.min(Math.max(0, fuel - cruise.fuelFloor), leakPerTick);
       fuel -= loss;
       lost += loss;
     });
@@ -257,13 +277,6 @@ export function stepCruise(cruise: Cruise, spacecraft: Spacecraft, toTick: numbe
       damage[slot] = null;
       endStruck(struck, slot, tick);
     });
-    for (const [slot, slotDamage] of damage.entries()) {
-      if (!slotDamage) continue;
-      if (slotDamage.burning === null) continue;
-      const burning = slotDamage.burning + 1;
-      damage[slot] = { ...slotDamage, burning };
-      if (burning >= CRUISE_TUNING.fireTicks) return { kind: 'destroyed', ...settle(tick) };
-    }
   }
   return { kind: 'cruising', ...settle(Math.max(cruise.tick, toTick)) };
 }

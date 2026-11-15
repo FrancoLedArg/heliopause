@@ -20,6 +20,7 @@ import {
   availableDeltaV,
   carriesJumpDrive,
   fuelAfterBurning,
+  fuelForDeltaV,
   type Spacecraft,
 } from './spacecraft.ts';
 import {
@@ -417,7 +418,12 @@ function depart(
     launchSpacecraft: run.spacecraft,
     fuelAfterTransfer,
   };
-  const cruise = startCruise(schedule, isMildHop(hopsFlown));
+  const mild = isMildHop(hopsFlown);
+  const cruise = startCruise(
+    schedule,
+    mild,
+    mild ? mildFuelFloor(run.spacecraft, plan) : kilograms(0),
+  );
   return deepFreeze({
     kind: 'cruising',
     run: {
@@ -429,6 +435,20 @@ function depart(
   });
 }
 
+/**
+ * The Fuel a mild Cruise's leaks stop at: enough for the Landing at the worst of the dispersion to
+ * leave the Fuel a Hop flown at its estimates would. So a mild event never Crashes a Hop the plan
+ * shows at 100%, nor leaves it worse off than #188's at-estimate arrival, which generation keeps
+ * out of Stranded. A Hop to the Heliopause has no Landing: its floor is the at-estimate Fuel.
+ */
+function mildFuelFloor(launch: Spacecraft, plan: HopPlan): Kilograms {
+  const atEstimate = fuelAfterBurning(launch, plan.totalEstimate);
+  if (plan.destination === 'heliopause') return atEstimate;
+  const worstLanding = metersPerSecond(plan.estimates.landing * DISPERSION.max);
+  const landed = { ...launch, dryMass: kilograms(launch.dryMass + atEstimate) };
+  return kilograms(atEstimate + fuelForDeltaV(landed, worstLanding));
+}
+
 /** What a step of the Cruise left: still cruising, settled at the arrival, or Destroyed. */
 export type CruiseResult =
   | { readonly kind: 'cruising'; readonly run: Run }
@@ -438,6 +458,8 @@ export type CruiseResult =
       readonly run: Run;
       /** The Cruise as it stood when the Spacecraft exploded. */
       readonly cruise: Cruise;
+      /** The Takeoff and Transfer the Hop flew before its Cruise, for the playback. */
+      readonly departure: Departure;
     };
 
 /** The reason a Destroyed Run ends with: one plain line (#210's "Show, don't tell" amendment). */
@@ -463,6 +485,7 @@ export function advanceCruise(run: Run, tick: number): CruiseResult {
     return deepFreeze({
       kind: 'destroyed',
       cruise: stepped.cruise,
+      departure,
       run: { ...run, spacecraft: stepped.spacecraft, status: { kind: 'ended', end } },
     });
   }
@@ -565,7 +588,10 @@ function arrive(run: Run, departure: Departure, cruise: Cruise): FlownHop {
 /** Added to a Crash's why when the Cruise's Damage or leaks took Δv from the Landing. */
 const CRUISE_COST = 'Damage in the Cruise left less Δv for the Landing.';
 
-/** Starting a Hop either puts the Run in its Cruise, settles it at once (a Fell Short), or explains why the target cannot be chosen. */
+/**
+ * A started Hop: the Run in its Cruise, or settled at once when it Fell Short before reaching one.
+ * (`beginHop` also returns `invalid-target` for a target that cannot be chosen.)
+ */
 export type BeginResult =
   { readonly kind: 'cruising'; readonly run: Run } | ({ readonly kind: 'flown' } & FlownHop);
 

@@ -300,8 +300,10 @@ export const CRUISE_TUNING = {
    */
   enabledKinds: [] as readonly CruiseEventKind[],
   /**
-   * The first Hops of a Run are mild: only `mildKinds`, a Debris field never hits an Engine, and a
-   * leak is slow. So the Engine fire, and with it Destroyed, never strikes on them.
+   * The first Hops of a Run are mild: only `mildKinds`, a Debris field only ever hits a Fuel Tank,
+   * and a leak is slow and stops at the Fuel the Hop needs to end no worse than at its estimates
+   * (`Cruise.fuelFloor`). So the Engine fire, and with it Destroyed, never strikes on them, and no
+   * mild event can Crash or Strand a Hop the plan shows at 100% (#188).
    */
   mildHops: 3,
   mildKinds: MILD_KINDS,

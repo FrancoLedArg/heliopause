@@ -38,13 +38,16 @@ describe('the Cruise event schedule', () => {
     }
   });
 
-  it('a Debris field on the first Hops never hits an Engine', () => {
+  it('a Debris field on the first Hops only ever hits a Fuel Tank', () => {
+    let hits = 0;
     for (const seed of SEEDS) {
       for (const event of cruiseSchedule(seed, 1, 1, fullSpacecraft, ['debris-field'])) {
         if (event.slot === null) continue;
-        expect(fullSpacecraft.slots[event.slot]).not.toMatch(/^engine/);
+        hits++;
+        expect(fullSpacecraft.slots[event.slot]).toMatch(/^fuel-tank/);
       }
     }
+    expect(hits).toBeGreaterThan(0);
   });
 
   it('harsh events come later, and more often in later Star Systems', () => {

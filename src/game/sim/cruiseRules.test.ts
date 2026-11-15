@@ -15,6 +15,8 @@ import {
   materials,
   planHop,
   replay,
+  listBodies,
+  currentBody,
   rushCost,
   rushRepair,
   score,
@@ -26,6 +28,7 @@ import {
   type Run,
   type ScheduledEvent,
 } from './index.ts';
+import { withDetected } from './generation.ts';
 import { onInnerPlanet, withDeltaV, withJumpDrive } from './testing.ts';
 
 const SEEDS = Array.from({ length: 500 }, (_, i) => i * 104_729 + 7);
@@ -33,6 +36,8 @@ const ENGINE = 0;
 const FUEL_TANK = 1;
 const opening = startRun(2026, 'scout');
 const firstHop = firstDetectedBody(opening.starSystem).id;
+/** The opening Run past its mild first Hops: a leak there drains at the full rate, with no floor. */
+const seasoned: Run = { ...opening, hopsFlown: CRUISE_TUNING.mildHops };
 
 /** The Run in the Cruise of a Hop to `target` with `schedule` injected, before its first tick. */
 function cruising(from: Run, target: HopTarget, schedule: readonly ScheduledEvent[]): Run {
@@ -108,17 +113,17 @@ describe('the three-part Hop', () => {
 
 describe('Damage', () => {
   it('a leak loses Fuel every tick until its Repair finishes', () => {
-    const leaking = at(cruising(opening, firstHop, [leakAt(100)]), 100);
+    const leaking = at(cruising(seasoned, firstHop, [leakAt(100)]), 100);
     const start = leaking.spacecraft.fuelMass;
-    // A mild leak on a scout: 0.05% of its 21 t Fuel capacity a second, 1.05 kg a tick.
-    expect(start - at(leaking, 200).spacecraft.fuelMass).toBeCloseTo(105, 6);
+    // A leak past the mild Hops on a scout: 0.25% of its 21 t Fuel capacity a second, 5.25 kg a tick.
+    expect(start - at(leaking, 200).spacecraft.fuelMass).toBeCloseTo(525, 6);
     const fixing = repairing(at(leaking, 200), FUEL_TANK);
     // A Fuel Tank's Repair takes 30 s: done on tick 500, after that tick's drain.
     expect(damaged(at(fixing, 499), FUEL_TANK)).toBe(true);
     const fixed = at(fixing, 500);
     expect(damaged(fixed, FUEL_TANK)).toBe(false);
     expect(at(fixed, 900).spacecraft.fuelMass).toBe(fixed.spacecraft.fuelMass);
-    expect(start - fixed.spacecraft.fuelMass).toBeCloseTo(400 * 1.05, 6);
+    expect(start - fixed.spacecraft.fuelMass).toBeCloseTo(400 * 5.25, 6);
   });
 
   it('a Damaged Engine gives less Δv from the same Fuel', () => {
@@ -150,23 +155,39 @@ describe('Damage', () => {
     expect(hit.flight.outcome.kind).toBe('crashed');
     expect(hit.flight.why).toContain('Damage in the Cruise');
 
-    const leaked = flown(cruising(opening, firstHop, [leakAt(100)]));
-    expect(leaked.flight.fuelLost).toBeCloseTo(1_101 * 1.05, 6);
-    expect(leaked.flight.fuelRemaining).toBeLessThan(sound.flight.fuelRemaining);
+    const leaked = flown(cruising(seasoned, firstHop, [leakAt(1_000)]));
+    expect(leaked.flight.fuelLost).toBeCloseTo(201 * 5.25, 6);
+    const calm = launchHop(seasoned, firstHop);
+    expect(calm.kind === 'flown' && leaked.flight.fuelRemaining).toBeLessThan(
+      calm.kind === 'flown' ? calm.flight.fuelRemaining : 0,
+    );
   });
 
-  it('the opening Hop survives its mild Cruise events with no Repair at all (#188, #189)', () => {
+  it('no first Hop the plan shows at 100% is Crashed or Stranded by its mild events, with no Repair at all (#188)', () => {
     const chassis = ['scout', 'hauler', 'lancer'] as const;
+    const lost: string[] = [];
+    let flownHops = 0;
     for (const [i, seed] of SEEDS.entries()) {
-      const run = startRun(seed, chassis[i % 3] ?? 'scout');
-      const begun = beginHop(run, firstDetectedBody(run.starSystem).id, {
-        events: CRUISE_EVENT_KINDS,
-      });
-      if (begun.kind !== 'cruising') throw new Error(`Seed ${String(seed)}: no Cruise`);
-      const result = flown(begun.run);
-      expect(result.flight.outcome.kind, `seed ${String(seed)}`).toBe('arrived');
-      expect(result.run.status.kind, `seed ${String(seed)}`).toBe('landed');
+      const start = startRun(seed, chassis[i % 3] ?? 'scout');
+      for (const body of listBodies(start.starSystem)) {
+        if (!body.landable || body.id === currentBody(start).id) continue;
+        // #188 weighs every landable Body as if Detected.
+        const knowing = withDetected(start, body);
+        const planned = planHop(knowing, body.id);
+        if (planned.kind !== 'planned' || planned.plan.successChance < 1) continue;
+        const calm = launchHop(knowing, body.id);
+        if (calm.kind !== 'flown' || calm.run.status.kind !== 'landed') continue;
+        const begun = beginHop(knowing, body.id, { events: CRUISE_EVENT_KINDS });
+        if (begun.kind !== 'cruising') throw new Error(`Seed ${String(seed)}: no Cruise`);
+        const result = flown(begun.run);
+        flownHops++;
+        if (result.run.status.kind !== 'landed') {
+          lost.push(`${String(seed)} ${body.id}: ${result.flight.outcome.kind}`);
+        }
+      }
     }
+    expect(flownHops).toBeGreaterThan(1_000);
+    expect(lost.slice(0, 10)).toEqual([]);
   });
 });
 
@@ -175,8 +196,9 @@ describe('the Engine fire', () => {
     cruising(opening, firstHop, [{ kind: 'engine-fire', tick: 100, slot: ENGINE }]);
 
   it('a burning Engine with no Repair started for 30 s destroys the Spacecraft', () => {
-    const burning = at(fire(), 398);
-    const result = advanceCruise(burning, 399);
+    // It caught fire on tick 100 and burns ticks 101 to 400: 300 ticks, 30 s.
+    const burning = at(fire(), 399);
+    const result = advanceCruise(burning, 400);
     expect(result.kind).toBe('destroyed');
     expect(result.run.status).toEqual({
       kind: 'ended',
