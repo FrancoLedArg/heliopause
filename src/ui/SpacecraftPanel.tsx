@@ -255,7 +255,14 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
           describedBy={keysId}
           damaged={spacecraft.damage.map((damage) => damage !== null)}
         />
-        <RepairControls run={run} slot={selected} />
+        <RepairControls
+          run={run}
+          slot={selected}
+          onDone={() => {
+            // The button pressed goes away with the Damage it fixed: focus back to the Slot.
+            slotRefs.current[selected]?.focus();
+          }}
+        />
         <KitButton
           ref={removeRef}
           width={REMOVE_WIDTH}
@@ -440,7 +447,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
  * A Damaged Slot's Repair and Rush, beside Remove (#250): Repair starts it (it runs in the next
  * Cruise), Rush finishes it now for the Materials shown. Nothing for a sound Slot.
  */
-function RepairControls({ run, slot }: { run: Run; slot: number }) {
+function RepairControls({ run, slot, onDone }: { run: Run; slot: number; onDone: () => void }) {
   const state = repairState(run, slot);
   const held = run.spacecraft.slots[slot];
   if (state.kind === 'sound' || held === null || held === undefined) return null;
@@ -453,6 +460,7 @@ function RepairControls({ run, slot }: { run: Run; slot: number }) {
           aria-label={`Repair ${title}: ${String(state.secondsLeft)} s of the next Cruise`}
           onClick={() => {
             EventBus.emit('repair-requested', slot);
+            onDone();
           }}
         >
           Repair
@@ -464,6 +472,7 @@ function RepairControls({ run, slot }: { run: Run; slot: number }) {
         aria-label={`Rush the Repair of ${title} for ${String(state.rush)} Materials`}
         onClick={() => {
           EventBus.emit('rush-requested', slot);
+          onDone();
         }}
       >
         <ResourceIcon resource="materials" size={12} />

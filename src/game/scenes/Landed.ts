@@ -11,8 +11,8 @@ import {
   type HopFlight,
   type Run,
 } from '../sim/index.ts';
-import { repairAction, repairState } from '../../ui/repairView.ts';
-import { createDamageMarks, damagedSlotAt, type DamageMarks } from './damageMarks.ts';
+import { anyDamaged } from '../../ui/repairView.ts';
+import { createDamageMarks, repairClickAt, type DamageMarks } from './damageMarks.ts';
 import { standingExtent } from './chassisArt.ts';
 import { describeGathering, type Gathering } from './gathering.ts';
 import { playGatheringMoment } from './gatheringMoment.ts';
@@ -87,7 +87,7 @@ export class Landed extends Scene {
   /** The Spacecraft's layer, where the gathering moment flows in. */
   private shipLayer!: GameObjects.Container;
   /** The Damage drawn on the standing Spacecraft. */
-  private marks!: DamageMarks;
+  marks!: DamageMarks;
 
   constructor() {
     super(SceneKey.Landed);
@@ -118,9 +118,9 @@ export class Landed extends Scene {
     // Launch settles the Hop in the simulation, then hands it to the Flight to play back. Starting
     // the Flight shuts this scene down, and the Nav Chart with it.
     // Launch flies the Takeoff and the Transfer; the Flight then plays the Cruise live (#250).
-    const offLaunch = EventBus.on('hop-launch-requested', (targetId) => {
+    const offLaunch = EventBus.on('hop-launch-requested', (targetId, daily = false) => {
       if (this.run.status.kind !== 'landed') return;
-      const schedule = chooseCruiseLeak(window.location.search, this.run.spacecraft);
+      const schedule = chooseCruiseLeak(window.location.search, this.run.spacecraft, daily);
       const begun = beginHop(this.run, targetId, schedule ? { schedule } : {});
       // The plan only offers Launch for a valid target; the chart already says why one is not.
       if (begun.kind === 'invalid-target') return;
@@ -138,16 +138,14 @@ export class Landed extends Scene {
     });
     this.input.on('pointerdown', (pointer: { x: number; y: number }) => {
       if (this.run.status.kind !== 'landed' || this.scene.isActive(SceneKey.NavChart)) return;
-      const slot = this.damagedAt(pointer);
-      if (slot === undefined) return;
-      const action = repairAction(repairState(this.run, slot));
-      if (action) EventBus.emit(action === 'repair' ? 'repair-requested' : 'rush-requested', slot);
+      const click = this.repairClick(pointer);
+      if (click) EventBus.emit(`${click.action}-requested`, click.slot);
     });
     this.events.once(Scenes.Events.SHUTDOWN, () => {
       this.input.setDefaultCursor('');
     });
     this.input.on('pointermove', (pointer: { x: number; y: number }) => {
-      this.input.setDefaultCursor(this.damagedAt(pointer) === undefined ? '' : 'pointer');
+      this.input.setDefaultCursor(this.repairClick(pointer) ? 'pointer' : '');
     });
     // The Spacecraft panel asks for installs; the Run lives here, so this is where it changes.
     const offInstall = EventBus.on('component-install-requested', (slotIndex, componentId) => {
@@ -326,10 +324,10 @@ export class Landed extends Scene {
     else EventBus.emit('run-updated', run);
   }
 
-  /** The Damaged Component under a click, if any. */
-  private damagedAt(pointer: { x: number; y: number }): number | undefined {
+  /** What a click asks of a Damaged Component: a Repair or a Rush, if anything. */
+  private repairClick(pointer: { x: number; y: number }): ReturnType<typeof repairClickAt> {
     const { scrollX, scrollY } = this.cameras.main;
-    return damagedSlotAt(
+    return repairClickAt(
       this.run,
       this.spacecraft.componentBounds(),
       pointer.x + scrollX,
@@ -346,7 +344,7 @@ export class Landed extends Scene {
   }
 
   override update(): void {
-    if (this.run.spacecraft.damage.some((damage) => damage !== null)) this.showDamage();
+    if (anyDamaged(this.run)) this.showDamage();
   }
 
   /** Where the standing Spacecraft's engines idle: every nozzle exit of its art. */

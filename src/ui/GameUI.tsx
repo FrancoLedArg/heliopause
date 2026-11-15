@@ -476,7 +476,9 @@ export function GameUI() {
       {scene === SceneKey.Landed &&
         run !== undefined &&
         stranded === undefined &&
-        chart !== undefined && <NavChartPanel run={run} state={chart} />}
+        chart !== undefined && (
+          <NavChartPanel run={run} state={chart} daily={daily !== undefined} />
+        )}
       {scene === SceneKey.Landed &&
         run !== undefined &&
         stranded === undefined &&

@@ -66,8 +66,9 @@ export interface GameEvents {
    * React -> Phaser: the player pressed Launch on the Hop plan for `target` (a Body or the
    * Heliopause), at any Success Chance. The Landed scene settles the Hop in the simulation and starts
    * its playback.
+   * `daily` is set for a Daily Run, which never takes the test-only Cruise leak (`?cruiseLeak=`).
    */
-  'hop-launch-requested': [target: HopTarget];
+  'hop-launch-requested': [target: HopTarget, daily?: boolean];
   /**
    * Phaser -> React: a Hop's playback begins (sent just before the Flight's `scene-ready`). `before`
    * is the Run at Launch; `flight` already holds the outcome; `pace` is how long each Burn plays.

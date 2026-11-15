@@ -11,7 +11,11 @@ import { COMPONENTS, CRUISE_TUNING, type ScheduledEvent, type Spacecraft } from 
 export function chooseCruiseLeak(
   search: string,
   spacecraft: Spacecraft,
+  daily = false,
 ): readonly ScheduledEvent[] | undefined {
+  // A Daily Run is the same Star System for everyone: the URL never changes its Cruises, as it
+  // never changes its seed.
+  if (daily) return undefined;
   const fromUrl = new URLSearchParams(search).get('cruiseLeak');
   if (fromUrl === 'none') return [];
   if (fromUrl === null || !/^\d+$/.test(fromUrl)) return undefined;

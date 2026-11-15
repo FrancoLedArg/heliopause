@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react';
+import { useRef, type CSSProperties } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import { COMPONENTS, type Run, type Slot } from '../game/sim/index.ts';
 import { ComponentIcon } from './componentIcons/ComponentIcon.tsx';
@@ -31,8 +31,12 @@ export function SystemsLights({ slots, lit, run }: SystemsLightsProps) {
   const installed = slots.flatMap((componentId, slot) =>
     componentId === null ? [] : [{ componentId, slot }],
   );
+  // A Rush makes the light whole again and takes its button away: focus stays on the row.
+  const list = useRef<HTMLOListElement>(null);
   return (
     <ol
+      ref={list}
+      tabIndex={-1}
       className="systems-lights"
       aria-label="Systems check"
       data-testid="systems-lights"
@@ -68,11 +72,9 @@ export function SystemsLights({ slots, lit, run }: SystemsLightsProps) {
                   } as CSSProperties
                 }
                 onClick={() => {
-                  if (action)
-                    EventBus.emit(
-                      action === 'repair' ? 'repair-requested' : 'rush-requested',
-                      slot,
-                    );
+                  if (!action) return;
+                  EventBus.emit(`${action}-requested`, slot);
+                  if (action === 'rush') list.current?.focus();
                 }}
               >
                 {face}

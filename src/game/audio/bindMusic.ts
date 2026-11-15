@@ -1,5 +1,6 @@
 import { Core, Sound, type Game } from 'phaser';
 import { audioFiles } from '../assets/manifest.ts';
+import { anyDamaged } from '../../ui/repairView.ts';
 import { EventBus } from '../EventBus.ts';
 import { SceneKey } from '../scenes/keys.ts';
 import { music, type Music, type Player } from './music.ts';
@@ -92,7 +93,7 @@ export function bindMusic(game: Game, target: Music = music): void {
     }),
     // The Cruise's music turns tense while anything aboard is Damaged, until it is Repaired (#250).
     EventBus.on('cruise-updated', (run) => {
-      target.setCruiseEvent(run.spacecraft.damage.some((damage) => damage !== null));
+      target.setCruiseEvent(anyDamaged(run));
     }),
     EventBus.on('hop-flight-settled', () => {
       target.setCruiseEvent(false);

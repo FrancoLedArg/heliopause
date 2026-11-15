@@ -86,6 +86,8 @@ const FRAME_CLIP = (() => {
 interface NavChartPanelProps {
   run: Run;
   state: ChartState;
+  /** A Daily Run: its Launch never takes the test-only Cruise leak. */
+  daily?: boolean;
 }
 
 /**
@@ -93,7 +95,7 @@ interface NavChartPanelProps {
  * the Hop plan side panel (target, Success Chance, Δv bar, Fuel gauge, Cancel and Launch) and the keyboard. The chart itself is Phaser's,
  * behind this layer; this layer sends key presses to it as commands and shows what it reports back.
  */
-export function NavChartPanel({ run, state }: NavChartPanelProps) {
+export function NavChartPanel({ run, state, daily = false }: NavChartPanelProps) {
   const layout = useMemo(() => layoutChart(run), [run]);
   const here = currentBody(run);
   const bodyOf = (id: HopTarget): Body | undefined =>
@@ -415,7 +417,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
           onClick={() => {
             // The Landed scene flies the Hop and starts its playback, which closes this panel.
             if (state.selectedId !== undefined) {
-              EventBus.emit('hop-launch-requested', state.selectedId);
+              EventBus.emit('hop-launch-requested', state.selectedId, daily);
             }
           }}
         >

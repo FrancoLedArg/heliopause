@@ -27,6 +27,7 @@ import { flightDataFor, type Flight, type FlightData } from './Flight.ts';
 import type { Landed } from './Landed.ts';
 import { FLIGHT_ANGLE, turn, type ShipPose } from './chassisArt.ts';
 import { composeSpacecraft } from './spacecraftComposition.ts';
+import { ringGeometry } from './damageMarks.ts';
 import { bodySprite, SHIP_PLACEMENT } from './landedView.ts';
 import { music } from '../audio/music.ts';
 import { flightPlayback } from './flightPlayback.ts';
@@ -1180,7 +1181,7 @@ it("Takeoff from seed 2046's Icy Moon uses the same Icy strip and Icy dust and s
 });
 
 describe('the live Cruise (#250)', () => {
-  it('a leak striking turns the fast-forward off, and a click on the leaking Tank starts its Repair', async () => {
+  it('a leak striking turns the fast-forward off; a click on the leaking Tank starts its Repair, one on its price Rushes it', async () => {
     host = document.createElement('div');
     document.body.append(host);
     root = createRoot(host);
@@ -1231,9 +1232,19 @@ describe('the live Cruise (#250)', () => {
     const canvas = scene.game.canvas;
     if (!rect) throw new Error('The Tank is drawn');
     const scale = canvas.getBoundingClientRect().width / GAME_WIDTH;
-    await userEvent.click(canvas, {
-      position: { x: (rect.x + rect.width / 2) * scale, y: (rect.y + rect.height / 2) * scale },
-    });
+    const part = { x: (rect.x + rect.width / 2) * scale, y: (rect.y + rect.height / 2) * scale };
+    const materialsBefore = run.materials;
+    await userEvent.click(canvas, { position: part });
     expect(scene.live?.spacecraft.damage[fuelTank]?.repair).toBe(0);
+    // A second click on the part never Rushes: only the ring or its price does.
+    await userEvent.click(canvas, { position: part });
+    expect(scene.live?.materials).toBe(materialsBefore);
+    expect(scene.live?.spacecraft.damage[fuelTank]?.repair).toBe(0);
+    const { price } = ringGeometry(rect);
+    await userEvent.click(canvas, {
+      position: { x: (price.x + price.width / 2) * scale, y: (price.y + price.height / 2) * scale },
+    });
+    expect(scene.live?.spacecraft.damage[fuelTank]).toBeNull();
+    expect(scene.live?.materials).toBeLessThan(materialsBefore);
   });
 });

@@ -25,7 +25,10 @@ const MARK = {
   /** The Rush price's icon (px across) and the gap from the ring. */
   icon: 10,
   priceGap: 4,
-  /** How far a click may land outside a Component and still hit it. */
+  /** The Rush price's box (icon and up to two digits), for clicks. */
+  priceWidth: 24,
+  priceHeight: 12,
+  /** How far a click may land outside a Component, or off the ring's line, and still hit it. */
   hitSlop: 4,
 } as const;
 
@@ -45,6 +48,40 @@ export interface DamageMarks {
    */
   readonly show: (run: Run, bounds: ReadonlyMap<number, Rect>, ms: number) => void;
   readonly hide: () => void;
+  /** Test seam: which of a Slot's marks are on screen now. */
+  readonly shown: (slot: number) => {
+    readonly glow: boolean;
+    readonly badge: boolean;
+    readonly vent: boolean;
+    readonly ring: boolean;
+  };
+}
+
+/**
+ * Where a Component's Repair ring and Rush price sit, from its bounds: the ring round its centre,
+ * the price (a Materials icon and a number) to the ring's right. Drawing and hit-testing share it.
+ */
+export function ringGeometry(rect: Rect): {
+  readonly cx: number;
+  readonly cy: number;
+  readonly radius: number;
+  readonly price: Rect;
+} {
+  const cx = rect.x + rect.width / 2;
+  const cy = rect.y + rect.height / 2;
+  const radius = Math.max(rect.width, rect.height) / 2 + MARK.ringGap;
+  const px = cx + radius + MARK.priceGap;
+  return {
+    cx,
+    cy,
+    radius,
+    price: {
+      x: px,
+      y: cy - MARK.priceHeight / 2,
+      width: MARK.priceWidth,
+      height: MARK.priceHeight,
+    },
+  };
 }
 
 /** Builds the marks for every Slot, hidden. `calm` (reduced motion): a steady glow and no venting. */
@@ -95,6 +132,15 @@ export function createDamageMarks(scene: Scene, calm: boolean): DamageMarks {
     hide: () => {
       for (const slot of marks) hideSlot(slot);
     },
+    shown: (index) => {
+      const slot = marks[index];
+      return {
+        glow: slot?.glow.visible ?? false,
+        badge: slot?.badge?.visible ?? false,
+        vent: slot?.vent.visible ?? false,
+        ring: slot?.ring.visible ?? false,
+      };
+    },
     show: (run, bounds, ms) => {
       marks.forEach((slot, index) => {
         const rect = bounds.get(index);
@@ -103,8 +149,7 @@ export function createDamageMarks(scene: Scene, calm: boolean): DamageMarks {
           hideSlot(slot);
           return;
         }
-        const cx = rect.x + rect.width / 2;
-        const cy = rect.y + rect.height / 2;
+        const { cx, cy, radius, price } = ringGeometry(rect);
         const size = Math.max(rect.width, rect.height);
         const breathe = calm ? 0.55 : 0.45 + 0.25 * Math.sin((ms / MARK.glowMs) * Math.PI);
         slot.glow
@@ -131,7 +176,6 @@ export function createDamageMarks(scene: Scene, calm: boolean): DamageMarks {
         slot.icon.setVisible(repairing);
         slot.price.setVisible(repairing);
         if (!repairing) return;
-        const radius = size / 2 + MARK.ringGap;
         const start = -Math.PI / 2;
         slot.ring
           .clear()
@@ -142,11 +186,10 @@ export function createDamageMarks(scene: Scene, calm: boolean): DamageMarks {
           .arc(cx, cy, radius, start, start + 2 * Math.PI * state.progress)
           .strokePath();
         const dim = state.affordable ? 1 : 0.4;
-        const px = cx + radius + MARK.priceGap;
-        slot.icon.setPosition(px + MARK.icon / 2, cy).setAlpha(dim);
+        slot.icon.setPosition(price.x + MARK.icon / 2, cy).setAlpha(dim);
         slot.price
           .setText(String(state.rush))
-          .setPosition(px + MARK.icon + 1, cy)
+          .setPosition(price.x + MARK.icon + 1, cy)
           .setAlpha(dim);
       });
     },
@@ -174,4 +217,47 @@ export function damagedSlotAt(
     if (inside) return slot;
   }
   return undefined;
+}
+
+/**
+ * The Slot whose Rush a click at (`x`, `y`) asks for: it lands on a running Repair's ring (its line,
+ * give or take a little) or on the Rush price beside it, and the Materials can pay. A click on the
+ * part itself only ever starts a Repair, so a double-click never spends Materials.
+ */
+export function rushTargetAt(
+  run: Run,
+  bounds: ReadonlyMap<number, Rect>,
+  x: number,
+  y: number,
+): number | undefined {
+  for (const [slot, rect] of bounds) {
+    const state = repairState(run, slot);
+    if (state.kind === 'sound' || state.progress === null || !state.affordable) continue;
+    const { cx, cy, radius, price } = ringGeometry(rect);
+    const onRing = Math.abs(Math.hypot(x - cx, y - cy) - radius) <= MARK.hitSlop;
+    const onPrice =
+      x >= price.x && x <= price.x + price.width && y >= price.y && y <= price.y + price.height;
+    if (onRing || onPrice) return slot;
+  }
+  return undefined;
+}
+
+/**
+ * What a click at (`x`, `y`) on the Spacecraft asks for: a Rush on a ring or price, else a Repair of
+ * a Damaged part with none running yet; `undefined` for anything else (a part already being Repaired).
+ */
+export function repairClickAt(
+  run: Run,
+  bounds: ReadonlyMap<number, Rect>,
+  x: number,
+  y: number,
+): { readonly action: 'repair' | 'rush'; readonly slot: number } | undefined {
+  const rush = rushTargetAt(run, bounds, x, y);
+  if (rush !== undefined) return { action: 'rush', slot: rush };
+  const part = damagedSlotAt(run, bounds, x, y);
+  if (part === undefined) return undefined;
+  const state = repairState(run, part);
+  return state.kind === 'damaged' && state.progress === null
+    ? { action: 'repair', slot: part }
+    : undefined;
 }

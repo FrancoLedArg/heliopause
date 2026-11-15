@@ -19,8 +19,7 @@ import {
   type HopFlight,
   type Run,
 } from '../sim/index.ts';
-import { repairAction, repairState } from '../../ui/repairView.ts';
-import { createDamageMarks, damagedSlotAt, type DamageMarks } from './damageMarks.ts';
+import { createDamageMarks, repairClickAt, type DamageMarks } from './damageMarks.ts';
 import {
   advancePlayback,
   CRUISE_BOOST_MS,
@@ -430,7 +429,7 @@ export class Flight extends Scene {
   /** The Run in its Cruise while the Cruise runs (see `FlightData.cruising`); tests read it. */
   live: Run | undefined;
   /** The Damage drawn on the flying Spacecraft. */
-  private marks!: DamageMarks;
+  marks!: DamageMarks;
 
   constructor() {
     super(SceneKey.Flight);
@@ -528,17 +527,16 @@ export class Flight extends Scene {
       const rushed = rushRepair(this.live, slot);
       if (rushed.kind === 'rushed') this.updateLive(rushed.run);
     });
+    // A click on a Damaged part starts its Repair; only a click on its ring or price Rushes it.
     this.input.on('pointerdown', (pointer: { x: number; y: number }) => {
-      const slot = this.damagedAt(pointer);
-      if (slot === undefined || !this.live) return;
-      const action = repairAction(repairState(this.live, slot));
-      if (action) EventBus.emit(action === 'repair' ? 'repair-requested' : 'rush-requested', slot);
+      const click = this.repairClick(pointer);
+      if (click) EventBus.emit(`${click.action}-requested`, click.slot);
     });
     this.events.once(Scenes.Events.SHUTDOWN, () => {
       this.input.setDefaultCursor('');
     });
     this.input.on('pointermove', (pointer: { x: number; y: number }) => {
-      this.input.setDefaultCursor(this.damagedAt(pointer) === undefined ? '' : 'pointer');
+      this.input.setDefaultCursor(this.repairClick(pointer) ? 'pointer' : '');
     });
     const stop = (): void => {
       offSpeed();
@@ -598,10 +596,10 @@ export class Flight extends Scene {
     return out;
   }
 
-  /** The Damaged Component under a click in the Cruise, if any. */
-  private damagedAt(pointer: { x: number; y: number }): number | undefined {
+  /** What a click in the Cruise asks of a Damaged Component: a Repair or a Rush, if anything. */
+  private repairClick(pointer: { x: number; y: number }): ReturnType<typeof repairClickAt> {
     if (!this.live || this.stage !== 'space') return undefined;
-    return damagedSlotAt(this.live, this.componentBounds(), pointer.x, pointer.y);
+    return repairClickAt(this.live, this.componentBounds(), pointer.x, pointer.y);
   }
 
   /**

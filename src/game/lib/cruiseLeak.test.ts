@@ -11,6 +11,11 @@ describe('the test-only Cruise leak from the URL', () => {
     ]);
   });
 
+  it("never touches a Daily Run: it keeps the seed's own schedule", () => {
+    expect(chooseCruiseLeak('?cruiseLeak=100', spacecraft, true)).toBeUndefined();
+    expect(chooseCruiseLeak('?cruiseLeak=none', spacecraft, true)).toBeUndefined();
+  });
+
   it('gives every Cruise no events for `none`', () => {
     expect(chooseCruiseLeak('?cruiseLeak=none', spacecraft)).toEqual([]);
   });
