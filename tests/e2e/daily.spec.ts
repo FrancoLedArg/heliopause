@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { FAST_CRUISE } from './cruise.ts';
 import { dailySeed } from '../../src/game/lib/dailyStarSystem.ts';
 import {
   startingMoon,
@@ -63,7 +64,8 @@ function endingHops(): {
     }
     return undefined;
   };
-  for (const depth of [2, 3, 4]) {
+  // Up to six Hops: since #247's Isp rise the day's first ending takes five (four Arrive, one Crashes).
+  for (const depth of [2, 3, 4, 5, 6]) {
     const found = search(run, [], depth);
     if (found) return found;
   }
@@ -79,7 +81,7 @@ async function hopTo(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: 'Launch' }).click();
 }
 
-async function openTitle(page: Page, time: string, url = '/'): Promise<void> {
+async function openTitle(page: Page, time: string, url = `/?${FAST_CRUISE}`): Promise<void> {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.clock.install({ time: new Date(time) });
@@ -100,7 +102,8 @@ async function target(page: Page, name: string): Promise<void> {
 test('the Daily Star System: the same Star System for the day, a Daily Best kept, and a new one after 00:00 UTC', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(120_000);
+  // Five Hops of playback on a loaded machine.
+  test.setTimeout(180_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
 
@@ -142,9 +145,15 @@ test('the Daily Star System: the same Star System for the day, a Daily Best kept
   await expect(page.getByTestId('daily-tag')).toHaveText(`Daily ${DAY} UTC`);
   await outcome.getByRole('button', { name: 'Continue' }).click();
   const score = formatScore(ending.score);
-  await expect(outcome.getByTestId('end-of-run-score')).toHaveText(score);
+  await expect(outcome.getByTestId('end-of-run-score')).toHaveAttribute(
+    'aria-label',
+    `Score: ${score}`,
+  );
   await expect(outcome).toContainText('Today’s Daily Best');
-  await expect(outcome.getByTestId('end-of-run-best')).toHaveText(`${score} (new Daily Best)`);
+  await expect(outcome.getByTestId('end-of-run-best')).toHaveAttribute(
+    'aria-label',
+    `Today’s Daily Best: ${score} (new Daily Best)`,
+  );
   await testInfo.attach('daily-end', { body: await page.screenshot(), contentType: 'image/png' });
 
   // 4. Back to the title: the Daily line shows the Score.
@@ -173,7 +182,7 @@ test('the Daily Star System: the same Star System for the day, a Daily Best kept
 test('the Daily Star System ignores a ?seed in the page URL, and New Run has no Daily tag', async ({
   page,
 }) => {
-  await openTitle(page, NOON, '/?seed=123&chassis=scout');
+  await openTitle(page, NOON, `/?seed=123&chassis=scout&${FAST_CRUISE}`);
   await page.getByRole('button', { name: 'Daily Star System' }).click();
   await expect(page.getByRole('heading', { name: home.name })).toBeVisible();
   await expect(page.getByTestId('game-ui')).toHaveAttribute(

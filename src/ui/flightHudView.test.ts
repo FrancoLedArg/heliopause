@@ -28,6 +28,9 @@ const { flight } = flyHop(run, plan, createRng(1));
 const moment = (over: Partial<FlightMoment>): FlightMoment => ({
   burn: 'takeoff',
   progress: 0,
+  shot: 'takeoff',
+  shotProgress: 0,
+  cruise: undefined,
   thrusting: true,
   fuel: run.spacecraft.fuelMass,
   logged: 0,
@@ -70,11 +73,11 @@ describe('the flight HUD', () => {
     const view = describeFlight(run, worked, moment({ burn: 'landing', logged: 2 }));
     expect(view.log[0]).toMatchObject({
       state: 'done',
-      estimate: '3,100 m/s',
-      actual: '3,162 m/s',
+      estimate: '3.1 km/s',
+      actual: '3.2 km/s',
       change: '+2%',
     });
-    expect(view.log[1]).toMatchObject({ actual: '653 m/s', change: '−4%' });
+    expect(view.log[1]).toMatchObject({ actual: '0.65 km/s', change: '−4%' });
   });
 
   it('shows the Burn under way as burning and the later ones by their estimate only', () => {
@@ -109,13 +112,13 @@ describe('the flight HUD', () => {
     );
     expect(view.log[1]).toMatchObject({
       state: 'ran-out',
-      actual: '600 of 650 m/s',
+      actual: '0.60 of 0.65 km/s',
       change: 'ran out',
     });
     expect(view.log[2]).toMatchObject({ state: 'waiting', actual: '—' });
   });
 
-  it('reads every Δv in whole m/s, like the Hop plan, even above 10 km/s', () => {
+  it('reads every Δv in km/s, like the Hop plan and report, even above 10 km/s', () => {
     const long: HopFlight = {
       ...flight,
       outcome: { kind: 'fell-short', burn: 'transfer', shortfall: metersPerSecond(889) },
@@ -137,26 +140,63 @@ describe('the flight HUD', () => {
       moment({ burn: 'transfer', logged: 2, thrusting: false, fuel: kilograms(0) }),
     );
     expect(view.log[1]).toMatchObject({
-      estimate: '14,100 m/s',
-      actual: '13,923 of 14,812 m/s',
+      estimate: '14.1 km/s',
+      actual: '13.9 of 14.8 km/s',
       change: 'ran out',
     });
-    expect(view.log[2]).toMatchObject({ estimate: '1,580 m/s' });
+    expect(view.log[2]).toMatchObject({ estimate: '1.6 km/s' });
   });
 
-  it('reads the Fuel as tonnes of capacity, with the bar filled to the share left', () => {
-    const half = kilograms(run.spacecraft.fuelCapacity / 2);
-    const view = describeFlight(run, flight, moment({ fuel: half }));
-    expect(view.fuel).toBe(
-      `${(half / 1000).toFixed(1)} t of ${(run.spacecraft.fuelCapacity / 1000).toFixed(1)} t`,
+  it('drains the Δv bar Burn by Burn: nothing at Launch, a Burn done, the next under way, then all', () => {
+    const drained = (over: Partial<FlightMoment>): number =>
+      describeFlight(run, flight, moment(over)).drained;
+    const [a, b] = [flight.burns[0], flight.burns[1]];
+    if (a?.status !== 'completed' || b?.status !== 'completed')
+      throw new Error('expected a flown Hop');
+    const scale = Math.max(
+      describeFlight(run, flight, moment({})).bar.needed,
+      flight.plan.availableDeltaV,
     );
-    expect(view.fuelShare).toBeCloseTo(0.5);
+    expect(drained({})).toBe(0);
+    // Takeoff done, Transfer half through: the Δv those two took, as a share of the bar (worked by hand).
+    expect(drained({ burn: 'transfer', logged: 1, progress: 0.5 })).toBeCloseTo(
+      (a.actual + b.actual / 2) / scale,
+      6,
+    );
+    expect(drained({ burn: 'landing', logged: 3 })).toBeGreaterThan(
+      drained({ burn: 'transfer', logged: 1, progress: 0.5 }),
+    );
   });
 
-  it('before the first moment arrives, shows the Fuel at launch with Takeoff about to burn', () => {
-    const view = describeFlight(run, flight, undefined);
-    expect(view.fuelShare).toBeCloseTo(run.spacecraft.fuelMass / run.spacecraft.fuelCapacity);
-    expect(view.phases[0]?.state).toBe('current');
+  it('marks flown Burns with their estimate tick and leaves the others bare', () => {
+    const view = describeFlight(run, flight, moment({ burn: 'transfer', logged: 1 }));
+    expect(view.bar.segments.map((segment) => segment.estimateTick !== undefined)).toEqual([
+      true,
+      false,
+      false,
+    ]);
+  });
+
+  it('holds the bar where the Fuel ran out: a Burn that ran out drains only what it delivered', () => {
+    const failed: HopFlight = {
+      ...flight,
+      plan: { ...flight.plan, availableDeltaV: metersPerSecond(1000) },
+      burns: [
+        {
+          status: 'ran-out',
+          burn: 'takeoff',
+          estimated: metersPerSecond(900),
+          actual: metersPerSecond(1200),
+          delivered: metersPerSecond(1000),
+        },
+        { status: 'not-flown', burn: 'transfer', estimated: metersPerSecond(600) },
+        { status: 'not-flown', burn: 'landing', estimated: metersPerSecond(300) },
+      ],
+    };
+    const view = describeFlight(run, failed, moment({ logged: 1, thrusting: false }));
+    // Needs 2100 against 1000: the scale is 2100, and 1000 of it is drained.
+    expect(view.drained).toBeCloseTo(1000 / 2100, 6);
+    expect(view.deltaVLeft).toBe('0.00 of 1.0 km/s');
   });
 
   it('shows the route inset: the departure and the target Body by name, and how far along the Hop is', () => {

@@ -128,7 +128,7 @@ describe('replay', () => {
   it('a replayed Run ends the same way, with the same Score', () => {
     // Scout seed 24: Materials from the opening pay for a Jump Drive, but the Hop to the Heliopause
     // runs out of Fuel. Re-pinned for #189 (was seed 3): Runs open on a Starting Moon now.
-    // Re-pinned for #247 (was the Lancer on seed 4): the Chassis Isp rose 30%, so it reaches it now.
+    // Re-pinned for #247 (was the Lancer on seed 9): the Chassis Isp rose 30%, so it reaches it now.
     const start = startRun(24, 'scout');
     const mined = hopped(start, firstTarget(start).id);
     const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');
@@ -146,7 +146,7 @@ describe('replay', () => {
   it('replay covers a Hop to the Heliopause, and the Jump into Star System 2', () => {
     // Seed 10: the opening pays for the Jump Drive, and the Fuel left covers the Heliopause.
     // Re-pinned for #189 (was seed 8's planet-3-moon-2): Runs open on a Starting Moon now.
-    // Re-pinned for #247 (was seed 7): the Chassis Isp rose 30%, which reshuffles generation.
+    // Re-pinned for #247 (was seed 35): the Chassis Isp rose 30%, which reshuffles generation.
     const start = startRun(10, 'scout');
     const mined = hopped(start, firstTarget(start).id);
     const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');
@@ -218,7 +218,7 @@ describe('replay', () => {
   });
 
   it('no choice follows the end of a Run', () => {
-    // Re-pinned for #247 (was the Lancer on seed 4): the Run above that falls short at the Heliopause.
+    // Re-pinned for #247 (was the Lancer on seed 9): the Run above that falls short at the Heliopause.
     const start = startRun(24, 'scout');
     const mined = hopped(start, firstTarget(start).id);
     const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');
@@ -301,7 +301,7 @@ describe('replay', () => {
 
   it('replay covers the Jump: a Run replayed into Star System 2 and on is identical', () => {
     // Escape System 1 as above, then play on in System 2: Hop to its first target.
-    // Re-pinned for #247 (was seed 7): seed 10, as above.
+    // Re-pinned for #247 (was seed 35): seed 10, as above.
     const start = startRun(10, 'scout');
     const mined = hopped(start, firstTarget(start).id);
     const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');

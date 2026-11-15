@@ -22,13 +22,26 @@ const GLYPH: Record<Burn, { readonly w: number; readonly h: number; readonly d: 
  * cost, with a tick where its estimate ended. One image to a screen reader, named with every value.
  * Takes the width of its container.
  */
-export function DeltaVBar({ bar, className }: { bar: DeltaVBarView; className?: string }) {
+export function DeltaVBar({
+  bar,
+  className,
+  drained,
+}: {
+  bar: DeltaVBarView;
+  className?: string;
+  /**
+   * How much of the bar the Burns have used so far, 0 to 1 from the left: shown as the bar going dark
+   * behind a bright edge. Left out, the bar is whole (a plan, or a Hop already flown).
+   */
+  drained?: number;
+}) {
   return (
     <div
       className={className ? `dv-bar ${className}` : 'dv-bar'}
       role="img"
       aria-label={bar.label}
       data-testid="dv-bar"
+      data-drained={drained === undefined ? undefined : drained.toFixed(3)}
     >
       {bar.segments.map((segment) => (
         <span
@@ -40,6 +53,9 @@ export function DeltaVBar({ bar, className }: { bar: DeltaVBarView; className?: 
           <BurnGlyph burn={segment.burn} />
         </span>
       ))}
+      {drained !== undefined && drained > 0 && (
+        <span className="dv-bar__drained" style={{ width: percent(drained) }} data-drained-part />
+      )}
       {bar.gap.width > 0 && (
         <span
           className={`dv-bar__gap dv-bar__gap--${bar.short ? 'short' : 'spare'}`}

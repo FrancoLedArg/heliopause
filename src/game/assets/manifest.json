@@ -97,6 +97,26 @@
       "file": "sprites/body_star.png"
     },
     {
+      "key": "comp_drill",
+      "file": "sprites/comp_drill.png"
+    },
+    {
+      "key": "comp_engine",
+      "file": "sprites/comp_engine.png"
+    },
+    {
+      "key": "comp_fuel_tank",
+      "file": "sprites/comp_fuel_tank.png"
+    },
+    {
+      "key": "comp_jump_drive",
+      "file": "sprites/comp_jump_drive.png"
+    },
+    {
+      "key": "comp_radar",
+      "file": "sprites/comp_radar.png"
+    },
+    {
       "key": "fx_dust",
       "file": "sprites/fx_dust.png"
     },

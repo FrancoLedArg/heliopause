@@ -115,6 +115,17 @@ export function GameUI() {
 
   // Set when the player leaves a Run, so the title they land on takes focus like after the picker's Back.
   const leftRun = useRef(false);
+  /**
+   * The Hop playback's fast-forward: once on, it stays on for every Hop of the Run until the player
+   * turns it off. The ref lets the Flight scene's start pick it up; a new Run starts with it off.
+   */
+  const [fastForward, setFastForward] = useState(false);
+  const fastForwardRef = useRef(false);
+  const changeFastForward = (fast: boolean): void => {
+    fastForwardRef.current = fast;
+    setFastForward(fast);
+    EventBus.emit('hop-fast-forward-requested', fast);
+  };
 
   useEffect(
     () =>
@@ -244,6 +255,8 @@ export function GameUI() {
     const offs = [
       EventBus.on('hop-flight-started', (before, hop) => {
         setFlight({ before, flight: hop });
+        // The new Hop plays at the speed the last one ended on.
+        if (fastForwardRef.current) EventBus.emit('hop-fast-forward-requested', true);
       }),
       EventBus.on('hop-flight-moment', (moment) => {
         setFlight((now) => now && { ...now, moment });
@@ -313,6 +326,8 @@ export function GameUI() {
         : dailySeed(day);
     setRunSeed(seed);
     setLaunching(true);
+    fastForwardRef.current = false;
+    setFastForward(false);
     afterFailure.current = afterRun;
     // The address bar follows the Run being played, so a reload or a shared link replays this Star System.
     syncUrl(seed, chassisId);
@@ -483,6 +498,8 @@ export function GameUI() {
           onNewRun={startNewRun}
           onLeave={leaveRun}
           dailyDay={flight.after?.kind === 'ended' ? flight.after.recorded.dailyDay : daily}
+          fast={fastForward}
+          onFastChange={changeFastForward}
         />
       )}
       <p className="hud-tag ai-label">AI-generated art and music</p>
