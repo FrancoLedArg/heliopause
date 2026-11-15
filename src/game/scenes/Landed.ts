@@ -143,6 +143,9 @@ export class Landed extends Scene {
       const action = repairAction(repairState(this.run, slot));
       if (action) EventBus.emit(action === 'repair' ? 'repair-requested' : 'rush-requested', slot);
     });
+    this.events.once(Scenes.Events.SHUTDOWN, () => {
+      this.input.setDefaultCursor('');
+    });
     this.input.on('pointermove', (pointer: { x: number; y: number }) => {
       this.input.setDefaultCursor(this.damagedAt(pointer) === undefined ? '' : 'pointer');
     });
@@ -173,7 +176,6 @@ export class Landed extends Scene {
       offLaunch();
       offRepair();
       offRush();
-      this.input.setDefaultCursor('');
       this.events.off(Scenes.Events.SHUTDOWN, unsubscribe);
       this.events.off(Scenes.Events.DESTROY, unsubscribe);
     };

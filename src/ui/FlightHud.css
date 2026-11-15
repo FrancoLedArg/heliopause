@@ -372,6 +372,7 @@
 
 /* A Damaged Component's light (#250): a red lamp, a button that starts its Repair. */
 .systems-lights__light--damaged {
+  pointer-events: auto;
   padding: 0;
   border: 0;
   background: none;

@@ -76,6 +76,12 @@ import {
   type VerticalShot,
 } from './verticalShots.ts';
 
+/**
+ * The game root's attribute listing the Damaged Components' screen rects in the live Cruise, by Slot
+ * (a test hook, like the Landed view's `data-spacecraft`): e2e flows click a leaking Tank with it.
+ */
+export const DAMAGE_ATTRIBUTE = 'data-cruise-damage';
+
 export interface FlightData {
   /** The Run at Launch: the Spacecraft on the departure Body with its Fuel. */
   readonly before: Run;
@@ -492,6 +498,9 @@ export class Flight extends Scene {
       const action = repairAction(repairState(this.live, slot));
       if (action) EventBus.emit(action === 'repair' ? 'repair-requested' : 'rush-requested', slot);
     });
+    this.events.once(Scenes.Events.SHUTDOWN, () => {
+      this.input.setDefaultCursor('');
+    });
     this.input.on('pointermove', (pointer: { x: number; y: number }) => {
       this.input.setDefaultCursor(this.damagedAt(pointer) === undefined ? '' : 'pointer');
     });
@@ -499,7 +508,7 @@ export class Flight extends Scene {
       offSpeed();
       offRepair();
       offRush();
-      this.input.setDefaultCursor('');
+      this.game.canvas.parentElement?.removeAttribute(DAMAGE_ATTRIBUTE);
       this.events.off(Scenes.Events.SHUTDOWN, stop);
       this.events.off(Scenes.Events.DESTROY, stop);
     };
@@ -604,6 +613,12 @@ export class Flight extends Scene {
       this.fx?.setSpeed(1);
       EventBus.emit('cruise-event-struck');
     }
+    const bounds = this.componentBounds();
+    const damaged = run.spacecraft.damage.flatMap((damage, slot) => {
+      const rect = bounds.get(slot);
+      return damage && rect ? [{ slot, ...rect }] : [];
+    });
+    this.game.canvas.parentElement?.setAttribute(DAMAGE_ATTRIBUTE, JSON.stringify(damaged));
     EventBus.emit('cruise-updated', run);
   }
 

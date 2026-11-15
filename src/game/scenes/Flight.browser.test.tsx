@@ -2,11 +2,13 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { GameObjects } from 'phaser';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { GameUI } from '../../ui/GameUI.tsx';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
 import {
+  beginHop,
   CHASSIS_IDS,
   findBody,
   HELIOPAUSE,
@@ -21,7 +23,7 @@ import {
   type HopTarget,
   type Run,
 } from '../sim/index.ts';
-import type { Flight, FlightData } from './Flight.ts';
+import { flightDataFor, type Flight, type FlightData } from './Flight.ts';
 import type { Landed } from './Landed.ts';
 import { FLIGHT_ANGLE, turn, type ShipPose } from './chassisArt.ts';
 import { composeSpacecraft } from './spacecraftComposition.ts';
@@ -259,7 +261,9 @@ it('the Cruise draws its event layer between the starfield and the Spacecraft', 
   expect(scene.eventLayer.visible).toBe(true);
   expect(list.indexOf(scene.eventLayer)).toBeGreaterThan(space);
   expect(list.indexOf(scene.eventLayer)).toBeLessThan(list.indexOf(scene.ship));
-  expect(scene.playback.events).toEqual([]);
+  // Every real Cruise has its Fuel leaks to play there (#250).
+  expect(scene.playback.events.length).toBeGreaterThan(0);
+  expect(scene.playback.events.every((event) => event.kind === 'fuel-leak')).toBe(true);
 });
 
 it.each(['takeoff', 'cruise', 'landing'] as const)(
@@ -1079,4 +1083,63 @@ it("Takeoff from seed 2026's Icy Moon uses the same Icy strip and Icy dust and s
     emitters(scene).find((e) => e.texture.key === key)?.ops.tint.current;
   expect(tint('fx_dust')).toBe(paletteNumber('cy4'));
   expect(tint('fx_smoke')).toBe(paletteNumber('cy4'));
+});
+
+describe('the live Cruise (#250)', () => {
+  it('a leak striking turns the fast-forward off, and a click on the leaking Tank starts its Repair', async () => {
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    const titleReady = nextSceneReady(SceneKey.Title);
+    act(() => {
+      root?.render(
+        <div className="stage" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }}>
+          <div id="flight-test-game" />
+          <div className="stage__ui">
+            <GameUI />
+          </div>
+        </div>,
+      );
+    });
+    game = startGame('flight-test-game');
+    await titleReady;
+    const run = onHome(startRun(2026, 'scout'));
+    const target = homeMoonId(run);
+    if (target === undefined) throw new Error('No target');
+    const fuelTank = run.spacecraft.slots.findIndex((id) => id === 'fuel-tank-1');
+    const begun = beginHop(run, target, {
+      schedule: [{ kind: 'fuel-leak', tick: 100, slot: fuelTank }],
+    });
+    if (begun.kind === 'invalid-target') throw new Error('Not a Hop target');
+    const ready = nextSceneReady(SceneKey.Flight);
+    game.scene.start(SceneKey.Flight, flightDataFor(run, begun));
+    await ready;
+    const scene = game.scene.getScene<Flight>(SceneKey.Flight);
+    const cruise = scene.playback.cruise;
+    if (!cruise) throw new Error('Expected a Cruise');
+
+    let dropped = false;
+    const off = EventBus.on('cruise-event-struck', () => {
+      dropped = true;
+    });
+    act(() => {
+      EventBus.emit('hop-fast-forward-requested', true);
+    });
+    // Tick 100 is 10 s into the 2-minute Cruise.
+    act(() => {
+      scene.seek(cruise.start + 10_050);
+    });
+    off();
+    expect(dropped).toBe(true);
+    expect(scene.live?.spacecraft.damage[fuelTank]).toEqual({ repair: null, burning: null });
+
+    const rect = scene.componentBounds().get(fuelTank);
+    const canvas = scene.game.canvas;
+    if (!rect) throw new Error('The Tank is drawn');
+    const scale = canvas.getBoundingClientRect().width / GAME_WIDTH;
+    await userEvent.click(canvas, {
+      position: { x: (rect.x + rect.width / 2) * scale, y: (rect.y + rect.height / 2) * scale },
+    });
+    expect(scene.live?.spacecraft.damage[fuelTank]?.repair).toBe(0);
+  });
 });
