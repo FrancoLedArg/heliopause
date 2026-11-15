@@ -148,8 +148,8 @@ export const ICE_LINE = {
 /** Gameplay tuning for what a landable Body is made of. Not real-world figures. */
 export const BODY_TUNING = {
   /**
-   * Base yield by type, before any Drill multiplier. Icy is Fuel in kilograms, scaled to Chassis
-   * Fuel capacity (21,000 to 66,000 kg) so one landing is a meaningful refill. Rocky is Materials,
+   * Base yield by type, before any Drill multiplier. Icy is Fuel in kilograms, scaled to the 36 t Tank
+   * every Chassis shares (#298) so one landing is a meaningful refill. Rocky is Materials,
    * in the unit of Component costs (#112).
    */
   baseYield: {
