@@ -28,6 +28,9 @@ const { flight } = flyHop(run, plan, createRng(1));
 const moment = (over: Partial<FlightMoment>): FlightMoment => ({
   burn: 'takeoff',
   progress: 0,
+  shot: 'takeoff',
+  shotProgress: 0,
+  cruise: undefined,
   thrusting: true,
   fuel: run.spacecraft.fuelMass,
   logged: 0,

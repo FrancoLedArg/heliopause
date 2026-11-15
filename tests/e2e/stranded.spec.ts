@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { FAST_CRUISE } from './cruise.ts';
 import { assessStranding, runEnd } from '../../src/game/sim/index.ts';
 import { landing, SAVE_BY_REMOVING, STRANDED_ON_LANDING } from '../../src/ui/landingFixtures.ts';
 
@@ -18,7 +19,7 @@ if (warning.kind !== 'warning')
 async function startRun(page: Page, seed: number): Promise<void> {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.goto(`/?seed=${String(seed)}&chassis=scout`);
+  await page.goto(`/?seed=${String(seed)}&chassis=scout&${FAST_CRUISE}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await expect(page.getByRole('button', { name: /Nav Chart/ })).toBeVisible();
 }
