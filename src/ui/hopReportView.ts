@@ -2,7 +2,10 @@
 // the simulation's plain-language why. Every figure comes from the flight; nothing is recomputed here. The one exception is the Drill's
 // factor, read from the Run before the Hop (a Hop never changes the Slots) to credit it in the icon row.
 import {
+  COMPONENTS,
   drillMultiplier,
+  type ComponentKind,
+  type CruiseEventKind,
   FUEL_NOTE,
   type Collection,
   findBody,
@@ -47,6 +50,21 @@ export interface ReportGain {
   readonly name: string;
 }
 
+/**
+ * One Cruise entry of the report's icon row (#250): an event, with a tick when its Damage was
+ * Repaired in the Cruise, or the Fuel the leaks lost. Its words are its accessible name.
+ */
+export type CruiseMark =
+  | {
+      readonly kind: 'event';
+      readonly event: CruiseEventKind;
+      /** The kind of Component it Damaged. */
+      readonly component: ComponentKind;
+      readonly repaired: boolean;
+      readonly name: string;
+    }
+  | { readonly kind: 'fuel-lost'; readonly amount: string; readonly name: string };
+
 export interface ReportView {
   readonly title: 'Arrived' | 'Reached the Heliopause' | 'Fell Short' | 'Crashed';
   /** Each Burn's estimate against its actual Δv, as the bar draws them (a Burn that never flew is left out). */
@@ -57,6 +75,8 @@ export interface ReportView {
   readonly margin: string;
   /** The icon row: what landing gathered. Empty when nothing came aboard (a Depleted Body, a failed Hop). */
   readonly gains: readonly ReportGain[];
+  /** The same row's Cruise entries: what the Cruise did (#250). Empty when nothing happened in it. */
+  readonly cruise: readonly CruiseMark[];
   /** The real-missions fact (ice to propellant), the first time the Run collects Fuel; behind "Tell me more". */
   readonly fact?: string;
   /** The one line the report shows: why the Hop ended as it did, a single sentence. */
@@ -76,10 +96,12 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
   // The same minus sign the Hop plan uses.
   const share = formatMarginShare(marginShare(flight.plan));
   const planned = `planned ${margin < 0 ? '−' : '+'}${formatDeltaV(metersPerSecond(Math.abs(margin)))}${share ? `, ${share}` : ''}`;
+  const cruise = cruiseMarks(before, flight);
   switch (outcome.kind) {
     case 'arrived':
       return {
         title: 'Arrived',
+        cruise,
         bar,
         rows,
         margin: `Margin left: ${formatDeltaV(flight.deltaVRemaining)} of Δv (${planned})`,
@@ -93,6 +115,7 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
     case 'reached-heliopause':
       return {
         title: 'Reached the Heliopause',
+        cruise,
         gains: [],
         bar,
         rows,
@@ -103,6 +126,7 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
     case 'fell-short':
       return {
         title: 'Fell Short',
+        cruise,
         gains: [],
         bar,
         rows,
@@ -113,6 +137,7 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
     case 'crashed':
       return {
         title: 'Crashed',
+        cruise,
         gains: [],
         bar,
         rows,
@@ -240,4 +265,47 @@ function gains(collection: Collection | null, drill: number): ReportGain[] {
       ];
     }
   }
+}
+
+const EVENT_NAMES: Readonly<Record<CruiseEventKind, string>> = {
+  'fuel-leak': 'Fuel leak',
+  'debris-field': 'Debris field',
+  'engine-fire': 'Engine fire',
+  'solar-flare': 'Solar flare',
+};
+
+const PART_NAMES: Readonly<Record<ComponentKind, string>> = {
+  engine: 'Engine',
+  'fuel-tank': 'Fuel Tank',
+  drill: 'Drill',
+  'jump-drive': 'Jump Drive',
+};
+
+/** What the Cruise did, as icon-row entries: each event that Damaged a part, then the Fuel lost. */
+function cruiseMarks(before: Run, flight: HopFlight): CruiseMark[] {
+  const marks: CruiseMark[] = flight.cruiseEvents.flatMap((event): CruiseMark[] => {
+    const id = event.slot === null ? null : before.spacecraft.slots[event.slot];
+    if (id === null || id === undefined) return [];
+    const component = COMPONENTS[id].kind;
+    const repaired = event.endedAt !== null;
+    const state = repaired ? 'Repaired' : 'still Damaged';
+    return [
+      {
+        kind: 'event',
+        event: event.kind,
+        component,
+        repaired,
+        name: `${EVENT_NAMES[event.kind]} in the ${PART_NAMES[component]}: ${state}.`,
+      },
+    ];
+  });
+  if (flight.fuelLost > 0) {
+    const lost = formatFuel(flight.fuelLost);
+    marks.push({
+      kind: 'fuel-lost',
+      amount: `−${lost}`,
+      name: `Lost ${lost} of Fuel to the leak.`,
+    });
+  }
+  return marks;
 }

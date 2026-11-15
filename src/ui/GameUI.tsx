@@ -78,6 +78,8 @@ export function GameUI() {
         before: Run;
         flight: HopFlight;
         moment?: FlightMoment;
+        /** The Run in its Cruise while the Cruise runs (#250). */
+        live?: Run | undefined;
         /** What follows the playback once it is over. */
         after?: FlightAfter;
       }
@@ -260,6 +262,18 @@ export function GameUI() {
       }),
       EventBus.on('hop-flight-moment', (moment) => {
         setFlight((now) => now && { ...now, moment });
+      }),
+      // The Cruise runs live (#250): its Damage and Repairs, then the Hop as it really ended.
+      EventBus.on('cruise-updated', (live) => {
+        setFlight((now) => now && { ...now, live });
+      }),
+      EventBus.on('hop-flight-settled', (settled) => {
+        setFlight((now) => now && { ...now, flight: settled, live: undefined });
+      }),
+      // A Cruise event drops the fast-forward, so the player always has the time to react (#210).
+      EventBus.on('cruise-event-struck', () => {
+        fastForwardRef.current = false;
+        setFastForward(false);
       }),
       EventBus.on('hop-failed', (_failed, ended) => {
         // The Run is over: its Score is recorded here, once, whatever the end screen does after.
@@ -500,6 +514,7 @@ export function GameUI() {
           dailyDay={flight.after?.kind === 'ended' ? flight.after.recorded.dailyDay : daily}
           fast={fastForward}
           onFastChange={changeFastForward}
+          live={flight.live}
         />
       )}
       <p className="hud-tag ai-label">AI-generated art and music</p>

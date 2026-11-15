@@ -178,3 +178,14 @@
   font: 14px/12px var(--font-pixel-body);
   color: var(--cy3);
 }
+
+/* The Cruise in the same row (#250): the part an event hit, its badge a tick once Repaired. */
+.hop-report__cruise--event {
+  position: relative;
+  gap: 0;
+}
+
+.hop-report__cruise--event .kit-frame {
+  margin-left: -4px;
+  margin-top: -8px;
+}

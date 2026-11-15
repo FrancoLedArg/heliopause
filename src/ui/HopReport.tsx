@@ -6,6 +6,7 @@ import { trapTab } from './focusTrap.ts';
 import { describeReport } from './hopReportView.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { ComponentIcon } from './componentIcons/ComponentIcon.tsx';
 import { ResourceIcon } from './ResourceIcon.tsx';
 import './HopReport.css';
 
@@ -73,8 +74,8 @@ export function HopReport({ before, flight, actions, onEscape }: HopReportProps)
           {view.title}
         </h2>
         <DeltaVBar bar={view.bar} className="hop-report__bar" />
-        {view.gains.length > 0 && (
-          <ul className="hop-report__gains" aria-label="Gathered" data-testid="hop-report-gains">
+        {(view.gains.length > 0 || view.cruise.length > 0) && (
+          <ul className="hop-report__gains" aria-label="At a glance" data-testid="hop-report-gains">
             {view.gains.map((gain) => (
               <li key={gain.resource} className="hop-report__gain">
                 {/* One picture for assistive technology: the words are its name, the parts are presentational. */}
@@ -98,6 +99,29 @@ export function HopReport({ before, flight, actions, onEscape }: HopReportProps)
                       />
                       {gain.leftBehind}
                     </span>
+                  )}
+                </span>
+              </li>
+            ))}
+            {/* What the Cruise did (#250): each event's part, a tick once Repaired, and the Fuel lost. */}
+            {view.cruise.map((mark, i) => (
+              <li key={`cruise-${String(i)}`} className="hop-report__gain">
+                <span
+                  role="img"
+                  aria-label={mark.name}
+                  className={`hop-report__gain-figure hop-report__cruise hop-report__cruise--${mark.kind}`}
+                  data-testid="hop-report-cruise"
+                >
+                  {mark.kind === 'event' ? (
+                    <>
+                      <ComponentIcon kind={mark.component} size={16} />
+                      <KitFrame frame={mark.repaired ? 'badge_ok' : 'badge_alert'} />
+                    </>
+                  ) : (
+                    <>
+                      <ResourceIcon resource="fuel" />
+                      <span className="hop-report__gain-amount">{mark.amount}</span>
+                    </>
                   )}
                 </span>
               </li>

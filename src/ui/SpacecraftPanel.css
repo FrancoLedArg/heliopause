@@ -565,3 +565,54 @@
   display: flex;
   gap: 8px;
 }
+
+/* ---- A Damaged Slot (#250): smoke on its callout, and Repair and Rush beside Remove ---- */
+
+.slot-callout--damaged {
+  border-color: var(--rd3);
+}
+
+.slot-callout__smoke {
+  position: absolute;
+  right: -6px;
+  top: -8px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    var(--gm4) 20%,
+    color-mix(in srgb, var(--rd2) 60%, transparent) 70%
+  );
+  pointer-events: none;
+  animation: callout-smoke 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes callout-smoke {
+  from {
+    transform: translateY(1px) scale(0.9);
+    opacity: 0.75;
+  }
+
+  to {
+    transform: translateY(-2px) scale(1.1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slot-callout__smoke {
+    animation: none;
+  }
+}
+
+.spacecraft-panel .spacecraft-panel__repair {
+  left: 62px;
+  top: 128px;
+  display: flex;
+  gap: 4px;
+}
+
+.spacecraft-panel__repair .kit-button {
+  position: relative;
+}

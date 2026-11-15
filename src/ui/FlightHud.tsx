@@ -71,6 +71,8 @@ interface FlightHudProps {
   fast: boolean;
   /** The player turned the fast-forward on or off. */
   onFastChange: (fast: boolean) => void;
+  /** The Run in its Cruise while the Cruise runs (#250): its Damage, Fuel and Materials. */
+  live?: Run | undefined;
 }
 
 /**
@@ -89,6 +91,7 @@ export function FlightHud({
   dailyDay,
   fast,
   onFastChange,
+  live,
 }: FlightHudProps) {
   const view = describeFlight(before, flight, moment);
   const fuel = moment?.fuel ?? flight.fuelAtLaunch;
@@ -157,7 +160,7 @@ export function FlightHud({
         fuel={fuel}
         fuelCapacity={before.spacecraft.fuelCapacity}
         deltaV={deltaV}
-        materials={before.materials}
+        materials={(live ?? before).materials}
         dailyDay={dailyDay}
       />
 
@@ -255,6 +258,7 @@ export function FlightHud({
             moment.cruise,
             before.spacecraft.slots.filter((slot) => slot !== null).length,
           )}
+          run={live}
         />
       )}
 
