@@ -50,10 +50,8 @@
   color: var(--wh3);
 }
 
-.hop-report__headline {
-  margin: 0;
-  font: 14px/12px var(--font-pixel-body);
-  color: var(--wh2);
+.hop-report__bar {
+  margin: 3px 0;
 }
 
 .hop-report__table {
@@ -90,6 +88,23 @@
   margin: 0;
   font: 14px/12px var(--font-pixel-body);
   color: var(--am3);
+}
+
+.hop-report__more {
+  align-self: flex-start;
+}
+
+/* Opened, the details take the room between the toggle and the buttons and scroll if they must. */
+.hop-report__details {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.hop-report__outcome {
+  margin: 0;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--gm6);
 }
 
 .hop-report__why {
@@ -155,7 +170,7 @@
   opacity: 0.55;
 }
 
-.hop-report__note {
+.hop-report__fact {
   margin: 0;
   font: 14px/12px var(--font-pixel-body);
   color: var(--cy3);
