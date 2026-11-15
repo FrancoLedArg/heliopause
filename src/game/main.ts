@@ -37,7 +37,7 @@ export function startGame(parent: string | HTMLElement): Game {
 
 /**
  * A New Run can be asked for from any scene (the Title, or the report of a failed Hop), so the game
- * itself answers it: whatever is on screen is stopped and the Run starts on its Home Planet.
+ * itself answers it: whatever is on screen is stopped and the Run starts on its Starting Moon.
  */
 function startNewRuns(game: Game): void {
   const off = EventBus.on('new-run-requested', (seed, chassisId) => {

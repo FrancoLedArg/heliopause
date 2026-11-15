@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   astronomicalUnits,
   currentBody,
+  firstDetectedBody,
   HELIOPAUSE,
   install,
   kilograms,
@@ -24,9 +25,21 @@ import { describeHopPlan, LOW_SUCCESS_BELOW } from './hopPlanView.ts';
 
 const mps = metersPerSecond;
 const run: Run = startRun(123, 'scout');
-const home = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId);
-const moon = home?.moons[0];
-if (!moon) throw new Error('seed 123 has no Home Planet Moon');
+/** The first Body Comms Detected: seed 123 opens on a Gas Giant's Moon, so it is a sibling Moon. */
+const moon = firstDetectedBody(run.starSystem);
+
+/** The same Run knowing every Body, so it can plan a Hop anywhere (#96). */
+function knowingAll(from: Run): Run {
+  const ids = listBodies(from.starSystem).map((b) => b.id);
+  return { ...from, knowledge: { detected: ids, surveyed: ids, heliopauseFound: true } };
+}
+
+/** The same Run knowing every Body, stood on its innermost planet (where Runs opened before #96). */
+function onInnerPlanet(from: Run): Run {
+  const [inner] = from.starSystem.planets;
+  if (!inner) throw new Error('A Star System has planets');
+  return { ...knowingAll(from), status: { kind: 'landed', bodyId: inner.id } };
+}
 
 function planFor(id: BodyId, from: Run = run) {
   const result = planHop(from, id);
@@ -108,10 +121,10 @@ describe('the Hop plan as the player reads it', () => {
 
   it('flags a low Success Chance in words, and not a high one', () => {
     // Re-pinned for #188: a full scout reaches every Body of seed 123 for sure, so half its Fuel.
-    const half: Run = {
+    const half: Run = onInnerPlanet({
       ...run,
       spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 2) },
-    };
+    });
     const chances: number[] = [];
     for (const body of listBodies(half.starSystem)) {
       const result = planHop(half, body.id);
@@ -136,11 +149,12 @@ describe('the Hop plan as the player reads it', () => {
   });
 
   it('gives each Burn a reason drawn from the Bodies involved', () => {
-    // Re-pinned for #188: Sircer, a Gas Giant's Moon far out, stands in for Thakyxy.
-    const far = listBodies(run.starSystem).find((b) => b.name === 'Sircer');
+    // Re-pinned for #189: Rexsio, a Gas Giant's Moon far out, stands in for Sircer.
+    const knowing = knowingAll(run);
+    const far = listBodies(run.starSystem).find((b) => b.name === 'Rexsio');
     const here = currentBody(run);
     if (!far) throw new Error('seed 123 setup');
-    const view = describeHopPlan(run, planFor(far.id));
+    const view = describeHopPlan(knowing, planFor(far.id, knowing));
     const [takeoff, transfer, landing] = view.burns.map((b) => b.reason);
     expect(takeoff).toContain(formatGravity(here.surfaceGravity));
     expect(landing).toContain(formatGravity(far.surfaceGravity));
@@ -155,13 +169,20 @@ describe('the Hop plan as the player reads it', () => {
   });
 
   it('reads the Transfer as climbing outward or going inward', () => {
-    // Seed 5's Home Planet has a planet on each side of it.
-    const mid = startRun(5, 'scout');
-    const here = currentBody(mid);
+    // Seed 5's second planet has a planet on each side of it; stood there knowing every Body.
+    const start = startRun(5, 'scout');
+    const ids = listBodies(start.starSystem).map((b) => b.id);
+    const here = start.starSystem.planets[1];
+    if (!here) throw new Error('seed 5 has a second planet');
+    const mid: Run = {
+      ...start,
+      status: { kind: 'landed', bodyId: here.id },
+      knowledge: { detected: ids, surveyed: ids, heliopauseFound: true },
+    };
     const others = listBodies(mid.starSystem).filter((b) => b.landable && b.id !== here.id);
     const outer = others.find((p) => p.distanceFromStar > here.distanceFromStar);
     const inner = others.find((p) => p.distanceFromStar < here.distanceFromStar);
-    if (!outer || !inner) throw new Error('seed 5 needs planets on both sides of home');
+    if (!outer || !inner) throw new Error('seed 5 needs planets on both sides of its second');
     expect(describeHopPlan(mid, planFor(outer.id, mid)).burns[1]?.reason).toMatch(/outward/);
     expect(describeHopPlan(mid, planFor(inner.id, mid)).burns[1]?.reason).toMatch(/inward/);
   });
@@ -184,15 +205,15 @@ describe('the Hop plan as the player reads it', () => {
   });
 
   it('gives the same percentage as the why text for a hauler Hop on seed 123 that is short', () => {
-    // Re-pinned for #188: a half-fuelled hauler's Hop to Sircer is short (was a full one to Viormio).
-    const full = startRun(123, 'hauler');
+    // Re-pinned for #189: from the innermost planet, a half-fuelled hauler's Hop to Rexsio is short.
+    const full = onInnerPlanet(startRun(123, 'hauler'));
     const hauler: Run = {
       ...full,
       spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 2) },
     };
-    const sircer = listBodies(hauler.starSystem).find((body) => body.name === 'Sircer');
-    if (!sircer) throw new Error('seed 123 has no Sircer');
-    expect(describeHopPlan(hauler, planFor(sircer.id, hauler)).margin).toBe('−1,793 m/s (11%)');
+    const rexsio = listBodies(hauler.starSystem).find((body) => body.name === 'Rexsio');
+    if (!rexsio) throw new Error('seed 123 has no Rexsio');
+    expect(describeHopPlan(hauler, planFor(rexsio.id, hauler)).margin).toBe('−7,035 m/s (34%)');
   });
 
   it('drops the percentage once the Margin is as big as the estimate', () => {

@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { dailySeed } from '../../src/game/lib/dailyStarSystem.ts';
 import {
-  homePlanet,
+  startingMoon,
   launchHop,
   listBodies,
   runEnd,
@@ -21,8 +21,8 @@ const NOON = '2026-11-15T12:00:00Z';
 const JUST_AFTER_MIDNIGHT = '2026-11-16T00:00:30Z';
 
 const run = startRun(dailySeed(DAY), 'scout');
-const home = homePlanet(run.starSystem);
-const nextHome = homePlanet(startRun(dailySeed(NEXT_DAY), 'scout').starSystem);
+const home = startingMoon(run.starSystem);
+const nextHome = startingMoon(startRun(dailySeed(NEXT_DAY), 'scout').starSystem);
 
 /**
  * Two Hops on the day's Star System that end the Run: the first Arrives, the second Crashes or Falls

@@ -1,51 +1,54 @@
 import { expect, test, type Page } from '@playwright/test';
 import { formatFuel } from '../../src/ui/format.ts';
 import {
+  findBody,
+  firstDetectedBody,
   generateStarSystem,
-  homePlanet,
   launchHop,
-  listBodies,
+  startingMoon,
   startRun,
-  type Body,
+  type Run,
 } from '../../src/game/sim/index.ts';
 
-// Re-pinned for #188 (was 123): since generation changed, seed 305 is the first with a Hop that
-// Crashes for the scout and one that Falls Short in the Transfer for the hauler.
-const SEED = 305;
+// Re-pinned for #189: Runs open on a Starting Moon knowing one Body, which is always In reach.
+// Seed 786 opens on a Rocky Starting Moon with an Icy first target, so landing there collects the
+// Run's first Fuel (was seed 305's Home Moon).
+const SEED = 786;
 const run = startRun(SEED, 'scout');
-const home = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId);
-const homeMoon = home?.moons[0];
-if (!home || !homeMoon) throw new Error(`Seed ${SEED} has no Home Planet Moon`);
+const home = startingMoon(run.starSystem);
+const homeMoon = firstDetectedBody(run.starSystem);
 
-/** What the simulation says the Hop to the Home Planet's Moon leaves in the tank. */
+/** What the simulation says the Hop to the first target leaves in the tank. */
 const moonHop = launchHop(run, homeMoon.id);
 if (moonHop.kind !== 'flown' || moonHop.flight.outcome.kind !== 'arrived') {
   throw new Error(`Seed ${SEED}: the Hop to ${homeMoon.name} should Arrive`);
 }
 
-/** A target this seed's first Hop Crashes on: Launch settles the outcome, so the test can know it. */
-const crashTarget: Body | undefined = listBodies(run.starSystem).find((body) => {
-  const launched = launchHop(run, body.id);
-  return launched.kind === 'flown' && launched.flight.outcome.kind === 'crashed';
-});
-if (!crashTarget) throw new Error(`Seed ${SEED} has no Hop that Crashes`);
-const crashLaunch = launchHop(run, crashTarget.id);
-if (crashLaunch.kind !== 'flown') throw new Error('unreachable');
-const crashFlight = crashLaunch.flight;
+// No first Hop fails, so a failure takes two: on seed 1442, Thosny (the first target) then Korxel,
+// the Body Comms Detects from there. The scout Crashes on Korxel and the hauler Falls Short in the
+// Transfer (found by a scan over seeds and short paths).
+const FAIL_SEED = 1442;
+const FIRST = 'Thosny';
+const FAR = 'Korxel';
 
-/** Seed 305's Hauler Falls Short in the Transfer on its way to Lyquin (found by a scan over seeds, Chassis and targets). */
-const haulerRun = startRun(SEED, 'hauler');
-const shortTarget: Body | undefined = listBodies(haulerRun.starSystem).find((body) => {
-  const launched = launchHop(haulerRun, body.id);
-  return launched.kind === 'flown' && launched.flight.outcome.kind === 'fell-short';
-});
-if (!shortTarget) throw new Error(`Seed ${SEED} has no Hop that Falls Short for the Hauler`);
-const shortLaunch = launchHop(haulerRun, shortTarget.id);
-if (shortLaunch.kind !== 'flown') throw new Error('unreachable');
-const shortFlight = shortLaunch.flight;
+/** The second Hop of `chassis` on the failure seed, as the simulation settles it. */
+function secondHop(chassis: 'scout' | 'hauler'): { before: Run; why: string } {
+  const start = startRun(FAIL_SEED, chassis);
+  const first = launchHop(start, firstDetectedBody(start.starSystem).id);
+  if (first.kind !== 'flown') throw new Error('unreachable');
+  const far = first.run.knowledge.detected.find(
+    (id) => findBody(start.starSystem, id)?.name === FAR,
+  );
+  if (!far) throw new Error(`Seed ${String(FAIL_SEED)}: Comms should Detect ${FAR}`);
+  const second = launchHop(first.run, far);
+  if (second.kind !== 'flown') throw new Error('unreachable');
+  return { before: first.run, why: second.flight.why };
+}
+const crashFlight = secondHop('scout');
+const shortFlight = secondHop('hauler');
 
-async function openNavChart(page: Page): Promise<void> {
-  await page.goto(`/?seed=${String(SEED)}&chassis=scout`);
+async function openNavChart(page: Page, seed = SEED): Promise<void> {
+  await page.goto(`/?seed=${String(seed)}&chassis=scout`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
@@ -61,10 +64,30 @@ async function target(page: Page, name: string): Promise<void> {
   await expect(page.getByTestId('target')).toContainText(name);
 }
 
+/** From the Landed view: Hop to `name`, Arrive, and close the report. */
+async function hopAndLand(page: Page, name: string): Promise<void> {
+  await page.getByRole('button', { name: /Nav Chart/ }).click();
+  await target(page, name);
+  await page.getByRole('button', { name: 'Launch' }).click();
+  const report = page.getByRole('dialog', { name: 'Arrived' });
+  await expect(report).toBeVisible({ timeout: 20_000 });
+  await report.getByRole('button', { name: 'Continue' }).click();
+  await expect(report).toBeHidden();
+}
+
+/** The failure seed's scout, Landed on its first target, with the Nav Chart open on Korxel's Hop. */
+async function onTheWayToFail(page: Page): Promise<void> {
+  await page.goto(`/?seed=${String(FAIL_SEED)}&chassis=scout`);
+  await page.getByRole('button', { name: 'New Run' }).click();
+  await hopAndLand(page, FIRST);
+  await page.getByRole('button', { name: /Nav Chart/ }).click();
+  await target(page, FAR);
+}
+
 const currentBurn = (page: Page) =>
   page.getByTestId('phase-strip').locator('[aria-current="step"]');
 
-test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, then lands on the Moon and collects its Fuel', async ({
+test('a Hop to the first target plays Takeoff, Transfer and Landing, then lands there and collects its Fuel', async ({
   page,
 }, testInfo) => {
   test.setTimeout(60_000);
@@ -109,7 +132,7 @@ test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, the
   }
   await expect(report.getByTestId('hop-report-margin')).toContainText('Margin left');
   await expect(report).toContainText(moonHop.flight.why);
-  // Landing on the Icy Moon collected its Fuel, and said why that is plausible.
+  // Landing on the Icy Moon collected the Run's first Fuel, and said why that is plausible.
   await expect(report.getByTestId('hop-report-collected')).toContainText(/Collected .* t of Fuel/);
   await expect(report).toContainText('so rockets could refuel on the Moon');
   await expect(page.getByTestId('materials')).toHaveText(String(run.materials));
@@ -136,6 +159,8 @@ test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, the
 
   // The next Hop can be planned from the Moon, and the chart lists it as Depleted.
   await page.getByRole('button', { name: /Nav Chart/ }).click();
+  // Landing there, Comms Detected one more Body: the Comms ping's words are in the live region.
+  await expect(page.getByTestId('comms-announcement')).toContainText('Comms Detected a new Body');
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
   await expect(
     page.getByRole('option', { name: new RegExp(`^${homeMoon.name}, .*Depleted, yields nothing`) }),
@@ -181,9 +206,9 @@ test('under reduced motion the playback is shorter and still steps through the t
 test('a Hop that Crashes stops on the Landing and says why, and the title is the way out', async ({
   page,
 }, testInfo) => {
+  test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await openNavChart(page);
-  await target(page, crashTarget.name);
+  await onTheWayToFail(page);
   await page.getByRole('button', { name: 'Launch' }).click();
 
   const outcome = page.getByRole('alertdialog', { name: 'Crashed' });
@@ -202,10 +227,10 @@ test('a Hop that Crashes stops on the Landing and says why, and the title is the
   await page.keyboard.press('Enter');
   // The End-of-Run screen: the Score (one Hop flown, no Star System escaped) and the Best Score it set.
   await expect(outcome.getByTestId('end-of-run-score')).toHaveText(
-    '0 Star Systems escaped, 1 Hop flown',
+    '0 Star Systems escaped, 2 Hops flown',
   );
   await expect(outcome.getByTestId('end-of-run-best')).toContainText(
-    '0 Star Systems escaped, 1 Hop flown (new Best Score)',
+    '0 Star Systems escaped, 2 Hops flown (new Best Score)',
   );
   await testInfo.attach('crashed', { body: await page.screenshot(), contentType: 'image/png' });
 
@@ -215,16 +240,16 @@ test('a Hop that Crashes stops on the Landing and says why, and the title is the
   await expect(page.getByRole('button', { name: 'New Run' })).toBeVisible();
   // The title remembers the Best Score.
   await expect(page.getByTestId('title-best-score')).toHaveText(
-    'Best Score: 0 Star Systems escaped, 1 Hop flown',
+    'Best Score: 0 Star Systems escaped, 2 Hops flown',
   );
 });
 
 test('the End-of-Run screen keeps focus inside it, and New Run from the keyboard starts fresh', async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await openNavChart(page);
-  await target(page, crashTarget.name);
+  await onTheWayToFail(page);
   await page.getByRole('button', { name: 'Launch' }).click();
   const outcome = page.getByRole('alertdialog', { name: 'Crashed' });
   await expect(outcome).toBeVisible({ timeout: 10_000 });
@@ -244,7 +269,7 @@ test('the End-of-Run screen keeps focus inside it, and New Run from the keyboard
   await expect(newRun).toBeFocused();
   // Enter starts a New Run on the Chassis in the URL, in a different Star System.
   await page.keyboard.press('Enter');
-  const nextHome = homePlanet(generateStarSystem(SEED + 1));
+  const nextHome = startingMoon(generateStarSystem(FAIL_SEED + 1));
   await expect(page.getByRole('heading', { name: nextHome.name, level: 1 })).toBeVisible();
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
 });
@@ -274,13 +299,12 @@ test('fast-forward (F) turns on, keeps the flight log filling in, and lands with
   await expect(page.getByTestId('fuel')).toHaveText(formatFuel(moonHop.run.spacecraft.fuelMass));
 });
 
-test('after a failed Hop, New Run starts a different Star System on its Home Planet', async ({
+test('after a failed Hop, New Run starts a different Star System on its Starting Moon', async ({
   page,
 }) => {
   test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await openNavChart(page);
-  await target(page, crashTarget.name);
+  await onTheWayToFail(page);
   await page.getByRole('button', { name: 'Launch' }).click();
   const outcome = page.getByRole('alertdialog', { name: 'Crashed' });
   await expect(outcome).toBeVisible({ timeout: 10_000 });
@@ -288,12 +312,12 @@ test('after a failed Hop, New Run starts a different Star System on its Home Pla
   await outcome.getByRole('button', { name: 'New Run' }).click();
 
   // The address bar follows the Run being played.
-  await expect(page).toHaveURL(new RegExp(`seed=${String(SEED + 1)}`));
-  // `?seed=123` moves on to 124 for the next Run, so the Home Planet is a different one.
-  const nextHome = homePlanet(generateStarSystem(SEED + 1));
-  expect(nextHome.name).not.toBe(home.name);
+  await expect(page).toHaveURL(new RegExp(`seed=${String(FAIL_SEED + 1)}`));
+  // `?seed=1442` moves on to 1443 for the next Run, so the Starting Moon is a different one.
+  const nextHome = startingMoon(generateStarSystem(FAIL_SEED + 1));
+  expect(nextHome.name).not.toBe(startingMoon(generateStarSystem(FAIL_SEED)).name);
   await expect(page.getByRole('heading', { name: nextHome.name, level: 1 })).toBeVisible();
-  await expect(page.getByText('Home Planet · Rocky')).toBeVisible();
+  await expect(page.getByTestId('landed-kind')).toContainText('Moon of');
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
 });
 
@@ -303,14 +327,15 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   test.setTimeout(60_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   // No Chassis in the URL: the picker is part of the New Run path.
-  await page.goto(`/?seed=${String(SEED)}`);
+  await page.goto(`/?seed=${String(FAIL_SEED)}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await expect(page.getByRole('radio', { name: /Scout/ })).toBeFocused();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('radio', { name: /Hauler/ })).toBeChecked();
   await page.getByRole('button', { name: 'Launch' }).click();
+  await hopAndLand(page, FIRST);
   await page.getByRole('button', { name: /Nav Chart/ }).click();
-  await target(page, shortTarget.name);
+  await target(page, FAR);
   await page.getByRole('button', { name: 'Launch' }).click();
 
   const outcome = page.getByRole('alertdialog', { name: 'Fell Short' });
@@ -323,7 +348,7 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
 
   await outcome.getByRole('button', { name: 'Continue' }).click();
   await expect(outcome.getByTestId('end-of-run-score')).toHaveText(
-    '0 Star Systems escaped, 1 Hop flown',
+    '0 Star Systems escaped, 2 Hops flown',
   );
   await expect(outcome.getByTestId('end-of-run-best')).toContainText('(new Best Score)');
   await outcome.getByRole('button', { name: 'New Run' }).click();
@@ -342,6 +367,6 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('radio', { name: /Lancer/ })).toBeChecked();
   await page.getByRole('button', { name: 'Launch' }).click();
-  const nextHome = homePlanet(generateStarSystem(SEED + 1));
+  const nextHome = startingMoon(generateStarSystem(FAIL_SEED + 1));
   await expect(page.getByRole('heading', { name: nextHome.name, level: 1 })).toBeVisible();
 });

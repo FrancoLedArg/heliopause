@@ -19,50 +19,61 @@ export interface Landing {
 }
 
 /**
- * A Scout Run from `seed` that first installs `fit` in Slot 2 on the Home Planet (if given), then
- * Hops to the Body named `bodyName` and Arrives. `extraMaterials` are added at the start, as a tuned
- * fixture. Throws if the seed does not play out that way.
+ * A Scout Run from `seed` that first installs `fit` in Slot 2 on the Starting Moon (if given), then
+ * Hops through the Bodies named in `path`, in turn, Arriving each time: from the Starting Moon only
+ * Bodies Comms has Detected can be reached (#96). `extraMaterials` are added at the start, as a tuned
+ * fixture. `before` is the Run at the last Launch. Throws if the seed does not play out that way.
  */
 export function landing(
   seed: number,
-  bodyName: string,
+  path: readonly string[],
   fit?: ComponentId,
   extraMaterials = 0,
 ): Landing {
   const start = startRun(seed, 'scout');
-  let before: Run = { ...start, materials: materials(start.materials + extraMaterials) };
+  let run: Run = { ...start, materials: materials(start.materials + extraMaterials) };
   if (fit) {
-    const fitted = install(before, 2, fit);
+    const fitted = install(run, 2, fit);
     if (fitted.kind !== 'installed') throw new Error(`Seed ${String(seed)}: cannot fit ${fit}`);
-    before = fitted.run;
+    run = fitted.run;
   }
-  const body = listBodies(before.starSystem).find(({ name }) => name === bodyName);
-  if (!body) throw new Error(`Seed ${String(seed)} has no ${bodyName}`);
-  const flown = launchHop(before, body.id);
-  if (flown.kind !== 'flown' || flown.flight.outcome.kind !== 'arrived') {
-    throw new Error(`Seed ${String(seed)}: the Hop to ${bodyName} should Arrive`);
+  let last: Landing | undefined;
+  for (const bodyName of path) {
+    const body = listBodies(run.starSystem).find(({ name }) => name === bodyName);
+    if (!body) throw new Error(`Seed ${String(seed)} has no ${bodyName}`);
+    const flown = launchHop(run, body.id);
+    if (flown.kind !== 'flown' || flown.flight.outcome.kind !== 'arrived') {
+      throw new Error(`Seed ${String(seed)}: the Hop to ${bodyName} should Arrive`);
+    }
+    last = { before: run, flight: flown.flight, run: flown.run };
+    run = flown.run;
   }
-  return { before, flight: flown.flight, run: flown.run };
+  if (!last) throw new Error('A landing needs at least one Hop');
+  return last;
 }
 
 /**
- * Seed 45 with a level-1 Drill, landed on Mavar: no Hop as built, but removing the Drill saves the
- * Run. Re-pinned for #188 (was seed 1's Korli).
+ * Seed 11 with a level-1 Drill, landed on Thaervirdry by way of Niodri and Raevyr-4: no Hop as
+ * built, but removing the Drill saves the Run. Re-pinned for #189 (was seed 45's Mavar).
  */
-export const SAVE_BY_REMOVING = { seed: 45, body: 'Mavar', fit: 'drill-1' } as const;
+export const SAVE_BY_REMOVING = {
+  seed: 11,
+  path: ['Niodri', 'Raevyr-4', 'Thaervirdry'],
+  fit: 'drill-1',
+} as const;
 
 /**
- * Seed 305, landed on Lyquin after a 99% Hop: no change to the Spacecraft could give any Hop a
- * chance. Re-pinned for #188 (was seed 2's sure Hop to Quydril): no sure Hop from the start strands
- * a new Spacecraft now.
+ * Seed 12, back on Laquun after Laquun and Prahen: the last Hop's plan is sure but its Burns run
+ * long, and no change to the Spacecraft could give any Hop a chance. Re-pinned for #189 (was seed
+ * 305's Lyquin): Runs open on a Starting Moon and Hop only to Bodies Comms Detected.
  */
-export const STRANDED_ON_LANDING = { seed: 305, body: 'Lyquin' } as const;
+export const STRANDED_ON_LANDING = { seed: 12, path: ['Laquun', 'Prahen', 'Laquun'] } as const;
 
 /**
- * Seed 57, landed on Vekyr with 15 Materials more than it would have (60, not 45): only swapping in
- * the level-2 Engine (60) saves the Run, so spending any of them on another Component strands it.
- * Without the 15, the Landing itself strands it. Re-pinned for #188 (was seed 7's Quiolxaexis).
+ * Seed 12's same path with 1 Material more than it would have (60, not 59): only swapping in the
+ * level-2 Engine (60) saves the Run, so spending any of them on another Component strands it.
+ * Without it, the Landing itself strands it. Re-pinned for #189 (was seed 57's Vekyr).
  */
 export function saveByRefitting(): Run {
-  return landing(57, 'Vekyr', undefined, 15).run;
+  return landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path, undefined, 1).run;
 }

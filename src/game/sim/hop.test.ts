@@ -4,7 +4,6 @@ import {
   astronomicalUnits,
   availableDeltaV,
   flyHop,
-  homePlanet,
   launchHop,
   listBodies,
   marginShare,
@@ -16,9 +15,18 @@ import {
   type HopFlight,
   type Run,
 } from './index.ts';
-import { farLandables, homeMoon, landedOn, plan, withBodies, withDeltaV } from './testing.ts';
+import {
+  farLandables,
+  innerMoon,
+  innerPlanet,
+  landedOn,
+  onInnerPlanet,
+  plan,
+  withBodies,
+  withDeltaV,
+} from './testing.ts';
 
-const run: Run = startRun(2026, 'scout');
+const run: Run = onInnerPlanet(startRun(2026, 'scout'));
 const SEEDS = Array.from({ length: 200 }, (_, i) => i * 104_729 + 7);
 
 describe('planning a Hop', () => {
@@ -38,12 +46,12 @@ describe('planning a Hop', () => {
   });
 
   it('a Hop to the Body the Spacecraft is on is rejected', () => {
-    const result = planHop(run, run.starSystem.homePlanetId);
+    const result = planHop(run, innerPlanet(run).id);
     expect(result).toMatchObject({ kind: 'invalid-target', reason: 'current-body' });
   });
 
-  it('a Hop to the Home Planet’s Moon is planned', () => {
-    const moon = homePlanet(run.starSystem).moons[0];
+  it('a Hop to the inner planet’s Moon is planned', () => {
+    const moon = innerPlanet(run).moons[0];
     expect(moon).toBeDefined();
     if (!moon) return;
     const result = planHop(run, moon.id);
@@ -53,8 +61,8 @@ describe('planning a Hop', () => {
 
 describe('Burn estimates', () => {
   it('a plan has an estimate for each Burn, their total, the available Δv and the Margin', () => {
-    const moon = homePlanet(run.starSystem).moons[0];
-    if (!moon) throw new Error('The Home Planet has a Moon');
+    const moon = innerPlanet(run).moons[0];
+    if (!moon) throw new Error('The innermost planet has a Moon');
     const { estimates, totalEstimate, availableDeltaV, margin } = plan(run, moon.id);
     for (const estimate of Object.values(estimates)) expect(estimate).toBeGreaterThan(0);
     expect(totalEstimate).toBeCloseTo(estimates.takeoff + estimates.transfer + estimates.landing);
@@ -64,18 +72,18 @@ describe('Burn estimates', () => {
 
   it('Takeoff from a Mars-sized Body costs what reaching orbit from Mars does: 4.2 km/s', () => {
     // NASA NTRS (research doc §3): Mars surface to low orbit 4,200 m/s; Mars escape velocity 5.03 km/s.
-    const homeId = run.starSystem.homePlanetId;
+    const homeId = innerPlanet(run).id;
     const marsLike = withBodies(run, { [homeId]: { escapeVelocity: metersPerSecond(5_030) } });
-    const moon = homePlanet(marsLike.starSystem).moons[0];
-    if (!moon) throw new Error('The Home Planet has a Moon');
+    const moon = innerPlanet(marsLike).moons[0];
+    if (!moon) throw new Error('The innermost planet has a Moon');
     expect(plan(marsLike, moon.id).estimates.takeoff).toBeCloseTo(4_200, -1);
   });
 
   it('Takeoff costs more from a Body with stronger gravity', () => {
     for (const seed of SEEDS.slice(0, 20)) {
-      const start = startRun(seed, 'scout');
-      const target = homePlanet(start.starSystem).moons[0];
-      if (!target) throw new Error('The Home Planet has a Moon');
+      const start = onInnerPlanet(startRun(seed, 'scout'));
+      const target = innerPlanet(start).moons[0];
+      if (!target) throw new Error('The innermost planet has a Moon');
       const origins = listBodies(start.starSystem)
         .filter((body) => body.landable && body.id !== target.id)
         .sort((a, b) => a.surfaceGravity - b.surfaceGravity);
@@ -91,7 +99,7 @@ describe('Burn estimates', () => {
 
   it('Landing costs more on a Body with stronger gravity', () => {
     for (const seed of SEEDS.slice(0, 20)) {
-      const start = startRun(seed, 'scout');
+      const start = onInnerPlanet(startRun(seed, 'scout'));
       const targets = farLandables(start).sort((a, b) => a.surfaceGravity - b.surfaceGravity);
       const landings = targets.map((body) => plan(start, body.id).estimates.landing);
       for (let i = 1; i < landings.length; i++) {
@@ -104,7 +112,7 @@ describe('Burn estimates', () => {
     // Patched conics: the Hohmann departure around the Sun (1 → 1.524 AU) needs 2.95 km/s once
     // clear of Earth; leaving from low orbit, where Takeoff ends, Earth's gravity well raises that to
     // √(2.95² + 11.2²) − 7.92 ≈ 3.66 km/s. Research doc §3 cites about 3.6 km/s from LEO (UNVERIFIED).
-    const home = homePlanet(run.starSystem);
+    const home = innerPlanet(run);
     const [target] = farLandables(run).filter((body) => body.kind === 'rocky-planet');
     if (!target) throw new Error('Seed 2026 has a second rocky planet');
     const earthMars = withBodies(run, {
@@ -120,12 +128,12 @@ describe('Burn estimates', () => {
 
   // 2,000 Star Systems: about 3 s, longer on a loaded machine (generation redraws, #188).
   it(
-    "a Transfer to another planet's system costs more than one to any of the Home Planet's Moons",
+    "a Transfer to another planet's system costs more than one to any of the inner planet's Moons",
     { timeout: 60_000 },
     () => {
       for (const seed of Array.from({ length: 2_000 }, (_, i) => i * 7_919 + 13)) {
-        const start = startRun(seed, 'scout');
-        const home = homePlanet(start.starSystem);
+        const start = onInnerPlanet(startRun(seed, 'scout'));
+        const home = innerPlanet(start);
         const toMoons = home.moons.map((moon) => plan(start, moon.id).estimates.transfer);
         const toOthers = farLandables(start).map((body) => plan(start, body.id).estimates.transfer);
         expect(Math.min(...toOthers)).toBeGreaterThan(Math.max(...toMoons));
@@ -135,9 +143,9 @@ describe('Burn estimates', () => {
 
   it('a Transfer costs more the farther apart the Bodies are', () => {
     for (const seed of SEEDS) {
-      const start = startRun(seed, 'scout');
-      const home = homePlanet(start.starSystem);
-      // Around the star: Bodies of other planets, outward from the Home Planet.
+      const start = onInnerPlanet(startRun(seed, 'scout'));
+      const home = innerPlanet(start);
+      // Around the star: Bodies of other planets, outward from the inner planet.
       const outward = farLandables(start)
         .filter((body) => body.distanceFromStar > home.distanceFromStar)
         .sort((a, b) => a.distanceFromStar - b.distanceFromStar);
@@ -145,7 +153,7 @@ describe('Burn estimates', () => {
       for (let i = 1; i < outwardCosts.length; i++) {
         expect(outwardCosts[i]).toBeGreaterThanOrEqual(outwardCosts[i - 1] ?? Infinity);
       }
-      // Around the Home Planet: its Moons, nearest first.
+      // Around the inner planet: its Moons, nearest first.
       const moonCosts = home.moons.map((moon) => plan(start, moon.id).estimates.transfer);
       for (let i = 1; i < moonCosts.length; i++) {
         expect(moonCosts[i]).toBeGreaterThan(moonCosts[i - 1] ?? Infinity);
@@ -154,7 +162,7 @@ describe('Burn estimates', () => {
   });
 
   it('the same climb outward costs more the closer to the star it starts', () => {
-    const home = homePlanet(run.starSystem);
+    const home = innerPlanet(run);
     const [target] = farLandables(run).filter((body) => body.kind === 'rocky-planet');
     if (!target) throw new Error('Seed 2026 has a second rocky planet');
     const climb = (from: number, to: number) =>
@@ -171,9 +179,9 @@ describe('Burn estimates', () => {
 });
 
 describe('Success Chance', () => {
-  const total = plan(run, homeMoon(run).id).totalEstimate;
+  const total = plan(run, innerMoon(run).id).totalEstimate;
   const chanceWith = (deltaV: number) =>
-    plan(withDeltaV(run, deltaV), homeMoon(run).id).successChance;
+    plan(withDeltaV(run, deltaV), innerMoon(run).id).successChance;
 
   it('is 100% when the Margin covers every Burn running 10% long', () => {
     expect(chanceWith(total * 1.1)).toBe(1);
@@ -198,7 +206,7 @@ describe('Success Chance', () => {
   it('is the true probability that the Fuel covers the three actual Burns', () => {
     // Independent check: sample the dispersion rule (each Burn × uniform 0.9–1.1) many times.
     for (const share of [0.93, 0.98, 1.03, 1.07]) {
-      const tight = plan(withDeltaV(run, total * share), homeMoon(run).id);
+      const tight = plan(withDeltaV(run, total * share), innerMoon(run).id);
       const rng = createRng(share * 1000);
       const samples = 100_000;
       let covered = 0;
@@ -214,16 +222,16 @@ describe('Success Chance', () => {
   });
 
   it('is stable: the same plan always gives the same Success Chance', () => {
-    const moon = homeMoon(run);
+    const moon = innerMoon(run);
     expect(plan(run, moon.id).successChance).toBe(plan(run, moon.id).successChance);
   });
 });
 
 describe('flying a Hop', () => {
-  const moon = homeMoon(run);
+  const moon = innerMoon(run);
   const moonPlan = plan(run, moon.id);
   const { takeoff, transfer, landing } = moonPlan.estimates;
-  /** A Run with exactly this much Δv, and its plan to the Home Planet's Moon. */
+  /** A Run with exactly this much Δv, and its plan to the inner planet's Moon. */
   const tight = (deltaV: number) => {
     const from = withDeltaV(run, deltaV);
     return { from, plan: plan(from, moon.id) };
@@ -365,11 +373,11 @@ describe('flying a Hop', () => {
   });
 
   it('the Margin share is the Margin over the estimate: a shortfall reads as "N% less Δv"', () => {
-    // A hauler on seed 123 with Fuel for 93.7% of its Hop to the Home Planet's Moon (-6.3%).
+    // A hauler on seed 123 with Fuel for 93.7% of its Hop to the inner planet's Moon (-6.3%).
     // Re-pinned for #188: no Body is out of a new hauler's reach on seed 123 any more (it was
     // Viormio, 21,347 m/s of the 20,011 m/s the Fuel gives), so the Fuel is set instead.
-    const hauler = startRun(123, 'hauler');
-    const moon = homeMoon(hauler);
+    const hauler = onInnerPlanet(startRun(123, 'hauler'));
+    const moon = innerMoon(hauler);
     const short = withDeltaV(hauler, plan(hauler, moon.id).totalEstimate * 0.937);
     const planned = planHop(short, moon.id);
     if (planned.kind !== 'planned') throw new Error('expected a plan');
@@ -422,7 +430,7 @@ describe('flying a Hop', () => {
 
   it('the why never quotes a percentage of 100 or more', () => {
     for (const seed of SEEDS.slice(0, 40)) {
-      const start = startRun(seed, 'lancer');
+      const start = onInnerPlanet(startRun(seed, 'lancer'));
       for (const body of listBodies(start.starSystem)) {
         const result = planHop(start, body.id);
         if (result.kind !== 'planned') continue;
@@ -450,7 +458,7 @@ describe('flying a Hop', () => {
 });
 
 describe('launching a Hop', () => {
-  const moon = homeMoon(run);
+  const moon = innerMoon(run);
 
   const flown = (from: Run, targetId: BodyId) => {
     const result = launchHop(from, targetId);
@@ -466,19 +474,21 @@ describe('launching a Hop', () => {
   });
 
   it('replays identically: the same Run launched at the same target flies the same Hop', () => {
-    expect(launchHop(startRun(2026, 'scout'), moon.id)).toEqual(launchHop(run, moon.id));
+    expect(launchHop(onInnerPlanet(startRun(2026, 'scout')), moon.id)).toEqual(
+      launchHop(run, moon.id),
+    );
   });
 
   it('counts the Hops flown in a Run, starting from none', () => {
     expect(run.hopsFlown).toBe(0);
     const first = flown(run, moon.id);
     expect(first.run.hopsFlown).toBe(1);
-    expect(flown(first.run, run.starSystem.homePlanetId).run.hopsFlown).toBe(2);
+    expect(flown(first.run, innerPlanet(run).id).run.hopsFlown).toBe(2);
   });
 
   it('each Hop of a Run draws its own Burns: the next Hop does not repeat the last one’s', () => {
     const first = flown(run, moon.id);
-    const back = flown(first.run, run.starSystem.homePlanetId);
+    const back = flown(first.run, innerPlanet(run).id);
     expect(factors(back.flight)).not.toEqual(factors(first.flight));
   });
 
@@ -488,7 +498,7 @@ describe('launching a Hop', () => {
   });
 
   it('an invalid target is not launched, and says why', () => {
-    expect(launchHop(run, run.starSystem.homePlanetId)).toMatchObject({
+    expect(launchHop(run, innerPlanet(run).id)).toMatchObject({
       kind: 'invalid-target',
       reason: 'current-body',
     });

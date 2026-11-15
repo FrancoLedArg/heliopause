@@ -1,31 +1,32 @@
 import { expect, test, type Page } from '@playwright/test';
-import { listBodies, planHop, startRun } from '../../src/game/sim/index.ts';
+import { firstDetectedBody, startRun } from '../../src/game/sim/index.ts';
 
-// Re-pinned for #188 (was 123): since generation changed, few seeds have a Body a new scout
-// reaches at a low chance yet with some Margin, and a new hauler cannot reach.
-const SEED = 305;
+// Re-pinned for #189 (was 305): a Run opens knowing one Body, always In reach, so the far Body is
+// the one Comms Detects after the first landing. On seed 1442 that is Korxel, seen from Thosny: a
+// lancer reaches it at a low chance with some Margin, a hauler cannot reach it at all.
+const SEED = 1442;
 const run = startRun(SEED, 'scout');
-const home = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId);
-const homeMoon = home?.moons[0];
-if (!homeMoon) throw new Error(`Seed ${SEED} has no Home Planet Moon`);
-
-/** The landable Body with the lowest Success Chance from the Home Planet: the "far Body". */
-const far = listBodies(run.starSystem)
-  .flatMap((body) => {
-    const result = planHop(run, body.id);
-    return result.kind === 'planned' ? [{ body, chance: result.plan.successChance }] : [];
-  })
-  .sort((a, b) => a.chance - b.chance)[0];
-if (!far) throw new Error('no far Body');
-const moonChance = (() => {
-  const result = planHop(run, homeMoon.id);
-  if (result.kind !== 'planned') throw new Error('Moon is not a target');
-  return result.plan.successChance;
-})();
+const homeMoon = firstDetectedBody(run.starSystem);
+const FAR = 'Korxel';
+/** The other Body known on Thosny: the Starting Moon, Xylxen, a sure Hop for a lancer. */
+const NEAR = 'Xylxen';
 
 async function openNavChart(page: Page, chassis = 'scout'): Promise<void> {
-  await page.goto(`/?seed=${SEED}&chassis=${chassis}`);
+  await page.goto(`/?seed=${String(SEED)}&chassis=${chassis}`);
   await page.getByRole('button', { name: 'New Run' }).click();
+  await page.getByRole('button', { name: /Nav Chart/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
+}
+
+/** A New Run on `chassis` that lands on its first target, then opens the Nav Chart there. */
+async function openNavChartAfterFirstHop(page: Page, chassis: string): Promise<void> {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openNavChart(page, chassis);
+  await target(page, homeMoon.name);
+  await page.getByRole('button', { name: 'Launch' }).click();
+  const report = page.getByRole('dialog', { name: 'Arrived' });
+  await expect(report).toBeVisible({ timeout: 20_000 });
+  await report.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
 }
@@ -47,7 +48,7 @@ const percentOf = async (page: Page): Promise<number> => {
   return Number(match[1]);
 };
 
-test('the Hop plan for the Home Planet Moon shows three Burns, totals and a Success Chance', async ({
+test('the Hop plan for the first target shows three Burns, totals and a Success Chance', async ({
   page,
 }, testInfo) => {
   await openNavChart(page);
@@ -85,17 +86,16 @@ test('the Hop plan for the Home Planet Moon shows three Burns, totals and a Succ
 test('a far Body has a lower Success Chance, flagged in words when low; Cancel clears and another target updates', async ({
   page,
 }, testInfo) => {
-  await openNavChart(page);
-  await target(page, homeMoon.name);
-  const moonPercent = await percentOf(page);
+  test.setTimeout(60_000);
+  await openNavChartAfterFirstHop(page, 'lancer');
+  await target(page, NEAR);
+  const nearPercent = await percentOf(page);
 
-  await target(page, far.body.name);
+  await target(page, FAR);
   const farPercent = await percentOf(page);
-  expect(far.chance).toBeLessThan(moonChance);
-  expect(farPercent).toBeLessThan(moonPercent);
-  // Seed 305's Virys is 69.7% for the scout (shown as 70%): below the low-chance line, with a
-  // thin Margin.
-  expect(far.body.name).toBe('Virys');
+  expect(farPercent).toBeLessThan(nearPercent);
+  // Seed 1442's Korxel is 61% for the lancer from Thosny: below the low-chance line, with a thin
+  // Margin.
   await expect(page.getByTestId('plan-warning')).toHaveText('Low chance: may run dry');
   await expect(page.getByTestId('plan-margin')).toHaveText(/^\+[\d,]+ m\/s \(\d+%\)$/);
   await testInfo.attach('hop-plan-far', {
@@ -114,7 +114,7 @@ test('Tab reaches Cancel and Launch from the chart, and Launch is available at a
   page,
 }) => {
   await openNavChart(page);
-  await target(page, far.body.name);
+  await target(page, homeMoon.name);
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'Cancel' })).toBeFocused();
   await page.keyboard.press('Tab');
@@ -129,9 +129,10 @@ test('Tab reaches Cancel and Launch from the chart, and Launch is available at a
 test('a Margin below zero is signed and warned about more strongly than a low chance', async ({
   page,
 }) => {
-  await openNavChart(page, 'hauler');
-  await target(page, 'Virys');
+  test.setTimeout(60_000);
+  await openNavChartAfterFirstHop(page, 'hauler');
+  await target(page, FAR);
   await expect(page.getByTestId('plan-margin')).toHaveText(/^−[\d,]+ m\/s \(\d+%\)$/);
   await expect(page.getByTestId('plan-warning')).toHaveText('Not enough Δv for this Hop');
-  await expect(page.getByTestId('plan-success')).toContainText('5%');
+  await expect(page.getByTestId('plan-success')).toContainText('0%');
 });

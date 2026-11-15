@@ -4,7 +4,7 @@ import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
 import {
   findBody,
   flyHop,
-  homePlanet,
+  firstDetectedBody,
   kilograms,
   metersPerSecond,
   planHop,
@@ -19,7 +19,7 @@ import {
 import { describeFlight } from './flightHudView.ts';
 
 const run = startRun(123, 'scout');
-const moonId = homePlanet(run.starSystem).moons[0]?.id ?? run.starSystem.homePlanetId;
+const moonId = firstDetectedBody(run.starSystem).id;
 const planned = planHop(run, moonId);
 if (planned.kind !== 'planned') throw new Error('no plan');
 const plan: BodyHopPlan = planned.plan;

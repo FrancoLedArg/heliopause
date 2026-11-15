@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { generateStarSystem, homePlanet } from '../../src/game/sim/index.ts';
+import { findBody, generateStarSystem, startingMoon } from '../../src/game/sim/index.ts';
 
 function collectErrors(page: Page): string[] {
   const errors: string[] = [];
@@ -10,7 +10,7 @@ function collectErrors(page: Page): string[] {
   return errors;
 }
 
-test('New Run from the title screen lands on the Home Planet, seeded from the URL', async ({
+test('New Run from the title screen lands on the Starting Moon, seeded from the URL', async ({
   page,
 }, testInfo) => {
   const errors = collectErrors(page);
@@ -26,9 +26,14 @@ test('New Run from the title screen lands on the Home Planet, seeded from the UR
 
   await newRun.click();
 
-  const home = homePlanet(generateStarSystem(123));
+  const system = generateStarSystem(123);
+  const home = startingMoon(system);
   await expect(page.getByRole('heading', { name: home.name })).toBeVisible();
-  await expect(page.getByText('Home Planet · Rocky')).toBeVisible();
+  // Marooned on a Moon whose yield is already in: Depleted from the start (#189).
+  await expect(page.getByTestId('landed-kind')).toContainText(
+    `Moon of ${findBody(system, home.planetId)?.name ?? '?'}`,
+  );
+  await expect(page.getByTestId('landed-depleted')).toBeVisible();
   await expect(page.getByTestId('fuel')).toHaveText('21.0 t');
   // Scout: 1230 s Isp, 4 t dry + 21 t Fuel: 1230 × 9.80665 × ln(25 / 4) is about 22.1 km/s.
   await expect(page.getByTestId('delta-v')).toHaveText('22.1 km/s');
@@ -53,7 +58,7 @@ test('New Run works from the keyboard and shows where focus is', async ({ page }
 
   await page.keyboard.press('Enter');
   await expect(
-    page.getByRole('heading', { name: homePlanet(generateStarSystem(7)).name }),
+    page.getByRole('heading', { name: startingMoon(generateStarSystem(7)).name }),
   ).toBeVisible();
   await expect(page.getByTestId('game-ui')).toHaveAttribute('data-run-seed', '7');
 });

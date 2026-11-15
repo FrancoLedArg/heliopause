@@ -83,7 +83,7 @@ export function formatMarginShare(share: number): string {
   return percent < 100 ? `${percent}%` : '';
 }
 
-/** What kind of Body this is, in the player's words: "Moon of Cinder", "Home Planet", "Planet", "Gas Giant". The kind only: Icy or Rocky is `bodyCompositionLabel`. */
+/** What kind of Body this is, in the player's words: "Moon of Cinder", "Planet", "Gas Giant". The kind only: Icy or Rocky is `bodyCompositionLabel`. */
 export function bodyTypeLabel(run: Run, body: Body): string {
   switch (body.kind) {
     case 'moon': {
@@ -94,7 +94,7 @@ export function bodyTypeLabel(run: Run, body: Body): string {
     case 'gas-giant':
       return 'Gas Giant';
     case 'rocky-planet':
-      return body.id === run.starSystem.homePlanetId ? 'Home Planet' : 'Planet';
+      return 'Planet';
   }
 }
 

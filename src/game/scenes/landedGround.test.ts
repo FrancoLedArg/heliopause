@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHASSIS_IDS, homePlanet, startRun, type Run } from '../sim/index.ts';
+import { CHASSIS_IDS, firstDetectedBody, startRun, type Run } from '../sim/index.ts';
 import { standingExtent } from './chassisArt.ts';
 import { shadowWidth } from './spacecraftArt.ts';
 import {
@@ -18,8 +18,7 @@ const newRun = (seed: number): Run => startRun(seed, 'scout');
 
 function runOnMoonOfHome(seed: number): Run {
   const run = newRun(seed);
-  const moon = homePlanet(run.starSystem).moons[0];
-  if (!moon) throw new Error('Home Planet has no Moon');
+  const moon = firstDetectedBody(run.starSystem);
   return { ...run, status: { kind: 'landed', bodyId: moon.id } };
 }
 

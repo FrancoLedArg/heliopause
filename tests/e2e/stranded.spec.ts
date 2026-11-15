@@ -4,18 +4,16 @@ import { landing, SAVE_BY_REMOVING, STRANDED_ON_LANDING } from '../../src/ui/lan
 
 // Spec #15's Stranded, in real play from a seed: a Hop that Arrives where no change could ever give
 // a Hop a chance ends the Run; one that a lighter Spacecraft could leave warns instead.
-const strandedLanding = landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.body);
+// Since #189 a Run opens knowing one Body, always In reach, so both take a few Hops through what
+// Comms Detects on the way.
+const strandedLanding = landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path);
 const strandedVerdict = runEnd(strandedLanding.run);
 if (strandedVerdict?.kind !== 'stranded')
-  throw new Error(
-    `Seed ${String(STRANDED_ON_LANDING.seed)} should strand on ${STRANDED_ON_LANDING.body}`,
-  );
-const saveable = landing(SAVE_BY_REMOVING.seed, SAVE_BY_REMOVING.body, SAVE_BY_REMOVING.fit);
+  throw new Error(`Seed ${String(STRANDED_ON_LANDING.seed)} should strand at the end of its path`);
+const saveable = landing(SAVE_BY_REMOVING.seed, SAVE_BY_REMOVING.path, SAVE_BY_REMOVING.fit);
 const warning = assessStranding(saveable.run);
 if (warning.kind !== 'warning')
-  throw new Error(
-    `Seed ${String(SAVE_BY_REMOVING.seed)} with a Drill should warn on ${SAVE_BY_REMOVING.body}`,
-  );
+  throw new Error(`Seed ${String(SAVE_BY_REMOVING.seed)} with a Drill should warn at the end`);
 
 async function startRun(page: Page, seed: number): Promise<void> {
   await page.setViewportSize({ width: 640, height: 360 });
@@ -24,6 +22,20 @@ async function startRun(page: Page, seed: number): Promise<void> {
   await page.getByRole('button', { name: 'New Run' }).click();
   await expect(page.getByRole('button', { name: /Nav Chart/ })).toBeVisible();
 }
+
+/** Hops through every Body of `path` but the last, closing each Arrived report. */
+async function hopAlong(page: Page, path: readonly string[]): Promise<void> {
+  for (const name of path.slice(0, -1)) {
+    await hopTo(page, name);
+    const report = page.getByRole('dialog', { name: 'Arrived' });
+    await expect(report).toBeVisible({ timeout: 30_000 });
+    await report.getByRole('button', { name: 'Continue' }).click();
+    await expect(report).toBeHidden();
+  }
+}
+
+/** The last Body of a fixture's path. */
+const last = (path: readonly string[]): string => path.at(-1) ?? '';
 
 /** Opens the Nav Chart, targets `name` and launches the Hop. */
 async function hopTo(page: Page, name: string): Promise<void> {
@@ -41,17 +53,18 @@ async function hopTo(page: Page, name: string): Promise<void> {
 test('a Run Stranded on Landing goes straight to the End-of-Run screen, which says why', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await startRun(page, STRANDED_ON_LANDING.seed);
-  await hopTo(page, STRANDED_ON_LANDING.body);
+  await hopAlong(page, STRANDED_ON_LANDING.path);
+  await hopTo(page, last(STRANDED_ON_LANDING.path));
 
   const end = page.getByRole('alertdialog', { name: 'Stranded' });
   await expect(end).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('end-of-run-why')).toHaveText(strandedVerdict.reason);
   await expect(page.getByTestId('end-of-run-score')).toHaveText(
-    '0 Star Systems escaped, 1 Hop flown',
+    '0 Star Systems escaped, 3 Hops flown',
   );
   // There was no failed Hop to report: no Hop report, and nothing to plan with.
   await expect(page.getByTestId('hop-report')).toHaveCount(0);
@@ -64,18 +77,19 @@ test('a Run Stranded on Landing goes straight to the End-of-Run screen, which sa
 test('a Run that removing a Component would save warns in words, and the warning goes once it is removed', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(60_000);
+  test.setTimeout(120_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await startRun(page, SAVE_BY_REMOVING.seed);
   await expect(page.getByTestId('stranded-warning')).toHaveCount(0);
 
-  // A Drill on the Home Planet, then the Hop to the fixture's Body.
+  // A Drill on the Starting Moon, then the Hops to the fixture's Body.
   await page.getByRole('button', { name: 'Spacecraft' }).click();
   await page.getByRole('button', { name: /^Install Drill, level 1/ }).click();
   await expect(page.getByTestId('install-status')).toContainText('Installed Drill, level 1');
   await page.keyboard.press('Escape');
-  await hopTo(page, SAVE_BY_REMOVING.body);
+  await hopAlong(page, SAVE_BY_REMOVING.path);
+  await hopTo(page, last(SAVE_BY_REMOVING.path));
   const report = page.getByRole('dialog', { name: 'Arrived' });
   await expect(report).toBeVisible({ timeout: 30_000 });
   await report.getByRole('button', { name: 'Continue' }).click();

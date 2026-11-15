@@ -54,7 +54,7 @@ export interface FlightData {
   readonly before: Run;
   /** The Hop as the simulation flew it: the outcome is already settled. */
   readonly flight: HopFlight;
-  /** The Run after the Hop: landed on the target, on the next Home Planet after the Jump, or ended. */
+  /** The Run after the Hop: landed on the target, on the next Starting Moon after the Jump, or ended. */
   readonly after: Run;
 }
 
@@ -644,7 +644,7 @@ export class Flight extends Scene {
 
   /**
    * Arrived goes on to the Landed view of the target, with the Fuel left and the report beside it.
-   * Reaching the Heliopause ends with the Jump, on the Landed view of the next Home Planet. A failure
+   * Reaching the Heliopause ends with the Jump, on the Landed view of the next Starting Moon. A failure
    * ends the Run: the scene stays on its aftermath (drifting or crashed) behind the report.
    */
   private finish(): void {
@@ -661,7 +661,7 @@ export class Flight extends Scene {
         return;
       }
       case 'reached-heliopause': {
-        // The Jump has played: on to the Landed view of the next Home Planet, up out of the black.
+        // The Jump has played: on to the Landed view of the next Starting Moon, up out of the black.
         const data: LandedData = { run: this.after, afterJump: true };
         this.scene.start(SceneKey.Landed, data);
         return;

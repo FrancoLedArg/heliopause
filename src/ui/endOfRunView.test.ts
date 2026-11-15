@@ -22,7 +22,7 @@ describe('the End-of-Run screen text', () => {
       {
         kind: 'stranded',
         reason: 'Even the lightest Spacecraft has no Hop.',
-        bodyId: startRun(5, 'scout').starSystem.homePlanetId,
+        bodyId: startRun(5, 'scout').starSystem.startingMoonId,
         title: 'Stranded',
       },
     ] as const;

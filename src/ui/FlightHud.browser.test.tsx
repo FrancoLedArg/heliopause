@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import { createRng } from '../game/lib/rng.ts';
-import { flyHop, homePlanet, planHop, startRun } from '../game/sim/index.ts';
+import { firstDetectedBody, flyHop, planHop, startRun } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { FlightHud } from './FlightHud.tsx';
 
@@ -11,18 +11,19 @@ afterEach(cleanUp);
 it('gives the clipped route names of the longest-named Bodies their full name', async () => {
   const run = startRun(123, 'scout');
   const [fromName, toName] = ['Praespraethaen Prime', 'Thirthiothux Minor'];
-  const home = homePlanet(run.starSystem);
-  const moon = home.moons[0];
-  if (!moon) throw new Error('no moon');
-  const planets = run.starSystem.planets.map((planet) =>
-    planet.id === home.id
-      ? {
-          ...planet,
-          name: fromName,
-          moons: planet.moons.map((m) => (m.id === moon.id ? { ...m, name: toName } : m)),
-        }
-      : planet,
-  );
+  // From the Starting Moon to the first Body Comms Detected, both renamed.
+  const from = run.starSystem.startingMoonId;
+  const moon = firstDetectedBody(run.starSystem);
+  const rename = <B extends { readonly id: string; readonly name: string }>(body: B): B =>
+    body.id === from
+      ? { ...body, name: fromName }
+      : body.id === moon.id
+        ? { ...body, name: toName }
+        : body;
+  const planets = run.starSystem.planets.map((planet) => ({
+    ...rename(planet),
+    moons: planet.moons.map(rename),
+  }));
   const named = { ...run, starSystem: { ...run.starSystem, planets } };
   const planned = planHop(named, moon.id);
   if (planned.kind !== 'planned') throw new Error('no plan');

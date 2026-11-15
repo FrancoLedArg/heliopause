@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { listBodies, startRun, type Run } from '../game/sim/index.ts';
+import { firstDetectedBody, listBodies, startRun, type Run } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { landing, SAVE_BY_REMOVING, saveByRefitting } from './landingFixtures.ts';
 import { LandedPanels } from './LandedPanels.tsx';
@@ -45,7 +45,12 @@ it('marks a Depleted Body on the Landed plate, on the kind row, inside an unchan
 });
 
 it('does not mark a fresh Body on the Landed plate', async () => {
-  const run = startRun(123, 'scout');
+  // Stood on the first target: the Starting Moon gave up its yield at the start (#96).
+  const start = startRun(123, 'scout');
+  const run: Run = {
+    ...start,
+    status: { kind: 'landed', bodyId: firstDetectedBody(start.starSystem).id },
+  };
   const host = await renderUi(
     <LandedPanels
       run={run}
@@ -91,8 +96,8 @@ const landed = (run: Run) =>
   );
 
 it('warns in words, on the Landed view, when no Hop is possible as built but removing a Component would save the Run', async () => {
-  const { seed, body, fit } = SAVE_BY_REMOVING;
-  const host = await landed(landing(seed, body, fit).run);
+  const { seed, path, fit } = SAVE_BY_REMOVING;
+  const host = await landed(landing(seed, path, fit).run);
   const warning = byTestId(host, 'stranded-warning');
   // Text, not colour alone: a heading that says it, and what to do.
   expect(warning.getAttribute('role')).toBe('alert');
