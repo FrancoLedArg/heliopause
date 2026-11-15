@@ -95,15 +95,53 @@ describe('the Cruise event schedule', () => {
     }
   });
 
-  it('every Cruise of a real Run has one or two Fuel leaks, mild ones on the first Hops (#250)', () => {
+  it('every Cruise of a real Run has one or two events, mild ones on the first Hops (#250, #252, #253)', () => {
     for (const hop of [1, 2, 3, 6]) {
       for (const seed of SEEDS) {
         const schedule = cruiseSchedule(seed, hop, 1, fullSpacecraft, CRUISE_TUNING.enabledKinds);
         expect(schedule.length).toBeGreaterThanOrEqual(1);
         expect(schedule.length).toBeLessThanOrEqual(2);
-        expect(schedule.every((event) => event.kind === 'fuel-leak')).toBe(true);
+        const kinds =
+          hop <= CRUISE_TUNING.mildHops
+            ? ['fuel-leak', 'debris-field']
+            : ['fuel-leak', 'debris-field', 'solar-flare'];
+        expect(schedule.every((event) => kinds.includes(event.kind))).toBe(true);
       }
     }
+  });
+
+  it('a later Debris field hits or misses, and what it hits is an Engine, a Fuel Tank or a Drill', () => {
+    const struck = new Set<string>();
+    let hits = 0;
+    let misses = 0;
+    for (const seed of SEEDS) {
+      for (const event of cruiseSchedule(seed, 8, 1, fullSpacecraft, ['debris-field'])) {
+        if (event.slot === null) {
+          misses++;
+          continue;
+        }
+        hits++;
+        struck.add(String(fullSpacecraft.slots[event.slot]).replace(/-\d+$/, ''));
+      }
+    }
+    expect(misses).toBeGreaterThan(0);
+    expect(hits).toBeGreaterThan(misses / 4);
+    expect([...struck].sort()).toEqual(['drill', 'engine', 'fuel-tank']);
+  });
+
+  it('a solar flare strikes the Radar when one is aboard, and passes harmlessly without one', () => {
+    const withRadar = refit(newSpacecraft('scout'), ['engine-1', 'fuel-tank-1', 'radar-1', null]);
+    let hit = 0;
+    for (const seed of SEEDS) {
+      for (const event of cruiseSchedule(seed, 8, 2, withRadar, ['solar-flare'])) {
+        expect(event.slot).toBe(2);
+        hit++;
+      }
+      for (const event of cruiseSchedule(seed, 8, 2, fullSpacecraft, ['solar-flare'])) {
+        expect(event.slot).toBeNull();
+      }
+    }
+    expect(hit).toBeGreaterThan(0);
   });
 
   it('the Jump Drive is never a target', () => {

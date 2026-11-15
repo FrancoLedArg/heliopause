@@ -125,12 +125,12 @@ function drawKind(
   return mildAllowed[Math.floor(pick * mildAllowed.length)] ?? 'fuel-leak';
 }
 
-/** The Component kinds each event can hit. A solar flare hits electronics: none exist before #96's Radar. */
+/** The Component kinds each event can hit. A solar flare hits electronics: the Radar. */
 const TARGETS: Readonly<Record<CruiseEventKind, readonly ComponentKind[]>> = {
   'fuel-leak': ['fuel-tank'],
   'engine-fire': ['engine'],
   'debris-field': ['engine', 'fuel-tank', 'drill'],
-  'solar-flare': [],
+  'solar-flare': ['radar'],
 };
 
 function drawTarget(
