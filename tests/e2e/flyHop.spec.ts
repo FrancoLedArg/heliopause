@@ -26,12 +26,12 @@ if (moonHop.kind !== 'flown' || moonHop.flight.outcome.kind !== 'arrived') {
   throw new Error(`Seed ${SEED}: the Hop to ${homeMoon.name} should Arrive`);
 }
 
-// No first Hop fails, so a failure takes two: on seed 1442, Thosny (the first target) then Korxel,
-// the Body Comms Detects from there. The scout Crashes on Korxel and the hauler Falls Short in the
-// Transfer (found by a scan over seeds and short paths).
-const FAIL_SEED = 1442;
-const FIRST = 'Thosny';
-const FAR = 'Korxel';
+// No first Hop fails, so a failure takes two: on seed 1336, Thoha (the first target) then Sordryx,
+// the Body Comms Detects from there. The scout Crashes on Sordryx and the hauler Falls Short in the
+// Transfer (found by a scan over seeds and short paths; re-pinned for #250, whose Fuel leaks moved 1442).
+const FAIL_SEED = 1336;
+const FIRST = 'Thoha';
+const FAR = 'Sordryx';
 
 /** The second Hop of `chassis` on the failure seed, as the simulation settles it. */
 function secondHop(chassis: 'scout' | 'hauler'): { before: Run; why: string } {
@@ -78,7 +78,7 @@ async function hopAndLand(page: Page, name: string): Promise<void> {
   await expect(report).toBeHidden();
 }
 
-/** The failure seed's scout, Landed on its first target, with the Nav Chart open on Korxel's Hop. */
+/** The failure seed's scout, Landed on its first target, with the Nav Chart open on Sordryx's Hop. */
 async function onTheWayToFail(page: Page): Promise<void> {
   await page.goto(`/?seed=${String(FAIL_SEED)}&chassis=scout&${FAST_CRUISE}`);
   await page.getByRole('button', { name: 'New Run' }).click();
@@ -370,7 +370,7 @@ test('after a failed Hop, New Run starts a different Star System on its Starting
 
   // The address bar follows the Run being played.
   await expect(page).toHaveURL(new RegExp(`seed=${String(FAIL_SEED + 1)}`));
-  // `?seed=1442` moves on to 1443 for the next Run, so the Starting Moon is a different one.
+  // `?seed=1336` moves on to 1337 for the next Run, so the Starting Moon is a different one.
   const nextHome = startingMoon(generateStarSystem(FAIL_SEED + 1));
   expect(nextHome.name).not.toBe(startingMoon(generateStarSystem(FAIL_SEED)).name);
   await expect(page.getByRole('heading', { name: nextHome.name, level: 1 })).toBeVisible();
