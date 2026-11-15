@@ -93,6 +93,16 @@ export function fuelAfterBurning(spacecraft: Spacecraft, deltaV: MetersPerSecond
   return kilograms(Math.max(0, finalMass - spacecraft.dryMass));
 }
 
+/**
+ * The Fuel it takes to give `deltaV`: the rocket equation solved for the Fuel mass, dry mass ×
+ * (e^(Δv / exhaust velocity) − 1). Any Δv is out of reach with no Engine.
+ */
+export function fuelForDeltaV(spacecraft: Spacecraft, deltaV: MetersPerSecond): Kilograms {
+  const velocity = exhaustVelocity(spacecraft);
+  if (velocity === 0) return kilograms(deltaV > 0 ? Infinity : 0);
+  return kilograms(spacecraft.dryMass * Math.expm1(deltaV / velocity));
+}
+
 function exhaustVelocity(spacecraft: Spacecraft): number {
   return spacecraft.engineIsp * SOURCED_CONSTANTS.standardGravity.value;
 }

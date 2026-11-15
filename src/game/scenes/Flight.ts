@@ -7,7 +7,6 @@ import { createRng } from '../lib/rng.ts';
 import {
   CHASSIS_IDS,
   findBody,
-  jump,
   type BodyId,
   type Burn,
   type HopFlight,
@@ -55,7 +54,7 @@ export interface FlightData {
   readonly before: Run;
   /** The Hop as the simulation flew it: the outcome is already settled. */
   readonly flight: HopFlight;
-  /** The Run after the Hop: landed on the target, at the Heliopause (the Jump follows), or ended. */
+  /** The Run after the Hop: landed on the target, on the next Home Planet after the Jump, or ended. */
   readonly after: Run;
 }
 
@@ -199,8 +198,6 @@ export class Flight extends Scene {
   duration = 0;
   /** How dark the screen is during the Jump, 0 (clear) to 1 (black). */
   darkness = 0;
-  /** The Run in the next Star System, once the Jump has carried the Spacecraft there. */
-  private arrived: Run | undefined;
   private jumpStage: JumpStage | undefined;
   /** The Jump Drive's glow, its trail, the flash as it fires, and the black the Jump ends on. */
   private jumpFx!: {
@@ -264,10 +261,9 @@ export class Flight extends Scene {
   create(): void {
     this.pace = prefersReducedMotion() ? 'reduced' : 'full';
     this.playback = flightPlayback(this.before.spacecraft, this.flight, this.pace);
-    // The Jump always succeeds once the Heliopause is reached: settled here, before it plays.
+    // The simulation has already made the Jump (`after` is in the next Star System): this plays it.
     const reached = this.flight.outcome.kind === 'reached-heliopause';
     this.jump = reached ? jumpPlayback(this.pace) : undefined;
-    this.arrived = reached ? jump(this.after) : undefined;
     this.duration = this.playback.duration + (this.jump?.duration ?? 0);
 
     const { layers: departure, puffColor: departurePuff } = this.buildGround(this.before);
@@ -666,8 +662,7 @@ export class Flight extends Scene {
       }
       case 'reached-heliopause': {
         // The Jump has played: on to the Landed view of the next Home Planet, up out of the black.
-        if (!this.arrived) throw new Error('A Hop that reached the Heliopause Jumps');
-        const data: LandedData = { run: this.arrived, afterJump: true };
+        const data: LandedData = { run: this.after, afterJump: true };
         this.scene.start(SceneKey.Landed, data);
         return;
       }

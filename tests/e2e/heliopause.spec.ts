@@ -3,7 +3,6 @@ import {
   HELIOPAUSE,
   homePlanet,
   install,
-  jump,
   launchHop,
   listBodies,
   planHop,
@@ -31,13 +30,13 @@ if (planned.kind !== 'planned' || escape.kind !== 'flown') throw new Error('Expe
 if (escape.flight.outcome.kind !== 'reached-heliopause') {
   throw new Error(`Seed ${String(SEED)}: the Hop to the Heliopause should reach it`);
 }
-const system2 = jump(escape.run);
-const nextMoon = homePlanet(system2.starSystem).moons[0];
-if (!nextMoon) throw new Error('The Home Planet has a Moon');
-const onward = launchHop(system2, nextMoon.id);
-if (onward.kind !== 'flown' || onward.flight.outcome.kind !== 'arrived') {
-  throw new Error(`Seed ${String(SEED)}: the Hop to ${nextMoon.name} in System 2 should Arrive`);
-}
+// The Jump lands the Run on System 2's Home Planet, with Fuel for a sure Hop to one of its Moons.
+const system2 = escape.run;
+const nextMoon = homePlanet(system2.starSystem).moons.find((moon) => {
+  const onward = planHop(system2, moon.id);
+  return onward.kind === 'planned' && onward.plan.successChance === 1;
+});
+if (!nextMoon) throw new Error(`Seed ${String(SEED)}: no sure Hop on from System 2's Home Planet`);
 
 /** Steps through the chart until the tooltip shows `name` (a Body, or the Heliopause). */
 async function focusOnChart(page: Page, name: string): Promise<void> {
@@ -167,6 +166,8 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
   await focusOnChart(page, nextMoon.name);
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('target')).toContainText(nextMoon.name);
+  // The Jump left Fuel enough for a sure Hop: no luck needed.
+  await expect(page.getByTestId('plan-success')).toContainText('100%');
   await launch(page);
   await expect(page.getByRole('dialog', { name: 'Arrived' })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('system-number')).toHaveText('System 2');

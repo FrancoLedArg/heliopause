@@ -91,7 +91,7 @@ describe('flying to the Heliopause', () => {
     return { from, plan: plan(from, HELIOPAUSE) };
   };
 
-  it('a Hop to the Heliopause that the Fuel covers reaches it, with no Landing flown', () => {
+  it('a Hop to the Heliopause that the Fuel covers reaches it, with no Landing flown, and Jumps', () => {
     const { from, plan: covered } = tight(totalEstimate * 1.2);
     const { flight, run: next } = flyHop(from, covered, createRng(3));
     expect(flight.outcome).toEqual({ kind: 'reached-heliopause' });
@@ -101,10 +101,12 @@ describe('flying to the Heliopause', () => {
     ]);
     expect(flight.collection).toBeNull();
     expect(flight.why).toMatch(/Reached the Heliopause/);
-    expect(next.status).toEqual({ kind: 'at-heliopause' });
+    // The Jump follows at once: the Run goes on, landed on the next Star System's Home Planet.
+    expect(next.starSystemNumber).toBe(from.starSystemNumber + 1);
+    expect(next.status).toEqual({ kind: 'landed', bodyId: next.starSystem.homePlanetId });
     expect(next.hopsFlown).toBe(from.hopsFlown + 1);
-    expect(next.spacecraft.fuelMass).toBeCloseTo(flight.fuelRemaining);
     expect(flight.fuelRemaining).toBeGreaterThan(0);
+    expect(next.spacecraft.fuelMass).toBeGreaterThanOrEqual(flight.fuelRemaining);
   });
 
   it('running out of Fuel on the way to the Heliopause Falls Short', () => {

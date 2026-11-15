@@ -12,7 +12,6 @@ import {
   HELIOPAUSE,
   homePlanet,
   install,
-  jump,
   launchHop,
   listBodies,
   materials,
@@ -270,7 +269,9 @@ describe.each(['full', 'reduced'] as const)('the Jump, at %s motion', (pace) => 
     await act(frame);
     offRun();
     offStage();
-    expect(runs).toEqual([jump(data.after)]);
+    // The simulation made the Jump: the Flight only plays it and hands its Run on.
+    expect(data.after.starSystemNumber).toBe(2);
+    expect(runs).toEqual([data.after]);
     expect(document.querySelector('[data-testid="system-number"]')?.textContent).toBe('System 2');
     expect(document.querySelector('[data-testid="jump-caption"]')).toBeNull();
     // Not an Arrived Hop: no report, and the way on (the Nav Chart) takes focus.
@@ -287,8 +288,11 @@ describe.each(['full', 'reduced'] as const)('the Jump, at %s motion', (pace) => 
     expect(view.layers.ground.y).toBe(SHIP_PLACEMENT.baseY);
     expect(view.layers.ship.x).toBe(SHIP_PLACEMENT.x);
     expect(view.layers.ship.y).toBe(SHIP_PLACEMENT.baseY);
-    // Out of the black, the way the Jump went into it.
+    // Out of the black, the way the Jump went into it: the canvas and the panels together.
     expect(view.cameras.main.fadeEffect.isRunning).toBe(true);
+    expect(document.querySelector('[data-testid="game-ui"]')?.classList).toContain(
+      'game-ui--after-jump',
+    );
   });
 });
 

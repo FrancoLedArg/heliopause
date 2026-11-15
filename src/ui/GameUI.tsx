@@ -64,6 +64,8 @@ export function GameUI() {
   const afterFailure = useRef(false);
   // The next Landed view follows the Jump, on the next Star System's Home Planet.
   const afterJump = useRef(false);
+  // The panels fade in with the Landed view as it comes up out of the Jump's black.
+  const [fadingIn, setFadingIn] = useState(false);
 
   // Set when the player leaves a Run, so the title they land on takes focus like after the picker's Back.
   const leftRun = useRef(false);
@@ -98,6 +100,7 @@ export function GameUI() {
         setRun(started);
         setArrival(undefined);
         setFlight(undefined);
+        setFadingIn(afterJump.current);
         // After a New Run from a failure, or the Jump, the way on is the Nav Chart.
         if (afterFailure.current || afterJump.current) {
           afterFailure.current = false;
@@ -224,7 +227,14 @@ export function GameUI() {
   };
 
   return (
-    <div className="game-ui" data-testid="game-ui" data-run-seed={runSeed}>
+    <div
+      className={fadingIn ? 'game-ui game-ui--after-jump' : 'game-ui'}
+      data-testid="game-ui"
+      data-run-seed={runSeed}
+      onAnimationEnd={() => {
+        setFadingIn(false);
+      }}
+    >
       {scene === SceneKey.Title && !picking && info === undefined && (
         <TitleMenu
           starting={launching}

@@ -303,3 +303,14 @@
     opacity: 0;
   }
 }
+
+/* After the Jump the Landed view's panels come up out of the black with the canvas (Landed.ts fades it in). */
+.game-ui--after-jump > * {
+  animation: after-jump-in 700ms ease-out both;
+}
+
+@keyframes after-jump-in {
+  from {
+    opacity: 0;
+  }
+}
