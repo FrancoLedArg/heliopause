@@ -419,8 +419,8 @@
   height: 211px;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--cy3) var(--ink);
+  scrollbar-width: auto;
+  scrollbar-color: var(--cy3) var(--gm2);
   margin: 0;
   padding: 0;
   list-style: none;
