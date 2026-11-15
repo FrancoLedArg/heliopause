@@ -414,6 +414,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         <KitButton
           width={80}
           variant="primary"
+          data-testid="hop-launch"
           disabled={!hasTarget}
           onClick={() => {
             // The Landed scene flies the Hop and starts its playback, which closes this panel.

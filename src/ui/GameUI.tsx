@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import { chooseUrlChassis } from '../game/lib/runChassis.ts';
 import { chooseRunSeed } from '../game/lib/runSeed.ts';
 import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
 import { readBestScore, recordScore } from '../game/lib/bestScore.ts';
+import { markHintSeen, readSeenHints, type HintId } from '../game/lib/firstRunHints.ts';
 import { readDailyBest, recordDailyRun } from '../game/lib/dailyBest.ts';
 import { dailySeed, utcDay } from '../game/lib/dailyStarSystem.ts';
 import {
@@ -22,6 +23,7 @@ import type { ChartState } from '../game/scenes/navChartView.ts';
 import { readoutAt, type Gathering, type GatheringReadout } from '../game/scenes/gathering.ts';
 import { ChassisPicker } from './ChassisPicker.tsx';
 import { commsAnnouncement } from './commsView.ts';
+import { FirstRunHint } from './FirstRunHint.tsx';
 import { EndOfRun, type RecordedScore } from './EndOfRun.tsx';
 import { formatFuel } from './format.ts';
 import { FlightHud, type FlightAfter } from './FlightHud.tsx';
@@ -30,6 +32,7 @@ import { LandedPanels } from './LandedPanels.tsx';
 import { AboutPanel, CreditsPanel, HowToPlayPanel } from './InfoPanels.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
 import { SpacecraftPanel } from './SpacecraftPanel.tsx';
+import { panelRows } from './spacecraftPanelView.ts';
 import { RunMenu } from './RunMenu.tsx';
 import { TitleMenu, type TitleButton } from './TitleMenu.tsx';
 import { TopBar } from './TopBar.tsx';
@@ -100,6 +103,14 @@ export function GameUI() {
   >(undefined);
   // What the last gathering moment brought aboard, for the polite live region (said once).
   const [gathered, setGathered] = useState('');
+  // The First-Run hints already dismissed or acted on, on this device.
+  const [seenHints, setSeenHints] = useState(() => readSeenHints());
+  const markSeen = useCallback((id: HintId): void => {
+    markHintSeen(id);
+    setSeenHints((now) => (now.has(id) ? now : new Set([...now, id])));
+  }, []);
+  // A gathering moment has just ended and its hint has not been dealt with.
+  const [gatheredHint, setGatheredHint] = useState(false);
   // A New Run has been launched and the scene is about to change: the choice is made.
   const [launching, setLaunching] = useState(false);
   // Whether the Spacecraft panel is open over the Landed view.
@@ -227,6 +238,7 @@ export function GameUI() {
       }),
       EventBus.on('gathering-ended', () => {
         setGathering(undefined);
+        setGatheredHint(true);
       }),
     ];
     return () => {
@@ -254,6 +266,8 @@ export function GameUI() {
   useEffect(() => {
     const offs = [
       EventBus.on('hop-flight-started', (before, hop) => {
+        markSeen('first-hop-plan');
+        setGatheredHint(false);
         setFlight({ before, flight: hop });
         // The new Hop plays at the speed the last one ended on.
         if (fastForwardRef.current) EventBus.emit('hop-fast-forward-requested', true);
@@ -278,7 +292,7 @@ export function GameUI() {
     return () => {
       for (const off of offs) off();
     };
-  }, []);
+  }, [markSeen]);
 
   const leaveRun = (): void => {
     leftRun.current = true;
@@ -292,9 +306,14 @@ export function GameUI() {
       EventBus.on('nav-chart-state', (state) => {
         setChart(state);
         // Opening the Nav Chart means the player is done with the report.
-        if (state !== undefined) setArrival(undefined);
+        if (state !== undefined) {
+          setArrival(undefined);
+          setGatheredHint(false);
+          markSeen('first-landing');
+          markSeen('heliopause-found');
+        }
       }),
-    [],
+    [markSeen],
   );
 
   // M opens the Nav Chart from the Landed view (the chart's own keys close it).
@@ -360,6 +379,8 @@ export function GameUI() {
 
   // Like the Nav Chart, the panel replaces the report: the player is done with it.
   const openSpacecraft = (): void => {
+    markSeen('first-build');
+    setGatheredHint(false);
     setArrival(undefined);
     setSpacecraftOpen(true);
   };
@@ -368,6 +389,28 @@ export function GameUI() {
     setFocus(info);
     setInfo(undefined);
   };
+
+  // The First-Run hints whose moment is now, most important first. None during the Hop cinematic
+  // (Flight scene), the gathering moment, a menu or a full-screen panel.
+  const quiet =
+    scene === SceneKey.Landed &&
+    run !== undefined &&
+    stranded === undefined &&
+    gathering === undefined &&
+    !menuOpen &&
+    !picking &&
+    flight === undefined;
+  const wantedHints: HintId[] = [];
+  if (quiet && chart === undefined && !spacecraftOpen) {
+    if (arrival === undefined) wantedHints.push('first-landing');
+    if (gatheredHint) wantedHints.push('first-gathering');
+    if (arrival === undefined && run.knowledge.heliopauseFound)
+      wantedHints.push('heliopause-found');
+    if (arrival === undefined && panelRows(run).some((r) => r.affordable && !r.unavailable)) {
+      wantedHints.push('first-build');
+    }
+  }
+  if (quiet && chart?.selectedId !== undefined) wantedHints.push('first-hop-plan');
 
   return (
     <div
@@ -502,6 +545,7 @@ export function GameUI() {
           onFastChange={changeFastForward}
         />
       )}
+      <FirstRunHint wanted={wantedHints} seen={seenHints} onDismiss={markSeen} />
       <p className="hud-tag ai-label">AI-generated art and music</p>
     </div>
   );
