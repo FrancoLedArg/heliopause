@@ -219,6 +219,9 @@ it('a Hop to the Heliopause plays Takeoff and Transfer with the Spacecraft in vi
   expect(game?.scene.isActive(SceneKey.Landed)).toBe(false);
   const report = document.querySelector<HTMLElement>('[data-testid="hop-report"]');
   expect(report?.getAttribute('aria-labelledby')).toBe('hop-report-title');
+  // Not a failure: the Run is not over.
+  expect(report?.getAttribute('role')).toBe('dialog');
+  expect(report?.textContent).not.toContain('Run over');
   expect(document.getElementById('hop-report-title')?.textContent).toBe('Reached the Heliopause');
   expect(report?.textContent).not.toContain('Landing');
   // Its one way on takes focus, ready for the keyboard.

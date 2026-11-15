@@ -38,7 +38,8 @@
   color: var(--rd3);
 }
 
-.hop-report--arrived .hop-report__badge {
+.hop-report--arrived .hop-report__badge,
+.hop-report--reached-heliopause .hop-report__badge {
   color: var(--gr3);
 }
 

@@ -31,7 +31,8 @@ interface HopReportProps {
  */
 export function HopReport({ before, flight, actions, onEscape }: HopReportProps) {
   const view = describeReport(before, flight);
-  const failed = flight.outcome.kind !== 'arrived';
+  // Only a Hop that ran out of Fuel or Δv ends the Run; one that reached the Heliopause did not fail.
+  const failed = flight.outcome.kind === 'fell-short' || flight.outcome.kind === 'crashed';
   const buttons = useRef<HTMLDivElement>(null);
   useEffect(() => {
     buttons.current?.querySelector<HTMLButtonElement>('button[data-primary]')?.focus();
