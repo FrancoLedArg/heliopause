@@ -35,22 +35,27 @@ export function frameGeometry(chassisId: ChassisId, frame: ShipFrame): FrameGeom
   return { width: w, height: h, pivot };
 }
 
+/** A nozzle of the main engine, or of a side propulsor (nacelle or booster). */
+export type NozzleKind = 'main' | 'side';
+
+/** One nozzle the Spacecraft fires from: what kind it is, and where its exit sits from the centre of the base. */
+export interface Nozzle {
+  readonly kind: NozzleKind;
+  readonly exit: Point;
+}
+
+/** Every nozzle of a pose, side propulsors first, then the main engine: Takeoff, Landing and the Transfer fire them all. */
+export function nozzles(chassisId: ChassisId, pose: ShipPose): readonly Nozzle[] {
+  const { side, main } = CHASSIS[chassisId].nozzles[pose];
+  const of =
+    (kind: NozzleKind) =>
+    (exit: Point): Nozzle => ({ kind, exit });
+  return [...side.map(of('side')), ...main.map(of('main'))];
+}
+
 /** Every nozzle exit (side propulsors, then the main engine) in a pose. */
 export function nozzleExits(chassisId: ChassisId, pose: ShipPose): readonly Point[] {
-  const { side, main } = CHASSIS[chassisId].nozzles[pose];
-  return [...side, ...main];
-}
-
-/** The main engine's nozzle exits in a pose. */
-export function mainNozzles(chassisId: ChassisId, pose: ShipPose): readonly Point[] {
-  return CHASSIS[chassisId].nozzles[pose].main;
-}
-
-/** Where a single plume leaves the main engine: the middle of its nozzles. */
-export function mainExit(chassisId: ChassisId, pose: ShipPose): Point {
-  const nozzles = mainNozzles(chassisId, pose);
-  const sum = nozzles.reduce((at, n) => ({ x: at.x + n.x, y: at.y + n.y }), { x: 0, y: 0 });
-  return { x: sum.x / nozzles.length, y: sum.y / nozzles.length };
+  return nozzles(chassisId, pose).map((nozzle) => nozzle.exit);
 }
 
 /** A point turned clockwise on the screen about the origin (`degrees`), as Phaser's `angle` turns an object. */

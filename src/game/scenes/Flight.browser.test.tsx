@@ -7,6 +7,7 @@ import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
 import {
+  CHASSIS_IDS,
   findBody,
   homePlanet,
   launchHop,
@@ -18,6 +19,7 @@ import {
 } from '../sim/index.ts';
 import type { Flight, FlightData } from './Flight.ts';
 import type { Landed } from './Landed.ts';
+import { FLIGHT_ANGLE, nozzles, turn, type ShipPose } from './chassisArt.ts';
 import { SHIP_PLACEMENT } from './landedView.ts';
 import { flightPlayback } from './flightPlayback.ts';
 import { SceneKey } from './keys.ts';
@@ -379,3 +381,60 @@ it('Landing comes down onto the strip and ends on exactly the Landed view compos
   expect(frame.shipY).toBeCloseTo(view.layers.ship.y, 0);
   expect(frame.groundTop).toBe(SHIP_PLACEMENT.baseY);
 });
+
+/** The first ms of the playback at `progress` through `burn` with the engine firing. */
+function momentOf(scene: Flight, burn: string, progress: number): number {
+  for (let t = 0; t <= scene.playback.duration; t += 5) {
+    const at = scene.playback.at(t);
+    if (at.burn === burn && at.progress >= progress && at.thrusting) return t;
+  }
+  throw new Error(`no thrusting ${burn} at ${String(progress)}`);
+}
+
+/** The visible plumes on the Spacecraft: where each starts in the world, and which way it points (degrees clockwise from straight down). */
+function shownPlumes(scene: Flight): { x: number; y: number; angle: number }[] {
+  return scene.ship.list
+    .filter(
+      (child): child is GameObjects.Image =>
+        child instanceof GameObjects.Image && child.texture.key === 'fx_thruster' && child.visible,
+    )
+    .map((plume) => {
+      const m = plume.getWorldTransformMatrix();
+      return { x: m.tx, y: m.ty, angle: (Math.atan2(m.b, m.a) * 180) / Math.PI };
+    });
+}
+
+const PLUME_MOMENTS = [
+  { name: 'rising off the ground', burn: 'takeoff', progress: 0.3, pose: 'standing' },
+  { name: 'tipping toward its heading', burn: 'takeoff', progress: 0.61, pose: 'standing' },
+  { name: 'boosting away', burn: 'takeoff', progress: 0.85, pose: 'flight' },
+  { name: 'in the Transfer', burn: 'transfer', progress: 0.3, pose: 'flight' },
+  { name: 'hovering down', burn: 'landing', progress: 0.5, pose: 'standing' },
+] as const satisfies readonly { name: string; burn: string; progress: number; pose: ShipPose }[];
+
+it.each(CHASSIS_IDS)(
+  'the %s fires one plume from every nozzle exit, down while standing and rearward in flight',
+  async (chassis) => {
+    const { scene } = await fly(chassis);
+    for (const moment of PLUME_MOMENTS) {
+      scene.seek(momentOf(scene, moment.burn, moment.progress));
+      const { x, y, angle } = scene.ship;
+      const expected = nozzles(chassis, moment.pose).map((nozzle) => {
+        const at = turn(nozzle.exit, angle);
+        return { x: x + at.x, y: y + at.y };
+      });
+      const shown = shownPlumes(scene);
+      expect(shown, moment.name).toHaveLength(expected.length);
+      for (const exit of expected) {
+        const plume = shown.find((p) => Math.hypot(p.x - exit.x, p.y - exit.y) < 0.5);
+        expect(
+          plume,
+          `${moment.name}: a plume at (${exit.x.toFixed(1)}, ${exit.y.toFixed(1)})`,
+        ).toBeDefined();
+        // Straight down from the ship standing; back along the flight heading, turned with the ship.
+        const heading = moment.pose === 'standing' ? 0 : FLIGHT_ANGLE;
+        expect(plume?.angle, moment.name).toBeCloseTo(heading + angle, 1);
+      }
+    }
+  },
+);
