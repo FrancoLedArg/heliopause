@@ -358,29 +358,38 @@ it('Takeoff smoke is still on screen 1.5 s after it was kicked up, while the str
   expect(visible).toBeGreaterThan(0);
 });
 
-it('Landing comes down onto the strip and ends on exactly the Landed view composition', async () => {
-  const { scene, data } = await fly('scout');
-  scene.seek(scene.playback.duration - 1);
-  const arrival = scene.layers.arrival;
-  const cam = scene.cameras.main;
-  const frame = {
-    groundTop: arrival.ground.y - cam.scrollY,
-    groundX: arrival.ground.x - cam.scrollX,
-    shipX: scene.ship.x - cam.scrollX,
-    shipY: scene.ship.y - cam.scrollY,
-  };
-  const landed = nextSceneReady(SceneKey.Landed);
-  scene.seek(scene.playback.duration);
-  await landed;
-  const view = game?.scene.getScene<Landed>(SceneKey.Landed);
-  if (!view) throw new Error('no Landed view');
-  expect(data.after.status.kind).toBe('landed');
-  expect(frame.groundTop).toBeCloseTo(view.layers.ground.y, 0);
-  expect(frame.groundX).toBeCloseTo(view.layers.ground.x, 0);
-  expect(frame.shipX).toBeCloseTo(view.layers.ship.x, 0);
-  expect(frame.shipY).toBeCloseTo(view.layers.ship.y, 0);
-  expect(frame.groundTop).toBe(SHIP_PLACEMENT.baseY);
-});
+it.each(CHASSIS_IDS)(
+  'the %s hovers down upright onto the strip and ends on exactly the Landed view composition',
+  async (chassis) => {
+    const { scene, data } = await fly(chassis);
+    scene.seek(scene.playback.duration - 1);
+    const arrival = scene.layers.arrival;
+    const cam = scene.cameras.main;
+    const frame = {
+      groundTop: arrival.ground.y - cam.scrollY,
+      groundX: arrival.ground.x - cam.scrollX,
+      shipX: scene.ship.x - cam.scrollX,
+      shipY: scene.ship.y - cam.scrollY,
+      shipAngle: scene.ship.angle,
+      pose: hullOf(scene.ship).frame.name,
+    };
+    const landed = nextSceneReady(SceneKey.Landed);
+    scene.seek(scene.playback.duration);
+    await landed;
+    const view = game?.scene.getScene<Landed>(SceneKey.Landed);
+    if (!view) throw new Error('no Landed view');
+    expect(data.after.status.kind).toBe('landed');
+    expect(frame.groundTop).toBeCloseTo(view.layers.ground.y, 0);
+    expect(frame.groundX).toBeCloseTo(view.layers.ground.x, 0);
+    expect(frame.shipX).toBeCloseTo(view.layers.ship.x, 0);
+    expect(frame.shipY).toBeCloseTo(view.layers.ship.y, 0);
+    expect(frame.groundTop).toBe(SHIP_PLACEMENT.baseY);
+    // Upright on its fins or legs, in the same standing pose the Landed view opens on.
+    expect(frame.shipAngle).toBe(0);
+    expect(frame.pose).toBe('landed');
+    expect(hullOf(view.layers.ship).frame.name).toBe(frame.pose);
+  },
+);
 
 /** The first ms of the playback at `progress` through `burn` with the engine firing. */
 function momentOf(scene: Flight, burn: string, progress: number): number {
@@ -439,14 +448,19 @@ it.each(CHASSIS_IDS)(
   },
 );
 
-/** The Chassis art on screen (its whole frame, plumes left out), in 640x360 stage pixels. */
-function hullOnScreen(scene: Flight): Box {
-  const hull = scene.ship.list.find(
+/** The Chassis art in a ship's container (the plumes and glow left out). */
+function hullOf(ship: GameObjects.Container): GameObjects.Image {
+  const hull = ship.list.find(
     (child): child is GameObjects.Image =>
       child instanceof GameObjects.Image && child.texture.key.startsWith('chassis_'),
   );
   if (!hull) throw new Error('no Chassis art on the ship');
-  const b = hull.getBounds();
+  return hull;
+}
+
+/** The Chassis art on screen (its whole frame, plumes left out), in 640x360 stage pixels. */
+function hullOnScreen(scene: Flight): Box {
+  const b = hullOf(scene.ship).getBounds();
   const { scrollX, scrollY } = scene.cameras.main;
   return {
     left: b.left - scrollX,
