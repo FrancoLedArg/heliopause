@@ -1,5 +1,5 @@
 /**
  * The one line of flavour text shown during the Jump, in place of the long coast between stars.
- * A neutral placeholder: the human writes the real line (asset request #178).
+ * Approved by the human (asset request #178, 2026-11-15).
  */
-export const JUMP_FLAVOUR_TEXT = 'Beyond the Heliopause, a new star system.';
+export const JUMP_FLAVOUR_TEXT = 'The old sun fades behind you. A new one rises ahead.';
