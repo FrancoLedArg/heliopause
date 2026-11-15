@@ -16,6 +16,9 @@ export default defineConfig({
         test: {
           name: 'unit',
           environment: 'node',
+          // Many rule tests sweep hundreds of generated Star Systems. Since #188, generation
+          // redraws until the opening is fair, so a sweep can pass the 5 s default on a loaded CI runner.
+          testTimeout: 30_000,
           include: ['src/**/*.test.ts', 'scripts/**/*.test.ts'],
           exclude: ['**/*.browser.test.*', '**/node_modules/**'],
         },
