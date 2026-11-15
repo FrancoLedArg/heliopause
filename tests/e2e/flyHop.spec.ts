@@ -249,11 +249,13 @@ test('a Hop that Crashes stops on the Landing and says why, and the title is the
   await outcome.getByRole('button', { name: 'Continue' }).focus();
   await page.keyboard.press('Enter');
   // The End-of-Run screen: the Score (one Hop flown, no Star System escaped) and the Best Score it set.
-  await expect(outcome.getByTestId('end-of-run-score')).toHaveText(
-    '0 Star Systems escaped, 1 Hop flown',
+  await expect(outcome.getByTestId('end-of-run-score')).toHaveAttribute(
+    'aria-label',
+    'Score: 0 Star Systems escaped, 1 Hop flown',
   );
-  await expect(outcome.getByTestId('end-of-run-best')).toContainText(
-    '0 Star Systems escaped, 1 Hop flown (new Best Score)',
+  await expect(outcome.getByTestId('end-of-run-best')).toHaveAttribute(
+    'aria-label',
+    'Best Score: 0 Star Systems escaped, 1 Hop flown (new Best Score)',
   );
   await testInfo.attach('crashed', { body: await page.screenshot(), contentType: 'image/png' });
 
@@ -375,10 +377,14 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   await testInfo.attach('fell-short', { body: await page.screenshot(), contentType: 'image/png' });
 
   await outcome.getByRole('button', { name: 'Continue' }).click();
-  await expect(outcome.getByTestId('end-of-run-score')).toHaveText(
-    '0 Star Systems escaped, 1 Hop flown',
+  await expect(outcome.getByTestId('end-of-run-score')).toHaveAttribute(
+    'aria-label',
+    'Score: 0 Star Systems escaped, 1 Hop flown',
   );
-  await expect(outcome.getByTestId('end-of-run-best')).toContainText('(new Best Score)');
+  await expect(outcome.getByTestId('end-of-run-best')).toHaveAttribute(
+    'aria-label',
+    /\(new Best Score\)/,
+  );
   await outcome.getByRole('button', { name: 'New Run' }).click();
   await expect(page.getByRole('heading', { name: 'Choose a Chassis' })).toBeVisible();
   // The picker starts on the Chassis just flown.
