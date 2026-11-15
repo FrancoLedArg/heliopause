@@ -579,10 +579,6 @@ body {
   outline-offset: 1px;
 }
 
-.info-placeholder {
-  color: var(--am3);
-}
-
 .info-panel__actions {
   position: absolute;
   top: 312px;
