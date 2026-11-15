@@ -67,14 +67,16 @@ test('the Hop plan for the first target shows Success Chance, a Δv bar of three
   page,
 }, testInfo) => {
   await openNavChart(page);
-  await expect(page.getByTestId('hop-plan')).toContainText('Pick a target');
-  await expect(page.getByRole('button', { name: 'Launch' })).toBeDisabled();
+  // #193: the chart opens on the map alone; the plan comes only after a Body's "Plan Hop".
+  await expect(page.getByTestId('hop-plan')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Launch' })).toHaveCount(0);
 
   await target(page, homeMoon.name);
   // One Δv bar, in km/s like the top bar, with a segment for each Burn and the Margin as the gap.
+  // The first target is Unsurveyed, so its Landing is hatched and named a guess (#193).
   const bar = page.getByRole('img', { name: /^Δv: / });
   await expect(bar).toHaveAccessibleName(
-    /^Δv: Takeoff \d+\.\d{1,2} km\/s, Transfer \d+\.\d{1,2} km\/s, Landing \d+\.\d{1,2} km\/s\. Needs \d+\.\d{1,2} of 28\.8 km\/s, Margin \+\d+\.\d{1,2} km\/s\.$/,
+    /^Δv: Takeoff \d+\.\d{1,2} km\/s, Transfer \d+\.\d{1,2} km\/s, Landing \d+\.\d{1,2} km\/s\. Needs \d+\.\d{1,2} of 28\.8 km\/s, Margin \+\d+\.\d{1,2} km\/s\. Landing is a guess, Unsurveyed\.$/,
   );
   await expect(page.getByTestId('plan-available')).toHaveText('28.8 km/s');
   await expect(page.getByTestId('delta-v')).toHaveText('28.8 km/s');
@@ -130,9 +132,10 @@ test('a far Body has a lower Success Chance, flagged in words when low; Cancel c
   });
 
   await page.getByRole('button', { name: 'Cancel' }).click();
-  await expect(page.getByTestId('target')).toContainText('None chosen');
+  // #193: with no target the plan closes and leaves the map alone.
+  await expect(page.getByTestId('target')).toHaveCount(0);
   await expect(page.getByRole('listbox', { name: 'Bodies in the Star System' })).toBeFocused();
-  await expect(page.getByTestId('hop-plan')).toContainText('Pick a target');
+  await expect(page.getByTestId('hop-plan')).toHaveCount(0);
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
 });
 
@@ -155,10 +158,17 @@ test('Tab reaches Cancel and Launch from the chart, then Tell me more and the "?
   await expect(page.getByTestId('burn-reason').first()).toBeVisible();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'What is Δv?' })).toBeFocused();
+  // #193: then the chart's bar (zoom, re-centre, legend, Close), and round to the map.
+  for (const name of ['Zoom out', 'Zoom in', 'Re-centre on the Spacecraft', 'Chart legend']) {
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('button', { name })).toBeFocused();
+  }
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Close' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('listbox', { name: 'Bodies in the Star System' })).toBeFocused();
   await page.keyboard.press('Shift+Tab');
-  await expect(page.getByRole('button', { name: 'What is Δv?' })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Close' })).toBeFocused();
 });
 
 test('a Margin below zero is signed and warned about more strongly than a low chance', async ({
