@@ -33,6 +33,11 @@ describe('the Component catalogue', () => {
       expect(Number.isInteger(component.cost)).toBe(true);
       expect(effectOf(component)).toBeGreaterThan(0);
       expect(component.explanation).toMatch(/^[A-Z][^.!?]*\.$/);
+      // The preview shows an Engine's or a Drill's explanation as one plain line, with no jargon
+      // (a Fuel Tank's preview teaches with its own note).
+      if (component.kind === 'fuel-tank') continue;
+      expect(component.explanation.length).toBeLessThanOrEqual(70);
+      expect(component.explanation).not.toMatch(/\bIsp\b/);
     }
   });
 

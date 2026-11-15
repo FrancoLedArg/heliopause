@@ -45,10 +45,18 @@ export function formatIsp(isp: Seconds): string {
   return `${WHOLE.format(isp)} s`;
 }
 
-/** Δv in m/s or km/s; a dash while the Δv is not yet known. */
-export function formatDeltaV(deltaV: MetersPerSecond | undefined): string {
+/** The unit a Δv reads in: km/s from 10,000 m/s up. */
+export function deltaVUnit(deltaV: MetersPerSecond): 'm/s' | 'km/s' {
+  return deltaV >= KM_PER_S_FROM ? 'km/s' : 'm/s';
+}
+
+/**
+ * Δv in m/s or km/s; a dash while the Δv is not yet known. `unit` forces one, for a difference that
+ * must read in the unit of the figures beside it.
+ */
+export function formatDeltaV(deltaV: MetersPerSecond | undefined, unit?: 'm/s' | 'km/s'): string {
   if (deltaV === undefined) return '—';
-  return deltaV >= KM_PER_S_FROM
+  return (unit ?? deltaVUnit(deltaV)) === 'km/s'
     ? `${(deltaV / 1000).toFixed(1)} km/s`
     : `${WHOLE.format(deltaV)} m/s`;
 }

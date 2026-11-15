@@ -1,10 +1,16 @@
 // What the Spacecraft panel says, as plain data: the catalogue rows, each Component's effect in one
 // sentence, the Mass bar and the reasons an install is refused. No React here, so it is unit tested.
 import {
+  availableDeltaV,
   COMPONENT_IDS,
   COMPONENTS,
   componentEffect,
+  kilograms,
+  metersPerSecond,
+  preview,
   SLOT_COUNT,
+  type Preview,
+  type ProposedChange,
   type ChassisId,
   type ComponentId,
   type ComponentKind,
@@ -17,7 +23,7 @@ import {
   type Slot,
   type Spacecraft,
 } from '../game/sim/index.ts';
-import { formatFuel, formatIsp, formatMass } from './format.ts';
+import { deltaVUnit, formatDeltaV, formatFuel, formatIsp, formatMass } from './format.ts';
 
 const KIND_NAMES: Readonly<Record<ComponentKind, string>> = {
   engine: 'Engine',
@@ -107,8 +113,6 @@ export interface PanelRow {
   readonly cost: string;
   /** The one-sentence effect on this Chassis. */
   readonly effect: string;
-  /** The catalogue's plain explanation of why you might want it. */
-  readonly explanation: string;
   /** Whether the Run's Materials cover the cost (the panel still says so in words). */
   readonly affordable: boolean;
   /** How many more Materials the Run needs to afford it; 0 when it can. */
@@ -126,11 +130,111 @@ export function panelRows(run: Run): readonly PanelRow[] {
       mass: formatMass(component.mass),
       cost: `${String(component.cost)} Materials`,
       effect: describeEffect(run.spacecraft.chassisId, id),
-      explanation: component.explanation,
       affordable: run.materials >= component.cost,
       short: Math.max(0, component.cost - run.materials),
     };
   });
+}
+
+/** Which way a figure moves in a preview. The panel says it in words, never by colour alone. */
+export type Trend = 'up' | 'down' | 'same';
+
+/** One figure in a preview: before → after, and the difference in words. */
+export interface PreviewLine {
+  readonly label: string;
+  /** Which figure it is, so the panel need not read the label to treat Δv differently. */
+  readonly kind: 'mass' | 'fuel' | 'delta-v';
+  readonly before: string;
+  readonly after: string;
+  /** "+1.5 t", "−0.8 t", "Drops 3.1 km/s", "Rises 1.0 km/s" or "No change". */
+  readonly change: string;
+  readonly trend: Trend;
+}
+
+/** What the panel shows before the player pays for, or confirms, a change. */
+export interface PanelPreview {
+  readonly heading: string;
+  /** Dry mass, Fuel capacity and Δv, in that order. */
+  readonly lines: readonly PreviewLine[];
+  /** The lesson the change teaches, or an empty string. */
+  readonly note: string;
+}
+
+function trendOf(before: string, after: string, from: number, to: number): Trend {
+  if (before === after) return 'same';
+  return to > from ? 'up' : 'down';
+}
+
+function massLine(
+  kind: 'mass' | 'fuel',
+  label: string,
+  from: Kilograms,
+  to: Kilograms,
+): PreviewLine {
+  const [before, after] = [formatMass(from), formatMass(to)];
+  const trend = trendOf(before, after, from, to);
+  const size = formatMass(kilograms(Math.abs(to - from)));
+  const change = { same: 'No change', up: `+${size}`, down: `−${size}` }[trend];
+  return { label, kind, before, after, change, trend };
+}
+
+/**
+ * The two lines under a preview. A Fuel Tank teaches the rocket equation both ways: its mass
+ * costs Δv while it is empty, and it gives more Δv once the Spacecraft has refuelled. Any other
+ * Component installed says in one sentence why you might want it. A removal says nothing more.
+ */
+function noteFor(
+  spacecraft: Spacecraft,
+  change: ProposedChange,
+  after: Preview,
+  component: (typeof COMPONENTS)[ComponentId],
+): string {
+  if (change.kind === 'remove') return '';
+  if (component.kind !== 'fuel-tank') return component.explanation;
+  const filledNow = availableDeltaV({ ...spacecraft, fuelMass: spacecraft.fuelCapacity });
+  const direction = after.filledDeltaV >= filledNow ? 'up' : 'down';
+  return `Starts empty, so Δv drops. Filled up: ${formatDeltaV(after.filledDeltaV)}, ${direction} from ${formatDeltaV(filledNow)}.`;
+}
+
+/**
+ * The Spacecraft's dry mass, Fuel capacity and Δv after `change`, as before → after with the
+ * difference. The figures come from the simulation's `preview`, so they are what the change would
+ * really do. A drop in Δv says "Drops". `undefined` when there is nothing to change.
+ */
+export function describePreview(
+  spacecraft: Spacecraft,
+  change: ProposedChange,
+): PanelPreview | undefined {
+  const after = preview(spacecraft, change);
+  if (!after) return undefined;
+  const [from, to] = [availableDeltaV(spacecraft), after.deltaV];
+  const [deltaBefore, deltaAfter] = [formatDeltaV(from), formatDeltaV(to)];
+  const trend = trendOf(deltaBefore, deltaAfter, from, to);
+  // The difference reads in the unit of the figures beside it, so 22.1 → 19.0 km/s drops 3.1 km/s.
+  const size = formatDeltaV(
+    metersPerSecond(Math.abs(to - from)),
+    deltaVUnit(metersPerSecond(Math.max(from, to))),
+  );
+  const deltaChange = { same: 'No change', up: `Rises ${size}`, down: `Drops ${size}` }[trend];
+  const held = change.kind === 'remove' ? spacecraft.slots[change.slot] : change.component;
+  if (!held) return undefined;
+  const component = COMPONENTS[held];
+  return {
+    heading: `${change.kind === 'install' ? 'Install' : 'Remove'} ${componentName(held)} ${String(component.level)}`,
+    lines: [
+      massLine('mass', 'Dry mass', spacecraft.dryMass, after.dryMass),
+      massLine('fuel', 'Fuel cap.', spacecraft.fuelCapacity, after.fuelCapacity),
+      {
+        label: 'Δv',
+        kind: 'delta-v',
+        before: deltaBefore,
+        after: deltaAfter,
+        change: deltaChange,
+        trend,
+      },
+    ],
+    note: noteFor(spacecraft, change, after, component),
+  };
 }
 
 const HEAVIEST_COMPONENT = Math.max(...COMPONENT_IDS.map((id) => COMPONENTS[id].mass));
