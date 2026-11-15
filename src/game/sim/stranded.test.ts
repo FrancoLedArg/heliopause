@@ -72,7 +72,17 @@ const NO_EVENTS = { events: [] } as const;
 
 function backOnDryli(extra: number): Run {
   let run = startRun(27, 'scout');
-  run = { ...run, materials: materials(run.materials + extra) };
+  // Stranded follows the plans the player sees (#190): every Body but the three flown to is Surveyed,
+  // so the others' plans are the real ones and the Hops land (and Survey) as they did before.
+  const flownTo = new Set(['Dryli', 'Siolmel', 'Teskae']);
+  const surveyed = listBodies(run.starSystem)
+    .filter((b) => !flownTo.has(b.name))
+    .map((b) => b.id);
+  run = {
+    ...run,
+    materials: materials(run.materials + extra),
+    knowledge: { ...run.knowledge, surveyed: [...run.knowledge.surveyed, ...surveyed] },
+  };
   for (const name of ['Dryli', 'Siolmel', 'Teskae', 'Dryli']) {
     const body = listBodies(run.starSystem).find((b) => b.name === name);
     if (!body) throw new Error(`Seed 27 has no ${name}`);
@@ -355,18 +365,26 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('a replayed Run ends Stranded where the game did, and takes no choice after it', () => {
-    const saveable = backOnDryli(0);
-    expect(saveable.status).toMatchObject(stranded);
-    // Seed 27's own log: the four Hops, the last of which strands it.
-    const replayed = replay(27, 'scout', saveable.choices, NO_EVENTS);
+    // Flown with no Cruise events (#250): this pins Stranded on the Burns alone.
+    // Seed 4, played as the player sees it (every Body Unsurveyed until landed on): the fourth Hop strands it. Re-pinned for #247 (was seed 1): the Chassis Isp rose 30%.
+    let run = startRun(4, 'scout');
+    for (const name of ['Ludran', 'Tynvael Tau', 'Prumal', 'Nionyr']) {
+      const body = listBodies(run.starSystem).find((b) => b.name === name);
+      if (!body) throw new Error(`Seed 4 has no ${name}`);
+      const flown = launchHop(run, body.id, NO_EVENTS);
+      if (flown.kind !== 'flown') throw new Error(`Seed 4: no Hop to ${name}`);
+      run = flown.run;
+    }
+    expect(run.status).toMatchObject(stranded);
+    const replayed = replay(4, 'scout', run.choices, NO_EVENTS);
     expect(replayed).toMatchObject({ kind: 'replayed', end: { kind: 'stranded' } });
     if (replayed.kind !== 'replayed') return;
-    expect(replayed.run.status).toEqual(saveable.status);
+    expect(replayed.run.status).toEqual(run.status);
     // A choice made after the end is refused.
     const after = replay(
-      27,
+      4,
       'scout',
-      [...saveable.choices, { kind: 'install', slot: 2, componentId: 'drill-1' }],
+      [...run.choices, { kind: 'install', slot: 2, componentId: 'drill-1' }],
       NO_EVENTS,
     );
     expect(after).toMatchObject({ kind: 'rejected', at: 4 });

@@ -11,7 +11,13 @@ const strandedLanding = landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.pa
 const strandedVerdict = runEnd(strandedLanding.run);
 if (strandedVerdict?.kind !== 'stranded')
   throw new Error(`Seed ${String(STRANDED_ON_LANDING.seed)} should strand at the end of its path`);
-const saveable = landing(SAVE_BY_REMOVING.seed, SAVE_BY_REMOVING.path, SAVE_BY_REMOVING.fit);
+const saveable = landing(
+  SAVE_BY_REMOVING.seed,
+  SAVE_BY_REMOVING.path,
+  SAVE_BY_REMOVING.fit,
+  0,
+  false,
+);
 const warning = assessStranding(saveable.run);
 if (warning.kind !== 'warning')
   throw new Error(`Seed ${String(SAVE_BY_REMOVING.seed)} with a Drill should warn at the end`);

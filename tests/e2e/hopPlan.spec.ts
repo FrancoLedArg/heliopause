@@ -121,7 +121,9 @@ test('a far Body has a lower Success Chance, flagged in words when low; Cancel c
   expect(farPercent).toBeLessThan(nearPercent);
   // Seed 179's Thylthiolhiol is 57% for the lancer from Querrelys: below the low-chance line, with a
   // thin Margin.
-  await expect(page.getByTestId('plan-warning')).toHaveText('Low chance: may run dry');
+  // The reach verdict (#190): a triangle and "Marginal", named for assistive technology.
+  await expect(page.getByTestId('plan-warning')).toHaveText('Marginal');
+  await expect(page.getByTestId('plan-warning')).toHaveAttribute('aria-label', 'Reach: Marginal');
   await expect(page.getByTestId('plan-margin')).toHaveText(/^\+\d+\.\d{1,2} km\/s \(\d+%\)$/);
   await testInfo.attach('hop-plan-far', {
     body: await page.screenshot(),
@@ -168,6 +170,11 @@ test('a Margin below zero is signed and warned about more strongly than a low ch
   await openNavChartAfterPath(page, 'hauler');
   await target(page, FAR);
   await expect(page.getByTestId('plan-margin')).toHaveText(/^−\d+\.\d{1,2} km\/s \(\d+%\)$/);
-  await expect(page.getByTestId('plan-warning')).toHaveText('Not enough Δv for this Hop');
+  // Out of reach (#190): a cross and the word, exactly 0%.
+  await expect(page.getByTestId('plan-warning')).toHaveText('Out of reach');
+  await expect(page.getByTestId('plan-warning')).toHaveAttribute(
+    'aria-label',
+    'Reach: Out of reach',
+  );
   await expect(page.getByTestId('plan-success')).toContainText('0%');
 });

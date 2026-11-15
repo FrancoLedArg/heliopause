@@ -29,9 +29,24 @@ export function landing(
   path: readonly string[],
   fit?: ComponentId,
   extraMaterials = 0,
+  preSurvey = true,
 ): Landing {
   const start = startRun(seed, 'scout');
-  let run: Run = { ...start, materials: materials(start.materials + extraMaterials) };
+  // Stranded follows the plans the player sees (#190): every Body off the path is pre-Surveyed, so
+  // its plan is the real one and the fixtures strand (or warn) as they did before Unsurveyed plans.
+  const surveyed = [
+    ...start.knowledge.surveyed,
+    ...(preSurvey
+      ? listBodies(start.starSystem)
+          .filter(({ name }) => !path.includes(name))
+          .map(({ id }) => id)
+      : []),
+  ];
+  let run: Run = {
+    ...start,
+    materials: materials(start.materials + extraMaterials),
+    knowledge: { ...start.knowledge, surveyed },
+  };
   if (fit) {
     const fitted = install(run, 2, fit);
     if (fitted.kind !== 'installed') throw new Error(`Seed ${String(seed)}: cannot fit ${fit}`);
@@ -55,14 +70,14 @@ export function landing(
 }
 
 /**
- * Seed 156 with a level-1 Drill, landed on Rymoquox by way of Zuzin and Rama: no Hop as built, but
- * removing the Drill saves the Run. Re-pinned for #189 (was seed 45's Mavar, then seed 11 before a
- * Rocky opening stopped adding Materials over a New Run's) and for #247 (was seed 15's Pripro): the
- * Chassis Isp rose 30%, so seed 15's Run has a Hop there.
+ * Seed 105 with a level-1 Drill, landed on Verpry by way of Husox and Liokioher: no Hop as built,
+ * but removing the Drill saves the Run, with every Body Unsurveyed until landed on as in real play
+ * (pass `preSurvey` false). Re-pinned for #190 (was seed 156's Rymoquox): Stranded and the warning
+ * follow the plans the player sees, and the old route only warned with its other Bodies Surveyed.
  */
 export const SAVE_BY_REMOVING = {
-  seed: 156,
-  path: ['Zuzin', 'Rama', 'Rymoquox'],
+  seed: 105,
+  path: ['Husox', 'Liokioher', 'Verpry'],
   fit: 'drill-1',
 } as const;
 
