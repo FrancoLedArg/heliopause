@@ -156,4 +156,4 @@ export function withJumpDrive(from: Run): Run {
   return { ...result.run, materials: from.materials };
 }
 
-export { startingRun };
+export { AT_ESTIMATE, startingRun };

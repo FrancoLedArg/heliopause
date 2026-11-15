@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { createRng } from '../lib/rng.ts';
 import {
   CHASSIS_IDS,
+  currentBody,
   flyHop,
   generateSystem,
+  isDepleted,
   knownBodies,
   launchHop,
+  listBodies,
   planHop,
   startRun,
+  type Body,
   type ChassisId,
   type HopPlan,
   type Run,
@@ -121,14 +125,76 @@ describe.each(CHASSIS_IDS)(
       },
     );
 
-    it('starter Fuel covers roughly 3 to 6 nearby Hops for a cautious player', () => {
+    it('starter Fuel, and the Fuel it gathers, covers roughly 3 to 12 nearby Hops for a cautious player', () => {
       const hops = SEEDS.slice(0, 400).map((seed) => cautiousHops(startRun(seed, chassisId), seed));
       // Was 2 to 4 until #188 gave every rocky planet two Moons: short Hops between them, some Icy.
+      // Was 3 to 6 until #280: Comms Detects a Fuel source In reach, so the medians rose to 10 and 11.
       expect(median(hops)).toBeGreaterThanOrEqual(3);
-      expect(median(hops)).toBeLessThanOrEqual(6);
+      expect(median(hops)).toBeLessThanOrEqual(12);
       expect(Math.min(...hops)).toBeGreaterThanOrEqual(1);
       // Few Star Systems leave a cautious player with only the Moon.
       expect(hops.filter((count) => count === 1).length / hops.length).toBeLessThan(0.1);
     });
   },
 );
+
+/**
+ * Whether `body` is a Fuel source In reach of the landed Run: an Icy Body with Fuel left that a Hop
+ * reaches with some Success Chance, Detected or not.
+ */
+function fuelSourceInReach(run: Run, body: Body): boolean {
+  if (!body.landable || body.composition !== 'icy' || body.baseYield <= 0) return false;
+  if (isDepleted(run, body.id) || body.id === currentBody(run).id) return false;
+  const knowing = { ...run, knowledge: { ...run.knowledge, detected: [body.id] } };
+  const planned = planHop(knowing, body.id);
+  return planned.kind === 'planned' && planned.plan.successChance > 0;
+}
+
+/** After one landing: whether a Fuel source is Detected and In reach, and whether one is In reach at all. */
+interface Lifeline {
+  readonly detected: boolean;
+  readonly any: boolean;
+}
+
+/** What the cautious player of `cautiousHops` finds after each landing in Star System 1. */
+function lifelinesAfterLandings(start: Run, seed: number): Lifeline[] {
+  const rng = createRng(seed);
+  const visited = new Set<string>([start.starSystem.startingMoonId]);
+  const found: Lifeline[] = [];
+  let run = start;
+  for (;;) {
+    const [next] = knownBodies(run)
+      .filter((body) => !visited.has(body.id))
+      .flatMap((body) => {
+        const result = planHop(run, body.id);
+        return result.kind === 'planned' && result.plan.successChance >= 0.5 ? [result.plan] : [];
+      })
+      .sort((a, b) => a.totalEstimate - b.totalEstimate);
+    if (!next) return found;
+    run = flyHop(run, next, rng).run;
+    if (run.status.kind !== 'landed') return found;
+    visited.add(next.toId);
+    const landed = run;
+    found.push({
+      detected: knownBodies(landed).some((body) => fuelSourceInReach(landed, body)),
+      any: listBodies(landed.starSystem).some((body) => fuelSourceInReach(landed, body)),
+    });
+  }
+}
+
+// #280, the Fuel lifeline: after a landing, a Fuel source In reach is Detected whenever one exists,
+// and generation makes sure one does after the first Hop.
+describe.each(CHASSIS_IDS)('the Fuel lifeline for the %s', { timeout: 60_000 }, (chassisId) => {
+  it('after every landing of a cautious player, a Fuel source In reach is Detected whenever one exists', () => {
+    const landings = FIRST_HOP_SEEDS.flatMap((seed) =>
+      lifelinesAfterLandings(startRun(seed, chassisId), seed).map((landing, hop) => ({
+        ...landing,
+        seed,
+        hop,
+      })),
+    );
+    expect(landings.filter((landing) => landing.any && !landing.detected)).toEqual([]);
+    // The first landing always has one.
+    expect(landings.filter((landing) => landing.hop === 0 && !landing.detected)).toEqual([]);
+  });
+});

@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { stringSeed } from '../lib/stringSeed.ts';
-import { earlyDeadEnds, startingRun } from './testing.ts';
+import { AT_ESTIMATE, earlyDeadEnds, startingRun } from './testing.ts';
 import {
   BODY_TUNING,
   CHASSIS_IDS,
   ICE_LINE,
   findBody,
   firstDetectedBody,
+  flyHop,
   generateStarSystem,
   install,
+  isDepleted,
   listBodies,
   marginShare,
   OPENING_TUNING,
@@ -281,6 +283,34 @@ describe('a fair opening (#96), with no early dead ends (#188)', () => {
     }
     expect(found.slice(0, 10)).toEqual([]);
   }, 120_000);
+
+  // #280: Comms Detects the nearest Fuel source In reach after a landing, so one must exist there.
+  it('after the first Hop, at its estimate, a Fuel source is In reach for every Chassis, at levels 1 to 3', () => {
+    const found: string[] = [];
+    for (const level of [1, 2, 3]) {
+      for (let i = 0; i < 500; i++) {
+        const system = generateStarSystem(i * 7919 + 1, level);
+        for (const chassis of CHASSIS_IDS) {
+          const start = startingRun(system, chassis, level);
+          const planned = planHop(start, firstDetectedBody(system).id);
+          if (planned.kind !== 'planned') continue;
+          const { run } = flyHop(start, planned.plan, AT_ESTIMATE);
+          if (run.status.kind !== 'landed') continue;
+          const here = run.status.bodyId;
+          const lifeline = listBodies(system).some((body) => {
+            if (!body.landable || body.composition !== 'icy' || body.id === here) return false;
+            if (isDepleted(run, body.id) || body.baseYield <= 0) return false;
+            const knowing = { ...run, knowledge: { ...run.knowledge, detected: [body.id] } };
+            const plan = planHop(knowing, body.id);
+            return plan.kind === 'planned' && plan.plan.successChance > 0;
+          });
+          if (!lifeline)
+            found.push(`seed ${system.seed} level ${level} ${chassis}: none from ${here}`);
+        }
+      }
+    }
+    expect(found.slice(0, 10)).toEqual([]);
+  }, 120_000);
 });
 
 // Generating 300 Star Systems at a level takes about 0.5 to 2 s (#188 redraws), so each level is
@@ -307,7 +337,8 @@ describe('Star System difficulty levels', { timeout: 60_000 }, () => {
     );
     // Re-pinned for #189: the Starting Moon replaces the Home Planet, and generation checks its opening.
     // Re-pinned for #247: the Chassis Isp rose, so more draws open fairly and some seeds settle sooner.
-    expect(stringSeed(json)).toBe(2438872959);
+    // Re-pinned for #280: a draw is redrawn when no Fuel source is In reach after the first Hop.
+    expect(stringSeed(json)).toBe(4188208228);
   });
 
   it('a higher difficulty level raises gravity', () => {

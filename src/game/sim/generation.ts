@@ -2,7 +2,8 @@
 import { stringSeed } from '../lib/stringSeed.ts';
 import type { Rng } from '../lib/rng.ts';
 import { CHASSIS_IDS, OPENING_TUNING } from './data.ts';
-import { flyHop, marginShare, planHop } from './hop.ts';
+import { isFuelSource } from './gather.ts';
+import { flyHop, isInReach, marginShare, planHop, type HopPlan } from './hop.ts';
 import { firstDetectedBody, startingRun } from './opening.ts';
 import type { Run } from './run.ts';
 import {
@@ -55,6 +56,7 @@ function opensFairly(system: StarSystem, level: number): boolean {
     const { plan } = planned;
     if (plan.successChance < OPENING_TUNING.firstHop.successChance) return false;
     if (marginShare(plan) < OPENING_TUNING.firstHop.marginShare) return false;
+    if (!leavesFuelLifeline(start, plan)) return false;
     return !listBodies(system).some((body) => isDeadEnd(start, body));
   });
 }
@@ -73,6 +75,19 @@ function isDeadEnd(start: Run, body: Body): boolean {
   const planned = planHop(knowing, body.id);
   if (planned.kind !== 'planned' || planned.plan.successChance < 1) return false;
   return flyHop(knowing, planned.plan, AT_ESTIMATE).run.status.kind === 'ended';
+}
+
+/**
+ * Whether the first Hop, flown at its estimate, lands where a Fuel source (an Icy Body with Fuel
+ * left) is In reach (#280): the Fuel lifeline Comms Detects after that landing.
+ */
+function leavesFuelLifeline(start: Run, plan: HopPlan): boolean {
+  const { run } = flyHop(start, plan, AT_ESTIMATE);
+  if (run.status.kind !== 'landed') return true;
+  const here = run.status.bodyId;
+  return listBodies(run.starSystem).some(
+    (body) => body.landable && body.id !== here && isFuelSource(run, body) && isInReach(run, body),
+  );
 }
 
 /** The same Run, with `body` Detected too. Exported only for the sim's test fixtures (testing.ts). */
