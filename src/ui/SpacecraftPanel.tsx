@@ -203,8 +203,12 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   // An open remove question keeps its preview: focusing the catalogue does not switch it.
   const previewingRemoval =
     (previewing === 'slot' || confirming !== undefined) && removal !== undefined;
+  // A catalogue entry that cannot be installed whatever the Materials previews only why not.
+  const blocked = previewingRemoval
+    ? undefined
+    : rows.find((row) => row.id === focusedId)?.unavailable;
   const forecast =
-    previewingRemoval && removal.kind === 'refused'
+    (previewingRemoval && removal.kind === 'refused') || blocked !== undefined
       ? undefined
       : describePreview(
           spacecraft,
@@ -219,7 +223,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   const noForecast =
     previewingRemoval && removal.kind === 'refused'
       ? describeRemoveRefusal(removal.reason)
-      : 'Every Slot is full: remove a Component first.';
+      : (blocked ?? 'Every Slot is full: remove a Component first.');
 
   return (
     <section

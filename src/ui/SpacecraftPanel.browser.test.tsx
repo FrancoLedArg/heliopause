@@ -556,6 +556,11 @@ it('greys out a second Jump Drive, says why in its entry, and refuses it plainly
   const button = installButton(host, /Install Jump Drive,/);
   const describedBy = button.getAttribute('aria-describedby') ?? '';
   expect(document.getElementById(describedBy)?.textContent).toBe('You already carry a Jump Drive.');
+  // Focused, it previews no figures for a change that cannot happen, only the reason.
+  act(() => {
+    button.focus();
+  });
+  expect(previewText(host)).toBe('You already carry a Jump Drive.');
   act(() => {
     button.click();
   });
