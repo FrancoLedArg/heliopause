@@ -327,7 +327,21 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
 
       <div className="nav-chart__target" data-testid="target">
         <div className="nav-chart__target-head">
-          <p className="nav-chart__target-label">Target</p>
+          <p className="nav-chart__target-label">
+            <span className="sr-only">Target</span>
+            {view ? (
+              <span
+                className={`nav-chart__reach nav-chart__reach--${view.reach.kind}`}
+                role="img"
+                aria-label={view.reach.label}
+                data-testid="target-reach"
+              >
+                <KitFrame frame={view.reach.frame} />
+              </span>
+            ) : (
+              <span aria-hidden="true">Target</span>
+            )}
+          </p>
           {targetIsEdge && (
             <p className="nav-chart__badge nav-chart__badge--ok">
               <KitFrame frame="badge_ok" />

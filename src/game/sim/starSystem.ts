@@ -351,11 +351,15 @@ function sampleBodySize(
   };
 }
 
-/** Freezes a simulation value and everything it holds, so state only changes through the rules. */
+/**
+ * Freezes a simulation value and everything it holds, so state only changes through the rules. Only
+ * this freezes, and it freezes the children first, so a frozen child is frozen all the way down and
+ * is skipped: a Run's new parts are frozen without walking its Star System again.
+ */
 export function deepFreeze<T extends object>(value: T): T {
   for (const key of Reflect.ownKeys(value)) {
     const child: unknown = Reflect.get(value, key);
-    if (typeof child === 'object' && child !== null) deepFreeze(child);
+    if (typeof child === 'object' && child !== null && !Object.isFrozen(child)) deepFreeze(child);
   }
   return Object.freeze(value);
 }

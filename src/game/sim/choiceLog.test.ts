@@ -251,9 +251,23 @@ describe('replay', () => {
       stored([{ kind: 'hop', target: 5 }]),
       stored([{ kind: 'hop' }]),
       stored([{ kind: 'hop', target: 'planet-1' }, null]),
+      stored([{ kind: 'repair' }]),
+      stored([{ kind: 'rush', slot: 1, tick: -1 }]),
+      stored([{ kind: 'rush', slot: 1, tick: '10' }]),
+      stored([{ kind: 'repair', slot: 1, tick: 2.5 }]),
     ];
     for (const value of junk) expect(parseChoiceLog(value), JSON.stringify(value)).toBeUndefined();
     expect(parseChoiceLog(stored([]))).toEqual([]);
+  });
+
+  it('Repairs and Rushes parse with the Cruise tick they were made on, or none while landed', () => {
+    const choices = [
+      { kind: 'repair', slot: 1, tick: 120 },
+      { kind: 'rush', slot: 1, tick: 300 },
+      { kind: 'rush', slot: 0 },
+    ];
+    const json = JSON.stringify({ version: CHOICE_LOG_VERSION, choices });
+    expect(parseChoiceLog(JSON.parse(json))).toEqual(choices);
   });
 
   it('over many seeds, replaying random choices gives the same Run, Score and end', () => {

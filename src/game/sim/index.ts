@@ -19,12 +19,33 @@ export type { RemoveRefusal, RemoveResult } from './remove.ts';
 export { replay } from './replay.ts';
 export type { ReplayResult } from './replay.ts';
 export type { Run, RunEnd, RunStatus } from './run.ts';
+export { cruiseSchedule, repairTicksLeft, rushCost } from './cruise.ts';
+export type { Cruise, ScheduledEvent, StruckEvent } from './cruise.ts';
 export { assessStranding, endIfStranded } from './stranded.ts';
 export type { Stranding } from './stranded.ts';
 export { isBetterScore, runEnd, score } from './score.ts';
 export type { Score } from './score.ts';
-export { BURNS, flyHop, HELIOPAUSE, launchHop, marginShare, plannedBurns, planHop } from './hop.ts';
+export {
+  advanceCruise,
+  beginHop,
+  BURNS,
+  DESTROYED_REASON,
+  flyHop,
+  HELIOPAUSE,
+  launchHop,
+  marginShare,
+  plannedBurns,
+  planHop,
+  reachVerdict,
+} from './hop.ts';
+export { rushRepair, startRepair } from './repair.ts';
+export type { RepairRefusal, RepairResult, RushResult } from './repair.ts';
 export type {
+  BeginResult,
+  CruiseResult,
+  Departure,
+  FlownHop,
+  HopOptions,
   BodyHopPlan,
   Burn,
   BurnResult,
@@ -37,6 +58,7 @@ export type {
   InvalidTargetReason,
   LaunchResult,
   PlannedBurn,
+  ReachVerdict,
 } from './hop.ts';
 export {
   availableDeltaV,
@@ -49,7 +71,14 @@ export {
   SLOT_COUNT,
   STARTING_SLOTS,
 } from './spacecraft.ts';
-export type { ComponentEffect, Loadout, Slot, Spacecraft } from './spacecraft.ts';
+export type {
+  ComponentEffect,
+  Damage,
+  Loadout,
+  Slot,
+  SlotDamage,
+  Spacecraft,
+} from './spacecraft.ts';
 export { COMPONENT_IDS, COMPONENTS, componentCost, JUMP_DRIVE_TUNING } from './catalogue.ts';
 export type {
   Component,
@@ -80,7 +109,11 @@ export {
   ICE_LINE,
   CHASSIS_IDS,
   OPENING_TUNING,
+  REACH_VERDICT,
+  UNSURVEYED,
   CHASSIS_TUNING,
+  CRUISE_EVENT_KINDS,
+  CRUISE_TUNING,
   DISPERSION,
   FUEL_NOTE,
   GENERATION_TUNING,
@@ -91,6 +124,7 @@ export {
 export type {
   ChassisId,
   ChassisTuning,
+  CruiseEventKind,
   Range,
   SourcedRange,
   SourcedValue,

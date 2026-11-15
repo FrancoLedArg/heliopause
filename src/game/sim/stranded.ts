@@ -1,14 +1,16 @@
 // Stranded: the Run's end when no Hop could have any Success Chance, whatever Components the
-// Spacecraft could still install or remove, and the warning while a change could still save the Run.
+// Spacecraft could still install, remove or Repair (a Rush paid from the Materials on hand), and the warning while a change could still save the Run.
 import type { ComponentId } from './catalogue.ts';
 import { formatDeltaV, HELIOPAUSE, leastDeltaV, planHop, type HopTarget } from './hop.ts';
 import { installRefusal, withInstalled, type Outfit } from './install.ts';
+import { rushCost } from './cruise.ts';
 import { removalRefusal, withRemoved } from './remove.ts';
+import { rushed } from './repair.ts';
 import { currentBody, type Run } from './run.ts';
 import { availableDeltaV, carriesJumpDrive, type Spacecraft } from './spacecraft.ts';
 import { knownBodies } from './knowledge.ts';
 import { deepFreeze } from './starSystem.ts';
-import { metersPerSecond } from './units.ts';
+import { materials, metersPerSecond } from './units.ts';
 
 /**
  * Whether the Spacecraft can still Hop from the Body it is on. `clear`: some Hop has a Success
@@ -81,7 +83,7 @@ function assess(run: Run): Stranding {
 
   let best = 0;
   let bestWithJumpDrive = 0;
-  let saved: 'by-removing' | 'by-refitting' | undefined;
+  let saved: 'by-removing' | 'by-repairing' | 'by-refitting' | undefined;
   for (const design of designs) {
     const deltaV = availableDeltaV(design.spacecraft);
     const jumps = carriesJumpDrive(design.spacecraft);
@@ -89,7 +91,8 @@ function assess(run: Run): Stranding {
     if (jumps) bestWithJumpDrive = Math.max(bestWithJumpDrive, deltaV);
     const hops = deltaV > bodyNeed || (jumps && deltaV > heliopauseNeed);
     if (!hops) continue;
-    if (!design.installs) saved = 'by-removing';
+    if (!design.installs && !design.rushes) saved = 'by-removing';
+    else if (!design.installs && saved !== 'by-removing') saved = 'by-repairing';
     else saved ??= 'by-refitting';
   }
 
@@ -98,6 +101,11 @@ function assess(run: Run): Stranding {
       return {
         kind: 'warning',
         warning: 'No Hop is possible as built. Remove Components to lighten the Spacecraft.',
+      };
+    case 'by-repairing':
+      return {
+        kind: 'warning',
+        warning: 'No Hop is possible as built. Repair the Engine to get your Δv back.',
       };
     case 'by-refitting':
       return {
@@ -158,10 +166,14 @@ function distinct(have: number, needs: number): readonly [string, string] {
   return [`${String(Math.floor(have))} m/s`, `${String(Math.ceil(needs))} m/s`];
 }
 
-/** A Spacecraft the player could build from the one landed here, and whether it takes an install. */
+/**
+ * A Spacecraft the player could build from the one landed here, and whether it takes an install or
+ * a Rush.
+ */
 interface Design {
   readonly spacecraft: Spacecraft;
   readonly installs: boolean;
+  readonly rushes: boolean;
 }
 
 /** The Components worth installing to save a Run. A Drill adds mass and no Δv, so it never helps. */
@@ -190,6 +202,9 @@ const RESCUERS: readonly ComponentId[] = [
  * A search over Slots, Fuel and Materials: of two ways to the same Slots and Fuel, the one with more
  * Materials left can do all the other can, so only it goes on. Builds that need an install are kept
  * apart from those reached by removals alone, which the warning names.
+ *
+ * A Rush of a Damaged Component, paid from the Materials on hand, is one more step (#210). A Repair
+ * that only the next Cruise would finish is not: reaching a Cruise takes a Hop.
  */
 function buildable(run: Run): Design[] {
   const designs: Design[] = [];
@@ -199,27 +214,49 @@ function buildable(run: Run): Design[] {
     materials: run.materials,
     starSystemNumber: run.starSystemNumber,
   };
-  const pending: { readonly outfit: Outfit; readonly installs: boolean }[] = [
-    { outfit: start, installs: false },
-  ];
+  const pending: {
+    readonly outfit: Outfit;
+    readonly installs: boolean;
+    readonly rushes: boolean;
+  }[] = [{ outfit: start, installs: false, rushes: false }];
   for (let next = pending.pop(); next; next = pending.pop()) {
-    const { outfit, installs } = next;
-    const { slots, fuelMass } = outfit.spacecraft;
-    const held = slots.map((slot) => slot ?? '').sort((a, b) => a.localeCompare(b));
-    const key = `${held.join()}|${String(fuelMass)}|${String(installs)}`;
+    const { outfit, installs, rushes } = next;
+    const { slots, fuelMass, damage } = outfit.spacecraft;
+    // Damage is rare: only a Damaged Spacecraft pays for marking it in the key and trying Rushes.
+    const anyDamage = damage.some((slotDamage) => slotDamage !== null);
+    const held = slots
+      .map((slot, i) => (anyDamage && damage[i] ? `${slot ?? ''}!` : (slot ?? '')))
+      .sort((a, b) => a.localeCompare(b));
+    const key = `${held.join()}|${String(fuelMass)}|${String(installs)}|${String(rushes)}`;
     if ((richest.get(key) ?? -1) >= outfit.materials) continue;
     richest.set(key, outfit.materials);
-    designs.push({ spacecraft: outfit.spacecraft, installs });
+    designs.push({ spacecraft: outfit.spacecraft, installs, rushes });
 
     slots.forEach((_, slot) => {
       if (removalRefusal(slots, slot)) return;
-      pending.push({ outfit: { ...outfit, ...withRemoved(outfit, slot) }, installs });
+      pending.push({ outfit: { ...outfit, ...withRemoved(outfit, slot) }, installs, rushes });
     });
+    if (anyDamage)
+      damage.forEach((_, slot) => {
+        const cost = rushCost(outfit.spacecraft, slot);
+        if (cost === null || cost > outfit.materials) return;
+        const spacecraft = rushed(outfit.spacecraft, slot);
+        const left = materials(outfit.materials - cost);
+        pending.push({
+          outfit: { ...outfit, spacecraft, materials: left },
+          installs,
+          rushes: true,
+        });
+      });
     const empty = slots.indexOf(null);
     if (empty < 0) continue;
     for (const id of RESCUERS) {
       if (installRefusal(outfit, empty, id)) continue;
-      pending.push({ outfit: { ...outfit, ...withInstalled(outfit, empty, id) }, installs: true });
+      pending.push({
+        outfit: { ...outfit, ...withInstalled(outfit, empty, id) },
+        installs: true,
+        rushes,
+      });
     }
   }
   return designs;

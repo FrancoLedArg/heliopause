@@ -221,6 +221,32 @@ export function kilometersToAu(distance: Kilometers): AstronomicalUnits {
  */
 export const DISPERSION = { min: 0.9, max: 1.1 } as const satisfies TuningRange;
 
+/**
+ * Gameplay tuning (#190): what a Hop's plan assumes of a Body the player has not Surveyed. The
+ * Landing Burn is costed for the high end of the escape velocity a landable Body of that kind can
+ * have, with a wider dispersion than a Surveyed Body's. The flight itself uses the Body's real values.
+ */
+export const UNSURVEYED = {
+  /** The top of the dispersion a plan assumes for an Unsurveyed Landing (a Surveyed one: `DISPERSION.max`). */
+  landingMax: 1.2,
+  /** The escape velocity a plan assumes for the Landing: the high end of what a landable Body of its kind can have. */
+  cautiousEscapeVelocity: {
+    moon: SOURCED_RANGES.moon.escapeVelocity.max,
+    'rocky-planet': ROCKY_PLANET_SIZE.largestEscapeVelocity,
+  },
+  /** The low end of it, for the plan's best case: so a plan shown at 0% is a Hop that has no chance for real. */
+  leastEscapeVelocity: {
+    moon: SOURCED_RANGES.moon.escapeVelocity.min,
+    'rocky-planet': SOURCED_RANGES.rockyPlanet.escapeVelocity.min,
+  },
+} as const;
+
+/**
+ * Gameplay tuning (#190): the Success Chance at or above which a Hop is In reach. Below it, any
+ * chance is Marginal; Out of reach means exactly 0%.
+ */
+export const REACH_VERDICT = { inReach: 0.7 } as const;
+
 /** The three Chassis a New Run can pick from. */
 export const CHASSIS_IDS = ['scout', 'hauler', 'lancer'] as const;
 export type ChassisId = (typeof CHASSIS_IDS)[number];
@@ -292,3 +318,62 @@ export function difficultyFactor(
   if (level < 1) throw new RangeError(`Star System number ${level} is below 1`);
   return Math.max(curve.floor, 1 + curve.perLevel * (level - 1));
 }
+
+/** The four kinds of Cruise event (#210). */
+export const CRUISE_EVENT_KINDS = [
+  'fuel-leak',
+  'debris-field',
+  'engine-fire',
+  'solar-flare',
+] as const;
+export type CruiseEventKind = (typeof CRUISE_EVENT_KINDS)[number];
+
+/** The kinds a mild Cruise can draw: a slow Fuel leak or a small Debris field. */
+const MILD_KINDS: readonly CruiseEventKind[] = ['fuel-leak', 'debris-field'];
+
+/**
+ * Gameplay tuning for the Cruise and its events (#210 and its human amendment: every Cruise has 1–2
+ * events from Hop 1, mild ones first, harsher ones later). Not real-world figures. Times are in
+ * Cruise ticks of `tickMs`.
+ */
+export const CRUISE_TUNING = {
+  /** One tick of the Cruise's deterministic clock, in ms of Cruise time. */
+  tickMs: 100,
+  /** The Cruise lasts 120 s: 1,200 ticks. */
+  ticks: 1_200,
+  /**
+   * The kinds a real Run schedules. Empty until #250 turns the Fuel leak on: until then real Runs
+   * have no Cruise events, and the game is unchanged.
+   */
+  enabledKinds: [] as readonly CruiseEventKind[],
+  /**
+   * The first Hops of a Run are mild: only `mildKinds`, a Debris field only ever hits a Fuel Tank,
+   * and a leak is slow and stops at the Fuel the Hop needs to end no worse than at its estimates
+   * (`Cruise.fuelFloor`). So the Engine fire, and with it Destroyed, never strikes on them, and no
+   * mild event can Crash or Strand a Hop the plan shows at 100% (#188).
+   */
+  mildHops: 3,
+  mildKinds: MILD_KINDS,
+  /** Every Cruise has one event; the chance of a second rises with the Star System. */
+  secondEvent: { mild: 0.15, base: 0.25, perStarSystem: 0.1, max: 0.6 },
+  /**
+   * After the mild Hops, the chance an event is harsh (an Engine fire or a solar flare): it rises
+   * with the Star System and the Hop count. The Engine fire is the rarer of the two.
+   */
+  harshChance: { base: 0.25, perStarSystem: 0.1, perHop: 0.02, max: 0.6 },
+  engineFireShareOfHarsh: 0.4,
+  /** Events start from 10 s to 100 s into the Cruise (an Engine fire by 80 s), 20 s apart. */
+  startTicks: { min: 100, max: 1_000, engineFireMax: 800, apart: 200 },
+  /** A Debris field hits one Component this often, and misses otherwise. */
+  debrisHitChance: 0.6,
+  /** A leak loses this share of the Spacecraft's Fuel capacity per second: slower in a mild Cruise. */
+  leakPerSecond: { mild: 0.0005, harsh: 0.0025 },
+  /** A Damaged Engine's Isp factor (#197). */
+  damagedEngineIsp: 0.85,
+  /** A burning Engine with no Repair started for this long explodes: 30 s. */
+  fireTicks: 300,
+  /** Repair times by Component kind, in ticks: Engine 40 s, Fuel Tank 30 s, Drill 20 s. */
+  repairTicks: { engine: 400, 'fuel-tank': 300, drill: 200 },
+  /** A Rush costs 1 Material per started 5 s of Repair time left. */
+  rushTicksPerMaterial: 50,
+} as const;
