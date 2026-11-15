@@ -523,7 +523,8 @@ def fuel_tank_art(s, x, mount, level):
 
 # ------------------------------------------------------------------ Component art: Drill
 def drill_art(s, x, mount, level):
-    """The mockup's drill arm: a strut out from the core, a shaft down, a banded bit. Level 2 has a longer bit."""
+    """The mockup's drill arm: a strut out from the core, an amber shaft down (it reads on every paint),
+    a banded steel bit. Level 2 has a longer bit."""
     sd = 1 if mount % 2 == 0 else -1
     tier = mount // 2
     ya = 82 - 22 * tier
@@ -532,12 +533,12 @@ def drill_art(s, x, mount, level):
     plate(s, side_pts(sd, [[CX + w - 2, ya], [CX + shaft + 1, ya], [CX + shaft + 1, ya + 3], [CX + w - 2, ya + 3]]),
           R["gun"], 3)
     plate(s, side_pts(sd, [[CX + shaft - 1, ya + 3], [CX + shaft + 2, ya + 3], [CX + shaft + 2, ya + 24],
-                           [CX + shaft - 1, ya + 24]]), R["gun"], 2)
+                           [CX + shaft - 1, ya + 24]]), R["amber"], 2)
     bit = 8 if level == 1 else 12
     mid = side_x(sd, shaft + 0.5)
     for k in range(bit):
         hw = max(0, 2.5 - k * 2.8 / bit)
-        line(s, mid - hw, ya + 25 + k, mid + hw, ya + 25 + k, "am3" if k % 2 else "gm5")
+        line(s, mid - hw, ya + 25 + k, mid + hw, ya + 25 + k, "wh2" if k % 2 else "gm4")
 
 
 # ------------------------------------------------------------------ Component art: Radar
