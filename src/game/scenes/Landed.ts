@@ -16,12 +16,18 @@ export interface LandedData {
   readonly run: Run;
   /** Set when the view follows an Arrived Hop: its report is shown beside the landscape. */
   readonly report?: { readonly before: Run; readonly flight: HopFlight };
+  /** Set when the view follows the Jump: it comes up out of the black the Jump ended on. */
+  readonly afterJump?: boolean;
 }
+
+/** How long the Landed view takes to come up out of the black after the Jump (ms). Under reduced motion too: a fade is calm. */
+const AFTER_JUMP_FADE_MS = 700;
 
 /** Landed view: the whole Spacecraft on the ground of the Body it stands on, under that Body's sky. */
 export class Landed extends Scene {
   private run!: Run;
   private report: LandedData['report'];
+  private afterJump = false;
   /** The layers, back to front: ambient motion (parallax drift) moves these. */
   layers!: Readonly<Record<'sky' | 'ground' | 'ship', GameObjects.Container>>;
   /** Whether the ambient life was left still; read once at create from `prefers-reduced-motion`. */
@@ -36,6 +42,7 @@ export class Landed extends Scene {
   init(data: LandedData): void {
     this.run = data.run;
     this.report = data.report;
+    this.afterJump = data.afterJump ?? false;
   }
 
   create(): void {
@@ -116,6 +123,16 @@ export class Landed extends Scene {
     this.events.once(Scenes.Events.SHUTDOWN, stop);
     this.events.once(Scenes.Events.DESTROY, stop);
 
+    if (this.afterJump) {
+      // Out of the same black the Jump ended on.
+      const black = paletteNumber('void');
+      this.cameras.main.fadeIn(
+        AFTER_JUMP_FADE_MS,
+        (black >> 16) & 255,
+        (black >> 8) & 255,
+        black & 255,
+      );
+    }
     onLeaveRun(this);
     if (this.run.status.kind === 'ended') {
       // Landed Stranded (the simulation ended the Run on arrival): straight to its end, with no

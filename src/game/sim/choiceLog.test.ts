@@ -142,16 +142,21 @@ describe('replay', () => {
     });
   });
 
-  it('replay covers a Hop to the Heliopause', () => {
+  it('replay covers a Hop to the Heliopause, and the Jump into Star System 2', () => {
     // Seed 84: a Rocky Moon pays for the Jump Drive, and the Fuel left covers the Heliopause.
     const start = startRun(84, 'scout');
     const mined = hopped(start, bodyId('planet-4-moon-3'));
     const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');
     const run = hopped(built, HELIOPAUSE);
-    expect(run.status).toEqual({ kind: 'at-heliopause' });
+    expect(run.starSystemNumber).toBe(2);
+    expect(run.status).toEqual({ kind: 'landed', bodyId: run.starSystem.homePlanetId });
 
     const replayed = replay(84, 'scout', run.choices);
-    expect(replayed).toMatchObject({ kind: 'replayed', end: undefined });
+    expect(replayed).toMatchObject({
+      kind: 'replayed',
+      end: undefined,
+      score: { starSystemsEscaped: 1, hopsFlown: 2 },
+    });
     if (replayed.kind !== 'replayed') return;
     expect(replayed.run).toEqual(run);
   });
@@ -272,5 +277,18 @@ describe('replay', () => {
     expect(endedRuns).toBeGreaterThan(0);
   });
 
-  it.todo('replay covers the Jump: complete when #157 lands, replaying a Run into Star System 2');
+  it('replay covers the Jump: a Run replayed into Star System 2 and on is identical', () => {
+    // Escape System 1 as above, then play on in System 2: Hop to its Home Planet's Moon.
+    const mined = hopped(startRun(84, 'scout'), bodyId('planet-4-moon-3'));
+    const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');
+    const system2 = hopped(built, HELIOPAUSE);
+    const run = hopped(system2, homeMoon(system2).id);
+    expect(run.starSystemNumber).toBe(2);
+    expect(run.status).toEqual({ kind: 'landed', bodyId: homeMoon(system2).id });
+
+    const replayed = replay(84, 'scout', run.choices);
+    if (replayed.kind !== 'replayed') throw new Error(`Expected a replay: ${replayed.kind}`);
+    expect(replayed.run).toEqual(run);
+    expect(replayed.score).toEqual({ starSystemsEscaped: 1, hopsFlown: 3 });
+  });
 });

@@ -283,3 +283,34 @@
 .fast-forward__rate {
   font: 8px/8px var(--font-pixel);
 }
+
+/* ---- The Jump: one line of flavour text, centred over the black ---- */
+
+.game-ui .jump-caption {
+  position: absolute;
+  top: 160px;
+  left: 64px;
+  width: 512px;
+  margin: 0;
+  font: 16px/20px var(--font-pixel-body);
+  text-align: center;
+  color: var(--wh3);
+  animation: jump-caption-in 600ms ease-out both;
+}
+
+@keyframes jump-caption-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* After the Jump the Landed view's panels come up out of the black with the canvas (Landed.ts fades it in). */
+.game-ui--after-jump > * {
+  animation: after-jump-in 700ms ease-out both;
+}
+
+@keyframes after-jump-in {
+  from {
+    opacity: 0;
+  }
+}

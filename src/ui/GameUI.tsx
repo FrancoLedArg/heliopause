@@ -71,6 +71,10 @@ export function GameUI() {
   const [navFocus, setNavFocus] = useState(0);
   // The next Landed view follows a New Run launched from a failure's report.
   const afterFailure = useRef(false);
+  // The next Landed view follows the Jump, on the next Star System's Home Planet.
+  const afterJump = useRef(false);
+  // The panels fade in with the Landed view as it comes up out of the Jump's black.
+  const [fadingIn, setFadingIn] = useState(false);
 
   // Set when the player leaves a Run, so the title they land on takes focus like after the picker's Back.
   const leftRun = useRef(false);
@@ -107,8 +111,11 @@ export function GameUI() {
         setArrival(undefined);
         setFlight(undefined);
         setStranded(undefined);
-        if (afterFailure.current) {
+        setFadingIn(afterJump.current);
+        // After a New Run from a failure, or the Jump, the way on is the Nav Chart.
+        if (afterFailure.current || afterJump.current) {
           afterFailure.current = false;
+          afterJump.current = false;
           setNavFocus((n) => n + 1);
         }
       }),
@@ -127,6 +134,9 @@ export function GameUI() {
       EventBus.on('run-stranded', (ended) => {
         // The Run is over: its Score is recorded here, once, as for a failed Hop.
         setStranded({ run: ended, recorded: recordScore(score(ended)) });
+        // Stranded on arrival after a Jump: the end comes up out of the Jump's black too.
+        setFadingIn(afterJump.current);
+        afterJump.current = false;
         setSpacecraftOpen(false);
         setArrival(undefined);
         setFlight(undefined);
@@ -157,9 +167,10 @@ export function GameUI() {
             now && { ...now, after: { kind: 'ended', run: ended, recorded, step: 'report' } },
         );
       }),
-      EventBus.on('hop-reached-heliopause', () => {
-        // No Score: the Run is not over, the Jump (#157) takes over from here.
-        setFlight((now) => now && { ...now, after: { kind: 'reached-heliopause' } });
+      EventBus.on('jump-stage', (stage) => {
+        // No Score: the Run is not over, it goes on in the next Star System.
+        afterJump.current = true;
+        setFlight((now) => now && { ...now, after: { kind: 'jumping', stage } });
       }),
     ];
     return () => {
@@ -238,7 +249,14 @@ export function GameUI() {
   };
 
   return (
-    <div className="game-ui" data-testid="game-ui" data-run-seed={runSeed}>
+    <div
+      className={fadingIn ? 'game-ui game-ui--after-jump' : 'game-ui'}
+      data-testid="game-ui"
+      data-run-seed={runSeed}
+      onAnimationEnd={() => {
+        setFadingIn(false);
+      }}
+    >
       {scene === SceneKey.Title && !picking && info === undefined && (
         <TitleMenu
           starting={launching}

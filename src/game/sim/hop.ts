@@ -3,6 +3,7 @@ import { stringSeed } from '../lib/stringSeed.ts';
 import { recordChoice } from './choiceLog.ts';
 import { DISPERSION, SOURCED_CONSTANTS } from './data.ts';
 import { collectYield, type Collection } from './gather.ts';
+import { jump } from './jump.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
 import { endIfStranded } from './stranded.ts';
 import { availableDeltaV, carriesJumpDrive, fuelAfterBurning } from './spacecraft.ts';
@@ -221,8 +222,8 @@ export type BurnResult =
 export type HopOutcome =
   | { readonly kind: 'arrived' }
   /**
-   * The Transfer carried the Spacecraft out to the Heliopause. The Jump (#157) follows it; until then
-   * the Run waits there.
+   * The Transfer carried the Spacecraft out to the Heliopause, and the Jump carried it on to the
+   * next Star System's Home Planet.
    */
   | { readonly kind: 'reached-heliopause' }
   /** Fuel ran out during Takeoff or Transfer. */
@@ -324,7 +325,8 @@ export function flyHop(
         run: flown({ kind: 'ended', end: { kind: outcome.kind, reason: flight.why } }),
       });
     case 'reached-heliopause':
-      return deepFreeze({ flight, run: flown({ kind: 'at-heliopause' }) });
+      // The Jump always succeeds: the Run goes on in the next Star System.
+      return deepFreeze({ flight, run: jump(flown(run.status)) });
     case 'arrived': {
       if (!target) throw new Error('Arrived on no Body');
       const landed = collectYield(flown({ kind: 'landed', bodyId: target.id }), target.id);

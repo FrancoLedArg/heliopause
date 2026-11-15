@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { hasAsset, imageUrl } from '../game/assets/manifest.ts';
 import { EventBus } from '../game/EventBus.ts';
 import { FAST_FORWARD, type FlightMoment } from '../game/scenes/flightPlayback.ts';
+import type { JumpStage } from '../game/scenes/jumpPlayback.ts';
 import {
   availableDeltaV,
   kilograms,
@@ -14,6 +15,7 @@ import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import { EndOfRun, type RecordedScore } from './EndOfRun.tsx';
 import { HopReport } from './HopReport.tsx';
+import { JUMP_FLAVOUR_TEXT } from './jumpFlavour.ts';
 import { TopBar } from './TopBar.tsx';
 import './FlightHud.css';
 
@@ -31,8 +33,8 @@ const FAST_FORWARD_WIDTH_ON = 52;
 
 /**
  * What follows the playback once it is over: a failed Hop ended the Run (its report, then the
- * End-of-Run screen), or the Spacecraft reached the Heliopause (a placeholder report until the Jump,
- * #157, takes over; no Score is recorded).
+ * End-of-Run screen), or the Spacecraft reached the Heliopause and the Jump plays (no Score is
+ * recorded: the Run goes on in the next Star System).
  */
 export type FlightAfter =
   | {
@@ -44,7 +46,11 @@ export type FlightAfter =
       /** The failed Hop's report first, then the End-of-Run screen. */
       readonly step: 'report' | 'end';
     }
-  | { readonly kind: 'reached-heliopause' };
+  | {
+      readonly kind: 'jumping';
+      /** The stage of the Jump moment on screen. */
+      readonly stage: JumpStage;
+    };
 
 interface FlightHudProps {
   /** The Run at Launch. */
@@ -133,24 +139,13 @@ export function FlightHud({
     );
   }
 
-  if (after?.kind === 'reached-heliopause') {
-    // The Spacecraft holds at the edge of the Star System; the Jump (#157) will take over here.
-    return (
-      <>
-        <TopBar
-          systemNumber={starSystemNumber(before)}
-          systemName={before.starSystem.name}
-          fuel={fuel}
-          deltaV={deltaV}
-          materials={before.materials}
-        />
-        <HopReport
-          before={before}
-          flight={flight}
-          actions={[{ label: 'Back to title', onClick: onLeave, primary: true }]}
-        />
-      </>
-    );
+  if (after?.kind === 'jumping' && after.stage !== 'charge') {
+    // The Jump Drive fires: the panels give way to the flash, then the flavour text over the black.
+    return after.stage === 'dark' ? (
+      <p className="jump-caption" role="status" data-testid="jump-caption">
+        {JUMP_FLAVOUR_TEXT}
+      </p>
+    ) : null;
   }
 
   return (

@@ -30,12 +30,11 @@ export type RunEnd =
   | { readonly kind: 'stranded'; readonly reason: string; readonly bodyId: BodyId };
 
 /**
- * Where the Run stands: landed on a Body and free to plan a Hop, at the Heliopause (where the Jump,
- * #157, takes over), or ended by a failed Hop.
+ * Where the Run stands: landed on a Body and free to plan a Hop, or ended by a failed Hop. A Hop
+ * that reaches the Heliopause Jumps straight on and lands on the next Home Planet.
  */
 export type RunStatus =
   | { readonly kind: 'landed'; readonly bodyId: BodyId }
-  | { readonly kind: 'at-heliopause' }
   | { readonly kind: 'ended'; readonly end: RunEnd };
 
 /** One attempt from a fresh start. Replays identically from its seed. */
@@ -78,10 +77,9 @@ export function startRun(seed: Seed, chassisId: ChassisId): Run {
   });
 }
 
-/** The Body the Spacecraft is landed on. Throws for a Run that is on no Body: ended, or at the Heliopause. */
+/** The Body the Spacecraft is landed on. Throws for a Run that has ended: it is on no Body. */
 export function currentBody(run: Run): LandableBody {
   if (run.status.kind === 'ended') throw new Error(`Run ${run.seed} has ended`);
-  if (run.status.kind === 'at-heliopause') throw new Error(`Run ${run.seed} is at the Heliopause`);
   const body = findBody(run.starSystem, run.status.bodyId);
   if (!body?.landable) {
     throw new Error(`Run is landed on ${run.status.bodyId}, which is not a landable Body`);
@@ -106,7 +104,7 @@ export function starSystemSeed(runSeed: Seed, systemNumber: number): Seed {
 
 /**
  * The Star System a Run is in at a number: its seed stream and difficulty level together, so the two
- * can never be passed mismatched. The Jump (#157) generates System n + 1 with this.
+ * can never be passed mismatched. The Jump generates System n + 1 with this.
  */
 export function generateSystem(runSeed: Seed, systemNumber: number): StarSystem {
   return generateStarSystem(starSystemSeed(runSeed, systemNumber), systemNumber);

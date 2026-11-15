@@ -73,7 +73,7 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
         }),
         why: flight.why,
       };
-    // A placeholder until the Jump (#157) takes over from here.
+    // The game plays the Jump instead of this report; kept so every outcome has one.
     case 'reached-heliopause':
       return {
         title: 'Reached the Heliopause',
