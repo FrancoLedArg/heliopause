@@ -685,25 +685,30 @@ function leakingOnTheMoon(): Run {
 
 it('a click on the Damaged part on the Landed view starts its Repair, and no later click on it Rushes it (#250)', async () => {
   const scene = await landOn(leakingOnTheMoon());
-  const rect = scene.spacecraft.componentBounds().get(1);
-  if (!rect) throw new Error('The Tank is drawn');
   const canvas = scene.game.canvas;
   const scale = canvas.getBoundingClientRect().width / GAME_WIDTH;
-  const { scrollX, scrollY } = scene.cameras.main;
-  const at = {
-    x: (rect.x - scrollX + rect.width / 2) * scale,
-    y: (rect.y - scrollY + rect.height / 2) * scale,
+  // The Spacecraft bobs: read where the part is right before each click, so a slow frame cannot
+  // leave a click on the ring's line instead of where it was aimed.
+  const where = (dx: number, dy: number) => {
+    const rect = scene.spacecraft.componentBounds().get(1);
+    if (!rect) throw new Error('The Tank is drawn');
+    const { scrollX, scrollY } = scene.cameras.main;
+    return {
+      x: (rect.x - scrollX + (dx < 0 ? rect.width + dx : dx)) * scale,
+      y: (rect.y - scrollY + (dy < 0 ? rect.height + dy : dy)) * scale,
+    };
+  };
+  const centre = () => {
+    const rect = scene.spacecraft.componentBounds().get(1);
+    if (!rect) throw new Error('The Tank is drawn');
+    return where(rect.width / 2, rect.height / 2);
   };
   const updates: Run[] = [];
   const off = EventBus.on('run-updated', (run) => updates.push(run));
-  await userEvent.click(canvas, { position: at });
-  await userEvent.click(canvas, { position: at });
+  await userEvent.click(canvas, { position: centre() });
+  await userEvent.click(canvas, { position: centre() });
   // A double-click 1 px inside the part's bottom-right corner, where the ring's line runs close by.
-  const corner = {
-    x: (rect.x - scrollX + rect.width - 1) * scale,
-    y: (rect.y - scrollY + rect.height - 1) * scale,
-  };
-  await userEvent.dblClick(canvas, { position: corner });
+  await userEvent.dblClick(canvas, { position: where(-1, -1) });
   off();
   expect(updates).toHaveLength(1);
   const started = updates[0];
