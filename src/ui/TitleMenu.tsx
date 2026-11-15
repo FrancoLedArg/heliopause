@@ -5,16 +5,17 @@ import { formatScore } from './endOfRunView.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 
-const PANEL_WIDTH = 176;
-const BUTTON_WIDTH = 144;
+const PANEL_WIDTH = 192;
+const BUTTON_WIDTH = 160;
 
 /** The title menu's buttons, so a screen can hand focus back to the one that opened it. */
-export type TitleButton = 'new-run' | 'about' | 'credits';
+export type TitleButton = 'new-run' | 'how-to-play' | 'about' | 'credits';
 
 interface TitleMenuProps {
   /** A New Run was chosen and the game is moving to it. */
   starting: boolean;
   onNewRun: () => void;
+  onHowToPlay: () => void;
   onAbout: () => void;
   onCredits: () => void;
   /** The Best Score remembered on this device; `undefined` before any Run has ended. */
@@ -23,8 +24,16 @@ interface TitleMenuProps {
   focus?: TitleButton | undefined;
 }
 
-/** Title screen panels: the logo, the New Run, About and Credits actions and the build label. */
-export function TitleMenu({ starting, onNewRun, onAbout, onCredits, best, focus }: TitleMenuProps) {
+/** Title screen panels: the logo, the New Run, Daily, How to play, About and Credits actions and the build label. */
+export function TitleMenu({
+  starting,
+  onNewRun,
+  onHowToPlay,
+  onAbout,
+  onCredits,
+  best,
+  focus,
+}: TitleMenuProps) {
   return (
     <section className="title-menu" aria-labelledby="title-logo">
       <h1 id="title-logo" className="title-menu__logo">
@@ -43,7 +52,24 @@ export function TitleMenu({ starting, onNewRun, onAbout, onCredits, best, focus 
         >
           New Run
         </KitButton>
-        <p className="title-menu__hint">Every Run is a new Star System.</p>
+        {/* Rendered but off until the Daily Star System ticket enables it. */}
+        <KitButton
+          width={BUTTON_WIDTH}
+          className="title-menu__daily"
+          disabled
+          aria-label="Daily Star System, coming soon"
+        >
+          Daily: coming soon
+        </KitButton>
+        <KitButton
+          width={BUTTON_WIDTH}
+          className="title-menu__how-to-play"
+          disabled={starting}
+          autoFocus={focus === 'how-to-play'}
+          onClick={onHowToPlay}
+        >
+          How to play
+        </KitButton>
         <KitButton
           width={BUTTON_WIDTH}
           className="title-menu__about"
