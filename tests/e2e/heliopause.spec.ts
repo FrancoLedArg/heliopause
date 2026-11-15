@@ -5,6 +5,7 @@ import {
   findBody,
   firstDetectedBody,
   HELIOPAUSE,
+  isInHopRange,
   launchHop,
   planHop,
   replay,
@@ -21,9 +22,11 @@ import { JUMP_FLAVOUR_TEXT } from '../../src/ui/jumpFlavour.ts';
 // Spec #15's way out, on one seed, by keyboard alone, since #191 found only by the Radar: the chart
 // opens with no Heliopause; build a Radar, Hop out until it finds the Heliopause, build the Jump
 // Drive, target the Heliopause, Launch, reach it, Jump to Star System 2 and Hop on from its Starting
-// Moon. The route is a careful explorer's (`readyToJump`): seed 121 gets out in 5 Hops. Re-pinned for
-// #191 (was seed 28, whose first target paid for the Jump Drive with the Heliopause already found).
-const SEED = 121;
+// Moon. The route is a careful explorer's (`readyToJump`): seed 411 gets out in 10 Hops, planet by
+// planet. Re-pinned for #191 (was seed 28, whose first target paid for the Jump Drive with the
+// Heliopause already found). Re-pinned for #283 (was seed 121's 5 Hops): the Hop range sends that
+// explorer another way, and it no longer gets out.
+const SEED = 411;
 // Flown with no Cruise events (#250), as `readyToJump` flies it: this pins the way out on the Burns.
 const CALM = { schedule: [] } as const;
 const ready = readyToJump(SEED, 'scout');
@@ -40,8 +43,21 @@ const hops = route.flatMap(({ choice, after }) => {
   if (choice.kind !== 'hop' || choice.target === HELIOPAUSE) return [];
   const body = findBody(run.starSystem, choice.target);
   if (!body) throw new Error(`No Body ${choice.target}`);
-  return [{ name: body.name, finds: after.knowledge.heliopauseFound, materials: after.materials }];
+  // A Body the player knows of past the Hop range from here, if any (#283).
+  const far = after.knowledge.detected
+    .map((id) => findBody(run.starSystem, id))
+    .find((known) => known?.landable && !isInHopRange(after, known.id));
+  return [
+    {
+      name: body.name,
+      finds: after.knowledge.heliopauseFound,
+      materials: after.materials,
+      far: far?.name,
+    },
+  ];
 });
+const firstFar = hops.findIndex((hop) => hop.far !== undefined);
+if (firstFar < 0) throw new Error('The route should pass a Body out of the Hop range');
 const firstFind = hops.findIndex((hop) => hop.finds);
 if (firstFind < 0) throw new Error('The route should find the Heliopause');
 
@@ -123,15 +139,33 @@ async function hopTo(page: Page, name: string): Promise<void> {
   await launch(page);
 }
 
-/** Hops out along the route, through each Hop's report, until the Radar has found the Heliopause. */
-async function exploreUntilFound(page: Page): Promise<void> {
-  for (const hop of hops.slice(0, firstFind + 1)) {
+/**
+ * Hops the explorer's route out, planet by planet. The Radar finds the Heliopause on the way, and the
+ * chart says when a Body it knows of is out of the Hop range (#283).
+ */
+async function exploreOut(page: Page): Promise<void> {
+  for (const [index, hop] of hops.entries()) {
     await hopTo(page, hop.name);
     const arrived = page.getByRole('dialog', { name: 'Arrived' });
     await expect(arrived).toBeVisible({ timeout: 30_000 });
     await page.keyboard.press('Enter');
     await expect(arrived).toBeHidden();
     await expect(page.getByTestId('materials')).toHaveText(String(hop.materials));
+    if (index === firstFind) {
+      await expect(page.getByTestId('comms-announcement')).toContainText('Heliopause found');
+    }
+    if (index === firstFar && hop.far) {
+      await page.keyboard.press('m');
+      const chart = page.getByRole('dialog', { name: 'Nav Chart' });
+      await expect(chart).toBeVisible();
+      await focusOnChart(page, hop.far);
+      await expect(page.getByTestId('verdict')).toHaveText('Out of Hop range.');
+      // #193: the first Escape closes the Body's card, the second the chart.
+      await page.keyboard.press('Escape');
+      await expect(page.getByTestId('inspect')).toHaveCount(0);
+      await page.keyboard.press('Escape');
+      await expect(chart).toBeHidden();
+    }
   }
 }
 
@@ -158,10 +192,10 @@ test('build a Radar to find the Heliopause, then a Jump Drive, reach it by keybo
   await page.keyboard.press('Escape');
   await expect(chart).toBeHidden();
 
-  // 2. Build a level-1 Radar from the Materials a New Run has, and Hop out until it finds the Heliopause.
+  // 2. Build a level-1 Radar from the Materials a New Run has, and Hop out until it finds the Heliopause
+  // and the Heliopause is within the Hop range.
   await installByKeyboard(page, /^Install Radar, level 1,/, 'Radar');
-  await exploreUntilFound(page);
-  await expect(page.getByTestId('comms-announcement')).toContainText('Heliopause found');
+  await exploreOut(page);
 
   // 3. Now on the chart, it says why it cannot be the target without a Jump Drive, and Enter does nothing.
   await page.keyboard.press('m');
@@ -260,7 +294,7 @@ test('a Run that escaped a Star System ends in the next one with its Score, and 
   await expect(page.getByTestId('materials')).toHaveText(String(run.materials));
 
   await installByKeyboard(page, /^Install Radar, level 1,/, 'Radar');
-  await exploreUntilFound(page);
+  await exploreOut(page);
   await installByKeyboard(page, /^Install Jump Drive,/, 'Jump Drive');
 
   await hopTo(page, 'Heliopause');
