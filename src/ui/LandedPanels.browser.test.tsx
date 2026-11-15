@@ -9,7 +9,7 @@ import {
 } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { landing, SAVE_BY_REMOVING, saveByRefitting } from './landingFixtures.ts';
-import { SHIP_PLACEMENT, SHIP_SWEEP } from '../game/scenes/landedView.ts';
+import { SHIP_PLACEMENT, SHIP_SWEEP, shipLeftEdge } from '../game/scenes/landedView.ts';
 import { LandedPanels } from './LandedPanels.tsx';
 
 afterEach(cleanUp);
@@ -231,8 +231,10 @@ it.each(CHASSIS_IDS)(
     expect(Number(bar.dataset['share'])).toBe(Number(fill.dataset['share']));
     // Beside the ship: standing on its base line, within a few pixels of its sweep, with the Fuel icon above.
     const box = gauge.getBoundingClientRect();
-    expect(box.right).toBeLessThanOrEqual(SHIP_SWEEP.left);
-    expect(SHIP_SWEEP.left - box.right).toBeLessThanOrEqual(10);
+    const hull = shipLeftEdge(run.spacecraft.chassisId, run.spacecraft.slots);
+    expect(hull).toBeGreaterThanOrEqual(SHIP_SWEEP.left);
+    expect(box.right).toBeLessThanOrEqual(hull);
+    expect(hull - box.right).toBeLessThanOrEqual(10);
     expect(Math.abs(box.bottom - SHIP_PLACEMENT.baseY)).toBeLessThanOrEqual(1);
     const icon = byTestId(host, 'spacecraft-fuel-icon').getBoundingClientRect();
     expect(icon.bottom).toBeLessThanOrEqual(box.top);
