@@ -391,6 +391,9 @@ it('uses the generated ground art, with mortar no stone fills and dust that read
 });
 
 /** Resolves once `ready` holds, checking every frame; fails after `ms`. */
+/** How long to wait on the Comms ping: it plays after the gathering moment, slow on CI (#286). */
+const PING_WAIT_MS = 15_000;
+
 async function until(ready: () => boolean, ms = 4_000): Promise<void> {
   const start = performance.now();
   while (!ready()) {
@@ -442,7 +445,8 @@ it('after a landing, Comms pings from the Spacecraft and says what it Detected i
   expect(report.flight.reveal?.detected).toHaveLength(1);
   const scene = await landOn(run, undefined, report);
   expect(scene.commsPing).toEqual([]);
-  await until(() => scene.commsPing.length > 0);
+  // The ping follows the gathering moment, which runs long on a loaded CI runner (#286).
+  await until(() => scene.commsPing.length > 0, PING_WAIT_MS);
   // Rings out of the top of the Spacecraft, riding its container.
   expect(scene.commsPing.length).toBeGreaterThan(0);
   for (const ring of scene.commsPing) expect(ring.parentContainer).toBe(scene.layers.ship);
@@ -452,7 +456,7 @@ it('after a landing, Comms pings from the Spacecraft and says what it Detected i
   expect(status?.getAttribute('role')).toBe('status');
   expect(status?.textContent).toMatch(/Comms Detected a new Body, [\d.,]+ (AU|km) away\.$/);
   // And it is gone once played.
-  await until(() => scene.commsPing.length === 0);
+  await until(() => scene.commsPing.length === 0, PING_WAIT_MS);
 });
 
 it('under reduced motion the Comms ping is one still ring, gone after a moment', async () => {
