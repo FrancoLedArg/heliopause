@@ -18,6 +18,18 @@ describe('the test-only Cruise leak from the URL', () => {
     ]);
   });
 
+  it('puts one Engine fire on the first Engine at the tick `cruiseFire` names, with a leak if asked (#251)', () => {
+    expect(chooseCruiseLeak('?cruiseFire=40', spacecraft)).toEqual([
+      { kind: 'engine-fire', tick: 40, slot: 0 },
+    ]);
+    expect(chooseCruiseLeak('?cruiseLeak=100&cruiseFire=40', spacecraft)).toEqual([
+      { kind: 'fuel-leak', tick: 100, slot: 2 },
+      { kind: 'engine-fire', tick: 40, slot: 0 },
+    ]);
+    // A fire needs its whole 30 s inside the Cruise.
+    expect(chooseCruiseLeak('?cruiseFire=901', spacecraft)).toBeUndefined();
+  });
+
   it("never touches a Daily Run: it keeps the seed's own schedule", () => {
     expect(chooseCruiseLeak('?cruiseLeak=100', spacecraft, true)).toBeUndefined();
     expect(chooseCruiseLeak('?cruiseLeak=none', spacecraft, true)).toBeUndefined();

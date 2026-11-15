@@ -92,7 +92,7 @@ export function cruiseSchedule(
     .map((kind, i) => ({
       kind,
       tick: ticks[i] ?? startTicks.min,
-      slot: drawTarget(rng, kind, spacecraft, mild),
+      slot: drawTarget(rng, kind, spacecraft, mild ? spreadIndex(seed, hop, i) : null),
     }))
     .sort((a, b) => a.tick - b.tick);
 }
@@ -104,49 +104,76 @@ function latestStart(kind: CruiseEventKind): number {
 
 const HARSH_KINDS: readonly CruiseEventKind[] = ['engine-fire', 'solar-flare'];
 
-/** A kind among `allowed`: harsh with chance `harshness`, falling back to the other class when it has none. */
+/**
+ * A kind among `allowed`: harsh with chance `harshness`, split between the Engine fire and the solar
+ * flare by `engineFireShareOfHarsh`. A harsh kind not switched on leaves its share to the mild kinds,
+ * so the Engine fire (and with it Destroyed) keeps its own rate whichever others are on (#251).
+ * Falls back to the harsh kinds only when no mild kind is allowed.
+ */
 function drawKind(
   rng: Rng,
   allowed: readonly CruiseEventKind[],
   harshness: number,
 ): CruiseEventKind {
+  const share = CRUISE_TUNING.engineFireShareOfHarsh;
   const harshAllowed = allowed.filter((kind) => HARSH_KINDS.includes(kind));
   const mildAllowed = allowed.filter((kind) => !HARSH_KINDS.includes(kind));
   const wantsHarsh = rng.next() < harshness;
-  const pick = rng.next();
-  if ((wantsHarsh && harshAllowed.length > 0) || mildAllowed.length === 0) {
+  let pick = rng.next();
+  if (mildAllowed.length === 0) {
     const fire = harshAllowed.includes('engine-fire');
     const flare = harshAllowed.includes('solar-flare');
-    if (fire && flare) {
-      return pick < CRUISE_TUNING.engineFireShareOfHarsh ? 'engine-fire' : 'solar-flare';
-    }
+    if (fire && flare) return pick < share ? 'engine-fire' : 'solar-flare';
     return fire ? 'engine-fire' : 'solar-flare';
+  }
+  if (wantsHarsh) {
+    const harsh = pick < share ? 'engine-fire' : 'solar-flare';
+    if (allowed.includes(harsh)) return harsh;
+    // Spread what is left of the draw over the mild kinds evenly.
+    pick = pick < share ? pick / share : (pick - share) / (1 - share);
   }
   return mildAllowed[Math.floor(pick * mildAllowed.length)] ?? 'fuel-leak';
 }
 
-/** The Component kinds each event can hit. A solar flare hits electronics: none exist before #96's Radar. */
+/** The Component kinds each event can hit. A solar flare hits electronics: the Radar. */
 const TARGETS: Readonly<Record<CruiseEventKind, readonly ComponentKind[]>> = {
   'fuel-leak': ['fuel-tank'],
   'engine-fire': ['engine'],
-  'debris-field': ['engine', 'fuel-tank', 'drill'],
-  'solar-flare': [],
+  'debris-field': ['engine', 'fuel-tank', 'drill', 'radar'],
+  'solar-flare': ['radar'],
 };
 
+/**
+ * Where a mild Hop's `n`th event falls in the round of parts the first Hops rotate through: two
+ * events per Hop at most. The cursor steps by 1 a Hop and back 1 an event, so the next Hop's parts
+ * are never all ones the last Hop hit, unless that Hop hit every part there is (#320).
+ */
+function spreadIndex(seed: Seed, hop: number, n: number): number {
+  return (stringSeed(`cruise-spread:${String(seed)}`) % 4) + 100 + hop - n;
+}
+
+/**
+ * The Slot an event hits, or `null` for a miss. A mild Debris field never misses and rotates through
+ * the sound parts (`spread`), so the first Hops show several kinds of Damage (#320); a later one hits
+ * a random part, and misses with chance `1 - debrisHitChance`.
+ */
 function drawTarget(
   rng: Rng,
   kind: CruiseEventKind,
   spacecraft: Spacecraft,
-  mild: boolean,
+  spread: number | null,
 ): number | null {
-  if (kind === 'debris-field' && rng.next() >= CRUISE_TUNING.debrisHitChance) return null;
-  // A mild Debris field only ever hits a Fuel Tank, whose leak stops at the Cruise's floor: a
-  // Damaged Engine would cost Δv on the Landing, and a Damaged Drill yield on arrival.
-  const hits = mild && kind === 'debris-field' ? ['fuel-tank'] : TARGETS[kind];
+  if (kind === 'debris-field' && spread === null && rng.next() >= CRUISE_TUNING.debrisHitChance) {
+    return null;
+  }
+  const hits = TARGETS[kind];
   const candidates = spacecraft.slots.flatMap((slot, i) =>
     slot !== null && !spacecraft.damage[i] && hits.includes(COMPONENTS[slot].kind) ? [i] : [],
   );
   if (candidates.length === 0) return null;
+  if (kind === 'debris-field' && spread !== null) {
+    return candidates[spread % candidates.length] ?? null;
+  }
   return candidates[Math.floor(rng.next() * candidates.length)] ?? null;
 }
 

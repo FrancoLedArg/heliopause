@@ -144,6 +144,8 @@ export const RADAR_TUNING = {
   range: { 1: astronomicalUnits(6), 2: astronomicalUnits(10) },
   cost: { 1: materials(20), 2: materials(40) },
   mass: { 1: kilograms(500), 2: kilograms(900) },
+  /** A Damaged Radar sees this share of its range, and forgets nothing it found (#210). */
+  damagedRangeFactor: 0.5,
 } as const;
 
 const SENSORS = 'docs/research/sensors-and-communication.md';

@@ -1,4 +1,4 @@
-import { COMPONENTS, type ComponentId } from './catalogue.ts';
+import { COMPONENTS, RADAR_TUNING, type ComponentId } from './catalogue.ts';
 import {
   CHASSIS_TUNING,
   CRUISE_TUNING,
@@ -220,14 +220,20 @@ export interface RadarReach {
  * What the Spacecraft's Radars reach, or `undefined` with none aboard. Stacking: the best Radar sets
  * the range, and a level-2 Radar anywhere aboard Surveys what is in it.
  */
-export function radarReach(spacecraft: Pick<Spacecraft, 'slots'>): RadarReach | undefined {
+export function radarReach(
+  spacecraft: Pick<Spacecraft, 'slots'> & Partial<Pick<Spacecraft, 'damage'>>,
+): RadarReach | undefined {
   let reach: RadarReach | undefined;
-  for (const slot of spacecraft.slots) {
+  for (const [i, slot] of spacecraft.slots.entries()) {
     if (slot === null) continue;
     const component = COMPONENTS[slot];
     if (component.kind !== 'radar') continue;
+    // A Damaged Radar (a solar flare, #253) sees half as far, and still Surveys.
+    const range = spacecraft.damage?.[i]
+      ? component.range * RADAR_TUNING.damagedRangeFactor
+      : component.range;
     reach = {
-      range: astronomicalUnits(Math.max(reach?.range ?? 0, component.range)),
+      range: astronomicalUnits(Math.max(reach?.range ?? 0, range)),
       surveys: (reach?.surveys ?? false) || component.surveys,
     };
   }

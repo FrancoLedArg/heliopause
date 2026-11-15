@@ -110,6 +110,58 @@ export const RECIPES: Readonly<Record<string, readonly Layer[]>> = {
     },
     { kind: 'tone', wave: 'sine', from: 90, to: 28, start: 1.1, dur: 1.4, gain: 0.9 },
   ],
+  // Cruise events (#264): the leak's hiss, a Repair's start and finish, and a Rush.
+  sfx_leak: [
+    {
+      kind: 'noise',
+      filter: 'highpass',
+      from: 6000,
+      to: 2500,
+      start: 0,
+      dur: 1.4,
+      gain: 0.4,
+      attack: 0.08,
+    },
+    { kind: 'tone', wave: 'square', from: 220, to: 160, start: 0, dur: 0.18, gain: 0.2 },
+  ],
+  sfx_debris: [
+    { kind: 'noise', filter: 'lowpass', from: 3000, to: 600, start: 0, dur: 0.35, gain: 0.5 },
+    { kind: 'tone', wave: 'square', from: 140, to: 70, start: 0, dur: 0.2, gain: 0.3 },
+  ],
+  sfx_repair_start: [
+    { kind: 'tone', wave: 'square', from: 300, to: 360, start: 0, dur: 0.08, gain: 0.25 },
+    { kind: 'tone', wave: 'square', from: 300, to: 360, start: 0.12, dur: 0.08, gain: 0.25 },
+    { kind: 'noise', filter: 'bandpass', from: 2000, to: 3500, start: 0.2, dur: 0.3, gain: 0.25 },
+  ],
+  sfx_repair_done: [
+    { kind: 'tone', wave: 'triangle', from: 660, to: 660, start: 0, dur: 0.16, gain: 0.35 },
+    { kind: 'tone', wave: 'triangle', from: 990, to: 990, start: 0.14, dur: 0.3, gain: 0.35 },
+  ],
+  // A whoosh as the Engine catches, a crackle under it (#251).
+  sfx_fire: [
+    {
+      kind: 'noise',
+      filter: 'bandpass',
+      from: 600,
+      to: 2400,
+      start: 0,
+      dur: 0.5,
+      gain: 0.5,
+      attack: 0.05,
+    },
+    { kind: 'noise', filter: 'highpass', from: 3000, to: 5000, start: 0.1, dur: 1.2, gain: 0.25 },
+    { kind: 'tone', wave: 'sawtooth', from: 140, to: 90, start: 0, dur: 0.3, gain: 0.2 },
+  ],
+  // The Engine fire reaching the Fuel: a deep boom and a long rumble of debris (#251).
+  sfx_explosion: [
+    { kind: 'tone', wave: 'sine', from: 90, to: 30, start: 0, dur: 1.2, gain: 0.9 },
+    { kind: 'noise', filter: 'lowpass', from: 2000, to: 150, start: 0, dur: 1.6, gain: 0.8 },
+    { kind: 'noise', filter: 'bandpass', from: 900, to: 300, start: 0.15, dur: 1.4, gain: 0.3 },
+  ],
+  sfx_rush: [
+    { kind: 'tone', wave: 'sawtooth', from: 300, to: 1500, start: 0, dur: 0.3, gain: 0.25 },
+    { kind: 'tone', wave: 'triangle', from: 990, to: 1320, start: 0.28, dur: 0.3, gain: 0.35 },
+  ],
 };
 
 export function hasRecipe(key: string): boolean {

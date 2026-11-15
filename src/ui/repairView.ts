@@ -23,6 +23,8 @@ export type RepairState =
       readonly secondsLeft: number;
       /** What a Rush costs now, in Materials: it falls as the Repair runs. */
       readonly rush: number;
+      /** Whether an Engine fire is burning in it (#251): put out the moment a Repair starts. */
+      readonly burning: boolean;
       /** Whether the Run has the Materials for the Rush: when not, the Rush is dimmed. */
       readonly affordable: boolean;
     };
@@ -40,6 +42,7 @@ export function repairState(run: Run, slot: number): RepairState {
     secondsLeft: Math.ceil((left * CRUISE_TUNING.tickMs) / 1000),
     rush,
     affordable: rush <= run.materials,
+    burning: damage.burning !== null,
   };
 }
 
@@ -62,7 +65,11 @@ export function repairAction(state: RepairState): 'repair' | 'rush' | undefined 
 export function repairName(componentId: ComponentId, state: RepairState): string {
   const title = componentTitle(componentId);
   if (state.kind === 'sound') return `${title}: working`;
-  const what = COMPONENTS[componentId].kind === 'fuel-tank' ? 'Damaged, leaking Fuel' : 'Damaged';
+  const what = state.burning
+    ? 'Damaged, on fire'
+    : COMPONENTS[componentId].kind === 'fuel-tank'
+      ? 'Damaged, leaking Fuel'
+      : 'Damaged';
   const seconds = `${String(state.secondsLeft)} s`;
   if (state.progress === null) return `${title}: ${what}. Repair, ${seconds}`;
   const rush = `${String(state.rush)} Materials`;
