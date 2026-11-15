@@ -3,6 +3,7 @@
 // factor, read from the Run before the Hop (a Hop never changes the Slots) to name it on the Collected line.
 import {
   drillMultiplier,
+  FUEL_NOTE,
   type Collection,
   findBody,
   marginShare,
@@ -14,10 +15,6 @@ import {
   type Run,
 } from '../game/sim/index.ts';
 import { formatFuel, formatMarginShare, formatPlanDeltaV as formatDeltaV } from './format.ts';
-
-/** Shown the first time a Run collects Fuel: real missions, not a claim of NASA's (docs/research/ice-and-resources.md). */
-const ICE_TO_PROPELLANT =
-  'Real missions plan to split lunar water ice into hydrogen and oxygen, so rockets could refuel on the Moon.';
 
 const BURN_LABEL: Record<Burn, string> = {
   takeoff: 'Takeoff',
@@ -72,7 +69,7 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
         ...(flight.collection && {
           collected: describeCollection(flight.collection, drillMultiplier(before.spacecraft)),
           ...(flight.collection.kind === 'fuel' &&
-            !hadFuelBefore(before) && { note: ICE_TO_PROPELLANT }),
+            !hadFuelBefore(before) && { note: FUEL_NOTE.text }),
         }),
         why: flight.why,
       };

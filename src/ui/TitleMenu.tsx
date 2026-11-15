@@ -60,7 +60,7 @@ export function TitleMenu({ starting, onNewRun, onAbout, onCredits, best, focus 
           autoFocus={focus === 'credits'}
           onClick={onCredits}
         >
-          Credits
+          Credits &amp; References
         </KitButton>
       </div>
       <p className="title-menu__best" data-testid="title-best-score">

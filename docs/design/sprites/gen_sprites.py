@@ -184,6 +184,41 @@ def star():
     return s
 
 
+# ------------------------------------------------------------------ heliopause
+def heliopause():
+    """The edge of the Star System (#166): a dashed ring of violet light, as the Nav Chart draws it.
+
+    Bold enough to read at 16x16 in the route inset and at 14-120 px over the starfield: a bright
+    dashed core ring (vi3, vi4 at the dash heads), a soft halo of vi2 / vi1 / vi0 both sides, and
+    a few sparse pixels drifting inside and outside it. No outline: it is light, not a body.
+    """
+    s = Spr(64, 64)
+    cx = cy = 32
+    dashes = 14
+    for y in range(64):
+        for x in range(64):
+            d = math.hypot(x + 0.5 - cx, y + 0.5 - cy)
+            n = hash01(x, y, 17)
+            ang = (math.atan2(y + 0.5 - cy, x + 0.5 - cx) % (2 * math.pi)) / (2 * math.pi) * dashes
+            phase = ang - math.floor(ang)  # 0..1 along one dash cycle
+            on = phase < 0.62
+            off = abs(d - 28)
+            if off <= 1.5:
+                if on:
+                    s.px(x, y, "vi4" if phase < 0.14 and off <= 0.8 else "vi3")
+                else:
+                    s.px(x, y, "vi1" if n < 0.7 else "vi2")
+            elif off <= 2.5:
+                s.px(x, y, ("vi2" if on else "vi1") if n < 0.85 else None)
+            elif off <= 4.5:
+                s.px(x, y, ("vi1" if on else "vi0") if n < 0.55 else None)
+            elif off <= 6.5 and n < 0.2:
+                s.px(x, y, "vi0")
+            elif d < 25.5 and n < 0.035:
+                s.px(x, y, "vi1")
+    return s
+
+
 # ------------------------------------------------------------------ rocky planets (24x24)
 def crater_layer(s, cx, cy, r, craters, dark, rim):
     for (kx, ky, kr) in craters:
@@ -505,6 +540,7 @@ def build():
         sprites[f"body_gas_{i}"] = gas(i)
     for i in range(4):
         sprites[f"body_moon_{i}"] = moon(i)
+    sprites["body_heliopause"] = heliopause()
     sprites["spacecraft"] = spacecraft()
     sprites["spacecraft_flame"] = flame()
     sprites["res_materials"] = materials()
