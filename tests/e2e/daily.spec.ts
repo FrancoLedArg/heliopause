@@ -38,14 +38,15 @@ function flownUntouched(from: Run, target: BodyId) {
 
 /**
  * The shortest run of Hops on the day's Star System that ends the Run: every Hop but the last
- * Arrives, through Bodies Comms has Detected, and the last Crashes or Falls Short. Since #189 a Run
- * opens knowing one Body, always In reach, so the end takes a few Hops. Launch settles every outcome
- * from the seed, so the test knows them before flying.
+ * Arrives, through Bodies Comms has Detected, and the last Crashes, Falls Short or is Destroyed. Since
+ * #189 a Run opens knowing one Body, always In reach, so the end takes a few Hops. The player in this
+ * flow never Repairs, so each Hop is flown with the seed's Cruise events and nothing done in them,
+ * exactly as the browser flies it: Damage carries on, and an Engine fire left alone ends it (#251).
  */
 function endingHops(): {
   arrivals: readonly Body[];
   last: Body;
-  title: 'Crashed' | 'Fell Short';
+  title: 'Crashed' | 'Fell Short' | 'Destroyed';
   score: Score;
 } {
   const search = (
@@ -57,9 +58,12 @@ function endingHops(): {
     const here = from.status.bodyId;
     for (const body of knownBodies(from)) {
       if (!body.landable || body.id === here) continue;
-      // The player in this flow never Repairs, so a Hop an Engine fire would Destroy is no way on (#251).
       const flown = flownUntouched(from, body.id);
-      if (flown.kind !== 'flown') continue;
+      if (flown.kind === 'invalid-target') continue;
+      if (flown.kind === 'destroyed') {
+        return { arrivals, last: body, title: 'Destroyed', score: score(flown.run) };
+      }
+      if (flown.kind === 'cruising') throw new Error('A Cruise flown to its end is over');
       const { kind } = flown.flight.outcome;
       if (kind === 'crashed' || kind === 'fell-short') {
         return {
@@ -154,7 +158,8 @@ test('the Daily Star System: the same Star System for the day, a Daily Best kept
   const outcome = page.getByRole('alertdialog', { name: ending.title });
   await expect(outcome).toBeVisible({ timeout: 15_000 });
   await expect(page.getByTestId('daily-tag')).toHaveText(`Daily ${DAY} UTC`);
-  await outcome.getByRole('button', { name: 'Continue' }).click();
+  // A Destroyed Hop never arrived, so it has no report: the End-of-Run screen comes straight up.
+  if (ending.title !== 'Destroyed') await outcome.getByRole('button', { name: 'Continue' }).click();
   const score = formatScore(ending.score);
   await expect(outcome.getByTestId('end-of-run-score')).toHaveAttribute(
     'aria-label',
