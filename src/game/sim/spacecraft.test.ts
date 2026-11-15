@@ -81,7 +81,14 @@ describe('Chassis', () => {
 
 describe('a Damaged Radar', () => {
   it('sees half as far, and a sound one sees its full range', () => {
-    const sound = refit(newSpacecraft('scout'), ['engine-1', 'fuel-tank-1', 'radar-1', null]);
+    const sound = refit(newSpacecraft('scout'), [
+      'engine-1',
+      'fuel-tank-1',
+      'radar-1',
+      null,
+      null,
+      null,
+    ]);
     const damaged = withDamage(
       sound,
       sound.damage.map((_, i) => (i === 2 ? { repair: null, burning: null } : null)),

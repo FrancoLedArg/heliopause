@@ -46,7 +46,8 @@ const KIND_NAMES: Readonly<Record<ComponentKind, string>> = {
 
 /** A Component's name without its level: "Engine", "Fuel Tank", "Drill". */
 export function componentName(id: ComponentId): string {
-  return KIND_NAMES[COMPONENTS[id].kind];
+  const component = COMPONENTS[id];
+  return component.kind === 'instrument' ? component.name : KIND_NAMES[component.kind];
 }
 
 /** A Component with its level, as a short title: "Fuel Tank 1". The Jump Drive has no levels. */
@@ -76,7 +77,9 @@ export function describeSpacecraft(spacecraft: {
 /** A Component with its level, as a phrase: "Fuel Tank, level 1". The Jump Drive has no levels. */
 export function componentLabel(id: ComponentId): string {
   const { kind, level } = COMPONENTS[id];
-  return kind === 'jump-drive' ? componentName(id) : `${componentName(id)}, level ${String(level)}`;
+  return kind === 'jump-drive' || kind === 'instrument'
+    ? componentName(id)
+    : `${componentName(id)}, level ${String(level)}`;
 }
 
 /**
@@ -163,6 +166,8 @@ export interface PanelRow {
   readonly cost: string;
   /** The cost as a bare number, for beside the Materials icon. */
   readonly costAmount: number;
+  /** What a scientist calls an Instrument, shown small beside its plain name; `undefined` for the rest. */
+  readonly realName: string | undefined;
   /** The one-sentence effect on this Chassis. */
   readonly effect: string;
   /** Whether the Run's Materials cover the cost (the panel still says so in words). */
@@ -191,6 +196,7 @@ export function panelRows(run: Run): readonly PanelRow[] {
       mass: formatMass(component.mass),
       cost: `${String(cost)} Materials`,
       costAmount: cost,
+      realName: component.kind === 'instrument' ? component.realName : undefined,
       effect: describeEffect(run.spacecraft.chassisId, id),
       affordable: run.materials >= cost,
       short: Math.max(0, cost - run.materials),

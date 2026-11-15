@@ -109,7 +109,9 @@ export interface Radar extends ComponentEntry {
  */
 export interface Instrument extends ComponentEntry {
   readonly kind: 'instrument';
-  /** What a scientist calls it, shown small under the plain name. */
+  /** The plain name the player reads first. */
+  readonly name: string;
+  /** What a scientist calls it, shown small beside the plain name. */
   readonly realName: string;
   /** Idle until a Drill is aboard: the Sample lab analyses what the Drill brings up. */
   readonly needsDrill: boolean;
@@ -270,6 +272,7 @@ export const COMPONENTS = {
     level: 1,
     mass: kilograms(300),
     cost: materials(15),
+    name: 'Camera',
     realName: 'Imager',
     needsDrill: false,
     explanation: 'Photographs the ground, and spots what it shows.',
@@ -281,6 +284,7 @@ export const COMPONENTS = {
     level: 1,
     mass: kilograms(700),
     cost: materials(30),
+    name: 'Chemistry scanner',
     realName: 'Spectrometer',
     needsDrill: false,
     explanation: 'Reads what the ground is made of.',
@@ -292,6 +296,7 @@ export const COMPONENTS = {
     level: 1,
     mass: kilograms(1_500),
     cost: materials(45),
+    name: 'Sample lab',
     realName: 'Sample-analysis lab',
     needsDrill: true,
     explanation: 'Analyses Drill samples; idle without a Drill.',

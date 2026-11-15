@@ -15,7 +15,9 @@ const run = startRun(SEED, 'scout');
 const homeMoon = firstDetectedBody(run.starSystem);
 
 // What the simulation says the cheapest Component does to this Spacecraft.
-const cheapest = Object.values(COMPONENTS).reduce((a, b) => (a.cost <= b.cost ? a : b));
+const cheapest = Object.values(COMPONENTS)
+  .filter((component) => component.kind !== 'instrument')
+  .reduce((a, b) => (a.cost <= b.cost ? a : b));
 const installed = install(run, 2, cheapest.id);
 if (installed.kind !== 'installed')
   throw new Error('The starting Materials should buy the cheapest');
@@ -30,7 +32,7 @@ async function startRunLanded(page: Page): Promise<void> {
 
 /** Tab until focus is on the button named `name`: how a keyboard player reaches a Component. */
 async function tabTo(page: Page, name: RegExp): Promise<void> {
-  for (let i = 0; i < 12; i += 1) {
+  for (let i = 0; i < 60; i += 1) {
     const label = await page.locator(':focus').getAttribute('aria-label');
     if (label !== null && name.test(label)) return;
     await page.keyboard.press('Tab');
@@ -169,4 +171,25 @@ test('a Component is removed by keyboard alone after a confirm, and Materials ri
   );
   await expect(page.getByTestId('materials')).toHaveText(String(afterInstall + refund));
   expect(errors).toEqual([]);
+});
+
+test('a Camera can be built on the Starting Moon with the starting Materials and fills a Slot', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 640, height: 360 });
+  await startRunLanded(page);
+  await page.getByRole('button', { name: 'Spacecraft' }).click();
+  const panel = page.getByRole('dialog', { name: 'Spacecraft' });
+  await expect(panel).toBeVisible();
+  // Six Slots: the Engine, the Fuel Tank and four empty.
+  await expect(panel.getByRole('radio', { name: /^Slot 6, empty/ })).toBeVisible();
+  const camera = panel.getByRole('button', { name: /^Install Camera,/ });
+  await camera.scrollIntoViewIfNeeded();
+  await camera.click();
+  await expect(page.getByTestId('install-status')).toContainText('Installed Camera in Slot 3.');
+  await expect(panel.getByRole('radio', { name: /^Slot 3, Camera/ })).toBeVisible();
+  await expect(page.getByTestId('materials')).toHaveText(
+    String(run.materials - COMPONENTS.camera.cost),
+  );
 });

@@ -413,16 +413,23 @@
 .spacecraft-panel__catalogue {
   left: 0;
   top: 14px;
+  /* Twelve entries since the Instruments (#316) do not fit
+     above the status line, so the list scrolls (a focused entry scrolls into view). */
   width: 360px;
+  height: 211px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--cy3) var(--ink);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
-/* Nine entries since the Radar (#191): each is as tall as its Install button, neighbours sharing a border. */
+/* Twelve entries since the Instruments (#316), nine before it (#191): each is as tall as its Install button, neighbours sharing a border. */
 .spacecraft-panel__row {
   position: relative;
-  width: 360px;
+  width: 100%;
   height: 24px;
   margin-bottom: -1px;
   box-sizing: border-box;

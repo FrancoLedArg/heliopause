@@ -97,6 +97,8 @@ it.each(CHASSIS_IDS.flatMap((chassis) => [0, 25, 500].map((stock) => [chassis, s
           line.getBoundingClientRect().right - 16,
         );
       }
+      // The list scrolls (twelve entries since the Instruments): a row, scrolled to, ends above the status.
+      row.scrollIntoView({ block: 'nearest' });
       expect(row.getBoundingClientRect().bottom).toBeLessThanOrEqual(
         byTestId(host, 'install-status').getBoundingClientRect().top,
       );
@@ -140,6 +142,8 @@ it('keeps the whole panel inside the 640×360 stage, and no text clipped by its 
     expect(el.scrollWidth, el.className).toBeLessThanOrEqual(el.clientWidth);
     const box = el.getBoundingClientRect();
     if (box.width === 0 || box.height === 0) continue;
+    // Catalogue rows scrolled out of the list are clipped by it on purpose.
+    if (el.closest('.spacecraft-panel__catalogue') && box.bottom > frame.bottom - 4) continue;
     expect(box.right, el.className).toBeLessThanOrEqual(frame.right - 4);
     expect(box.bottom, el.className).toBeLessThanOrEqual(frame.bottom - 4);
   }
@@ -181,7 +185,7 @@ it('refuses with a reason in text when the Run cannot afford it, and changes not
 
 it('refuses with a reason in text when every Slot is full', async () => {
   let full = { ...startRun(2026, 'scout'), materials: materials(500) };
-  for (const slot of [2, 3]) {
+  for (const slot of [2, 3, 4, 5]) {
     const result = install(full, slot, 'drill-1');
     if (result.kind !== 'installed') throw new Error('expected an install');
     full = result.run;
@@ -242,7 +246,7 @@ function named(el: Element | null): string {
 
 /** Presses Tab (or Shift+Tab) until the focused control's name matches, with no pointer involved. */
 async function tabTo(name: RegExp, backwards = false): Promise<void> {
-  for (let step = 0; step < 40; step += 1) {
+  for (let step = 0; step < 80; step += 1) {
     if (name.test(named(document.activeElement))) return;
     await userEvent.keyboard(backwards ? '{Shift>}{Tab}{/Shift}' : '{Tab}');
   }
@@ -251,7 +255,7 @@ async function tabTo(name: RegExp, backwards = false): Promise<void> {
 
 /** Moves focus to a Slot as a keyboard player does: Shift+Tab out to the Slots, then the arrow keys. */
 async function focusSlot(label: RegExp): Promise<void> {
-  for (let step = 0; step < 16; step += 1) {
+  for (let step = 0; step < 24; step += 1) {
     const active = document.activeElement;
     if (label.test(named(active))) return;
     await userEvent.keyboard(
@@ -523,7 +527,9 @@ it.each(CHASSIS_IDS)(
 
 it('shows no figures, only a sentence, when every Slot is full and a catalogue entry is focused', async () => {
   const host = await renderUi(
-    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', 'drill-1', null, null])} />,
+    <Harness
+      initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', 'drill-1', 'drill-1', 'drill-1'])}
+    />,
   );
   await tabTo(/Install Engine, level 2/);
   expect(previewText(host)).toContain('Every Slot is full');
@@ -625,6 +631,8 @@ it('draws the Spacecraft with one callout per Slot, and names it in words', asyn
     'Slot 2, Fuel Tank, level 1',
     'Slot 3, Drill, level 1',
     'Slot 4, empty',
+    'Slot 5, empty',
+    'Slot 6, empty',
   ]);
   // A fitted Slot shows its Component's icon; an empty one is an outline with no icon.
   expect(
@@ -637,6 +645,8 @@ it('draws the Spacecraft with one callout per Slot, and names it in words', asyn
     'fitted',
     'fitted',
     'fitted',
+    'empty',
+    'empty',
     'empty',
   ]);
   // Each fitted callout has its line to the Component art; the empty one has none.
@@ -752,14 +762,14 @@ it('keeps to the text budget: one short line beside the picture, one in each cat
 it('keeps the lesson behind "Tell me more", and opens it by keyboard', async () => {
   const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
   // The last catalogue entry: Tab then goes round by Close, the Slots and Remove to the toggle.
-  await tabTo(/Install Jump Drive,/);
+  await tabTo(/Install Sample lab,/);
   expect(button(host, /Tell me more/).getAttribute('aria-expanded')).toBe('false');
   expect(byTestId(host, 'preview-more').checkVisibility()).toBe(false);
   await tabTo(/Tell me more/);
   await userEvent.keyboard('{Enter}');
   expect(button(host, /Tell me more/).getAttribute('aria-expanded')).toBe('true');
   expect(byTestId(host, 'preview-more').textContent).toContain(
-    COMPONENTS['jump-drive'].explanation,
+    COMPONENTS['sample-lab'].explanation,
   );
   expect(byTestId(host, 'preview-more').checkVisibility()).toBe(true);
 });
@@ -825,4 +835,30 @@ it("lists the Radar at both levels with its icon and a range ring scaled to its 
   expect(ring(2)).toBeGreaterThan(ring(1));
   await tabTo(/Install Radar, level 1,/);
   expect(previewText(host)).toMatch(/Δv/);
+});
+
+it('lists the three Instruments, builds a Camera in the first empty Slot and removes it for half back', async () => {
+  const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
+  const names = [...host.querySelectorAll('[data-testid="component-row"]')].map(
+    (r) => r.querySelector('.spacecraft-panel__row-name')?.textContent,
+  );
+  expect(names.slice(-3)).toEqual(['Camera', 'Chemistry scanner', 'Sample lab']);
+  // Its real name is in the row for assistive technology, and the Sample lab says it needs a Drill.
+  expect(host.textContent).toContain('(Imager)');
+  expect(host.textContent).toContain('idle without a Drill');
+  await tabTo(/Install Camera,/);
+  await userEvent.keyboard('{Enter}');
+  expect(byTestId(host, 'install-status').textContent).toBe(
+    `Installed Camera in Slot 3. ${String(25 - COMPONENTS.camera.cost)} Materials left.`,
+  );
+  expect(callouts(host)[2]?.getAttribute('aria-label')).toBe('Slot 3, Camera');
+  await focusSlot(/^Slot 3, Camera/);
+  await userEvent.keyboard('{Tab}');
+  expect(document.activeElement?.textContent).toBe('Remove');
+  await userEvent.keyboard('{Enter}');
+  expect(byTestId(host, 'remove-confirm').textContent).toContain(
+    `You get ${String(Math.floor(COMPONENTS.camera.cost / 2))} Materials back.`,
+  );
+  await userEvent.keyboard('{Tab}{Enter}');
+  expect(callouts(host)[2]?.getAttribute('aria-label')).toBe('Slot 3, empty');
 });

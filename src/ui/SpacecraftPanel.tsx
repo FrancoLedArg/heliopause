@@ -378,6 +378,12 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
               />
               <p className="spacecraft-panel__row-head">
                 <span className="spacecraft-panel__row-name">{row.title}</span>
+                {row.realName !== undefined && (
+                  // Its real name, for assistive technology and the hover title: the row has no room for it.
+                  <span className="sr-only" title={row.realName}>
+                    {` (${row.realName})`}
+                  </span>
+                )}
                 <span className="spacecraft-panel__row-stats">{row.mass}</span>
                 <span className="spacecraft-panel__row-cost">
                   <img
