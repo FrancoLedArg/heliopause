@@ -69,6 +69,7 @@ const frame = (): Promise<void> =>
 async function fly(
   chassis: ChassisId,
   pick: (run: Run) => BodyId | undefined = (run) => homePlanet(run.starSystem).moons[0]?.id,
+  from: (run: Run) => Run = (run) => run,
 ): Promise<{ scene: Flight; data: FlightData }> {
   host = document.createElement('div');
   document.body.append(host);
@@ -86,7 +87,7 @@ async function fly(
   });
   game = startGame('flight-test-game');
   await titleReady;
-  const run = startRun(123, chassis);
+  const run = from(startRun(123, chassis));
   const target = pick(run);
   if (target === undefined) throw new Error('No target to Hop to');
   const launched = launchHop(run, target);
@@ -508,3 +509,39 @@ it.each(CHASSIS_IDS)(
     for (const exit of exits) expect(born.some((spark) => near(exit, spark))).toBe(true);
   },
 );
+
+/** The texture key of the ground strip a landscape drew. */
+function groundKey(layers: { readonly ground: GameObjects.Container }): string | undefined {
+  const image = layers.ground.list.find(
+    (o): o is GameObjects.Image => o instanceof GameObjects.Image,
+  );
+  return image?.texture.key.replace(/_standin$/, '');
+}
+
+const standOnHomeMoon = (run: Run): Run => {
+  const moon = homePlanet(run.starSystem).moons[0];
+  if (!moon) throw new Error('Home Planet has no Moon');
+  return { ...run, status: { kind: 'landed', bodyId: moon.id } };
+};
+
+it("seed 123's Icy Home Moon: Landing on it and the Landed view after use the Icy strip", async () => {
+  const { scene } = await fly('scout');
+  expect(groundKey(scene.layers.arrival)).toBe('surface_icy');
+  expect(groundKey(scene.layers.departure)).toBe('surface_rocky');
+  const landed = nextSceneReady(SceneKey.Landed);
+  scene.seek(scene.playback.duration);
+  await landed;
+  const view = game?.scene.getScene<Landed>(SceneKey.Landed);
+  if (!view) throw new Error('no Landed view');
+  expect(groundKey(view.layers)).toBe('surface_icy');
+});
+
+it("Takeoff from seed 123's Icy Home Moon uses the same Icy strip and Icy dust and smoke", async () => {
+  const { scene } = await fly('scout', (run) => homePlanet(run.starSystem).id, standOnHomeMoon);
+  expect(groundKey(scene.layers.departure)).toBe('surface_icy');
+  scene.seek(60);
+  const tint = (key: string) =>
+    emitters(scene).find((e) => e.texture.key === key)?.ops.tint.current;
+  expect(tint('fx_dust')).toBe(paletteNumber('cy4'));
+  expect(tint('fx_smoke')).toBe(paletteNumber('cy4'));
+});

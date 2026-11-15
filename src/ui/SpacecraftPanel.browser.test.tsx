@@ -17,6 +17,9 @@ import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { SpacecraftPanel } from './SpacecraftPanel.tsx';
 import { componentLabel } from './spacecraftPanelView.ts';
 
+/** A no-break space: the Tank note keeps a figure and its unit together. */
+const NBSP = '\u00a0';
+
 afterEach(cleanUp);
 
 /** The panel with the Landed scene's part played by a stand-in: it installs and answers `run-updated`. */
@@ -418,7 +421,7 @@ it('previews a Fuel Tank dropping Δv, in words, when its Install button is focu
   expect(text).toContain('22.1 km/s → 19.0 km/s');
   expect(text).toContain('Drops 3.1 km/s');
   expect(text).toContain('Starts empty, so Δv drops.');
-  expect(text).toContain('Filled up: 26.0 km/s, up from 22.1 km/s.');
+  expect(text).toContain(`Filled up: 26.0${NBSP}km/s, up from 22.1${NBSP}km/s.`);
   // Nothing was paid: the Materials and the Δv in the figures are as they were.
   expect(byTestId(host, 'install-target').textContent).toContain('25 Materials in stock');
   expect(byTestId(host, 'panel-delta-v').textContent).toBe('22.1 km/s');

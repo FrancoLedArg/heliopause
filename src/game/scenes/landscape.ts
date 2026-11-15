@@ -114,13 +114,14 @@ function buildSky(
 }
 
 /**
- * The texture key of the ground strip: the generated art when the manifest has it, else the
- * stand-in, painted once into a texture every scene run shares (so a frame draws one image).
+ * The texture key of the ground strip: the generated art when the manifest lists it and it loaded,
+ * else the stand-in, painted once into a texture every scene run shares (so a frame draws one image).
  */
 export function groundTexture(scene: Scene, kind: SurfaceKind): string {
   const palette = PALETTES[kind];
   const key = `surface_${kind}`;
-  if (hasAsset(key)) return key;
+  // A listed texture that failed to load (a 404) is never added to the texture manager.
+  if (hasAsset(key) && scene.textures.exists(key)) return key;
   const standIn = `${key}_standin`;
   if (scene.textures.exists(standIn)) return standIn;
   const canvas = scene.textures.createCanvas(standIn, SURFACE_WIDTH, GROUND_HEIGHT);
