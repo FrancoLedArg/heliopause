@@ -7,6 +7,7 @@ import {
   currentBody,
   type BodyId,
   isDepleted,
+  isInHopRange,
   type HopTarget,
   type Run,
   type StarSystem,
@@ -19,6 +20,7 @@ import {
   crossSegments,
   dashedSegments,
   HELIOPAUSE_MARK_RADIUS,
+  hopBand,
   initialChartState,
   layoutChart,
   MARK_GAP,
@@ -103,6 +105,7 @@ export class NavChart extends Scene {
   create(): void {
     // Full screen and opaque: while it is open, the map is the whole view.
     this.cameras.main.setBackgroundColor(paletteNumber('scr0'));
+    this.drawHopBand();
     this.drawStarfield();
     this.drawRings();
     const heliopauseRing = this.drawHeliopauseRing();
@@ -244,10 +247,41 @@ export class NavChart extends Scene {
   /** Hover only brightens the Body itself: no card, no panel. */
   private hover(id: HopTarget | undefined): void {
     if (id === this.hovered) return;
-    if (this.hovered !== undefined) this.sprites.get(this.hovered)?.setAlpha(REST_ALPHA);
+    if (this.hovered !== undefined)
+      this.sprites.get(this.hovered)?.setAlpha(this.restAlpha(this.hovered));
     this.hovered = id;
     if (id !== undefined) this.sprites.get(id)?.setAlpha(1);
     this.input.setDefaultCursor(id === undefined ? 'grab' : 'pointer');
+  }
+
+  /** How bright a Body is drawn right now (tests read it; out of Hop range it is dim). */
+  bodyAlpha(id: HopTarget): number | undefined {
+    return this.sprites.get(id)?.alpha;
+  }
+
+  /** A Body at rest: a touch dim, and much dimmer when a Hop from here cannot reach it. */
+  private restAlpha(id: HopTarget): number {
+    return isInHopRange(this.run, id) ? REST_ALPHA : OUT_OF_RANGE_ALPHA;
+  }
+
+  /**
+   * The Hop range as two faint rings round the star, above the starfield and below the Bodies. The
+   * outer ring is the Heliopause's own, so it stays undrawn until the Radar finds the Heliopause.
+   */
+  private drawHopBand(): void {
+    const band = hopBand(this.run, this.layout);
+    const graphics = this.add.graphics().setDepth(HOP_BAND_DEPTH).setAlpha(HOP_BAND_ALPHA);
+    graphics.lineStyle(3, paletteNumber('cy3'));
+    const radii = [band.inner, band.outer].filter(
+      (radius) =>
+        radius > 0 &&
+        (this.layout.heliopause !== undefined || radius !== this.layout.heliopauseRadius),
+    );
+    for (const radius of radii) {
+      for (const { from, to } of ringSegments(this.layout.star, radius, this.layout.world)) {
+        graphics.lineBetween(...from, ...to);
+      }
+    }
   }
 
   /**
@@ -355,13 +389,13 @@ export class NavChart extends Scene {
   private addBody(node: ChartNode): void {
     if (bodyKnowledge(this.run, node.body.id) === 'surveyed') {
       const image = this.add.image(node.x, node.y, bodySprite(this.run, node.body));
-      this.sprites.set(node.body.id, image.setAlpha(REST_ALPHA));
+      this.sprites.set(node.body.id, image.setAlpha(this.restAlpha(node.body.id)));
       return;
     }
     const blip = this.add.graphics({ x: node.x, y: node.y });
     blip.fillStyle(paletteNumber('cy3'));
     blip.fillCircle(0, 0, BLIP.radius);
-    this.sprites.set(node.body.id, blip.setAlpha(REST_ALPHA));
+    this.sprites.set(node.body.id, blip.setAlpha(this.restAlpha(node.body.id)));
     const pulse = this.add.graphics({ x: node.x, y: node.y });
     pulse.lineStyle(1, paletteNumber('cy3'));
     pulse.strokeCircle(0, 0, BLIP.radius + 1);
@@ -513,3 +547,8 @@ export class NavChart extends Scene {
 
 /** A Body at rest is a touch dim, so hover can brighten it. */
 const REST_ALPHA = 0.85;
+/** A Body out of Hop range is dimmed well below that. */
+const OUT_OF_RANGE_ALPHA = 0.35;
+/** The Hop range band: above the starfield (depth -10), below the Bodies (depth 0), and faint. */
+const HOP_BAND_DEPTH = -5;
+const HOP_BAND_ALPHA = 0.35;

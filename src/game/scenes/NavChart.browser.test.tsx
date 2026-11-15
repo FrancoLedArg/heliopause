@@ -5,11 +5,13 @@ import { GameUI } from '../../ui/GameUI.tsx';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
 import { landing } from '../../ui/landingFixtures.ts';
-import { startRun, type Run } from '../sim/index.ts';
+import { isInHopRange, startRun, type Run } from '../sim/index.ts';
+import { knowingEverything } from '../sim/testing.ts';
+import type { NavChart } from './NavChart.ts';
 import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
 import { hitTest, toScreen } from './navChartMap.ts';
-import { layoutChart, type ChartState } from './navChartView.ts';
+import { layoutChart, targetStatus, type ChartState } from './navChartView.ts';
 import '../../style.css';
 
 let game: Phaser.Game | undefined;
@@ -139,6 +141,34 @@ it('a drag over a Body pans the map and never selects it; a click then opens its
   expect(latest()).toMatchObject({ card: true, focusedId: blip.body.id, selectedId: undefined });
   expect(latest().view).toEqual(dragged.view);
 });
+
+it.each([123, 7])(
+  'seed %i: a Body out of Hop range is dimmed, named so and cannot be targeted; one in range can',
+  async (seed) => {
+    const run = knowingEverything(startRun(seed, 'scout'));
+    const { latest } = await openChart(run);
+    const layout = layoutChart(run);
+    const out = layout.nodes.find((n) => !isInHopRange(run, n.body.id));
+    const inside = layout.nodes.find((n) => targetStatus(run, n.body.id).valid);
+    if (!out || !inside) throw new Error('seed needs a Body in and a Body out of range');
+    const chart = game?.scene.getScene('NavChart') as NavChart;
+    expect(chart.bodyAlpha(out.body.id)).toBeLessThan(chart.bodyAlpha(inside.body.id) ?? 0);
+    const option = (id: string): HTMLElement | null => document.getElementById(`nav-option-${id}`);
+    await until(() => option(out.body.id) !== null);
+    expect(option(out.body.id)?.textContent).toContain('out of Hop range');
+    expect(option(out.body.id)?.getAttribute('aria-disabled')).toBe('true');
+    expect(option(inside.body.id)?.textContent).not.toContain('out of Hop range');
+
+    EventBus.emit('nav-chart-command', { kind: 'click', id: out.body.id });
+    EventBus.emit('nav-chart-command', { kind: 'plan' });
+    await frames();
+    expect(latest().selectedId).toBeUndefined();
+    EventBus.emit('nav-chart-command', { kind: 'click', id: inside.body.id });
+    EventBus.emit('nav-chart-command', { kind: 'plan' });
+    await frames();
+    expect(latest().selectedId).toBe(inside.body.id);
+  },
+);
 
 interface Layered {
   readonly name: string;
