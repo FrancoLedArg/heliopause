@@ -132,7 +132,7 @@ describe('the Hop plan as the player reads it', () => {
       if (result.kind !== 'planned') continue;
       const view = describeHopPlan(half, result.plan);
       expect(view.low).toBe(result.plan.successChance < LOW_SUCCESS_BELOW);
-      expect(view.warning !== undefined).toBe(view.low);
+      expect(view.reach.kind !== 'in-reach').toBe(view.low);
       chances.push(result.plan.successChance);
     }
     expect(Math.min(...chances)).toBeLessThan(Math.max(...chances));
@@ -247,19 +247,38 @@ describe('the Hop plan as the player reads it', () => {
     expect(view.margin).toBe('+7.9 km/s');
   });
 
-  it('warns more strongly when the Fuel cannot cover even the estimate than when the chance is low', () => {
+  it('says Unsurveyed for a Body not Surveyed, and not for one that is', () => {
+    const unsurveyed: Run = {
+      ...run,
+      knowledge: {
+        ...run.knowledge,
+        surveyed: run.knowledge.surveyed.filter((id) => id !== moon.id),
+      },
+    };
+    const view = describeHopPlan(unsurveyed, planFor(moon.id, unsurveyed));
+    expect(view.unsurveyed).toBe(true);
+    expect(view.summary).toContain('Unsurveyed');
+    const surveyed = knowingAll(run);
+    expect(describeHopPlan(surveyed, planFor(moon.id, surveyed)).unsurveyed).toBe(false);
+  });
+
+  it('shows the reach verdict as a shape and a short word, harsher when the Fuel cannot cover the estimate', () => {
     const plan = planFor(moon.id);
     const low = describeHopPlan(run, { ...plan, margin: mps(100), successChance: 0.5 });
-    const short = describeHopPlan(run, { ...plan, margin: mps(-100), successChance: 0.02 });
-    expect(low.warning).toBe('Low chance: may run dry');
-    expect(short.warning).toBe('Not enough Δv for this Hop');
+    const short = describeHopPlan(run, { ...plan, margin: mps(-100), successChance: 0 });
+    expect(low.reach).toMatchObject({ word: 'Marginal', frame: 'badge_warning' });
+    expect(short.reach).toMatchObject({
+      word: 'Out of reach',
+      frame: 'badge_alert',
+      label: 'Reach: Out of reach',
+    });
     expect(short.low).toBe(true);
   });
 
   it('summarises the plan in one sentence for a screen reader', () => {
     const view = describeHopPlan(run, planFor(moon.id));
     expect(view.summary).toBe(
-      `Hop plan for ${moon.name}: needs ${view.needed}, you have ${view.available}, success chance ${view.successChance}.`,
+      `Hop plan for ${moon.name} (Unsurveyed): needs ${view.needed}, you have ${view.available}, success chance ${view.successChance}, ${view.reach.word}.`,
     );
   });
 });
@@ -269,9 +288,11 @@ describe('the Hop plan’s Fuel gauge', () => {
   const onEstimate: Rng = { next: () => 0.5, int: (min) => min };
 
   it("the plan's Fuel after the Hop matches the simulation's estimate", () => {
-    const plan = planFor(moon.id);
-    const { flight } = flyHop(run, plan, onEstimate);
-    const fuel = describeHopPlan(run, plan).fuel;
+    // Surveyed, so the plan's estimates are the Body's real ones.
+    const surveyed = knowingAll(run);
+    const plan = planFor(moon.id, surveyed);
+    const { flight } = flyHop(surveyed, plan, onEstimate);
+    const fuel = describeHopPlan(surveyed, plan).fuel;
     expect(fuel.after).toBeCloseTo(flight.fuelRemaining);
     expect(fuel.afterText).toBe(formatFuel(flight.fuelRemaining));
     // A full scout Tank: 21.0 t now, and the gauge's chunk is the Fuel the Hop burns.

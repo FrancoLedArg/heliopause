@@ -322,9 +322,9 @@ describe('Repair and Rush', () => {
     const hit = flown(cruising(opening, firstHop, [engineHitAt(1_100)])).run;
     const needs = knownBodies(hit).flatMap((body) => {
       const planned = body.landable && body.id !== firstHop ? planHop(hit, body.id) : undefined;
-      return planned?.kind === 'planned' ? [planned.plan.totalEstimate * 0.9] : [];
+      return planned?.kind === 'planned' ? [planned.plan.bestCase] : [];
     });
-    // Just short of any chance with the Damaged Engine; Repaired, it gives 1 / 0.85 times as much.
+    // Just short of any chance (a plan's best case, as the player sees it, #190) with the Damaged Engine; Repaired, it gives 1 / 0.85 times as much.
     const short = { ...withDeltaV(hit, Math.min(...needs) - 1), materials: materials(50) };
     expect(assessStranding(short)).toEqual({
       kind: 'warning',

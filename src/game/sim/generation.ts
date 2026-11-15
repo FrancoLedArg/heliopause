@@ -2,7 +2,7 @@
 import { stringSeed } from '../lib/stringSeed.ts';
 import type { Rng } from '../lib/rng.ts';
 import { CHASSIS_IDS, OPENING_TUNING } from './data.ts';
-import { flyHop, marginShare, planHop } from './hop.ts';
+import { flyHop, marginShare, planHopAtRealValues } from './hop.ts';
 import { firstDetectedBody, startingRun } from './opening.ts';
 import type { Run } from './run.ts';
 import {
@@ -50,7 +50,7 @@ function opensFairly(system: StarSystem, level: number): boolean {
   if (first.baseYield <= 0) return false;
   return CHASSIS_IDS.every((chassisId) => {
     const start = startingRun(system, chassisId, level);
-    const planned = planHop(start, first.id);
+    const planned = planHopAtRealValues(start, first.id);
     if (planned.kind !== 'planned') return false;
     const { plan } = planned;
     if (plan.successChance < OPENING_TUNING.firstHop.successChance) return false;
@@ -70,16 +70,28 @@ function isDeadEnd(start: Run, body: Body): boolean {
     return false;
   }
   const knowing = withDetected(start, body);
-  const planned = planHop(knowing, body.id);
+  const planned = planHopAtRealValues(knowing, body.id);
   if (planned.kind !== 'planned' || planned.plan.successChance < 1) return false;
   return flyHop(knowing, planned.plan, AT_ESTIMATE).run.status.kind === 'ended';
 }
 
-/** The same Run, with `body` Detected too. Exported only for the sim's test fixtures (testing.ts). */
+/**
+ * The same Run, with `body` Detected and every other Body Surveyed: fairness weighs a Hop, and the
+ * Stranded check after it, at the Bodies' real values, not the cautious estimates an Unsurveyed plan
+ * shows (#190). `body` itself stays Unsurveyed, so landing on it still Surveys it and yields.
+ * Exported only for the sim's test fixtures (testing.ts).
+ */
 export function withDetected(run: Run, body: Body): Run {
-  if (run.knowledge.detected.includes(body.id)) return run;
+  const { detected } = run.knowledge;
+  const surveyed = listBodies(run.starSystem)
+    .map((other) => other.id)
+    .filter((id) => id !== body.id);
   return {
     ...run,
-    knowledge: { ...run.knowledge, detected: [...run.knowledge.detected, body.id] },
+    knowledge: {
+      ...run.knowledge,
+      detected: detected.includes(body.id) ? detected : [...detected, body.id],
+      surveyed: run.knowledge.surveyed.includes(body.id) ? [...surveyed, body.id] : surveyed,
+    },
   };
 }
