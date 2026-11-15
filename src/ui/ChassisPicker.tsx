@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { atlasImageUrl, hasAsset, imageUrl } from '../game/assets/manifest.ts';
 import { frameGeometry, standingExtent } from '../game/scenes/chassisArt.ts';
+import { composeSpacecraft } from '../game/scenes/spacecraftComposition.ts';
 import { availableDeltaV, CHASSIS_IDS, newSpacecraft, type ChassisId } from '../game/sim/index.ts';
 import { chassisName, formatDeltaV, formatFuel, formatMass } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { useAtlasFrames } from './useAtlasFrames.ts';
 
 const CARD_WIDTH = 192;
 const BUTTON_WIDTH = 96;
@@ -136,28 +138,13 @@ function ChassisCard({ id, selected, onSelect }: ChassisCardProps) {
 }
 
 /**
- * The Chassis's landed art, cropped from its atlas (the `landed` frame is the first cell, at the
- * origin), standing on the line the card's art box ends on; the generic Spacecraft stands in until
- * the Chassis art is in the manifest.
+ * The new Spacecraft of this Chassis, standing on the line the card's art box ends on: composed
+ * from its atlas, Chassis art and starting Component art, as the Landed view draws it. The generic
+ * Spacecraft stands in until the Chassis art is in the manifest.
  */
 function ChassisSprite({ id }: { id: ChassisId }) {
   const key = `chassis_${id}`;
-  if (hasAsset(key)) {
-    const { width, height } = frameGeometry(id, 'landed');
-    return (
-      <span
-        aria-hidden="true"
-        className="chassis-card__sprite"
-        style={{
-          width,
-          height,
-          left: (CARD_WIDTH - width) / 2,
-          top: SPRITE_TOP + ART_BOX_HEIGHT - height,
-          backgroundImage: `url(${atlasImageUrl(key)})`,
-        }}
-      />
-    );
-  }
+  if (hasAsset(key)) return <ComposedSprite id={id} atlasKey={key} />;
   return (
     <span
       aria-hidden="true"
@@ -169,5 +156,44 @@ function ChassisSprite({ id }: { id: ChassisId }) {
         backgroundImage: `url(${imageUrl('spacecraft')})`,
       }}
     />
+  );
+}
+
+/** The composed Spacecraft in the DOM: one span per layer, cut from the atlas image, back to front. */
+function ComposedSprite({ id, atlasKey }: { id: ChassisId; atlasKey: string }) {
+  const frames = useAtlasFrames(atlasKey);
+  const { width, height, pivot } = frameGeometry(id, 'landed');
+  const { layers } = composeSpacecraft(id, newSpacecraft(id).slots, 'landed');
+  return (
+    <span
+      aria-hidden="true"
+      className="chassis-card__sprite"
+      style={{
+        width,
+        height,
+        left: (CARD_WIDTH - width) / 2,
+        top: SPRITE_TOP + ART_BOX_HEIGHT - height,
+      }}
+    >
+      {frames &&
+        layers.map(({ frame, rect }) => {
+          const at = frames.get(frame);
+          if (!at) return null;
+          return (
+            <span
+              key={frame}
+              className="chassis-card__layer"
+              style={{
+                left: pivot.x + rect.x,
+                top: pivot.y + rect.y,
+                width: rect.width,
+                height: rect.height,
+                backgroundImage: `url(${atlasImageUrl(atlasKey)})`,
+                backgroundPosition: `${String(-at.x)}px ${String(-at.y)}px`,
+              }}
+            />
+          );
+        })}
+    </span>
   );
 }

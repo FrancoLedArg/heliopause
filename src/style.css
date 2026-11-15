@@ -457,6 +457,13 @@ body {
   image-rendering: pixelated;
 }
 
+/* One piece of the composed Spacecraft (Chassis art or Component art), cut from the atlas. */
+.chassis-card__layer {
+  position: absolute;
+  background-repeat: no-repeat;
+  image-rendering: pixelated;
+}
+
 /* The generic Spacecraft image stands in until the Chassis art ships: shown whole, not cropped. */
 .chassis-card__sprite--stand-in {
   background-size: contain;
@@ -672,6 +679,12 @@ body {
 }
 
 /* Left of the Nav Chart button, in the same row: right of the location plate (ends x 296), below the sweep. */
+/* The drawn Spacecraft's text alternative: read, never seen; kept in the corner, off the Spacecraft. */
+.landed-spacecraft-alt {
+  top: 0;
+  left: 0;
+}
+
 .landed-spacecraft-button {
   position: absolute;
   top: 322px;

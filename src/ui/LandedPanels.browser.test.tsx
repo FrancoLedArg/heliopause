@@ -44,6 +44,21 @@ it('marks a Depleted Body on the Landed plate, on the kind row, inside an unchan
   expect(mark.scrollWidth).toBeLessThanOrEqual(mark.clientWidth);
 });
 
+it('names the drawn Spacecraft’s Chassis and Components for a screen reader, and keeps it unseen', async () => {
+  const run = startRun(123, 'lancer');
+  const host = await renderUi(
+    <LandedPanels
+      run={run}
+      chartOpen={false}
+      spacecraftOpen={false}
+      onOpenSpacecraft={() => undefined}
+    />,
+  );
+  const alt = byTestId(host, 'spacecraft-alt');
+  expect(alt.textContent).toBe('Lancer: Engine 1, Fuel Tank 1');
+  expect(alt.getBoundingClientRect().width).toBeLessThanOrEqual(1);
+});
+
 it('does not mark a fresh Body on the Landed plate', async () => {
   const run = startRun(123, 'scout');
   const host = await renderUi(

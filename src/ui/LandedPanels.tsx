@@ -11,6 +11,7 @@ import { EventBus } from '../game/EventBus.ts';
 import { bodyFullLabel, formatDistanceAu, formatGravity } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { describeSpacecraft } from './spacecraftPanelView.ts';
 import { TopBar } from './TopBar.tsx';
 
 const PLATE_WIDTH = 284;
@@ -79,6 +80,10 @@ export function LandedPanels({
         materials={run.materials}
         dailyDay={dailyDay}
       />
+      {/* The drawn Spacecraft's text alternative: the canvas shows it, this names its parts. */}
+      <p className="sr-only landed-spacecraft-alt" data-testid="spacecraft-alt">
+        {describeSpacecraft(run.spacecraft)}
+      </p>
 
       {!chartOpen && !spacecraftOpen && (
         <>
