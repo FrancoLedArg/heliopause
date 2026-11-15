@@ -137,7 +137,6 @@ async function hopTo(page: Page, name: string): Promise<void> {
   await launch(page);
 }
 
-/** Hops out along the route, through each Hop's report, until the Radar has found the Heliopause. */
 /**
  * Hops the explorer's route out, planet by planet. The Radar finds the Heliopause on the way, and the
  * chart says when a Body it knows of is out of the Hop range (#283).
@@ -159,6 +158,9 @@ async function exploreOut(page: Page): Promise<void> {
       await expect(chart).toBeVisible();
       await focusOnChart(page, hop.far);
       await expect(page.getByTestId('verdict')).toHaveText('Out of Hop range.');
+      // #193: the first Escape closes the Body's card, the second the chart.
+      await page.keyboard.press('Escape');
+      await expect(page.getByTestId('inspect')).toHaveCount(0);
       await page.keyboard.press('Escape');
       await expect(chart).toBeHidden();
     }

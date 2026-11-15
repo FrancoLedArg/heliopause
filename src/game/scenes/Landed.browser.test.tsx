@@ -26,6 +26,7 @@ import {
   startRun,
   type ChassisId,
   type ComponentId,
+  type BodyId,
   type RockyPlanet,
   type Run,
 } from '../sim/index.ts';
@@ -75,6 +76,21 @@ function homeOf(run: Run): RockyPlanet {
   const [planet] = run.starSystem.planets;
   if (planet?.kind !== 'rocky-planet') throw new Error('The innermost planet is rocky');
   return planet;
+}
+
+/**
+ * The same Run landed on `bodyId` of the innermost planet, knowing that planet and its Moons: a
+ * known Body within the Hop range (#283), so the Run is not Stranded there.
+ */
+function standOn(run: Run, bodyId: BodyId): Run {
+  const home = homeOf(run);
+  const near = [home.id, ...home.moons.map((moon) => moon.id)];
+  const detected = [...new Set([...run.knowledge.detected, ...near])];
+  return {
+    ...run,
+    status: { kind: 'landed', bodyId },
+    knowledge: { ...run.knowledge, detected },
+  };
 }
 
 /** Mounts the whole app, then lands the given Run, resolving once the Landed scene is on screen. */
@@ -159,7 +175,7 @@ for (const chassis of CHASSIS) {
       const home = homeOf(fresh);
       const bodyId = where === 'Moon' ? home.moons[0]?.id : home.id;
       if (!bodyId) throw new Error('no body to land on');
-      const run: Run = { ...fresh, status: { kind: 'landed', bodyId } };
+      const run: Run = standOn(fresh, bodyId);
       const scene = await landOn(run);
 
       for (const ms of DRIFT_SAMPLES) {
@@ -195,10 +211,7 @@ for (const chassis of CHASSIS) {
 for (const chassis of CHASSIS) {
   it(`the ${chassis}'s engines idle with a glow at every nozzle exit, not under the base`, async () => {
     const fresh = startRun(2026, chassis);
-    const scene = await landOn({
-      ...fresh,
-      status: { kind: 'landed', bodyId: homeOf(fresh).id },
-    });
+    const scene = await landOn(standOn(fresh, homeOf(fresh).id));
     const glows = scene.layers.ship.list.filter(
       (child): child is GameObjects.Ellipse =>
         child instanceof GameObjects.Ellipse && child.blendMode === BlendModes.ADD,
@@ -218,7 +231,7 @@ for (const chassis of CHASSIS) {
 
 function landedRun(): Run {
   const fresh = startRun(2026, 'scout');
-  return { ...fresh, status: { kind: 'landed', bodyId: homeOf(fresh).id } };
+  return standOn(fresh, homeOf(fresh).id);
 }
 
 it('drifts the ground further than the sky, the Spacecraft with the ground, and never shows a layer edge', async () => {
@@ -263,7 +276,7 @@ for (const where of ['Planet', 'Moon'] as const) {
     const home = homeOf(fresh);
     const bodyId = where === 'Moon' ? home.moons[0]?.id : home.id;
     if (!bodyId) throw new Error('no body to land on');
-    const scene = await landOn({ ...fresh, status: { kind: 'landed', bodyId } });
+    const scene = await landOn(standOn(fresh, bodyId));
     const { ground, ship } = scene.layers;
     // One strip: a single image, as wide as the layer, level, running to the bottom of the screen.
     const images = ground.list.filter(
@@ -504,9 +517,8 @@ function drawnShip(): DrawnShip {
 function runWith(chassis: ChassisId, extra: readonly ComponentId[]): Run {
   const fresh = startRun(2026, chassis);
   let run: Run = {
-    ...fresh,
+    ...standOn(fresh, homeOf(fresh).id),
     materials: materials(1000),
-    status: { kind: 'landed', bodyId: homeOf(fresh).id },
   };
   for (const id of extra) {
     const done = install(run, run.spacecraft.slots.indexOf(null), id);
