@@ -694,7 +694,7 @@ function PlanPanel({
         <KitButton width={76} onClick={onCancel}>
           Cancel
         </KitButton>
-        <KitButton width={80} variant="primary" onClick={onLaunch}>
+        <KitButton width={80} variant="primary" data-testid="hop-launch" onClick={onLaunch}>
           Launch
         </KitButton>
       </div>
