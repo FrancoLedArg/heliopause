@@ -1,4 +1,4 @@
-/* ---- Spacecraft panel (wireframe v2, Spec B): 624×284 at (8, 52), modal over the Landed view ---- */
+/* ---- Spacecraft panel (wireframe v2, Spec B): 624×292 at (8, 52), modal over the Landed view ---- */
 
 .spacecraft-panel {
   position: absolute;
@@ -59,7 +59,7 @@
 .spacecraft-panel__right {
   left: 252px;
   width: 360px;
-  height: 242px;
+  height: 250px;
 }
 
 .spacecraft-panel__label {
@@ -313,7 +313,7 @@
 .spacecraft-panel__row {
   position: relative;
   width: 360px;
-  height: 31px;
+  height: 28px;
   margin-bottom: 2px;
   box-sizing: border-box;
   border: 1px solid var(--gm3);
@@ -327,7 +327,7 @@
 .spacecraft-panel__row-head {
   position: absolute;
   left: 5px;
-  top: 3px;
+  top: 2px;
   width: 280px;
   display: flex;
   align-items: baseline;
@@ -355,7 +355,7 @@
 .spacecraft-panel__row-effect {
   position: absolute;
   left: 5px;
-  top: 15px;
+  top: 13px;
   width: 280px;
   white-space: nowrap;
   font: 12px/12px var(--font-pixel-body);
@@ -369,12 +369,12 @@
 .spacecraft-panel .spacecraft-panel__install {
   position: absolute;
   right: 3px;
-  top: 3px;
+  top: 1px;
 }
 
 .spacecraft-panel__status {
   left: 0;
-  top: 218px;
+  top: 226px;
   width: 250px;
   height: 24px;
   overflow: hidden;
@@ -388,7 +388,7 @@
 
 .spacecraft-panel__close {
   left: 264px;
-  top: 218px;
+  top: 226px;
 }
 
 /* ---- Remove: the question sits over the figures, above the preview ---- */

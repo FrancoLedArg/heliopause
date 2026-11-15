@@ -4,11 +4,13 @@ import {
   availableDeltaV,
   COMPONENT_IDS,
   COMPONENTS,
+  componentCost,
   componentEffect,
   kilograms,
   metersPerSecond,
   preview,
   SLOT_COUNT,
+  starSystemNumber,
   type Preview,
   type ProposedChange,
   type ChassisId,
@@ -29,6 +31,7 @@ const KIND_NAMES: Readonly<Record<ComponentKind, string>> = {
   engine: 'Engine',
   'fuel-tank': 'Fuel Tank',
   drill: 'Drill',
+  'jump-drive': 'Jump Drive',
 };
 
 /** A Component's name without its level: "Engine", "Fuel Tank", "Drill". */
@@ -36,9 +39,16 @@ export function componentName(id: ComponentId): string {
   return KIND_NAMES[COMPONENTS[id].kind];
 }
 
-/** A Component with its level, as a phrase: "Fuel Tank, level 1". */
+/** A Component with its level, as a short title: "Fuel Tank 1". The Jump Drive has no levels. */
+export function componentTitle(id: ComponentId): string {
+  const { kind, level } = COMPONENTS[id];
+  return kind === 'jump-drive' ? componentName(id) : `${componentName(id)} ${String(level)}`;
+}
+
+/** A Component with its level, as a phrase: "Fuel Tank, level 1". The Jump Drive has no levels. */
 export function componentLabel(id: ComponentId): string {
-  return `${componentName(id)}, level ${String(COMPONENTS[id].level)}`;
+  const { kind, level } = COMPONENTS[id];
+  return kind === 'jump-drive' ? componentName(id) : `${componentName(id)}, level ${String(level)}`;
 }
 
 /**
@@ -54,6 +64,8 @@ export function describeEffect(chassisId: ChassisId, id: ComponentId): string {
       return `Holds ${formatFuel(effect.fuelCapacity)} of Fuel.`;
     case 'drill':
       return `Yields ${String(effect.yieldMultiplier)}× from each Body.`;
+    case 'jump-drive':
+      return 'Escapes the Star System, at the Heliopause only.';
   }
 }
 
@@ -109,6 +121,8 @@ export interface PanelRow {
   readonly id: ComponentId;
   readonly name: string;
   readonly level: ComponentLevel;
+  /** The name with its level, as the catalogue shows it: "Engine 1", "Jump Drive". */
+  readonly title: string;
   readonly mass: string;
   readonly cost: string;
   /** The one-sentence effect on this Chassis. */
@@ -123,15 +137,17 @@ export interface PanelRow {
 export function panelRows(run: Run): readonly PanelRow[] {
   return COMPONENT_IDS.map((id) => {
     const component = COMPONENTS[id];
+    const cost = componentCost(id, starSystemNumber(run));
     return {
       id,
       name: componentName(id),
       level: component.level,
+      title: componentTitle(id),
       mass: formatMass(component.mass),
-      cost: `${String(component.cost)} Materials`,
+      cost: `${String(cost)} Materials`,
       effect: describeEffect(run.spacecraft.chassisId, id),
-      affordable: run.materials >= component.cost,
-      short: Math.max(0, component.cost - run.materials),
+      affordable: run.materials >= cost,
+      short: Math.max(0, cost - run.materials),
     };
   });
 }
@@ -222,7 +238,7 @@ export function describePreview(
   if (!held) return undefined;
   const component = COMPONENTS[held];
   return {
-    heading: `${change.kind === 'install' ? 'Install' : 'Remove'} ${componentName(held)} ${String(component.level)}`,
+    heading: `${change.kind === 'install' ? 'Install' : 'Remove'} ${componentTitle(held)}`,
     lines: [
       massLine('mass', 'Dry mass', spacecraft.dryMass, after.dryMass),
       massLine('fuel', 'Fuel cap.', spacecraft.fuelCapacity, after.fuelCapacity),

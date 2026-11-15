@@ -70,7 +70,7 @@ it.each(CHASSIS_IDS.flatMap((chassis) => [0, 25, 500].map((stock) => [chassis, s
   async (chassis, stock) => {
     const host = await renderUi(<Harness initial={runWith(chassis, stock)} />);
     const rows = host.querySelectorAll<HTMLElement>('[data-testid="component-row"]');
-    expect(rows).toHaveLength(6);
+    expect(rows).toHaveLength(COMPONENT_IDS.length);
     for (const row of rows) {
       const head = row.querySelector<HTMLElement>('.spacecraft-panel__row-head');
       const effect = row.querySelector<HTMLElement>('.spacecraft-panel__row-effect');
@@ -516,4 +516,23 @@ it('says in a plain sentence why you might want an Engine, in the preview', asyn
   const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
   await tabTo(/Install Engine, level 2/);
   expect(previewText(host)).toContain(COMPONENTS['engine-2'].explanation);
+});
+
+it('lists the Jump Drive from the first screen, previews it and refuses it plainly when unaffordable', async () => {
+  const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
+  const row = [...host.querySelectorAll('[data-testid="component-row"]')].find((r) =>
+    r.textContent.includes('Jump Drive'),
+  );
+  expect(row?.textContent).toContain('45 Materials');
+  expect(row?.textContent).toContain('Need 20 more');
+  await tabTo(/Install Jump Drive,/);
+  expect(previewText(host)).toContain('Install Jump Drive');
+  expect(previewText(host)).toContain('Drops');
+  expect(previewText(host)).toContain(COMPONENTS['jump-drive'].explanation);
+  act(() => {
+    installButton(host, /Install Jump Drive,/).click();
+  });
+  expect(byTestId(host, 'install-status').textContent).toBe(
+    "Can't install. Not enough Materials: it costs 45 and you have 25, 20 short.",
+  );
 });

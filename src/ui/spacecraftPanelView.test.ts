@@ -262,3 +262,37 @@ describe('the preview before you pay', () => {
     expect(describePreview(full, { kind: 'install', component: 'drill-1' })).toBeUndefined();
   });
 });
+
+describe('the Jump Drive in the panel', () => {
+  const run = startRun(7, 'scout');
+
+  it('is listed from the first screen with its cost, and the Run cannot afford it yet', () => {
+    const row = panelRows(run).find((r) => r.id === 'jump-drive');
+    expect(row).toMatchObject({
+      name: 'Jump Drive',
+      title: 'Jump Drive',
+      mass: '4.0 t',
+      cost: '45 Materials',
+      affordable: false,
+      short: 20,
+    });
+  });
+
+  it('previews a drop in Δv, with its one-sentence explanation as the note', () => {
+    const shown = describePreview(run.spacecraft, { kind: 'install', component: 'jump-drive' });
+    expect(shown?.heading).toBe('Install Jump Drive');
+    expect(shown?.lines.find((line) => line.kind === 'delta-v')?.trend).toBe('down');
+    expect(shown?.note).toBe(COMPONENTS['jump-drive'].explanation);
+  });
+
+  it('says in words that the Run is short of Materials when it cannot afford it', () => {
+    expect(
+      describeRefusal({
+        kind: 'not-enough-materials',
+        cost: materials(45),
+        have: materials(25),
+        short: materials(20),
+      }),
+    ).toBe('Not enough Materials: it costs 45 and you have 25, 20 short.');
+  });
+});

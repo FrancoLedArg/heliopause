@@ -25,12 +25,17 @@ import {
 } from './spacecraftPanelView.ts';
 import './SpacecraftPanel.css';
 
-const PANEL = { x: 8, y: 52, width: 624, height: 284 } as const;
+const PANEL = { x: 8, y: 52, width: 624, height: 292 } as const;
 const TITLEBAR_HEIGHT = 14;
 const SLOT_SIZE = 36;
 const MASS_BAR_WIDTH = 220;
 const REMOVE_WIDTH = 56;
-const SLOT_CODES = { engine: 'ENG', 'fuel-tank': 'TANK', drill: 'DRL' } as const;
+const SLOT_CODES = {
+  engine: 'ENG',
+  'fuel-tank': 'TANK',
+  drill: 'DRL',
+  'jump-drive': 'JUMP',
+} as const;
 
 /** What the last install or removal attempt said; `undefined` before the first one. */
 interface Outcome {
@@ -405,9 +410,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
               }}
             >
               <p className="spacecraft-panel__row-head">
-                <span className="spacecraft-panel__row-name">
-                  {row.name} {row.level}
-                </span>
+                <span className="spacecraft-panel__row-name">{row.title}</span>
                 <span className="spacecraft-panel__row-stats">
                   {row.mass} · {row.cost}
                 </span>
@@ -483,7 +486,7 @@ function SlotButton({ index, slot, selected, buttonRef, onSelect }: SlotButtonPr
   const code =
     held === undefined
       ? '—'
-      : `${SLOT_CODES[COMPONENTS[held].kind]}${String(COMPONENTS[held].level)}`;
+      : `${SLOT_CODES[COMPONENTS[held].kind]}${COMPONENTS[held].kind === 'jump-drive' ? '' : String(COMPONENTS[held].level)}`;
   return (
     <button
       ref={buttonRef}
