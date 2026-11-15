@@ -129,11 +129,8 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
   await target(page, moon.name);
   await expect(page.getByTestId('plan-available')).toHaveText(formatDeltaVKmS(afterDeltaV));
-  // The target Moon shows what it yields, on its card and on the Hop plan's target.
-  await expect(page.getByTestId('target').getByRole('img', { name: moonYield.name })).toBeVisible();
-  await expect(
-    page.getByTestId('inspect').getByRole('img', { name: moonYield.name }),
-  ).toBeVisible();
+  // The target Moon is only Detected, so the plan hides what it yields (spec #96 story 12, #193).
+  await expect(page.getByTestId('target-composition')).toHaveText('Unsurveyed');
 
   // 5. Hop to the Icy Moon. Under reduced motion the gathering moment resolves at once: the top bar
   // already shows the Fuel risen, and the report's icon row shows "+N t" with the Fuel icon.

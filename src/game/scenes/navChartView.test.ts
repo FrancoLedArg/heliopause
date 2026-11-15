@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import {
   currentBody,
   findBody,
@@ -13,31 +13,25 @@ import {
 } from '../sim/index.ts';
 import {
   BRACKET_GAP,
-  CHART,
   chartReducer,
   crossSegments,
   dashedSegments,
   initialChartState,
   layoutChart,
-  labelText,
   moveFocus,
-  placeLabels,
-  placeTooltip,
   routeEnds,
-  placeYieldMarks,
   TOOLTIP_SIZE,
   tooltipHeight,
   tooltipKindExtra,
   type ChartLayout,
   type ChartNode,
-  type LabelContext,
-  type PlacedLabel,
-  type Rect,
+  type ChartState,
   ringSegments,
   stepFocus,
   targetStatus,
   type Direction,
 } from './navChartView.ts';
+import { edgeMarkers, MAP_AREA, PLAN_MAP_AREA, SCREEN, toScreen } from './navChartMap.ts';
 
 /** A New Run as the player starts it: on its Starting Moon, knowing only the opening. */
 const freshRun = (seed: number): Run => startRun(seed, 'scout');
@@ -57,12 +51,6 @@ const newRun = (seed: number): Run => {
     knowledge: { detected: ids, surveyed: ids, heliopauseFound: true },
   };
 };
-/** The Heliopause's mark on a chart whose Run has found it. */
-function markOf(layout: ChartLayout): NonNullable<ChartLayout['heliopause']> {
-  if (!layout.heliopause) throw new Error('The Heliopause is not found on this chart');
-  return layout.heliopause;
-}
-
 const SEEDS = Array.from({ length: 150 }, (_, i) => i + 1);
 
 /** The innermost planet's nearest Moon. */
@@ -124,14 +112,14 @@ describe('the Nav Chart layout', () => {
     }
   });
 
-  it('keeps every Body, drawn at 1x, inside the chart and clear of the star and of each other', () => {
+  it('keeps every Body, drawn at 1x, inside the map and clear of the star and of each other', () => {
     for (const seed of SEEDS) {
-      const { nodes, star } = layoutFor(seed);
+      const { nodes, star, world } = layoutFor(seed);
       for (const node of nodes) {
         expect(node.x - node.radius, `seed ${seed} ${node.body.name}`).toBeGreaterThanOrEqual(0);
-        expect(node.x + node.radius).toBeLessThanOrEqual(CHART.width);
+        expect(node.x + node.radius).toBeLessThanOrEqual(world.width);
         expect(node.y - node.radius).toBeGreaterThanOrEqual(0);
-        expect(node.y + node.radius).toBeLessThanOrEqual(CHART.height);
+        expect(node.y + node.radius).toBeLessThanOrEqual(world.height);
         expect(Math.hypot(node.x - star.x, node.y - star.y)).toBeGreaterThan(
           star.radius + node.radius,
         );
@@ -164,16 +152,17 @@ describe('the Nav Chart layout', () => {
     }
   });
 
-  it('clips orbit rings and the Heliopause to the chart', () => {
+  it('clips orbit rings and the Heliopause to the map', () => {
     const layout = layoutChart(newRun(3));
-    const segments = ringSegments(layout.star, layout.heliopauseRadius);
+    const segments = ringSegments(layout.star, layout.heliopauseRadius, layout.world);
+    const { world } = layout;
     expect(segments.length).toBeGreaterThan(0);
     for (const s of segments) {
       for (const [x, y] of [s.from, s.to] as const) {
         expect(x).toBeGreaterThanOrEqual(0);
-        expect(x).toBeLessThanOrEqual(CHART.width);
+        expect(x).toBeLessThanOrEqual(world.width);
         expect(y).toBeGreaterThanOrEqual(0);
-        expect(y).toBeLessThanOrEqual(CHART.height);
+        expect(y).toBeLessThanOrEqual(world.height);
       }
     }
   });
@@ -304,17 +293,14 @@ describe('moving between Bodies with the arrow keys', () => {
 });
 
 describe('the Heliopause on the Nav Chart', () => {
-  it('is not on the chart until the Radar finds it: no ring mark, no focus stop and no label', () => {
+  it('is not on the chart until the Radar finds it: no mark and no focus stop', () => {
     for (const seed of SEEDS.slice(0, 20)) {
       const run = freshRun(seed);
       const layout = layoutChart(run);
       expect(layout.heliopause).toBeUndefined();
-      const here = homeMoon(run).id;
-      let id: HopTarget = here;
+      let id: HopTarget = currentBody(run).id;
       for (let step = 0; step < 10; step += 1) id = stepFocus(layout, id, 1);
       expect(id).not.toBe(HELIOPAUSE);
-      const context: LabelContext = { hereId: here, focusedId: here, targetId: undefined };
-      expect(placeLabels(layout, context).filter((l) => l.kind === 'heliopause')).toEqual([]);
     }
   });
 
@@ -325,14 +311,15 @@ describe('the Heliopause on the Nav Chart', () => {
     return result.run;
   };
 
-  it('marks the Heliopause on its ring, on the chart and clear of every Body', () => {
+  it('marks the Heliopause on its ring, on the map and clear of every Body', () => {
     for (const seed of SEEDS) {
       const layout = layoutFor(seed);
-      const mark = markOf(layout);
+      const { heliopause: mark, world } = layout;
+      if (!mark) throw new Error('the Heliopause is found on a full chart');
       expect(mark.x - mark.radius - BRACKET_GAP, `seed ${seed}`).toBeGreaterThanOrEqual(0);
-      expect(mark.x + mark.radius + BRACKET_GAP).toBeLessThanOrEqual(CHART.width);
+      expect(mark.x + mark.radius + BRACKET_GAP).toBeLessThanOrEqual(world.width);
       expect(mark.y - mark.radius - BRACKET_GAP).toBeGreaterThanOrEqual(0);
-      expect(mark.y + mark.radius + BRACKET_GAP).toBeLessThanOrEqual(CHART.height);
+      expect(mark.y + mark.radius + BRACKET_GAP).toBeLessThanOrEqual(world.height);
       for (const node of layout.nodes) {
         expect(Math.hypot(node.x - mark.x, node.y - mark.y), `seed ${seed}`).toBeGreaterThan(
           node.radius + mark.radius + BRACKET_GAP,
@@ -341,12 +328,12 @@ describe('the Heliopause on the Nav Chart', () => {
     }
     // Where its ring crosses the chart, the mark sits on it.
     const layout = layoutFor(9);
-    const { star } = layout;
-    const heliopause = markOf(layout);
-    expect(Math.hypot(heliopause.x - star.x, heliopause.y - star.y)).toBeCloseTo(
-      layout.heliopauseRadius,
-      -1,
-    );
+    const { star, heliopause } = layout;
+    if (!heliopause) throw new Error('the Heliopause is found on a full chart');
+    // Within a couple of pixels: the spread rounds the mark and the star apart.
+    expect(
+      Math.abs(Math.hypot(heliopause.x - star.x, heliopause.y - star.y) - layout.heliopauseRadius),
+    ).toBeLessThanOrEqual(4);
   });
 
   it('says why the Heliopause cannot be the target without a Jump Drive', () => {
@@ -360,520 +347,181 @@ describe('the Heliopause on the Nav Chart', () => {
   it('Enter on the focused Heliopause makes it the target only with a Jump Drive', () => {
     const run = newRun(5);
     const layout = layoutChart(run);
-    const focused = chartReducer(run, layout, initialChartState(run), {
-      kind: 'focus',
+    const focused = chartReducer(run, layout, initialChartState(run, layout), {
+      kind: 'click',
       id: HELIOPAUSE,
     });
     expect(chartReducer(run, layout, focused, { kind: 'select' }).selectedId).toBeUndefined();
     const ready = withJumpDrive(run);
-    expect(chartReducer(ready, layout, focused, { kind: 'select' })).toEqual({
+    expect(chartReducer(ready, layout, focused, { kind: 'select' })).toMatchObject({
       focusedId: HELIOPAUSE,
       selectedId: HELIOPAUSE,
     });
   });
-
-  it('keeps the labels and the tooltip off the Heliopause mark when it has focus or is the target', () => {
-    for (const seed of SEEDS.slice(0, 40)) {
-      const run = newRun(seed);
-      const layout = layoutFor(seed);
-      const mark = markOf(layout);
-      for (const targetId of [undefined, HELIOPAUSE]) {
-        const context = { hereId: currentBody(run).id, targetId, focusedId: HELIOPAUSE };
-        const labels = placeLabels(layout, context);
-        for (const label of labels) {
-          expect(touchesCircle(label.box, mark), `seed ${seed}: ${label.text}`).toBe(false);
-        }
-        const tip = placeTooltip(layout, context, tooltipHeight('a reason that wraps'), labels);
-        expect(insideChart(tip)).toBe(true);
-        expect(touchesCircle(tip, { ...mark, radius: mark.radius + BRACKET_GAP })).toBe(false);
-      }
-    }
-  });
-
-  it('always names the Heliopause on the chart, targeted or not, clear of Bodies, marks and labels', () => {
-    const problems: string[] = [];
-    for (const seed of Array.from({ length: 200 }, (_, i) => i + 1)) {
-      const run = newRun(seed);
-      const layout = layoutFor(seed);
-      const here = currentBody(run).id;
-      for (const [targetId, focusedId] of [
-        [undefined, here],
-        [HELIOPAUSE, here],
-        [HELIOPAUSE, HELIOPAUSE],
-        [undefined, HELIOPAUSE],
-      ] as const) {
-        const context = { hereId: here, targetId, focusedId };
-        const labels = placeLabels(layout, context);
-        const where = `seed ${seed}, target ${targetId ?? 'none'}, focus ${focusedId}`;
-        const edge = labels.find((l) => l.kind === 'heliopause');
-        if (!edge) {
-          problems.push(`${where}: no Heliopause label`);
-          continue;
-        }
-        if (!insideChart(edge.box)) problems.push(`${where}: off the chart`);
-        problems.push(...farLabels({ where, layout, context, labels: [edge] }));
-        if (touchesCircle(edge.box, markOf(layout))) problems.push(`${where}: on its mark`);
-        for (const n of [...layout.nodes, layout.star]) {
-          if (touchesCircle(edge.box, n)) problems.push(`${where}: on a Body`);
-        }
-        for (const other of labels) {
-          if (other !== edge && overlaps(other.box, edge.box)) {
-            problems.push(`${where}: over ${other.text}`);
-          }
-        }
-      }
-    }
-    expect(problems.join('\n')).toBe('');
-  });
-
-  it('puts a yield icon by every landable Body, on the chart and clear of the labels, and none by a Gas Giant', () => {
-    const problems: string[] = [];
-    const covered: string[] = [];
-    let icons = 0;
-    for (const seed of SEEDS.slice(0, 60)) {
-      const run = newRun(seed);
-      const layout = layoutFor(seed);
-      const here = currentBody(run).id;
-      const labels = placeLabels(layout, { hereId: here, targetId: undefined, focusedId: here });
-      const marks = placeYieldMarks(layout, labels);
-      for (const node of layout.nodes) {
-        const box = marks.get(node.body.id);
-        if (!node.body.landable) {
-          if (box) problems.push(`seed ${seed}: ${node.body.name} is a Gas Giant with an icon`);
-          continue;
-        }
-        icons += 1;
-        if (!box || !insideChart(box)) {
-          problems.push(`seed ${seed}: ${node.body.name}'s icon is off the chart`);
-          continue;
-        }
-        for (const label of labels) {
-          if (overlaps(label.box, box)) covered.push(`seed ${seed}: ${label.text} covers an icon`);
-        }
-      }
-    }
-    expect(icons).toBeGreaterThan(100);
-    expect(problems.join('\n')).toBe('');
-    // In the most crowded charts a corner is not always free; that is rare.
-    expect(covered.length / icons, covered.join('\n')).toBeLessThan(0.03);
-  });
-
-  it('labels the targeted Heliopause as the target', () => {
-    const run = newRun(9);
-    const context = { hereId: currentBody(run).id, targetId: HELIOPAUSE, focusedId: HELIOPAUSE };
-    const label = placeLabels(layoutFor(9), context).find((l) => l.id === 'heliopause');
-    expect(label?.text).toBe('Heliopause · target');
-  });
 });
 
-describe('the Nav Chart state', () => {
-  it('opens with focus on the Spacecraft and nothing selected', () => {
-    const run = newRun(5);
-    expect(initialChartState(run)).toEqual({
-      focusedId: currentBody(run).id,
-      selectedId: undefined,
-    });
+describe('the Nav Chart state (#193: no card by default, the card, then the plan)', () => {
+  /** Applies commands in turn from the opening state. */
+  const after = (run: Run, ...commands: Parameters<typeof chartReducer>[3][]): ChartState => {
+    const layout = layoutChart(run);
+    return commands.reduce(
+      (state, command) => chartReducer(run, layout, state, command),
+      initialChartState(run, layout),
+    );
+  };
+
+  it('opens centred on the Spacecraft, with no card and nothing selected', () => {
+    for (const seed of SEEDS.slice(0, 40)) {
+      const run = freshRun(seed);
+      const layout = layoutChart(run);
+      const state = initialChartState(run, layout);
+      expect(state).toMatchObject({
+        focusedId: currentBody(run).id,
+        card: false,
+        selectedId: undefined,
+      });
+      const here = layout.nodes.find((n) => n.body.id === currentBody(run).id);
+      if (!here) throw new Error('the Spacecraft is on the chart');
+      const at = toScreen(state.view, here);
+      expect(at.x, `seed ${seed}`).toBeGreaterThan(MAP_AREA.x);
+      expect(at.x).toBeLessThan(MAP_AREA.x + MAP_AREA.w);
+      expect(at.y).toBeGreaterThan(MAP_AREA.y);
+      expect(at.y).toBeLessThan(MAP_AREA.y + MAP_AREA.h);
+    }
   });
 
-  it('selects a valid focused Body, and keeps the old target when the focused one is not valid', () => {
+  it('a click opens the card without choosing a target; Plan Hop then chooses it and closes the card', () => {
     const run = newRun(5);
-    const layout = layoutChart(run);
     const moon = homeMoon(run);
-    const giant = run.starSystem.planets.find((p) => p.kind === 'gas-giant');
-    if (!giant) throw new Error('no Gas Giant');
-
-    const focusedMoon = chartReducer(run, layout, initialChartState(run), {
-      kind: 'focus',
-      id: moon.id,
-    });
-    const selected = chartReducer(run, layout, focusedMoon, { kind: 'select' });
-    expect(selected.selectedId).toBe(moon.id);
-
-    const focusedGiant = chartReducer(run, layout, selected, { kind: 'focus', id: giant.id });
-    const tried = chartReducer(run, layout, focusedGiant, { kind: 'select' });
-    expect(tried).toEqual({ focusedId: giant.id, selectedId: moon.id });
-  });
-
-  it('a click focuses and selects a valid Body in one go, and only focuses an invalid one', () => {
-    const run = newRun(5);
-    const layout = layoutChart(run);
-    const moon = homeMoon(run);
-    const clicked = chartReducer(run, layout, initialChartState(run), {
-      kind: 'click',
-      id: moon.id,
-    });
-    expect(clicked).toEqual({ focusedId: moon.id, selectedId: moon.id });
-
-    const here = currentBody(run).id;
-    expect(chartReducer(run, layout, clicked, { kind: 'click', id: here })).toEqual({
-      focusedId: here,
+    const carded = after(run, { kind: 'click', id: moon.id });
+    expect(carded).toMatchObject({ focusedId: moon.id, card: true, selectedId: undefined });
+    expect(after(run, { kind: 'click', id: moon.id }, { kind: 'plan' })).toMatchObject({
+      focusedId: moon.id,
+      card: false,
       selectedId: moon.id,
     });
   });
-});
 
-const overlaps = (a: Rect, b: Rect): boolean =>
-  a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-const insideChart = (r: Rect): boolean =>
-  r.x >= 0 && r.y >= 0 && r.x + r.w <= CHART.width && r.y + r.h <= CHART.height;
-const touchesCircle = (r: Rect, c: { x: number; y: number; radius: number }): boolean => {
-  const dx = Math.max(r.x - c.x, 0, c.x - (r.x + r.w));
-  const dy = Math.max(r.y - c.y, 0, c.y - (r.y + r.h));
-  return Math.hypot(dx, dy) < c.radius;
-};
-
-/**
- * Every Body is focused on the first 30 seeds; on the rest only the first, middle and last Body are, which
- * keeps the sweep fast (it ran past the 5 s limit in CI) while every seed still gets its edges.
- */
-function focusSample<T>(ids: readonly T[], seed: number): T[] {
-  if (seed <= 30) return [...ids];
-  return [ids[0], ids[Math.floor(ids.length / 2)], ids[ids.length - 1]].filter(
-    (id): id is T => id !== undefined,
-  );
-}
-
-/** Pixels from a box to the edge of a round sprite; 0 when they touch. */
-const edgeDistance = (r: Rect, c: { x: number; y: number; radius: number }): number => {
-  const dx = Math.max(r.x - c.x, 0, c.x - (r.x + r.w));
-  const dy = Math.max(r.y - c.y, 0, c.y - (r.y + r.h));
-  return Math.max(0, Math.hypot(dx, dy) - c.radius);
-};
-
-interface ChartCase {
-  readonly where: string;
-  readonly layout: ChartLayout;
-  readonly context: LabelContext;
-  readonly labels: readonly PlacedLabel[];
-}
-
-function chartCase(seed: number, context: LabelContext): ChartCase {
-  const layout = layoutFor(seed);
-  return {
-    where: `seed ${seed}, focus ${context.focusedId}, target ${context.targetId ?? 'none'}`,
-    layout,
-    context,
-    labels: placeLabels(layout, context),
-  };
-}
-
-/** Works a list out the first time it is asked for, then hands back the same list. */
-function once<T>(make: () => T): () => T {
-  let made: { value: T } | undefined;
-  return () => (made ??= { value: make() }).value;
-}
-
-/**
- * Chart states to check labels on: each seed's sampled focus, with no target, the Home Moon, and one
- * other valid target that changes with the focus, so targets all over the chart get a turn.
- */
-const sampledCases = once(() =>
-  SEEDS.flatMap((seed) => {
-    const run = newRun(seed);
-    const ids = layoutFor(seed).nodes.map((n) => n.body.id);
-    const moon = homeMoon(run).id;
-    const others = ids.filter((id) => id !== moon && targetStatus(run, id).valid);
-    return focusSample(ids, seed).flatMap((focusedId, i) =>
-      [undefined, moon, others[(seed + i) % others.length]].map((targetId) =>
-        chartCase(seed, { hereId: currentBody(run).id, targetId, focusedId }),
-      ),
+  it('Plan Hop on a Body that is no target keeps its card open and the earlier target', () => {
+    const run = newRun(5);
+    const moon = homeMoon(run);
+    const giant = run.starSystem.planets.find((p) => p.kind === 'gas-giant');
+    if (!giant) throw new Error('no Gas Giant');
+    const state = after(
+      run,
+      { kind: 'click', id: moon.id },
+      { kind: 'plan' },
+      { kind: 'click', id: giant.id },
+      { kind: 'plan' },
     );
-  }),
-);
+    expect(state).toMatchObject({ focusedId: giant.id, card: true, selectedId: moon.id });
+  });
 
-const REVIEW_SEEDS = [5, 74, 123, 135, 2024];
+  it('by keyboard: a step opens the next Body’s card, Enter plans the Hop there', () => {
+    const run = newRun(5);
+    const stepped = after(run, { kind: 'step', delta: 1 });
+    expect(stepped.card).toBe(true);
+    expect(stepped.focusedId).not.toBe(currentBody(run).id);
+    // Enter with no card open opens the focused Body's card first.
+    expect(after(run, { kind: 'select' })).toMatchObject({ card: true, selectedId: undefined });
+    const moon = homeMoon(run);
+    expect(
+      after(run, { kind: 'click', id: moon.id }, { kind: 'dismiss' }, { kind: 'select' }),
+    ).toMatchObject({ card: true, selectedId: undefined });
+    expect(after(run, { kind: 'click', id: moon.id }, { kind: 'select' })).toMatchObject({
+      card: false,
+      selectedId: moon.id,
+    });
+  });
 
-/** Every focus with every valid target (or none), on the seeds the reviews looked at. */
-const reviewCases = once(() =>
-  REVIEW_SEEDS.flatMap((seed) => {
-    const run = newRun(seed);
-    const ids = layoutFor(seed).nodes.map((n) => n.body.id);
-    const targets = [undefined, ...ids.filter((id) => targetStatus(run, id).valid)];
-    return ids.flatMap((focusedId) =>
-      targets.map((targetId) =>
-        chartCase(seed, { hereId: currentBody(run).id, targetId, focusedId }),
+  it('a click on empty space or Escape closes the card and keeps the target', () => {
+    const run = newRun(5);
+    const moon = homeMoon(run);
+    const giant = run.starSystem.planets.find((p) => p.kind === 'gas-giant');
+    if (!giant) throw new Error('no Gas Giant');
+    expect(
+      after(
+        run,
+        { kind: 'click', id: moon.id },
+        { kind: 'plan' },
+        { kind: 'click', id: giant.id },
+        { kind: 'dismiss' },
       ),
+    ).toMatchObject({ card: false, selectedId: moon.id, focusedId: giant.id });
+  });
+
+  it('panning and zooming move the camera and keep the card and the target', () => {
+    const run = newRun(5);
+    const moon = homeMoon(run);
+    const planned = after(run, { kind: 'click', id: moon.id }, { kind: 'plan' });
+    const carded = after(
+      run,
+      { kind: 'click', id: moon.id },
+      { kind: 'plan' },
+      { kind: 'click', id: moon.id },
     );
-  }),
-);
-
-/** What is wrong with the labels of one chart state: overlaps, Bodies covered, no "you" or "target" label. */
-function labelClashes({ where, layout, context, labels }: ChartCase): string[] {
-  const problems: string[] = [];
-  for (const id of [context.hereId, context.targetId]) {
-    if (id !== undefined && !labels.some((l) => l.id === id)) problems.push(`${where}: no ${id}`);
-  }
-  for (const [i, a] of labels.entries()) {
-    if (!insideChart(a.box)) problems.push(`${where}: ${a.text} off the chart`);
-    for (const b of labels.slice(i + 1)) {
-      if (overlaps(a.box, b.box)) problems.push(`${where}: ${a.text} over ${b.text}`);
+    for (const state of [planned, carded]) {
+      const layout = layoutChart(run);
+      const panned = chartReducer(run, layout, state, { kind: 'pan', dx: -80, dy: -40 });
+      const zoomed = chartReducer(run, layout, panned, { kind: 'zoom', factor: 1.2 });
+      for (const moved of [panned, zoomed]) {
+        expect(moved.view).not.toEqual(state.view);
+        expect({ ...moved, view: undefined }).toEqual({ ...state, view: undefined });
+      }
     }
-    for (const n of [...layout.nodes, layout.star]) {
-      if (touchesCircle(a.box, n)) problems.push(`${where}: ${a.text} on a Body`);
-    }
-  }
-  return problems;
-}
+  });
 
-/** Labels that sit nearer another Body (or the star) than their own, by more than 2 px. */
-function strayLabels({ where, layout, labels }: ChartCase): string[] {
-  const problems: string[] = [];
-  for (const label of labels) {
-    if (label.id === 'heliopause') continue;
-    const own = layout.nodes.find((n) => n.body.id === label.id);
-    if (!own) throw new Error(`no node for ${label.id}`);
-    const mine = edgeDistance(label.box, own);
-    const nearest = Math.min(
-      ...[layout.star, ...layout.nodes.filter((n) => n !== own)].map((n) =>
-        edgeDistance(label.box, n),
-      ),
-    );
-    if (mine > nearest + 2) {
-      problems.push(`${where}: ${label.text} is ${mine} px from its Body, ${nearest} from another`);
-    }
-  }
-  return problems;
-}
-
-/** Planet labels more than 8 px from their planet, and a Heliopause label off its ring. */
-function farLabels({ where, layout, labels }: ChartCase): string[] {
-  const problems: string[] = [];
-  for (const label of labels) {
-    if (label.kind === 'heliopause') {
-      const { x, y, w, h } = label.box;
-      const inside = [
-        [x, y],
-        [x + w, y],
-        [x, y + h],
-        [x + w, y + h],
-      ].map(
-        ([cx = 0, cy = 0]) =>
-          layout.heliopauseRadius - Math.hypot(cx - layout.star.x, cy - layout.star.y),
-      );
-      const fromRing = Math.min(...inside);
-      // Hanging just inside its ring, or, where the ring has no room, beside its mark.
-      const fromMark = edgeDistance(label.box, markOf(layout));
-      if ((fromRing > 8 || fromRing < 0) && fromMark > 8) {
-        problems.push(
-          `${where}: Heliopause ${fromRing} px from its ring, ${fromMark} from its mark`,
+  // Review of #292: the Hop plan's panel (x 444 on) hid the target and "you".
+  it('Plan Hop puts the target left of the Hop plan’s panel, and "you" too or an edge marker for it', () => {
+    const shown = (at: { x: number; y: number }): boolean =>
+      at.x > 0 && at.x < PLAN_MAP_AREA.w && at.y > MAP_AREA.y && at.y < MAP_AREA.y + MAP_AREA.h;
+    for (const seed of SEEDS.slice(0, 60)) {
+      const run = newRun(seed);
+      const layout = layoutChart(run);
+      const here = layout.nodes.find((n) => n.body.id === currentBody(run).id);
+      for (const node of layout.nodes) {
+        if (!targetStatus(run, node.body.id).valid || !here) continue;
+        const state = after(run, { kind: 'click', id: node.body.id }, { kind: 'plan' });
+        const where = `seed ${String(seed)} ${node.body.name}`;
+        expect(shown(toScreen(state.view, node)), where).toBe(true);
+        const markers = edgeMarkers(state.view, layout, PLAN_MAP_AREA).map((m) => m.id);
+        expect(shown(toScreen(state.view, here)) || markers.includes(here.body.id), where).toBe(
+          true,
         );
       }
-    } else if (label.kind === 'planet') {
-      const own = layout.nodes.find((n) => n.body.id === label.id);
-      if (own && edgeDistance(label.box, own) > 8) problems.push(`${where}: ${label.text}`);
     }
-  }
-  return problems;
-}
-
-describe('Body labels on the Nav Chart', () => {
-  // Building the 150 sampled charts takes ~1 s warm and over 4 s on a loaded machine, so it is done
-  // once up front under its own generous limit instead of inside the first test's 5 s default.
-  beforeAll(() => {
-    sampledCases();
-    reviewCases();
-  }, 60_000);
-
-  it('never overlap each other or a Body, stay on the chart, and always show where the Spacecraft is and the target', () => {
-    expect(sampledCases().flatMap(labelClashes).join('\n')).toBe('');
   });
 
-  it('never overlap anything for any target on the review seeds', () => {
-    expect(reviewCases().flatMap(labelClashes).join('\n')).toBe('');
-  });
-
-  // Re-pinned for #189 (was seed 292's Zarla-2) and #247 (was seed 155's Vutho): generation changed.
-  // Seed 86 is the fullest 7-planet chart of the first 400 (29 Bodies), its far Moon Prota the target.
-  it('keep off every Body even on a chart too full to label well (seed 86, Prota as the target)', () => {
-    const run = newRun(86);
-    const layout = layoutFor(86);
-    const target = layout.nodes.find((n) => n.body.id === 'planet-7-moon-3');
-    if (!target) throw new Error('seed 86 has no planet-7-moon-3');
-    const problems = layout.nodes.flatMap((n) =>
-      labelClashes(
-        chartCase(86, {
-          hereId: currentBody(run).id,
-          targetId: target.body.id,
-          focusedId: n.body.id,
-        }),
-      ),
-    );
-    expect(problems.join('\n')).toBe('');
-  });
-
-  // Re-pinned for #188: generation changed. Seed 62 shows a planet label with a number suffix,
-  // Cioxtaexta-4, with a Gas Giant's Moon in focus and another planet's far Moon as the target.
-  it('keep Cioxtaexta-4 off the Bodies on seed 62 with a far Moon as the target', () => {
-    const layout = layoutFor(62);
-    const id = (wanted: string) => {
-      const node = layout.nodes.find((n) => n.body.id === wanted);
-      if (!node) throw new Error(`seed 62 has no ${wanted}`);
-      return node.body.id;
-    };
-    const context = {
-      hereId: currentBody(newRun(62)).id,
-      focusedId: id('planet-7-moon-3'),
-      targetId: id('planet-5-moon-1'),
-    };
-    const seed62 = chartCase(62, context);
-    expect(seed62.labels.map((l) => l.text)).toContain('Cioxtaexta-4');
-    expect(labelClashes(seed62)).toEqual([]);
-    expect(strayLabels(seed62)).toEqual([]);
-  });
-
-  it('sit nearer their own Body than any other, all but a very few crowded charts', () => {
-    // Since #188 every rocky planet has two Moons, and on a few crowded inner systems a long "you" or
-    // "target" label has no spot nearer its own Body (seeds 109, 116 and 120 of 150: the layout keeps
-    // room for each Body's label, not for two neighbours' at once). It still never covers anything.
-    const cases = sampledCases();
-    const strays = cases.filter((c) => strayLabels(c).length > 0);
-    expect(strays.length / cases.length, strays.flatMap(strayLabels).join('\n')).toBeLessThan(
-      0.005,
-    );
-    expect(reviewCases().flatMap(strayLabels).join('\n')).toBe('');
-  });
-
-  it('label the focused Body too, unless no spot beside it is free (its tooltip names it then)', () => {
-    const cases = sampledCases();
-    const unlabelled = cases.filter(
-      ({ context, labels }) => !labels.some((l) => l.id === context.focusedId),
-    );
-    expect(unlabelled.length / cases.length).toBeLessThan(0.01);
-  });
-
-  it('draw a planet or the Heliopause only right beside it', () => {
-    expect(sampledCases().flatMap(farLabels).join('\n')).toBe('');
-  });
-
-  it('writes the name, plus where the Spacecraft is and what the target is', () => {
+  it('re-centre brings the Spacecraft back to the middle of the screen', () => {
     const run = newRun(5);
-    const here = currentBody(run);
-    expect(labelText(here, { hereId: here.id, targetId: undefined, focusedId: here.id })).toBe(
-      `${here.name} · you`,
-    );
-    const moon = homeMoon(run);
-    expect(labelText(moon, { hereId: here.id, targetId: moon.id, focusedId: here.id })).toBe(
-      `${moon.name} · target`,
-    );
+    const layout = layoutChart(run);
+    const here = layout.nodes.find((n) => n.body.id === currentBody(run).id);
+    if (!here) throw new Error('the Spacecraft is on the chart');
+    const opened = initialChartState(run, layout);
+    const away = after(run, { kind: 'pan', dx: -600, dy: -300 });
+    expect(away.view).not.toEqual(opened.view);
+    expect(chartReducer(run, layout, away, { kind: 'recentre' }).view).toEqual(opened.view);
   });
-});
 
-describe('the Body tooltip', () => {
-  interface TooltipCase {
-    readonly where: string;
-    readonly layout: ChartLayout;
-    readonly context: LabelContext;
-    readonly labels: readonly PlacedLabel[];
-    readonly box: Rect;
-  }
-
-  /** Every Body of every seed in focus, with the Home Moon as the target, as the panel would show it. */
-  const tooltipCases = once(() =>
-    SEEDS.flatMap((seed) => {
+  it('a step to a Body off screen brings it into view', () => {
+    for (const seed of SEEDS.slice(0, 40)) {
       const run = newRun(seed);
-      const layout = layoutFor(seed);
-      return layout.nodes.map((node): TooltipCase => {
-        const context = {
-          hereId: currentBody(run).id,
-          targetId: homeMoon(run).id,
-          focusedId: node.body.id,
-        };
-        const labels = placeLabels(layout, context);
-        const status = targetStatus(run, node.body.id);
-        const height = tooltipHeight(status.valid ? undefined : status.why);
-        return {
-          where: `seed ${seed}, focus ${node.body.name}`,
-          layout,
-          context,
-          labels,
-          box: placeTooltip(layout, context, height, labels),
-        };
-      });
-    }),
-  );
-
-  const nodeOf = (layout: ChartLayout, id: string | undefined) =>
-    layout.nodes.find((n) => n.body.id === id);
-
-  // Same as the label cases: built once, under its own limit, not inside the first test's 5 s default.
-  beforeAll(() => {
-    tooltipCases();
-  }, 60_000);
-
-  /**
-   * Charts with no clear spot anywhere (#247's generation): a Gas Giant in focus mid-right, its
-   * 95 px why too tall for the room above or below it, and the left full of kept marks. There the
-   * tooltip falls back to hiding the fewest kept things: one label, never a Body.
-   */
-  const NO_CLEAR_SPOT = ['seed 117, focus Rupro Minor', 'seed 142, focus Xaezio'];
-
-  /** What a tooltip covers that it must keep in view. */
-  const tooltipProblems = ({ where, layout, context, labels, box }: TooltipCase): string[] => {
-    const found: string[] = [];
-    if (!insideChart(box)) found.push(`${where}: off the chart`);
-    if (box.w !== TOOLTIP_SIZE.w) found.push(`${where}: ${box.w} px wide`);
-    if (touchesCircle(box, layout.star)) found.push(`${where}: covers the star`);
-    for (const id of [context.focusedId, context.hereId, context.targetId]) {
-      const node = nodeOf(layout, id);
-      if (node && touchesCircle(box, node)) found.push(`${where}: covers ${node.body.name}`);
-    }
-    for (const label of labels) {
-      if ((label.kind === 'here' || label.kind === 'target') && overlaps(box, label.box)) {
-        found.push(`${where}: covers the label ${label.text}`);
+      const layout = layoutChart(run);
+      let state = initialChartState(run, layout);
+      for (let i = 0; i < layout.nodes.length + 1; i += 1) {
+        state = chartReducer(run, layout, state, { kind: 'step', delta: 1 });
+        const spot =
+          state.focusedId === HELIOPAUSE
+            ? layout.heliopause
+            : layout.nodes.find((n) => n.body.id === state.focusedId);
+        if (!spot) throw new Error('focus is on the map');
+        const at = toScreen(state.view, spot);
+        expect(at.x, `seed ${seed} ${state.focusedId}`).toBeGreaterThanOrEqual(0);
+        expect(at.x).toBeLessThanOrEqual(SCREEN.width);
+        expect(at.y).toBeGreaterThanOrEqual(MAP_AREA.y);
+        expect(at.y).toBeLessThanOrEqual(MAP_AREA.y + MAP_AREA.h);
       }
     }
-    return found;
-  };
-
-  it('sits on the chart and never covers the focused Body, the star, where the Spacecraft is or the target', () => {
-    const problems = tooltipCases()
-      .filter(({ where }) => !NO_CLEAR_SPOT.includes(where))
-      .flatMap(tooltipProblems);
-    expect(problems.join('\n')).toBe('');
-  });
-
-  it('on a chart with no clear spot, hides one kept label and never a Body', () => {
-    const crowded = tooltipCases().filter(({ where }) => NO_CLEAR_SPOT.includes(where));
-    expect(crowded).toHaveLength(NO_CLEAR_SPOT.length);
-    for (const problems of crowded.map(tooltipProblems)) {
-      expect(problems).toHaveLength(1);
-      expect(problems[0]).toMatch(/covers the label/);
-    }
-  });
-
-  it('as the chart opens, sits beside where the Spacecraft is and off the star, on every seed', () => {
-    const problems = [...SEEDS, 74, 2024].flatMap((seed) => {
-      const run = newRun(seed);
-      const layout = layoutFor(seed);
-      const context = initialChartState(run);
-      const labelContext = { ...context, hereId: currentBody(run).id, targetId: undefined };
-      const labels = placeLabels(layout, labelContext);
-      const why = targetStatus(run, context.focusedId);
-      const box = placeTooltip(
-        layout,
-        labelContext,
-        tooltipHeight(why.valid ? undefined : why.why),
-        labels,
-      );
-      const here = nodeOf(layout, context.focusedId);
-      if (!here) throw new Error('no node for the Spacecraft');
-      const found: string[] = [];
-      if (touchesCircle(box, layout.star)) found.push(`seed ${seed}: covers the star`);
-      if (edgeDistance(box, here) > 40)
-        found.push(`seed ${seed}: ${edgeDistance(box, here)} px off`);
-      return found;
-    });
-    expect(problems.join('\n')).toBe('');
-  });
-
-  it('sits within 40 px of the focused Body, but for the rare spot boxed in by the marks it must not hide', () => {
-    const cases = tooltipCases();
-    const far = cases.filter(({ layout, context, box }) => {
-      const node = nodeOf(layout, context.focusedId);
-      if (!node) throw new Error('no focused node');
-      return edgeDistance(box, node) > 40;
-    });
-    expect(far.length / cases.length).toBeLessThan(0.05);
   });
 });
 
@@ -916,20 +564,6 @@ describe('the route line', () => {
       );
       expect(Math.max(Math.abs(b.x - to.x), Math.abs(b.y - to.y))).toBeCloseTo(to.radius + 6, 5);
     }
-  });
-
-  it('clear drops the target and keeps the focus', () => {
-    const run = newRun(5);
-    const layout = layoutChart(run);
-    const moon = homeMoon(run);
-    const clicked = chartReducer(run, layout, initialChartState(run), {
-      kind: 'click',
-      id: moon.id,
-    });
-    expect(chartReducer(run, layout, clicked, { kind: 'clear' })).toEqual({
-      focusedId: moon.id,
-      selectedId: undefined,
-    });
   });
 });
 
