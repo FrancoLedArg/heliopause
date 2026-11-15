@@ -3,6 +3,7 @@ import {
   firstTarget,
   heliopauseFound,
   heliopauseInRange,
+  isFuelSourceInReach,
   landedOn,
   withDeltaV,
   withJumpDrive,
@@ -19,6 +20,7 @@ import {
   currentBody,
   findBody,
   isDepleted,
+  isInHopRange,
   listBodies,
   STARTING_MATERIALS,
   startingMoon,
@@ -179,13 +181,64 @@ describe('landing and Comms', () => {
       const body = findBody(run.starSystem, found as BodyId);
       if (!body) throw new Error(`Comms Detected no Body of the Star System: ${String(found)}`);
       expect(body.landable).toBe(true);
-      // Nothing undetected and landable is nearer than what Comms found.
+      // Nothing undetected, landable and as useful is nearer than what Comms found: with no Fuel
+      // source Detected and In reach, Comms looks for one first (#280).
+      const lifeline = isFuelSourceInReach(after, body);
       const distance = (b: Body) => auBetween(run, target, b);
       const others = listBodies(run.starSystem).filter(
-        (b) => b.landable && bodyKnowledge(run, b.id) === 'unknown',
+        (b) =>
+          b.landable &&
+          bodyKnowledge(run, b.id) === 'unknown' &&
+          b.id !== target.id &&
+          (!lifeline || isFuelSourceInReach(after, b)),
       );
       for (const other of others) expect(distance(body)).toBeLessThanOrEqual(distance(other));
     }
+  });
+
+  // #280: from any landing, a Fuel source (an Icy Body with Fuel left) is Detected and In reach.
+  it('with no Fuel source Detected and In reach, Comms Detects the nearest one In reach instead', () => {
+    let lifelines = 0;
+    let plain = 0;
+    for (const seed of SEEDS) {
+      for (const chassisId of CHASSIS_IDS) {
+        let run = startRun(seed, chassisId);
+        for (let hop = 0; hop < 4 && run.status.kind === 'landed'; hop++) {
+          // Hop to the newest known landable Body that is not where the Spacecraft is.
+          const here = currentBody(run).id;
+          const next = [...run.knowledge.detected]
+            .reverse()
+            .find((id) => id !== here && findBody(run.starSystem, id)?.landable);
+          if (!next) break;
+          const planned = planHop(run, next);
+          if (planned.kind !== 'planned' || planned.plan.successChance === 0) break;
+          const { run: after, flight } = flyHop(run, planned.plan, AT_ESTIMATE);
+          if (after.status.kind !== 'landed') break;
+          const target = currentBody(after);
+          // What the Spacecraft knew on landing, before Comms: the Body landed on included.
+          const knewSource = run.knowledge.detected.some((id) => {
+            const body = findBody(run.starSystem, id);
+            return body !== undefined && id !== target.id && isFuelSourceInReach(after, body);
+          });
+          const undetected = listBodies(run.starSystem)
+            .filter(
+              (b) => b.landable && bodyKnowledge(run, b.id) === 'unknown' && b.id !== target.id,
+            )
+            .sort((a, b) => auBetween(run, target, a) - auBetween(run, target, b));
+          const source = undetected.find((b) => isFuelSourceInReach(after, b));
+          // Otherwise the nearest within the Hop range, when any is left there (#283).
+          const inRange = undetected.filter((b) => isInHopRange(after, b.id));
+          const expected = !knewSource && source ? source : (inRange[0] ?? undetected[0]);
+          if (!knewSource && source) lifelines++;
+          else plain++;
+          expect(flight.reveal?.detected).toEqual(expected ? [expected.id] : []);
+          run = after;
+        }
+      }
+    }
+    // Both of Comms' picks happen often in these Runs.
+    expect(lifelines).toBeGreaterThan(20);
+    expect(plain).toBeGreaterThan(20);
   });
 
   it('Comms never Detects a Gas Giant, and the map only grows', () => {

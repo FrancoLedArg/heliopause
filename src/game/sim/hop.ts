@@ -673,7 +673,7 @@ function arrive(run: Run, departure: Departure, cruise: Cruise): FlownHop {
       if (!target) throw new Error('Arrived on no Body');
       const landed = collectYield(settled({ kind: 'landed', bodyId: target.id }), target.id);
       // The landing Surveys the target, then Comms Detects one more Body.
-      const learned = revealOnLanding(landed.run, target.id);
+      const learned = revealOnLanding(landed.run, target.id, isInReach);
       // Stranded is judged after the Cruise, on the Spacecraft as it landed.
       return deepFreeze({
         flight: { ...flight, collection: landed.collection, reveal: learned.reveal },
@@ -831,6 +831,19 @@ function marginPhrase(plan: HopPlan): string {
     return `no Margin (the Fuel gave ${percent(-marginShare(plan))}% less Δv than the plan needs)`;
   const share = percent(marginShare(plan));
   return share < 100 ? `${share}% Margin` : `${formatDeltaV(plan.margin)} of Margin`;
+}
+
+/**
+ * Whether `body` is In reach of the landed Run: within the Hop range, and the plan the player would
+ * see for it once Detected has the In reach verdict (#190) with the Fuel on board. An Unsurveyed Body
+ * is planned with its cautious Landing, as the chart shows it.
+ */
+export function isInReach(run: Run, body: LandableBody): boolean {
+  const knowing = run.knowledge.detected.includes(body.id)
+    ? run
+    : { ...run, knowledge: { ...run.knowledge, detected: [...run.knowledge.detected, body.id] } };
+  const planned = planToBody(knowing, body.id);
+  return planned.kind === 'planned' && reachVerdict(planned.plan) === 'in-reach';
 }
 
 /**

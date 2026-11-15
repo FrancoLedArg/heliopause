@@ -168,7 +168,7 @@ it('installs the cheapest Component with the starting Materials: Materials and �
     `Installed Fuel Tank, level 1 in Slot 3. ${String(25 - COMPONENTS['fuel-tank-1'].cost)} Materials left.`,
   );
   expect(byTestId(host, 'panel-delta-v').textContent).not.toBe(before);
-  expect(byTestId(host, 'fuel-capacity').textContent).toBe('42.0 t');
+  expect(byTestId(host, 'fuel-capacity').textContent).toBe('72.0 t');
   expect(byTestId(host, 'install-target').textContent).toContain('Slot 4');
 });
 
@@ -180,7 +180,7 @@ it('refuses with a reason in text when the Run cannot afford it, and changes not
   expect(byTestId(host, 'install-status').textContent).toBe(
     "Can't install. Not enough Materials: it costs 30 and you have 25, 5 short.",
   );
-  expect(byTestId(host, 'fuel-capacity').textContent).toBe('21.0 t');
+  expect(byTestId(host, 'fuel-capacity').textContent).toBe('36.0 t');
 });
 
 it('refuses with a reason in text when every Slot is full', async () => {
@@ -205,7 +205,7 @@ it('shows each Component’s effect as its Chassis scales it, never the catalogu
   const effects = [...host.querySelectorAll('[data-testid="component-effect"]')].map(
     (el) => el.textContent,
   );
-  expect(effects).toContain('Holds 66.0 t of Fuel.');
+  expect(effects).toContain('Holds 36.0 t of Fuel.');
   expect(effects.join(' ')).not.toMatch(/(?<![\d.])6\.0 t of Fuel/);
   expect(effects.join(' ')).not.toContain('900 s');
 });
@@ -361,7 +361,7 @@ it('says how much Fuel is lost before the player confirms', async () => {
   press(slotRadio(host, /^Slot 3, Fuel Tank/));
   press(button(host, /^Remove$/));
   const ask = byTestId(host, 'remove-confirm').textContent;
-  expect(ask).toContain('66.0 t of Fuel will be lost.');
+  expect(ask).toContain('36.0 t of Fuel will be lost.');
 });
 
 it.each(CHASSIS_IDS)(
@@ -434,19 +434,19 @@ it('previews a Fuel Tank dropping Δv, in words, when its Install button is focu
   await tabTo(/Install Fuel Tank, level 1/);
   const text = previewText(host);
   expect(text).toContain('Install Fuel Tank 1');
-  expect(text).toContain('28.8 km/s → 24.7 km/s');
+  expect(text).toContain('36.1 km/s → 31.7 km/s');
   // The drop is a signed number by the bar, and in words in the bar's name.
-  expect(text).toContain('−4.1');
-  expect(previewDv(host)).toContain('Drops 4.1 km/s');
+  expect(text).toContain('−4.4');
+  expect(previewDv(host)).toContain('Drops 4.4 km/s');
   expect(byTestId(host, 'preview-note').textContent).toBe('Starts empty, so Δv drops.');
   // The rest of the lesson waits behind "Tell me more" (#224: one short line of prose per panel).
   press(button(host, /Tell me more/));
   expect(byTestId(host, 'preview-more').textContent).toContain(
-    `Filled up: 33.8${NBSP}km/s, up from 28.8${NBSP}km/s.`,
+    `Filled up: 41.5${NBSP}km/s, up from 36.1${NBSP}km/s.`,
   );
   // Nothing was paid: the Materials and the Δv in the figures are as they were.
   expect(byTestId(host, 'install-target').textContent).toContain('25 Materials in stock');
-  expect(byTestId(host, 'panel-delta-v').textContent).toBe('28.8 km/s');
+  expect(byTestId(host, 'panel-delta-v').textContent).toBe('36.1 km/s');
 });
 
 it('previews the removal of the Component in the chosen Slot, and says why when it cannot be removed', async () => {
@@ -456,7 +456,7 @@ it('previews the removal of the Component in the chosen Slot, and says why when 
   await focusSlot(/^Slot 3, Drill/);
   expect(previewText(host)).toContain('Remove Drill 1');
   // #224: the change is a signed number beside the bar, its unit with the figures above it.
-  expect(previewText(host)).toContain('15.8 t → 15.0 t');
+  expect(previewText(host)).toContain('4.8 t → 4.0 t');
   expect(previewText(host)).toContain('−0.8');
   await focusSlot(/^Slot 1, Engine/);
   expect(previewText(host)).toContain('last Engine');

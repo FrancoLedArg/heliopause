@@ -27,15 +27,15 @@ import {
 
 describe('a Component’s effect is shown as the Chassis scales it', () => {
   it('says a Fuel Tank’s capacity for this Chassis, not the catalogue’s base figure', () => {
-    // Base capacity 6,000 kg; the Scout's Chassis factor makes it 21 t, the Hauler's 66 t.
-    expect(describeEffect('scout', 'fuel-tank-1')).toBe('Holds 21.0 t of Fuel.');
-    expect(describeEffect('hauler', 'fuel-tank-1')).toBe('Holds 66.0 t of Fuel.');
-    expect(describeEffect('scout', 'fuel-tank-1')).not.toContain('6.0 t');
+    // Base capacity 6,000 kg; every Chassis's factor makes it 36 t since #298 (ADR 0006).
+    expect(describeEffect('scout', 'fuel-tank-1')).toBe('Holds 36.0 t of Fuel.');
+    expect(describeEffect('hauler', 'fuel-tank-1')).toBe('Holds 36.0 t of Fuel.');
+    expect(describeEffect('scout', 'fuel-tank-1')).not.toBe('Holds 6.0 t of Fuel.');
   });
 
   it('says an Engine’s Isp for this Chassis, not the base Isp', () => {
     expect(describeEffect('scout', 'engine-1')).toContain('1,600 s');
-    expect(describeEffect('lancer', 'engine-1')).toContain('1,665 s');
+    expect(describeEffect('lancer', 'engine-1')).toContain('1,600 s');
     expect(describeEffect('scout', 'engine-1')).not.toContain('900');
     expect(describeEffect('scout', 'engine-2')).toContain('2,000 s');
   });
@@ -138,7 +138,7 @@ describe('the catalogue rows', () => {
       level: 1,
       mass: '1.5 t',
       cost: '20 Materials',
-      effect: 'Holds 21.0 t of Fuel.',
+      effect: 'Holds 36.0 t of Fuel.',
       affordable: true,
       short: 0,
     });
@@ -188,6 +188,7 @@ describe('removing a Component is explained in words', () => {
   });
 });
 
+// Figures re-pinned for #298: every Chassis has a 36 t Tank and 36.1 km/s of Δv to start.
 describe('the preview before you pay', () => {
   const scout = startRun(123, 'scout').spacecraft;
 
@@ -197,7 +198,7 @@ describe('the preview before you pay', () => {
     expect(preview?.note).toBe('Starts empty, so Δv drops.');
     expect(preview?.more).toEqual([
       COMPONENTS['fuel-tank-1'].explanation,
-      'Filled up: 33.8\u00a0km/s, up from 28.8\u00a0km/s.',
+      'Filled up: 41.5\u00a0km/s, up from 36.1\u00a0km/s.',
     ]);
   });
 
@@ -241,23 +242,23 @@ describe('the stat bars', () => {
     const bars = statBars(scout);
     expect(bars.map((bar) => [bar.kind, bar.label, bar.value])).toEqual([
       ['mass', 'Mass', '4.0 t'],
-      ['fuel', 'Fuel', '21.0 t'],
-      ['delta-v', 'Δv', '28.8 km/s'],
+      ['fuel', 'Fuel', '36.0 t'],
+      ['delta-v', 'Δv', '36.1 km/s'],
     ]);
     for (const bar of bars) {
       expect(bar.share).toBeGreaterThan(0);
       expect(bar.share).toBeLessThanOrEqual(1);
       expect(bar.after).toBeUndefined();
     }
-    expect(bars[2]?.name).toBe('Δv: 28.8 km/s');
+    expect(bars[2]?.name).toBe('Δv: 36.1 km/s');
   });
 
   it('show an install as before and after, with the change, as the simulation previews it', () => {
     const bars = statBars(scout, { kind: 'install', component: 'fuel-tank-1' });
     expect(bars.map((bar) => [bar.value, bar.after?.value, bar.after?.change])).toEqual([
       ['4.0 t', '5.5 t', '+1.5'],
-      ['21.0 t', '42.0 t', '+21.0'],
-      ['28.8 km/s', '24.7 km/s', '−4.1'],
+      ['36.0 t', '72.0 t', '+36.0'],
+      ['36.1 km/s', '31.7 km/s', '−4.4'],
     ]);
     const [mass, fuel, dv] = bars;
     expect(mass?.after?.share).toBeGreaterThan(mass?.share ?? 1);
@@ -265,13 +266,13 @@ describe('the stat bars', () => {
     expect(dv?.after?.share).toBeLessThan(dv?.share ?? 0);
     // More mass is worse, more Fuel is better: the bar says which way is good.
     expect([mass?.after?.good, fuel?.after?.good, dv?.after?.good]).toEqual([false, true, false]);
-    expect(dv?.name).toBe('Δv: 28.8 km/s now, 24.7 km/s after. Drops 4.1 km/s.');
+    expect(dv?.name).toBe('Δv: 36.1 km/s now, 31.7 km/s after. Drops 4.4 km/s.');
   });
 
   it('say no change when a figure does not move', () => {
     const [, fuel] = statBars(scout, { kind: 'install', component: 'drill-1' });
-    expect(fuel?.after).toMatchObject({ value: '21.0 t', change: '±0', trend: 'same' });
-    expect(fuel?.name).toBe('Fuel capacity: 21.0 t now, 21.0 t after. No change.');
+    expect(fuel?.after).toMatchObject({ value: '36.0 t', change: '±0', trend: 'same' });
+    expect(fuel?.name).toBe('Fuel capacity: 36.0 t now, 36.0 t after. No change.');
   });
 
   it('never overflow, with the heaviest Components and the largest Fuel Tanks fitted', () => {

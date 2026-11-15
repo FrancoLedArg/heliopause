@@ -85,7 +85,7 @@ export interface HopPlanView {
   /** The needed Δv without its unit, for "7.8 of 22.1 km/s". */
   readonly neededFigure: string;
   readonly available: string;
-  /** What the available Δv is computed from, e.g. "4.0 t craft + 21.0 t Fuel". */
+  /** What the available Δv is computed from, e.g. "4.0 t craft + 36.0 t Fuel". */
   readonly availableBasis: string;
   /** Signed, with its share of the estimate while that share is under 100%: "+220 m/s (5%)". */
   readonly margin: string;

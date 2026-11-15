@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { stringSeed } from '../lib/stringSeed.ts';
-import { earlyDeadEnds, startingRun } from './testing.ts';
+import { AT_ESTIMATE, earlyDeadEnds, isFuelSourceInReach, startingRun } from './testing.ts';
 import {
   BODY_TUNING,
   CHASSIS_IDS,
   ICE_LINE,
   findBody,
   firstDetectedBody,
+  flyHop,
   generateStarSystem,
   install,
   listBodies,
@@ -206,10 +207,11 @@ describe('Icy and Rocky Bodies', () => {
     }
   });
 
-  it('an Icy yield is a meaningful share of the smallest Fuel tank (21,000 kg)', () => {
+  // The Tank is 36 t on every Chassis since #298, and Icy yields three times their first tuning.
+  it('an Icy yield is a meaningful share of the Fuel tank (36,000 kg)', () => {
     const icy = landable.filter((b) => b.composition === 'icy');
-    expect(Math.min(...icy.map((b) => b.baseYield))).toBeGreaterThanOrEqual(21_000 * 0.1);
-    expect(Math.max(...icy.map((b) => b.baseYield))).toBeLessThan(21_000);
+    expect(Math.min(...icy.map((b) => b.baseYield))).toBeGreaterThanOrEqual(36_000 * 0.2);
+    expect(Math.max(...icy.map((b) => b.baseYield))).toBeLessThan(36_000);
   });
 
   it('a Gas Giant has no resource type or yield', () => {
@@ -281,6 +283,28 @@ describe('a fair opening (#96), with no early dead ends (#188)', () => {
     }
     expect(found.slice(0, 10)).toEqual([]);
   }, 120_000);
+
+  // #280: Comms Detects the nearest Fuel source In reach after a landing, so one must exist there.
+  it('after the first Hop, at its estimate, a Fuel source is In reach for every Chassis, at levels 1 to 3', () => {
+    const found: string[] = [];
+    for (const level of [1, 2, 3]) {
+      for (let i = 0; i < 500; i++) {
+        const system = generateStarSystem(i * 7919 + 1, level);
+        for (const chassis of CHASSIS_IDS) {
+          const start = startingRun(system, chassis, level);
+          const planned = planHop(start, firstDetectedBody(system).id);
+          if (planned.kind !== 'planned') continue;
+          const { run } = flyHop(start, planned.plan, AT_ESTIMATE);
+          if (run.status.kind !== 'landed') continue;
+          const here = run.status.bodyId;
+          const lifeline = listBodies(system).some((body) => isFuelSourceInReach(run, body));
+          if (!lifeline)
+            found.push(`seed ${system.seed} level ${level} ${chassis}: none from ${here}`);
+        }
+      }
+    }
+    expect(found.slice(0, 10)).toEqual([]);
+  }, 120_000);
 });
 
 // Generating 300 Star Systems at a level takes about 0.5 to 2 s (#188 redraws), so each level is
@@ -306,9 +330,12 @@ describe('Star System difficulty levels', { timeout: 60_000 }, () => {
       typeof value === 'number' ? Number(value.toPrecision(9)) : value,
     );
     // Re-pinned for #189: the Starting Moon replaces the Home Planet, and generation checks its opening.
+    // Re-pinned for #247: the Chassis Isp rose, so more draws open fairly and some seeds settle sooner.
     // Re-pinned for #191: the Heliopause lies just past the outermost planet, where the Radar finds it.
     // Re-pinned for #283: fairness weighs only Hops within the Hop range, so some seeds keep other draws.
-    expect(stringSeed(json)).toBe(1828504697);
+    // Re-pinned for #280: a draw is preferred when a Fuel source is In reach after the first Hop.
+    // Re-pinned for #298: Icy yields tripled and every Chassis shares one tuning.
+    expect(stringSeed(json)).toBe(52245929);
   });
 
   it('a higher difficulty level raises gravity', () => {

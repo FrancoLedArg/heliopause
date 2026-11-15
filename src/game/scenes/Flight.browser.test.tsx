@@ -746,10 +746,10 @@ it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clea
         );
       })?.id,
     // No Hop of a full hauler from seed 2046's innermost planet falls short; a tenth of its Fuel, since
-    // half still reaches every Body within the Hop range (#283).
+    // half still reaches every Body within the Hop range (#283); a twentieth of the 36 t Tank since #298.
     (run) => ({
       ...run,
-      spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 10) },
+      spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 20) },
     }),
   );
   expect(data.flight.outcome.kind).toBe('fell-short');
@@ -790,7 +790,8 @@ const withFuel =
   });
 
 it('a Spacecraft that Fell Short in the Takeoff sputters out mid-climb and sags, x fixed, then the report follows', async () => {
-  const { scene, data } = await fly('scout', homeMoonId, withFuel(0.05));
+  // 3% of the 36 t Tank since #298 (was 5% of 21 t).
+  const { scene, data } = await fly('scout', homeMoonId, withFuel(0.03));
   const { outcome } = data.flight;
   expect(outcome.kind === 'fell-short' && outcome.burn).toBe('takeoff');
   const { stopsAt } = scene.playback;

@@ -76,19 +76,19 @@ it('a Run Stranded on Landing goes straight to the End-of-Run screen with the St
   expect(screen?.querySelector('h2')?.textContent).toBe('Stranded');
   expect(find(ui, 'end-of-run-why')?.textContent).toBe(
     // Re-pinned for #189: seed 12, back on Laquun (was seed 305's Lyquin); for #247: seed 27, back on
-    // Dryli (seed 12's Run no longer strands once the Isp rose 30%); for #283: seed 5, back on
-    // Driovae (Teskae is past the Hop range).
-    'However you change its Components, your Spacecraft has at most 4.8 km/s of Δv, and the ' +
-      'cheapest Hop needs 5.1 km/s.',
+    // Dryli; for #283: seed 5, back on Driovae; for #280/#298: seed 47, back on Noxiol (Comms Detects
+    // a Fuel source first, and every Chassis flies alike).
+    'However you change its Components, your Spacecraft has at most 4.7 km/s of Δv, and the ' +
+      'cheapest Hop needs 5.3 km/s.',
   );
   expect(find(ui, 'end-of-run-score')?.getAttribute('aria-label')).toBe(
-    'Score: 0 Star Systems escaped, 6 Hops flown',
+    'Score: 0 Star Systems escaped, 4 Hops flown',
   );
   // No Hop report, and nothing left to plan with: the Run is over.
   expect(find(ui, 'hop-report')).toBeNull();
   expect(ui.querySelector('.landed-plate')).toBeNull();
   expect(ui.querySelector('.landed-nav-button')).toBeNull();
-  expect(readBestScore()).toEqual({ starSystemsEscaped: 0, hopsFlown: 6 });
+  expect(readBestScore()).toEqual({ starSystemsEscaped: 0, hopsFlown: 4 });
   expect(document.activeElement?.textContent).toBe('New Run');
   // M does not open the Nav Chart under the End-of-Run screen.
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
@@ -129,7 +129,7 @@ it('spending the Materials that could have saved the Run strands it on the spot'
   await act(() => Promise.resolve());
   expect(find(ui, 'end-of-run')?.querySelector('h2')?.textContent).toBe('Stranded');
   expect(find(ui, 'stranded-warning')).toBeNull();
-  expect(readBestScore()).toEqual({ starSystemsEscaped: 0, hopsFlown: 6 });
+  expect(readBestScore()).toEqual({ starSystemsEscaped: 0, hopsFlown: 4 });
 });
 
 it('New Run from a Stranded Run asks for a Chassis, then starts a new Star System', async () => {

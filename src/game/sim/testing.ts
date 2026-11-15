@@ -169,7 +169,20 @@ export function withJumpDrive(from: Run): Run {
   return { ...result.run, materials: from.materials };
 }
 
-export { startingRun };
+/**
+ * The test oracle for the Fuel lifeline (#280): whether `body` is a Fuel source In reach of the landed
+ * Run, worked out apart from the module. An Icy Body with Fuel left, not the one the Spacecraft is
+ * on, whose plan as the player would see it once Detected shows at least 70% (#190's In reach).
+ */
+export function isFuelSourceInReach(run: Run, body: Body): boolean {
+  if (!body.landable || body.composition !== 'icy' || body.baseYield <= 0) return false;
+  if (run.depleted.includes(body.id) || body.id === currentBody(run).id) return false;
+  const knowing = { ...run, knowledge: { ...run.knowledge, detected: [body.id] } };
+  const planned = planHop(knowing, body.id);
+  return planned.kind === 'planned' && planned.plan.successChance >= 0.7;
+}
+
+export { AT_ESTIMATE, startingRun };
 
 /**
  * The same Run as if a Radar had found the Heliopause, for rules about the Hop there: within its Hop

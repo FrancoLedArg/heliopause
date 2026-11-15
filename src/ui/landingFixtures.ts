@@ -70,37 +70,42 @@ export function landing(
 }
 
 /**
- * Seed 14 with a level-1 Drill, landed on Hunce by way of Radraes Prime, Kescaen Tau and Xulxal: no
- * Hop as built, but removing the Drill saves the Run, with every Body Unsurveyed until landed on as
- * in real play (pass `preSurvey` false). Re-pinned for #190 (was seed 156's Rymoquox): Stranded and
- * the warning follow the plans the player sees. Re-pinned for #283 (was seed 105's Verpry): the
- * fairness check within the Hop range keeps another Star System for seed 105.
+ * Seed 78 with a level-1 Drill, back on Quesrol after Quesrol, Tudru and Lioxex: no Hop as built,
+ * but removing the Drill saves the Run, with every Body Unsurveyed until landed on as in real play
+ * (pass `preSurvey` false). Re-pinned for #190 (was seed 156's Rymoquox), #283 (was seed 105's
+ * Verpry) and #280/#298 (was seed 14's Hunce): Comms Detects a Fuel source first, and every Chassis
+ * now flies with one shared tuning.
  */
 export const SAVE_BY_REMOVING = {
-  seed: 14,
-  path: ['Radraes Prime', 'Kescaen Tau', 'Xulxal', 'Hunce'],
+  seed: 78,
+  path: ['Quesrol', 'Tudru', 'Lioxex', 'Quesrol'],
   fit: 'drill-1',
 } as const;
 
 /**
- * Seed 5, back on Driovae after Driovae, Cyxxaer-7, Raertha, Ryvynsio and Cyxxaer-7: every plan sure,
- * yet no change to the Spacecraft could give any Hop a chance after the last, in real play as well as
- * with the Bodies off the path pre-Surveyed. Re-pinned for #189 (was seed 305's Lyquin): Runs open on
- * a Starting Moon and Hop only to Bodies Comms Detected. Re-pinned for #247 (was seed 12's Laquun):
- * the Chassis Isp rose 30%. Re-pinned for #283 (was seed 27's Dryli, Siolmel, Teskae and Dryli):
- * Teskae is past the Hop range from Siolmel.
+ * Seed 47, back on Noxiol after Noxiol, Kyrtio and Lanpraer: every plan sure, yet no change to the
+ * Spacecraft could give any Hop a chance after the last, in real play as well as with the Bodies off
+ * the path pre-Surveyed. Re-pinned for #189 (was seed 305's Lyquin), #247 (was seed 12's Laquun),
+ * #283 (was seed 27's Dryli) and #280/#298 (was seed 5's Driovae): Comms Detects a Fuel source
+ * first, and every Chassis now flies with one shared tuning.
  */
 export const STRANDED_ON_LANDING = {
-  seed: 5,
-  path: ['Driovae', 'Cyxxaer-7', 'Raertha', 'Ryvynsio', 'Cyxxaer-7', 'Driovae'],
+  seed: 47,
+  path: ['Noxiol', 'Kyrtio', 'Lanpraer', 'Noxiol'],
 } as const;
 
 /**
- * Seed 5's same path with 4 Materials more than it would have (60, not 56): only swapping in the
- * level-2 Engine (60) saves the Run, so spending any of them on another Component strands it.
- * Without them, the Landing itself strands it. Re-pinned for #189 (was seed 57's Vekyr), and for
- * #283 with `STRANDED_ON_LANDING` (was 1 Material on seed 27).
+ * Seed 97, on Violios, after Risrol, Harzo and back to Risrol, with 11 Materials more than it would
+ * have, landing with 60: only swapping in the level-2 Engine (60) saves the Run, so spending any of
+ * them on another Component strands it. With one fewer, the Landing itself strands it. Its own seed
+ * since #280/#298 (was `STRANDED_ON_LANDING`'s path with extra Materials): no path strands both in
+ * real play and one Material short of the Engine swap.
  */
+export const SAVE_BY_REFITTING = {
+  seed: 97,
+  path: ['Risrol', 'Harzo', 'Risrol', 'Violios'],
+} as const;
+
 export function saveByRefitting(): Run {
-  return landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path, undefined, 4).run;
+  return landing(SAVE_BY_REFITTING.seed, SAVE_BY_REFITTING.path, undefined, 11).run;
 }

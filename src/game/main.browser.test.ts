@@ -81,10 +81,12 @@ it('a New Run request from any scene, not only the Title, starts a fresh Run on 
   game.scene.stop(SceneKey.Landed);
   // Re-pinned for #189: seed 1's scout, low on Fuel, crashes on its first target. A sixteenth of its
   // Fuel since #247 (was a tenth): with the Isp 30% higher, a tenth now Arrives.
+  // Re-pinned for #298: every Chassis starts with a 36 t Tank, so a sixteenth (2.25 t) Arrives; a fixed
+  // 1 t of Fuel crashes.
   const full = startRun(1, 'scout');
   const run = {
     ...full,
-    spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 16) },
+    spacecraft: { ...full.spacecraft, fuelMass: kilograms(1000) },
   };
   const target = listBodies(run.starSystem).find((body) => {
     const launched = launchHop(run, body.id);
