@@ -2,11 +2,13 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { GameObjects } from 'phaser';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { GameUI } from '../../ui/GameUI.tsx';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
 import {
+  beginHop,
   CHASSIS_IDS,
   findBody,
   HELIOPAUSE,
@@ -22,10 +24,11 @@ import {
   type HopTarget,
   type Run,
 } from '../sim/index.ts';
-import type { Flight, FlightData } from './Flight.ts';
+import { flightDataFor, type Flight, type FlightData } from './Flight.ts';
 import type { Landed } from './Landed.ts';
 import { FLIGHT_ANGLE, turn, type ShipPose } from './chassisArt.ts';
 import { composeSpacecraft } from './spacecraftComposition.ts';
+import { ringGeometry } from './damageMarks.ts';
 import { bodySprite, SHIP_PLACEMENT } from './landedView.ts';
 import { music } from '../audio/music.ts';
 import { flightPlayback } from './flightPlayback.ts';
@@ -274,7 +277,9 @@ it('the Cruise draws its event layer between the starfield and the Spacecraft', 
   expect(scene.eventLayer.visible).toBe(true);
   expect(list.indexOf(scene.eventLayer)).toBeGreaterThan(space);
   expect(list.indexOf(scene.eventLayer)).toBeLessThan(list.indexOf(scene.ship));
-  expect(scene.playback.events).toEqual([]);
+  // Every real Cruise has its Fuel leaks to play there (#250).
+  expect(scene.playback.events.length).toBeGreaterThan(0);
+  expect(scene.playback.events.every((event) => event.kind === 'fuel-leak')).toBe(true);
 });
 
 it.each(['takeoff', 'cruise', 'approach', 'landing'] as const)(
@@ -514,11 +519,6 @@ describe.each(['full', 'reduced'] as const)('the Jump, at %s motion', (pace) => 
   });
 });
 
-const wait = (ms: number): Promise<void> =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
 /** A plume's art: the takeoff exhaust (`fx_plume`) once the manifest has it, `fx_thruster` otherwise and in flight. */
 const isPlume = (image: GameObjects.Image): boolean =>
   ['fx_thruster', 'fx_plume'].includes(image.texture.key);
@@ -589,11 +589,17 @@ it('fast-forward stays on for the next Hop of the Run', async () => {
 it('Takeoff kicks up dust, and the Cruise trails sparks through the boost', async () => {
   const { scene } = await fly('scout');
   const { start } = cruiseSpan(scene);
+  // Hold the loop and step the scene (clock and particles) in fixed frames, so the emitters have
+  // their 500 ms however loaded the machine is.
+  scene.game.loop.sleep();
+  const emit = (): void => {
+    for (let time = 0; time < 500; time += 16) scene.sys.step(time, 16);
+  };
   scene.seek(900);
-  await act(() => wait(500));
+  emit();
   expect(emitters(scene).some((e) => e.getAliveParticleCount() > 0)).toBe(true);
   scene.seek(start + 200);
-  await act(() => wait(500));
+  emit();
   const alive = emitters(scene).filter((e) => e.getAliveParticleCount() > 0);
   expect(alive.length).toBeGreaterThan(0);
 });
@@ -1205,4 +1211,77 @@ it("Takeoff from seed 2046's Icy Moon uses the same Icy strip and Icy dust and s
     emitters(scene).find((e) => e.texture.key === key)?.ops.tint.current;
   expect(tint('fx_dust')).toBe(paletteNumber('cy4'));
   expect(tint('fx_smoke')).toBe(paletteNumber('cy4'));
+});
+
+describe('the live Cruise (#250)', () => {
+  it('a leak striking turns the fast-forward off; a click on the leaking Tank starts its Repair, one on its price Rushes it', async () => {
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    const titleReady = nextSceneReady(SceneKey.Title);
+    act(() => {
+      root?.render(
+        <div className="stage" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }}>
+          <div id="flight-test-game" />
+          <div className="stage__ui">
+            <GameUI />
+          </div>
+        </div>,
+      );
+    });
+    game = startGame('flight-test-game');
+    await titleReady;
+    const run = onHome(startRun(2026, 'scout'));
+    const target = homeMoonId(run);
+    if (target === undefined) throw new Error('No target');
+    const fuelTank = run.spacecraft.slots.findIndex((id) => id === 'fuel-tank-1');
+    const begun = beginHop(run, target, {
+      schedule: [{ kind: 'fuel-leak', tick: 100, slot: fuelTank }],
+    });
+    if (begun.kind === 'invalid-target') throw new Error('Not a Hop target');
+    const ready = nextSceneReady(SceneKey.Flight);
+    game.scene.start(SceneKey.Flight, flightDataFor(run, begun));
+    await ready;
+    const scene = game.scene.getScene<Flight>(SceneKey.Flight);
+    const cruise = scene.playback.cruise;
+    if (!cruise) throw new Error('Expected a Cruise');
+
+    let dropped = false;
+    const off = EventBus.on('cruise-event-struck', () => {
+      dropped = true;
+    });
+    act(() => {
+      EventBus.emit('hop-fast-forward-requested', true);
+    });
+    // Tick 100 is 10 s into the 2-minute Cruise.
+    act(() => {
+      scene.seek(cruise.start + 10_050);
+    });
+    off();
+    expect(dropped).toBe(true);
+    expect(scene.live?.spacecraft.damage[fuelTank]).toEqual({ repair: null, burning: null });
+
+    const rect = scene.componentBounds().get(fuelTank);
+    const canvas = scene.game.canvas;
+    if (!rect) throw new Error('The Tank is drawn');
+    const scale = canvas.getBoundingClientRect().width / GAME_WIDTH;
+    const part = { x: (rect.x + rect.width / 2) * scale, y: (rect.y + rect.height / 2) * scale };
+    const materialsBefore = run.materials;
+    await userEvent.click(canvas, { position: part });
+    expect(scene.live?.spacecraft.damage[fuelTank]?.repair).toBe(0);
+    // A second click on the part never Rushes: only the ring or its price does.
+    await userEvent.click(canvas, { position: part });
+    // Nor a double-click 2 px inside a corner, where the ring's line runs close by.
+    await userEvent.dblClick(canvas, {
+      position: { x: (rect.x + rect.width - 2) * scale, y: (rect.y + rect.height - 2) * scale },
+    });
+    expect(scene.live?.materials).toBe(materialsBefore);
+    expect(scene.live?.spacecraft.damage[fuelTank]?.repair).toBe(0);
+    const { price } = ringGeometry(rect);
+    await userEvent.click(canvas, {
+      position: { x: (price.x + price.width / 2) * scale, y: (price.y + price.height / 2) * scale },
+    });
+    expect(scene.live?.spacecraft.damage[fuelTank]).toBeNull();
+    expect(scene.live?.materials).toBeLessThan(materialsBefore);
+  });
 });

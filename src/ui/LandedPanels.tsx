@@ -18,6 +18,7 @@ import { ResourceIcon } from './ResourceIcon.tsx';
 import { describeSpacecraft } from './spacecraftPanelView.ts';
 import { useApproachMusic } from './useApproachMusic.ts';
 import { yieldIcon } from './yieldIcon.ts';
+import { missionGoals } from './missionTrackerView.ts';
 import { TopBar } from './TopBar.tsx';
 
 /**
@@ -104,6 +105,7 @@ export function LandedPanels({
     <>
       <TopBar
         systemNumber={starSystemNumber(run)}
+        goals={missionGoals(run)}
         systemName={run.starSystem.name}
         fuel={spacecraft.fuelMass}
         fuelCapacity={spacecraft.fuelCapacity}

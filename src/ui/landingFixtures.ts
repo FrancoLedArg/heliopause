@@ -56,7 +56,9 @@ export function landing(
   for (const bodyName of path) {
     const body = listBodies(run.starSystem).find(({ name }) => name === bodyName);
     if (!body) throw new Error(`Seed ${String(seed)} has no ${bodyName}`);
-    const flown = launchHop(run, body.id);
+    // With no Cruise events (#250): these fixtures pin Stranded on the Burns alone, and e2e flows
+    // play them with `NO_CRUISE_EVENTS`.
+    const flown = launchHop(run, body.id, { schedule: [] });
     if (flown.kind !== 'flown' || flown.flight.outcome.kind !== 'arrived') {
       throw new Error(`Seed ${String(seed)}: the Hop to ${bodyName} should Arrive`);
     }
