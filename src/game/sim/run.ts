@@ -47,7 +47,7 @@ export interface Run {
  * on the Home Planet.
  */
 export function startRun(seed: Seed, chassisId: ChassisId): Run {
-  const starSystem = generateStarSystem(starSystemSeed(seed, 1), 1);
+  const starSystem = generateSystem(seed, 1);
   return deepFreeze({
     seed,
     starSystemNumber: 1,
@@ -83,4 +83,12 @@ export function starSystemNumber(run: Run): number {
 export function starSystemSeed(runSeed: Seed, systemNumber: number): Seed {
   if (systemNumber <= 1) return runSeed;
   return runSeed ^ stringSeed(`star-system:${systemNumber}`);
+}
+
+/**
+ * The Star System a Run is in at a number: its seed stream and difficulty level together, so the two
+ * can never be passed mismatched. The Jump (#157) generates System n + 1 with this.
+ */
+export function generateSystem(runSeed: Seed, systemNumber: number): StarSystem {
+  return generateStarSystem(starSystemSeed(runSeed, systemNumber), systemNumber);
 }

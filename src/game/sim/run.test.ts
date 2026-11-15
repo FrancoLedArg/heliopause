@@ -6,6 +6,7 @@ import {
   homePlanet,
   listBodies,
   newSpacecraft,
+  generateSystem,
   startRun,
   starSystemNumber,
   starSystemSeed,
@@ -61,8 +62,6 @@ describe('the Star System number', () => {
     expect(starSystemSeed(2026, 2)).toBe(starSystemSeed(2026, 2));
     expect(starSystemSeed(2026, 2)).not.toBe(starSystemSeed(2026, 3));
     expect(starSystemSeed(2026, 2)).not.toBe(2026);
-    expect(generateStarSystem(starSystemSeed(2026, 2), 2).name).not.toBe(
-      generateStarSystem(2026, 1).name,
-    );
+    expect(generateSystem(2026, 2).name).not.toBe(generateStarSystem(2026, 1).name);
   });
 });

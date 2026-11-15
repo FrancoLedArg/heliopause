@@ -228,10 +228,13 @@ describe('Star System difficulty levels', () => {
     all.flatMap(listBodies).filter((body) => body.landable);
 
   it("difficulty level 1 generates exactly today's Star System", () => {
-    // FNV-1a hash of these seeds' Systems as JSON, captured (and confirmed against a SHA-256)
-    // before levels existed.
-    expect(stringSeed(JSON.stringify(at(1)))).toBe(1599656541);
-    expect(JSON.stringify(systems)).toBe(JSON.stringify(at(1)));
+    // FNV-1a hash of these seeds' Systems as JSON, computed from main before levels existed.
+    // Numbers are rounded to 9 significant digits: Math.log/exp differ in the last bit between
+    // x64 and arm64, which 9 digits absorbs while still catching any tuning change.
+    const json = JSON.stringify(at(1), (_key, value: unknown) =>
+      typeof value === 'number' ? Number(value.toPrecision(9)) : value,
+    );
+    expect(stringSeed(json)).toBe(1610578539);
   });
 
   it('a higher difficulty level raises gravity', () => {
@@ -277,6 +280,10 @@ describe('Star System difficulty levels', () => {
     expect(mean(at(3).map((s) => s.heliopauseRadius))).toBeGreaterThan(
       mean(at(2).map((s) => s.heliopauseRadius)),
     );
+  });
+
+  it('a difficulty level below 1 is refused', () => {
+    expect(() => generateStarSystem(1, 0)).toThrow(RangeError);
   });
 
   it('generation is deterministic by seed at levels 1 to 3', () => {

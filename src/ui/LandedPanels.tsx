@@ -1,4 +1,10 @@
-import { availableDeltaV, currentBody, isDepleted, type Run } from '../game/sim/index.ts';
+import {
+  availableDeltaV,
+  currentBody,
+  isDepleted,
+  starSystemNumber,
+  type Run,
+} from '../game/sim/index.ts';
 import { useEffect, useRef } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import { bodyFullLabel, formatDistanceAu, formatGravity } from './format.ts';
@@ -58,7 +64,7 @@ export function LandedPanels({
   return (
     <>
       <TopBar
-        systemNumber={run.starSystemNumber}
+        systemNumber={starSystemNumber(run)}
         systemName={run.starSystem.name}
         fuel={run.spacecraft.fuelMass}
         deltaV={availableDeltaV(run.spacecraft)}

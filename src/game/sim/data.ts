@@ -235,5 +235,6 @@ export function difficultyFactor(
   curve: { readonly perLevel: number; readonly floor: number },
   level: number,
 ): number {
+  if (level < 1) throw new RangeError(`Star System number ${level} is below 1`);
   return Math.max(curve.floor, 1 + curve.perLevel * (level - 1));
 }

@@ -3,6 +3,7 @@
 export { findBody, generateStarSystem, homePlanet, listBodies } from './starSystem.ts';
 export {
   currentBody,
+  generateSystem,
   starSystemNumber,
   starSystemSeed,
   startRun,
