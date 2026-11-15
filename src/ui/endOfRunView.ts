@@ -3,7 +3,7 @@
 import type { RunEnd, Score } from '../game/sim/index.ts';
 
 export interface EndOfRunView {
-  readonly title: 'Fell Short' | 'Crashed' | 'Stranded';
+  readonly title: 'Fell Short' | 'Crashed' | 'Stranded' | 'Destroyed';
   /** One line saying what happened, before the why. */
   readonly summary: string;
   /** The simulation's plain-language why, as written. */
@@ -35,6 +35,7 @@ const ENDS: Record<RunEnd['kind'], Pick<EndOfRunView, 'title' | 'summary'>> = {
   'fell-short': { title: 'Fell Short', summary: 'The Fuel ran out in flight.' },
   crashed: { title: 'Crashed', summary: 'The Spacecraft was lost on Landing.' },
   stranded: { title: 'Stranded', summary: 'No Hop was left to fly.' },
+  destroyed: { title: 'Destroyed', summary: 'The Spacecraft was lost in the Cruise.' },
 };
 
 /**

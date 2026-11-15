@@ -271,3 +271,60 @@ export function difficultyFactor(
   if (level < 1) throw new RangeError(`Star System number ${level} is below 1`);
   return Math.max(curve.floor, 1 + curve.perLevel * (level - 1));
 }
+
+/** The four kinds of Cruise event (#210). */
+export const CRUISE_EVENT_KINDS = [
+  'fuel-leak',
+  'debris-field',
+  'engine-fire',
+  'solar-flare',
+] as const;
+export type CruiseEventKind = (typeof CRUISE_EVENT_KINDS)[number];
+
+/** The kinds a mild Cruise can draw: a slow Fuel leak or a small Debris field. */
+const MILD_KINDS: readonly CruiseEventKind[] = ['fuel-leak', 'debris-field'];
+
+/**
+ * Gameplay tuning for the Cruise and its events (#210 and its human amendment: every Cruise has 1–2
+ * events from Hop 1, mild ones first, harsher ones later). Not real-world figures. Times are in
+ * Cruise ticks of `tickMs`.
+ */
+export const CRUISE_TUNING = {
+  /** One tick of the Cruise's deterministic clock, in ms of Cruise time. */
+  tickMs: 100,
+  /** The Cruise lasts 120 s: 1,200 ticks. */
+  ticks: 1_200,
+  /**
+   * The kinds a real Run schedules. Empty until #250 turns the Fuel leak on: until then real Runs
+   * have no Cruise events, and the game is unchanged.
+   */
+  enabledKinds: [] as readonly CruiseEventKind[],
+  /**
+   * The first Hops of a Run are mild: only `mildKinds`, a Debris field never hits an Engine, and a
+   * leak is slow. So the Engine fire, and with it Destroyed, never strikes on them.
+   */
+  mildHops: 3,
+  mildKinds: MILD_KINDS,
+  /** Every Cruise has one event; the chance of a second rises with the Star System. */
+  secondEvent: { mild: 0.15, base: 0.25, perStarSystem: 0.1, max: 0.6 },
+  /**
+   * After the mild Hops, the chance an event is harsh (an Engine fire or a solar flare): it rises
+   * with the Star System and the Hop count. The Engine fire is the rarer of the two.
+   */
+  harshChance: { base: 0.25, perStarSystem: 0.1, perHop: 0.02, max: 0.6 },
+  engineFireShareOfHarsh: 0.4,
+  /** Events start from 10 s to 100 s into the Cruise (an Engine fire by 80 s), 20 s apart. */
+  startTicks: { min: 100, max: 1_000, engineFireMax: 800, apart: 200 },
+  /** A Debris field hits one Component this often, and misses otherwise. */
+  debrisHitChance: 0.6,
+  /** A leak loses this share of the Spacecraft's Fuel capacity per second: slower in a mild Cruise. */
+  leakPerSecond: { mild: 0.0005, harsh: 0.0025 },
+  /** A Damaged Engine's Isp factor (#197). */
+  damagedEngineIsp: 0.85,
+  /** A burning Engine with no Repair started for this long explodes: 30 s. */
+  fireTicks: 300,
+  /** Repair times by Component kind, in ticks: Engine 40 s, Fuel Tank 30 s, Drill 20 s. */
+  repairTicks: { engine: 400, 'fuel-tank': 300, drill: 200 },
+  /** A Rush costs 1 Material per started 5 s of Repair time left. */
+  rushTicksPerMaterial: 50,
+} as const;
