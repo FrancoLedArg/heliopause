@@ -199,6 +199,8 @@ it('drifts the ground further than the sky, the Spacecraft with the ground, and 
   const scene = await landOn(landedRun());
   const { sky, ground, ship } = scene.layers;
   expect(scene.reducedMotion).toBe(false);
+  // Freeze the drift clock at 0 first: a tween still running would move the layer under `rest`.
+  scene.ambient.seekDrift(0);
   const rest = ground.x;
   for (const ms of [DRIFT_PERIOD_MS / 4, (3 * DRIFT_PERIOD_MS) / 4]) {
     await seek(scene, ms);
