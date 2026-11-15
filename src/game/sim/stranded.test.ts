@@ -65,14 +65,17 @@ function fittedWith(from: Run, slots: readonly Slot[]): Run {
  * start: a Run that only swapping in the level-2 Engine (60 Materials) could save. Re-pinned for #189
  * (was seed 57's Hop to Vekyr): Runs open on a Starting Moon and Hop only to Bodies Comms Detected.
  * The last Hop's plan is sure, but its Burns run long, so it Arrives with less than the estimate left.
+ * Flown with no Cruise events (#250 turned the Fuel leak on): this pins Stranded on the Burns alone.
  */
+const NO_EVENTS = { events: [] } as const;
+
 function backOnLaquun(extra: number): Run {
   let run = startRun(12, 'scout');
   run = { ...run, materials: materials(run.materials + extra) };
   for (const name of ['Laquun', 'Prahen', 'Laquun']) {
     const body = listBodies(run.starSystem).find((b) => b.name === name);
     if (!body) throw new Error(`Seed 12 has no ${name}`);
-    const landed = launchHop(run, body.id);
+    const landed = launchHop(run, body.id, NO_EVENTS);
     if (landed.kind !== 'flown' || landed.flight.outcome.kind !== 'arrived') {
       throw new Error(`Seed 12: the Hop to ${name} should Arrive`);
     }
@@ -308,10 +311,11 @@ describe('the simulation settles Stranded itself', () => {
   it('a Hop that Arrives where no change could ever help ends the Run as Stranded', () => {
     // Seed 305: a 99% Hop to Lyquin leaves too little Fuel for any Hop, whatever is changed.
     // Re-pinned for #188 (was seed 2's sure Hop to Quydril): no sure Hop from the start strands now.
+    // Flown with no Cruise events (#250 turned the Fuel leak on): Stranded here is the Burns' doing.
     const start = onSmallPlanet(startRun(305, 'scout'));
     const body = listBodies(start.starSystem).find(({ name }) => name === 'Lyquin');
     if (!body) throw new Error('Seed 305 has no Lyquin');
-    const flown = launchHop(start, body.id);
+    const flown = launchHop(start, body.id, NO_EVENTS);
     if (flown.kind !== 'flown') throw new Error('expected a Hop');
     expect(flown.flight.outcome).toEqual({ kind: 'arrived' });
     expect(flown.run.status).toEqual({
@@ -351,15 +355,17 @@ describe('the simulation settles Stranded itself', () => {
     const saveable = backOnLaquun(0);
     expect(saveable.status).toMatchObject(stranded);
     // Seed 12's own log: the three Hops, the last of which strands it.
-    const replayed = replay(12, 'scout', saveable.choices);
+    const replayed = replay(12, 'scout', saveable.choices, NO_EVENTS);
     expect(replayed).toMatchObject({ kind: 'replayed', end: { kind: 'stranded' } });
     if (replayed.kind !== 'replayed') return;
     expect(replayed.run.status).toEqual(saveable.status);
     // A choice made after the end is refused.
-    const after = replay(12, 'scout', [
-      ...saveable.choices,
-      { kind: 'install', slot: 2, componentId: 'drill-1' },
-    ]);
+    const after = replay(
+      12,
+      'scout',
+      [...saveable.choices, { kind: 'install', slot: 2, componentId: 'drill-1' }],
+      NO_EVENTS,
+    );
     expect(after).toMatchObject({ kind: 'rejected', at: 3 });
   });
 

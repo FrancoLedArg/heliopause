@@ -86,14 +86,23 @@ function secondTarget(run: Run) {
 }
 
 describe('the three-part Hop', () => {
-  it('real Runs schedule no Cruise events, so a Hop flies as it always has', () => {
-    const begun = beginHop(opening, firstHop);
+  it('a Cruise with no events flies a Hop as it always has', () => {
+    const begun = beginHop(opening, firstHop, { schedule: [] });
     if (begun.kind !== 'cruising' || begun.run.status.kind !== 'cruising') {
       throw new Error('Expected a Cruise');
     }
     expect(begun.run.status.cruise.schedule).toEqual([]);
-    const launched = launchHop(opening, firstHop);
+    const launched = launchHop(opening, firstHop, { schedule: [] });
     expect(flown(begun.run).run).toEqual(launched.kind === 'flown' && launched.run);
+  });
+
+  it('a real Run has a Fuel leak in its first Cruise (#250)', () => {
+    const begun = beginHop(opening, firstHop);
+    if (begun.kind !== 'cruising' || begun.run.status.kind !== 'cruising')
+      throw new Error('Expected a Cruise');
+    const kinds = begun.run.status.cruise.schedule.map((event) => event.kind);
+    expect(kinds.length).toBeGreaterThanOrEqual(1);
+    expect(kinds.every((kind) => kind === 'fuel-leak')).toBe(true);
   });
 
   it('a Hop that Fell Short has no Cruise', () => {
@@ -124,6 +133,14 @@ describe('Damage', () => {
     expect(damaged(fixed, FUEL_TANK)).toBe(false);
     expect(at(fixed, 900).spacecraft.fuelMass).toBe(fixed.spacecraft.fuelMass);
     expect(start - fixed.spacecraft.fuelMass).toBeCloseTo(400 * 5.25, 6);
+  });
+
+  it('a mild leak left alone visibly drains the tank: at least a tenth of it (#250)', () => {
+    const leaking = cruising(opening, firstHop, [leakAt(100)]);
+    const { fuelCapacity } = opening.spacecraft;
+    const result = flown(leaking);
+    expect(result.flight.fuelLost / fuelCapacity).toBeGreaterThanOrEqual(0.1);
+    expect(result.run.status.kind).toBe('landed');
   });
 
   it('a Damaged Engine gives less Δv from the same Fuel', () => {
@@ -157,7 +174,7 @@ describe('Damage', () => {
 
     const leaked = flown(cruising(seasoned, firstHop, [leakAt(1_000)]));
     expect(leaked.flight.fuelLost).toBeCloseTo(201 * 5.25, 6);
-    const calm = launchHop(seasoned, firstHop);
+    const calm = launchHop(seasoned, firstHop, { schedule: [] });
     expect(calm.kind === 'flown' && leaked.flight.fuelRemaining).toBeLessThan(
       calm.kind === 'flown' ? calm.flight.fuelRemaining : 0,
     );

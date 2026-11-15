@@ -4,6 +4,7 @@
 import {
   CRUISE_TUNING,
   fuelAfterBurning,
+  kilograms,
   metersPerSecond,
   type Burn,
   type CruiseEventKind,
@@ -24,14 +25,14 @@ export type Shot = 'takeoff' | 'cruise' | 'approach' | 'landing';
 
 /**
  * How long each shot lasts, in ms at normal speed (presentation tuning). The Cruise is gameplay time,
- * where Cruise events will play (#210), so it keeps its real length under reduced motion. Interim: the
- * Cruise is about 50 s until Cruise events fill it (the human's call in #204's fix round); #210's
- * events ticket restores the 2-minute Cruise of the human's amendment on #200. The Approach has no length until #205 draws it:
- * until then the Cruise hands straight to the Landing.
+ * where Cruise events play (#210): its 2 minutes are the simulation's 1,200 Cruise ticks of 100 ms
+ * (`CRUISE_TUNING`), restored by #250 now that events fill it, and it keeps its real length under
+ * reduced motion. The Approach has no length until #205 draws it: until then the Cruise hands
+ * straight to the Landing.
  */
 export const SHOT_MS: Readonly<Record<Pace, Readonly<Record<Shot, number>>>> = {
-  full: { takeoff: 2800, cruise: 50_000, approach: 0, landing: 2800 },
-  reduced: { takeoff: 1000, cruise: 50_000, approach: 0, landing: 1000 },
+  full: { takeoff: 2800, cruise: 120_000, approach: 0, landing: 2800 },
+  reduced: { takeoff: 1000, cruise: 120_000, approach: 0, landing: 1000 },
 };
 
 /**
@@ -236,6 +237,16 @@ export function flightPlayback(
   };
   const fuelAfter = (deltaV: number): Kilograms =>
     fuelAfterBurning(spacecraft, metersPerSecond(deltaV));
+  // What the Cruise's leaks lost: shown draining over the coast after the boost, and the Landing
+  // flown from what is left, ending on exactly the Fuel the simulation left (#210).
+  const boost = cruise ? Math.min(CRUISE_BOOST_MS, cruise.length) : 0;
+  const leaked = (t: number): number =>
+    cruise && cruise.length > boost
+      ? flight.fuelLost *
+        Math.min(Math.max((t - cruise.start - boost) / (cruise.length - boost), 0), 1)
+      : 0;
+  const landingFrom = (span: Span): number => fuelAfter(span.spentBefore) - flight.fuelLost;
+  const landingTo = flight.fuelRemaining;
 
   const at = (ms: number): FlightMoment => {
     const t = Math.min(Math.max(ms, 0), duration);
@@ -271,7 +282,13 @@ export function flightPlayback(
           ? { elapsed: t - cruise.start, total: cruise.length }
           : undefined,
       thrusting: t >= span.thrustStart && !done,
-      fuel: fuelAfter(span.spentBefore + thrustShare * (span.spentAfter - span.spentBefore)),
+      fuel:
+        span.burn === 'landing' && flight.fuelLost > 0
+          ? kilograms(landingFrom(span) + thrustShare * (landingTo - landingFrom(span)))
+          : kilograms(
+              fuelAfter(span.spentBefore + thrustShare * (span.spentAfter - span.spentBefore)) -
+                leaked(t),
+            ),
       logged: index + (done ? 1 : 0),
       route: (index + share) / flight.burns.length,
       ended: t >= duration,
