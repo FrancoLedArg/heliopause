@@ -757,6 +757,53 @@ it('keeps the lesson behind "Tell me more", and opens it by keyboard', async () 
   expect(byTestId(host, 'preview-more').checkVisibility()).toBe(true);
 });
 
+/** Seed 2026's Scout with its Fuel Tank (Slot 2 on screen, index 1) Damaged by a leak, and `stock` Materials. */
+function leaking(stock: number): Run {
+  const run = startRun(2026, 'scout');
+  const damage = run.spacecraft.damage.map((d, slot) =>
+    slot === 1 ? { repair: null, burning: null } : d,
+  );
+  return { ...run, materials: materials(stock), spacecraft: { ...run.spacecraft, damage } };
+}
+
+it('marks a Damaged Slot with smoke on its callout, says Damaged, and asks for its Repair (#250)', async () => {
+  const host = await renderUi(<SpacecraftPanel run={leaking(25)} onClose={() => undefined} />);
+  const callout = host.querySelector<HTMLButtonElement>('[role="radio"][data-state="damaged"]');
+  if (!callout) throw new Error('Expected a Damaged callout');
+  expect(callout.getAttribute('aria-label')).toBe('Slot 2, Fuel Tank, level 1, Damaged');
+  expect(callout.querySelector('[data-testid="callout-smoke"]')).not.toBeNull();
+  // Only one callout is Damaged.
+  expect(host.querySelectorAll('[data-testid="callout-smoke"]')).toHaveLength(1);
+
+  const asked: number[] = [];
+  const off = EventBus.on('repair-requested', (slot) => asked.push(slot));
+  await userEvent.click(callout);
+  const repair = host.querySelector<HTMLButtonElement>('button[aria-label^="Repair Fuel Tank 1"]');
+  if (!repair) throw new Error('Expected a Repair button');
+  await userEvent.click(repair);
+  off();
+  expect(asked).toEqual([1]);
+  // Focus goes back to the Slot.
+  expect(document.activeElement).toBe(callout);
+});
+
+it('dims the Rush when the Materials cannot pay for it (#250)', async () => {
+  const host = await renderUi(<SpacecraftPanel run={leaking(2)} onClose={() => undefined} />);
+  const callout = host.querySelector<HTMLButtonElement>('[data-state="damaged"]');
+  if (!callout) throw new Error('Expected a Damaged callout');
+  await userEvent.click(callout);
+  const rush = host.querySelector<HTMLButtonElement>('button[aria-label^="Rush the Repair"]');
+  expect(rush?.disabled).toBe(true);
+  cleanUp();
+  const rich = await renderUi(<SpacecraftPanel run={leaking(25)} onClose={() => undefined} />);
+  const richCallout = rich.querySelector<HTMLButtonElement>('[data-state="damaged"]');
+  if (!richCallout) throw new Error('Expected a Damaged callout');
+  await userEvent.click(richCallout);
+  expect(
+    rich.querySelector<HTMLButtonElement>('button[aria-label^="Rush the Repair"]')?.disabled,
+  ).toBe(false);
+});
+
 it("lists the Radar at both levels with its icon and a range ring scaled to its level, and its preview's Δv", async () => {
   const host = await renderUi(<Harness initial={runWith('scout', 25)} />);
   const rows = [...host.querySelectorAll<HTMLElement>('[data-testid="component-row"]')];

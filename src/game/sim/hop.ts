@@ -503,11 +503,7 @@ function depart(
     fuelAfterTransfer,
   };
   const mild = isMildHop(hopsFlown);
-  const cruise = startCruise(
-    schedule,
-    mild,
-    mild ? mildFuelFloor(run.spacecraft, plan) : kilograms(0),
-  );
+  const cruise = startCruise(schedule, mild, mild ? mildFuelFloor(run, plan) : kilograms(0));
   return deepFreeze({
     kind: 'cruising',
     run: {
@@ -520,18 +516,31 @@ function depart(
 }
 
 /**
- * The Fuel a mild Cruise's leaks stop at: enough for the Landing at the worst of the dispersion to
- * leave the Fuel a Hop flown at its estimates would. So a mild event never Crashes a Hop the plan
- * shows at 100%, nor leaves it worse off than #188's at-estimate arrival, which generation keeps
- * out of Stranded. A Hop to the Heliopause has no Landing: its floor is the at-estimate Fuel.
+ * The Fuel a mild Cruise's leaks stop at (#250): what the Landing needs at the worst of the
+ * dispersion, plus the Fuel for a Hop back to the departure Body with some chance once landed. So a
+ * mild event never Crashes a Hop the plan shows at 100%, and never Strands it (#188): the Body it
+ * came from is always known and always within reach. It is never above #249's floor (the worst
+ * Landing leaving the at-estimate arrival), and well below it on most Hops, so a mild leak left
+ * alone visibly drains the tank. A Hop to the
+ * Heliopause has no Landing: its floor is the at-estimate Fuel.
  */
-function mildFuelFloor(launch: Spacecraft, plan: HopPlan): Kilograms {
+function mildFuelFloor(run: Run, plan: HopPlan): Kilograms {
+  const launch = run.spacecraft;
   const atEstimate = fuelAfterBurning(launch, plan.totalEstimate);
   if (plan.destination === 'heliopause') return atEstimate;
+  const back = planHop({ ...run, status: { kind: 'landed', bodyId: plan.toId } }, plan.fromId);
+  if (back.kind !== 'planned') return atEstimate;
+  const empty = { ...launch, fuelMass: kilograms(0) };
+  const backNeed = metersPerSecond(leastDeltaV(back.plan) * MILD_RESERVE_MARGIN);
+  // What the worst Landing must leave: the Hop back, never more than the at-estimate arrival.
+  const reserve = Math.min(atEstimate, fuelForDeltaV(empty, backNeed));
   const worstLanding = metersPerSecond(plan.estimates.landing * DISPERSION.max);
-  const landed = { ...launch, dryMass: kilograms(launch.dryMass + atEstimate) };
-  return kilograms(atEstimate + fuelForDeltaV(landed, worstLanding));
+  const landed = { ...launch, dryMass: kilograms(launch.dryMass + reserve) };
+  return kilograms(reserve + fuelForDeltaV(landed, worstLanding));
 }
+
+/** The Hop back a mild floor keeps in reach gets a little more than the least Δv: some chance, not 0%. */
+const MILD_RESERVE_MARGIN = 1.02;
 
 /** What a step of the Cruise left: still cruising, settled at the arrival, or Destroyed. */
 export type CruiseResult =
