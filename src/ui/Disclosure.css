@@ -1,0 +1,45 @@
+/* ---- "Tell me more" and "?" toggles: small cyan kit controls, the panel's own words stay quiet ---- */
+
+.disclosure-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 16px;
+  padding: 0 3px 0 0;
+  border: 0;
+  background: none;
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--cy3);
+  cursor: pointer;
+  /* Panels let clicks through to the canvas; the toggle takes its own. */
+  pointer-events: auto;
+}
+
+.disclosure-toggle:hover {
+  color: var(--cy4);
+}
+
+.disclosure-toggle:focus-visible {
+  outline: 1px solid var(--cy3);
+  outline-offset: 1px;
+}
+
+.disclosure-toggle[aria-expanded='true'] {
+  color: var(--am3);
+}
+
+.disclosure-toggle__icon {
+  flex: none;
+}
+
+/* The help toggle is the icon alone. */
+.disclosure-toggle:not(:has(span)) {
+  padding: 0;
+}
+
+/* Closed stays closed, whatever display the panel's own class gives it. */
+.disclosure-panel[hidden] {
+  display: none;
+}
