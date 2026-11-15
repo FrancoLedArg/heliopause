@@ -7,7 +7,7 @@ import {
 } from '../game/sim/index.ts';
 import { useEffect, useRef } from 'react';
 import { EventBus } from '../game/EventBus.ts';
-import { SHIP_PLACEMENT, SHIP_SWEEP } from '../game/scenes/landedView.ts';
+import { SHIP_PLACEMENT, shipLeftEdge } from '../game/scenes/landedView.ts';
 import type { GatheringReadout } from '../game/scenes/gathering.ts';
 import { bodyFullLabel, formatDistanceAu, formatGravity } from './format.ts';
 import { FuelGauge } from './FuelGauge.tsx';
@@ -22,7 +22,7 @@ import { TopBar } from './TopBar.tsx';
 
 /**
  * The Fuel tank against the Spacecraft's flank: standing on the ship's base line, its right edge a small gap
- * left of everything the ship sweeps (the ship drifts, so it can't touch), under the Fuel icon.
+ * left of everything the drawn ship sweeps (the ship drifts, so it can't touch), under the Fuel icon.
  */
 const FUEL_TANK = { width: 16, height: 72, iconRow: 24, gap: 4 } as const;
 const PLATE_WIDTH = 284;
@@ -169,7 +169,10 @@ export function LandedPanels({
           <div
             className="landed-fuel-tank"
             style={{
-              left: SHIP_SWEEP.left - FUEL_TANK.gap - FUEL_TANK.width,
+              left:
+                shipLeftEdge(run.spacecraft.chassisId, run.spacecraft.slots) -
+                FUEL_TANK.gap -
+                FUEL_TANK.width,
               top: SHIP_PLACEMENT.baseY - FUEL_TANK.height - FUEL_TANK.iconRow,
               width: FUEL_TANK.width,
               height: FUEL_TANK.height + FUEL_TANK.iconRow,
