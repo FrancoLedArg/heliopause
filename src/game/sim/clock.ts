@@ -4,6 +4,7 @@
 // untouched and the same Run always shows the same sky at the same time.
 import { createRng } from '../lib/rng.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
+import { TEMPERATURE_BANDS } from './data.ts';
 import type { Body, StarSystem } from './starSystem.ts';
 
 /** What a Body's rotation period is drawn from, in hours: the real extremes of Bodies like it. */
@@ -97,4 +98,18 @@ export function arrivalDayFraction(
   distanceAu: number,
 ): number {
   return localDayFraction(system, target, gameHours + flightHours(distanceAu));
+}
+
+/** How hot or cold a Body's surface is, from its distance to the star (#335). */
+export type TemperatureBand = 'scorching' | 'mild' | 'freezing';
+
+export function temperatureBand(body: Body): TemperatureBand {
+  if (body.distanceFromStar < TEMPERATURE_BANDS.scorchingBelow) return 'scorching';
+  if (body.distanceFromStar > TEMPERATURE_BANDS.freezingBeyond) return 'freezing';
+  return 'mild';
+}
+
+/** A Harsh Arrival: a Freezing night or a Scorching day. */
+export function isHarshArrival(band: TemperatureBand, day: boolean): boolean {
+  return (band === 'freezing' && !day) || (band === 'scorching' && day);
 }

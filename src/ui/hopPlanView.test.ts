@@ -17,6 +17,7 @@ import {
   planHop,
   startRun,
   timeOfDayWords,
+  temperatureBand,
   type BodyId,
   type Run,
 } from '../game/sim/index.ts';
@@ -334,7 +335,10 @@ describe('the local time on arrival (#334)', () => {
     const distance = distanceBetween(run.starSystem, currentBody(run), moon);
     const fraction = arrivalDayFraction(run.starSystem, moon, run.gameHours, distance);
     expect(view.arrival?.fraction).toBe(fraction);
-    expect(view.arrival?.label).toBe(`Arrives at ${timeOfDayWords(fraction)}`);
+    expect(view.arrival?.label).toMatch(
+      new RegExp(`^Arrives at ${timeOfDayWords(fraction)}, (Scorching|Mild|Freezing)(: harsh)?$`),
+    );
+    expect(view.arrival?.band).toBe(temperatureBand(moon));
   });
 
   it('is none for a Hop to the Heliopause', () => {

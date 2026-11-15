@@ -209,3 +209,13 @@
   margin-top: 4px;
   color: var(--gm6);
 }
+
+.hop-plan__arrival {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.hop-plan__harsh {
+  display: inline-flex;
+}
