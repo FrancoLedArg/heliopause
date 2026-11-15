@@ -48,13 +48,15 @@ interface SurfacePalette {
   readonly ramp: Ramp;
   /** Dust motes: light enough to read against this ground. */
   readonly dust: PaletteColor;
+  /** The flight's dust and smoke puffs, larger than motes and set against the ground: lighter where the ground is amber. */
+  readonly puff: PaletteColor;
 }
 
 /** Stand-in colours for each surface, all from the kit palette. */
 const PALETTES: Record<SurfaceKind, SurfacePalette> = {
-  rocky: { ramp: ['rd0', 'rd0', 'rd1', 'am0', 'am1', 'am2', 'am3'], dust: 'am2' },
-  moon: { ramp: ['gm0', 'gm1', 'gm2', 'gm3', 'gm4', 'gm5', 'gm6'], dust: 'gm5' },
-  icy: { ramp: ['scr2', 'cy0', 'cy1', 'cy2', 'wh1', 'wh2', 'wh3'], dust: 'cy4' },
+  rocky: { ramp: ['rd0', 'rd0', 'rd1', 'am0', 'am1', 'am2', 'am3'], dust: 'am2', puff: 'am3' },
+  moon: { ramp: ['gm0', 'gm1', 'gm2', 'gm3', 'gm4', 'gm5', 'gm6'], dust: 'gm5', puff: 'gm5' },
+  icy: { ramp: ['scr2', 'cy0', 'cy1', 'cy2', 'wh1', 'wh2', 'wh3'], dust: 'cy4', puff: 'cy4' },
 };
 
 /** The layers of a landscape, back to front. */
@@ -66,6 +68,8 @@ export interface Landscape {
   readonly starfield: TwinklingStarfield;
   /** A dust colour that reads against this ground. */
   readonly dustColor: PaletteColor;
+  /** The colour of the flight's dust and smoke puffs. */
+  readonly puffColor: PaletteColor;
 }
 
 /**
@@ -81,7 +85,12 @@ export function buildLandscape(scene: Scene, run: Run): Landscape {
   const ground = scene.add.container(LAYER_X, GROUND_TOP);
   ground.add(scene.add.image(0, 0, groundTexture(scene, kind)).setOrigin(0, 0));
   ground.add(paintPebbles(scene, run, palette));
-  return { layers: { sky, ground }, starfield: field, dustColor: palette.dust };
+  return {
+    layers: { sky, ground },
+    starfield: field,
+    dustColor: palette.dust,
+    puffColor: palette.puff,
+  };
 }
 
 function buildSky(

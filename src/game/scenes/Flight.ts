@@ -12,6 +12,7 @@ import {
   type FlightPlayback,
   type Pace,
 } from './flightPlayback.ts';
+import { anchorFx } from './groundAnchor.ts';
 import { createFlightEffects, type FlightEffects } from './flightEffects.ts';
 import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
@@ -67,6 +68,13 @@ const BOOST_EXIT = {
 const TRANSFER_SETTLE = 0.45;
 /** Where the Transfer's line carries the Spacecraft on screen: from `x` at the start, `dx` further by the end. */
 const TRANSFER_LINE = { x: 380, dx: 36 } as const;
+/**
+ * How far the dust and smoke follow the camera. At Takeoff the camera climbs and the ground drops
+ * away fast; at 0.4 the puffs fall away slower, so they stay on screen for the first 1.5 s or more
+ * (the strip is gone from view after about 1 s) and hang in the air as the Spacecraft leaves. At
+ * Landing the ground rises into view with them, so they move with it.
+ */
+const FX_SCROLL_FACTOR = { departure: 0.4, arrival: 1 } as const;
 /** Dust and smoke rise only while the Spacecraft is this close to the ground (px). */
 const GROUND_FX_HEIGHT = 120;
 /**
@@ -120,6 +128,9 @@ export class Flight extends Scene {
 
   /** The dust colour of the departure and arrival grounds. */
   private dustColors!: Readonly<Record<'departure' | 'arrival', PaletteColor>>;
+  /** The departure and arrival landscapes; tests read where the arrival ground sits. */
+  layers!: Readonly<Record<'departure' | 'arrival', LandscapeLayers>>;
+  private fxScroll: number = FX_SCROLL_FACTOR.departure;
   private stages!: Readonly<
     Record<'departure' | 'arrival' | 'space', readonly GameObjects.Container[]>
   >;
@@ -162,13 +173,14 @@ export class Flight extends Scene {
     this.pace = prefersReducedMotion() ? 'reduced' : 'full';
     this.playback = flightPlayback(this.before.spacecraft, this.flight, this.pace);
 
-    const { layers: departure, dustColor: departureDust } = this.buildGround(this.before);
+    const { layers: departure, puffColor: departureDust } = this.buildGround(this.before);
     // The target's sky as seen from its own surface: where the Spacecraft is about to stand.
     const atTarget: Run = {
       ...this.before,
       status: { kind: 'landed', bodyId: this.flight.plan.toId },
     };
-    const { layers: arrival, dustColor: arrivalDust } = this.buildGround(atTarget);
+    const { layers: arrival, puffColor: arrivalDust } = this.buildGround(atTarget);
+    this.layers = { departure, arrival };
     this.dustColors = { departure: departureDust, arrival: arrivalDust };
     const space = this.buildSpace();
     this.shadow = this.add.ellipse(
@@ -345,10 +357,11 @@ export class Flight extends Scene {
 
   /** Dust and smoke at the ground while the engine fires near it. */
   private groundFx(thrusting: boolean, x: number, y: number): void {
-    this.fx?.ground(thrusting && SHIP_PLACEMENT.baseY - y < GROUND_FX_HEIGHT, {
-      x,
-      y: SHIP_PLACEMENT.baseY + 2,
-    });
+    const { scrollX, scrollY } = this.cameras.main;
+    this.fx?.ground(
+      thrusting && SHIP_PLACEMENT.baseY - y < GROUND_FX_HEIGHT,
+      anchorFx({ x, y: SHIP_PLACEMENT.baseY }, { x: scrollX, y: scrollY }, this.fxScroll),
+    );
   }
 
   /** The rear nozzle in the world, for a Spacecraft whose base is at (`x`, `y`) and turned `angle` degrees. */
@@ -391,7 +404,11 @@ export class Flight extends Scene {
     if (this.pace === 'full' && this.stage !== undefined && this.stage !== stage) {
       this.cameras.main.fadeIn(STAGE_FADE_MS);
     }
-    if (this.stage !== stage && stage !== 'space') this.fx?.setSurface(this.dustColors[stage]);
+    if (this.stage !== stage && stage !== 'space') {
+      this.fx?.setSurface(this.dustColors[stage]);
+      this.fxScroll = FX_SCROLL_FACTOR[stage];
+      this.fx?.setScrollFactor(this.fxScroll);
+    }
     this.stage = stage;
     for (const [name, objects] of Object.entries(this.stages)) {
       for (const object of objects) object.setVisible(name === stage);
@@ -503,11 +520,11 @@ export class Flight extends Scene {
     });
   }
 
-  private buildGround(run: Run): { layers: LandscapeLayers; dustColor: PaletteColor } {
-    const { layers, dustColor } = buildLandscape(this, run);
+  private buildGround(run: Run): { layers: LandscapeLayers; puffColor: PaletteColor } {
+    const { layers, puffColor } = buildLandscape(this, run);
     layers.sky.setScrollFactor(SCROLL_FACTOR.sky);
     layers.ground.setScrollFactor(SCROLL_FACTOR.ground);
-    return { layers, dustColor };
+    return { layers, puffColor };
   }
 
   /** Deep space, held still on screen: stars, the two Bodies and the speed streaks. */
