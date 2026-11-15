@@ -3,11 +3,11 @@ import {
   CHASSIS_IDS,
   currentBody,
   generateStarSystem,
-  homePlanet,
   listBodies,
   newSpacecraft,
   generateSystem,
   startRun,
+  startingMoon,
   starSystemNumber,
   starSystemSeed,
 } from './index.ts';
@@ -17,17 +17,18 @@ describe('a new Run', () => {
     expect(startRun(2026, 'scout').starSystem).toEqual(generateStarSystem(2026));
   });
 
-  it('starts with the Spacecraft landed on the Home Planet', () => {
+  it('starts with the Spacecraft marooned on the Starting Moon', () => {
     for (const seed of [1, 2, 3, 99, 2026]) {
       const run = startRun(seed, 'hauler');
-      expect(run.status).toEqual({ kind: 'landed', bodyId: run.starSystem.homePlanetId });
-      expect(currentBody(run)).toEqual(homePlanet(run.starSystem));
+      expect(run.status).toEqual({ kind: 'landed', bodyId: run.starSystem.startingMoonId });
+      expect(currentBody(run)).toEqual(startingMoon(run.starSystem));
     }
   });
 
   it('starts with a full Spacecraft on the chosen Chassis, whatever the seed', () => {
     for (const chassisId of CHASSIS_IDS) {
       for (const seed of [1, 2, 3, 99, 2026]) {
+        // Full once the Starting Moon's yield is in (an Icy one tops the Tank up).
         expect(startRun(seed, chassisId).spacecraft).toEqual(newSpacecraft(chassisId));
       }
     }

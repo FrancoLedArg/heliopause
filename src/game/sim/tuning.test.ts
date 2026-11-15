@@ -1,22 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../lib/rng.ts';
 import {
-  availableDeltaV,
   CHASSIS_IDS,
   flyHop,
-  homePlanet,
-  kilometers,
-  listBodies,
-  metersPerSecond,
-  metersPerSecondSquared,
-  newSpacecraft,
+  knownBodies,
   planHop,
   startRun,
   type ChassisId,
   type HopPlan,
   type Run,
 } from './index.ts';
-import { homeMoon, plan, withBodies } from './testing.ts';
+import { firstTarget, plan } from './testing.ts';
 
 /** Many Star Systems, so the tuning is checked across the generator's spread, not one lucky seed. */
 const SEEDS = Array.from({ length: 2_000 }, (_, i) => i * 7_919 + 13);
@@ -28,15 +22,15 @@ function expectComfortable(hop: HopPlan) {
 }
 
 /**
- * How many Hops a cautious player gets from starter Fuel: always launching the cheapest Body not
- * yet visited, as long as its Success Chance is at least 50%.
+ * How many Hops a cautious player gets from starter Fuel: always launching the cheapest known Body
+ * not yet visited, as long as its Success Chance is at least 50%.
  */
 function cautiousHops(start: Run, seed: number): number {
   const rng = createRng(seed);
-  const visited = new Set<string>([start.starSystem.homePlanetId]);
+  const visited = new Set<string>([start.starSystem.startingMoonId]);
   let run = start;
   for (let hops = 0; ; hops++) {
-    const [next] = listBodies(run.starSystem)
+    const [next] = knownBodies(run)
       .filter((body) => !visited.has(body.id))
       .flatMap((body) => {
         const result = planHop(run, body.id);
@@ -63,38 +57,10 @@ describe.each(CHASSIS_IDS)(
   'starter tuning for the %s',
   { timeout: 60_000 },
   (chassisId: ChassisId) => {
-    it("reaches every one of the Home Planet's Moons with comfortable Margin, in every Star System", () => {
+    it('reaches the first Detected Body with comfortable Margin, in every Star System', () => {
       for (const seed of SEEDS) {
         const run = startRun(seed, chassisId);
-        for (const moon of homePlanet(run.starSystem).moons) expectComfortable(plan(run, moon.id));
-      }
-    });
-
-    it('reaches the Moon comfortably even from the heaviest Home Planet the generator allows', () => {
-      // The generator's extremes, from docs/research/nasa-data-for-generation.md §1: an Earth-sized
-      // Home Planet (9.8 m/s², 11.2 km/s), and a Ganymede-sized Moon (2.7 km/s) on the farthest orbit.
-      const run = startRun(2026, chassisId);
-      const moon = homeMoon(run);
-      const extreme = withBodies(run, {
-        [run.starSystem.homePlanetId]: {
-          surfaceGravity: metersPerSecondSquared(9.8),
-          escapeVelocity: metersPerSecond(11_200),
-        },
-        [moon.id]: {
-          escapeVelocity: metersPerSecond(2_700),
-          distanceFromPlanet: kilometers(1_900_000),
-        },
-      });
-      expectComfortable(plan(extreme, moon.id));
-    });
-
-    it('is never trivial: the Moon Hop always takes at least a fifth of the starting Δv', () => {
-      const startingDeltaV = availableDeltaV(newSpacecraft(chassisId));
-      for (const seed of SEEDS) {
-        const run = startRun(seed, chassisId);
-        for (const moon of homePlanet(run.starSystem).moons) {
-          expect(plan(run, moon.id).totalEstimate / startingDeltaV).toBeGreaterThanOrEqual(0.2);
-        }
+        expectComfortable(plan(run, firstTarget(run).id));
       }
     });
 

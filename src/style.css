@@ -480,7 +480,7 @@ body {
 }
 
 /* One piece of the composed Spacecraft (Chassis art or Component art), cut from the atlas. */
-.chassis-card__layer {
+.spacecraft-layer {
   position: absolute;
   background-repeat: no-repeat;
   image-rendering: pixelated;

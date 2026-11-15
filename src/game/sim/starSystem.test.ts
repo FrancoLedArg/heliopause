@@ -1,13 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { stringSeed } from '../lib/stringSeed.ts';
-import { earlyDeadEnds } from './testing.ts';
+import { earlyDeadEnds, startingRun } from './testing.ts';
 import {
   BODY_TUNING,
   CHASSIS_IDS,
   ICE_LINE,
+  findBody,
+  firstDetectedBody,
   generateStarSystem,
-  homePlanet,
+  install,
   listBodies,
+  marginShare,
+  OPENING_TUNING,
+  planHop,
+  startingMoon,
+  startRun,
   type StarSystem,
 } from './index.ts';
 
@@ -113,26 +120,31 @@ describe('Star System generation', () => {
     }
   });
 
-  it('the Home Planet is rocky, inner and has a Moon', () => {
+  it('the Starting Moon orbits a planet in the inner half of the Star System', () => {
     for (const system of systems) {
-      const home = homePlanet(system);
-      expect(home.kind).toBe('rocky-planet');
-      expect(home.landable).toBe(true);
-      expect(home.moons.length).toBeGreaterThanOrEqual(1);
-      for (const planet of system.planets.filter((p) => p.kind === 'gas-giant')) {
-        expect(home.distanceFromStar).toBeLessThan(planet.distanceFromStar);
-      }
-      expect(system.planets).toContain(home);
+      const moon = startingMoon(system);
+      const index = system.planets.findIndex((planet) => planet.id === moon.planetId);
+      expect(index).toBeGreaterThanOrEqual(0);
+      // Planets counted out from the star: 4 planets give an inner half of 2, 5 give 3.
+      expect(index).toBeLessThan(Math.ceil(system.planets.length / 2));
     }
   });
 
-  it('the Home Planet is the smallest rocky planet', () => {
+  it("a Gas Giant's Starting Moon has a sibling Moon, so Comms has a landable Body to Detect", () => {
     for (const system of systems) {
-      const rockyGravities = system.planets
-        .filter((planet) => planet.kind === 'rocky-planet')
-        .map((planet) => planet.surfaceGravity);
-      expect(homePlanet(system).surfaceGravity).toBe(Math.min(...rockyGravities));
+      const moon = startingMoon(system);
+      const planet = findBody(system, moon.planetId);
+      if (planet?.kind === 'gas-giant') expect(planet.moons.length).toBeGreaterThanOrEqual(2);
     }
+  });
+
+  it('the Starting Moon is picked from the seed: rocky planets and Gas Giants both have Runs start on their Moons', () => {
+    const kinds = new Set(
+      systems.map((system) => findBody(system, startingMoon(system).planetId)?.kind),
+    );
+    expect([...kinds].sort()).toEqual(['gas-giant', 'rocky-planet']);
+    const moonIndexes = new Set(systems.map((system) => startingMoon(system).id.slice(-1)));
+    expect(moonIndexes.size).toBeGreaterThan(1);
   });
 
   it('the Star System and every Body have their own generated name', () => {
@@ -163,12 +175,12 @@ describe('Star System generation', () => {
   it("seed 123's Bodies keep their names, orbits and sizes (new rolls never shift the RNG)", () => {
     const system = generateStarSystem(123);
     const pinned = JSON.parse(
-      // Re-pinned for #188: rocky planets are now Mars-sized at most and have two Moons each.
-      '["Praenquiox","planet-2","93.822079",[["planet-1","Pryxzohan","0.685609","3.415343","3.729297","4333.139"],["planet-1-moon-1","Hynthon","0.685609","1.003739","1.434691","2168.249"],["planet-1-moon-2","Kexxy","0.685609","2.013320","0.709457","1112.582"],["planet-2","Tyhun","0.898983","2.886934","3.723038","4326.059"],["planet-2-moon-1","Synna","0.898983","4.668636","0.853400","1322.109"],["planet-2-moon-2","Thysaer","0.898983","1.095119","1.095552","1674.591"],["planet-3","Thedryl","6.835212","5.846628","15.812801","40168.682"],["planet-3-moon-1","Haenucux","6.835212","4.211735","1.028012","1576.277"],["planet-3-moon-2","Rulquyxlae","6.835212","0.274197","0.774162","1206.768"],["planet-3-moon-3","Xolior","6.835212","5.232701","1.267950","1925.536"],["planet-3-moon-4","Naepre","6.835212","1.596285","1.695097","2547.301"],["planet-4","Nutae","21.541544","2.919196","19.045821","48745.164"],["planet-4-moon-1","Sircer","21.541544","4.458915","1.733182","2602.739"],["planet-4-moon-2","Musuxlar","21.541544","6.066155","0.564591","901.712"],["planet-4-moon-3","Haexxunmix","21.541544","2.400970","0.462933","753.737"]]]',
+      // Re-pinned for #189: generation keeps the first draw with a fair opening on its Starting Moon.
+      '["Tothaexprae","planet-4-moon-3","95.561119",[["planet-1","Mioquoxdru","0.434101","3.682326","3.929378","4559.460"],["planet-1-moon-1","Draeldri","0.434101","3.751611","0.145221","291.269"],["planet-1-moon-2","Draeprer","0.434101","1.871768","1.007471","1546.378"],["planet-2","Tiosli","1.129603","5.613642","4.036287","4680.390"],["planet-2-moon-1","Hulxu","1.129603","3.164405","1.764707","2648.627"],["planet-2-moon-2","Ruxi","1.129603","3.516488","0.474599","770.718"],["planet-3","Quyzi Prime","6.338748","3.402418","9.287885","22859.528"],["planet-3-moon-1","Tyquesion","6.338748","0.564942","1.218963","1854.230"],["planet-3-moon-2","Zulthix-2","6.338748","1.548380","1.078617","1649.940"],["planet-3-moon-3","Thuri","6.338748","3.148021","0.317604","542.193"],["planet-3-moon-4","Venke","6.338748","5.224049","0.692915","1088.504"],["planet-4","Viosprixzul","8.208549","6.019771","10.320600","25599.091"],["planet-4-moon-1","Viormio","8.208549","4.047939","1.244971","1892.088"],["planet-4-moon-2","Thyhae","8.208549","5.446103","1.168266","1780.434"],["planet-4-moon-3","Hyrzethion","8.208549","4.218566","0.212536","389.254"],["planet-5","Caexisu","12.556880","1.667084","16.331792","41545.448"],["planet-5-moon-1","Mesprursin","12.556880","0.576598","0.364335","610.215"],["planet-5-moon-2","Maerprondro Nova","12.556880","1.518801","0.271552","475.159"],["planet-6","Raexthanho","18.627722","5.859746","20.504913","52615.812"],["planet-6-moon-1","Relhoxry","18.627722","0.845263","1.058425","1620.547"],["planet-6-moon-2","Thakyxy","18.627722","1.127325","1.112827","1699.736"],["planet-7","Narsexdros","23.252931","4.579620","12.472028","31306.352"],["planet-7-moon-1","Rexsio","23.252931","5.402485","1.215491","1849.176"],["planet-7-moon-2","Niovy","23.252931","3.856455","1.174568","1789.608"],["planet-7-moon-3","Xydraes","23.252931","3.337050","0.137052","279.378"],["planet-7-moon-4","Xezix","23.252931","4.000847","1.399849","2117.531"]]]',
     ) as unknown;
     expect([
       system.name,
-      system.homePlanetId,
+      system.startingMoonId,
       system.heliopauseRadius.toFixed(6),
       listBodies(system).map((b) => [
         b.id,
@@ -209,15 +221,6 @@ describe('Icy and Rocky Bodies', () => {
     }
   });
 
-  it('the Home Planet is Rocky and its Moons are Icy', () => {
-    for (const system of systems) {
-      const home = homePlanet(system);
-      expect(home.composition).toBe('rocky');
-      expect(home.moons.length).toBeGreaterThan(0);
-      for (const moon of home.moons) expect(moon.composition).toBe('icy');
-    }
-  });
-
   it('Icy Bodies are more common in the outer system', () => {
     const share = (bodies: typeof landable) =>
       bodies.filter((b) => b.composition === 'icy').length / bodies.length;
@@ -228,22 +231,50 @@ describe('Icy and Rocky Bodies', () => {
     expect(share(outer)).toBeGreaterThan(share(inner) + 0.2);
   });
 
-  it('both types turn up far from the Home Planet', () => {
+  it('both types turn up far from the inner Star System', () => {
     const away = landable.filter((b) => b.distanceFromStar > 5);
     expect(away.some((b) => b.composition === 'rocky')).toBe(true);
     expect(away.some((b) => b.composition === 'icy')).toBe(true);
   });
 });
 
-describe('no early dead ends (#188)', () => {
-  it('generation leaves no early dead end: no 100% Hop from the start strands any Chassis, at levels 1 to 3', () => {
+describe('a fair opening (#96), with no early dead ends (#188)', () => {
+  it('a new Run cannot afford a Jump Drive before its first Hop', () => {
+    // Otherwise a Rocky opening could pay for one on the Starting Moon and Jump on Hop 1 (#189 review).
+    const affords: string[] = [];
+    for (let i = 0; i < 500; i++) {
+      const seed = i * 7919 + 1;
+      for (const chassis of CHASSIS_IDS) {
+        const run = startRun(seed, chassis);
+        const slot = run.spacecraft.slots.indexOf(null);
+        if (install(run, slot, 'jump-drive').kind === 'installed')
+          affords.push(`${seed} ${chassis}`);
+      }
+    }
+    expect(affords.slice(0, 10)).toEqual([]);
+  });
+
+  it('the first Detected Body yields something and is In reach with comfortable Margin for every Chassis, and no 100% Hop from the Starting Moon strands any Chassis, at levels 1 to 3', () => {
     const found: string[] = [];
     for (const level of [1, 2, 3]) {
       for (let i = 0; i < 500; i++) {
         const system = generateStarSystem(i * 7919 + 1, level);
+        const first = firstDetectedBody(system);
+        const at = `seed ${system.seed} level ${level}`;
+        if (first.baseYield <= 0) found.push(`${at}: ${first.id} yields nothing`);
         for (const chassis of CHASSIS_IDS) {
-          for (const body of earlyDeadEnds(system, chassis, level)) {
-            found.push(`seed ${system.seed} level ${level} ${chassis}: ${body.id}`);
+          const start = startingRun(system, chassis, level);
+          const planned = planHop(start, first.id);
+          if (planned.kind !== 'planned') {
+            found.push(`${at} ${chassis}: no Hop to ${first.id}`);
+            continue;
+          }
+          const { plan } = planned;
+          if (plan.successChance < 1 || marginShare(plan) < OPENING_TUNING.firstHop.marginShare) {
+            found.push(`${at} ${chassis}: ${first.id} is not comfortably In reach`);
+          }
+          for (const body of earlyDeadEnds(system, chassis, level, start)) {
+            found.push(`${at} ${chassis}: dead end ${body.id}`);
           }
         }
       }
@@ -274,8 +305,8 @@ describe('Star System difficulty levels', { timeout: 60_000 }, () => {
     const json = JSON.stringify(at(1), (_key, value: unknown) =>
       typeof value === 'number' ? Number(value.toPrecision(9)) : value,
     );
-    // Re-pinned for #188, which changed generation (no early dead ends).
-    expect(stringSeed(json)).toBe(3995910413);
+    // Re-pinned for #189: the Starting Moon replaces the Home Planet, and generation checks its opening.
+    expect(stringSeed(json)).toBe(75913036);
   });
 
   it('a higher difficulty level raises gravity', () => {
