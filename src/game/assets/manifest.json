@@ -71,6 +71,18 @@
     {
       "key": "spacecraft_flame",
       "file": "sprites/spacecraft_flame.png"
+    },
+    {
+      "key": "surface_icy",
+      "file": "sprites/surface_icy.png"
+    },
+    {
+      "key": "surface_moon",
+      "file": "sprites/surface_moon.png"
+    },
+    {
+      "key": "surface_rocky",
+      "file": "sprites/surface_rocky.png"
     }
   ],
   "atlases": [
