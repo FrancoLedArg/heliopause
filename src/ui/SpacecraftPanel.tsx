@@ -399,9 +399,11 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
             <li
               key={row.id}
               className={
-                row.affordable
-                  ? 'spacecraft-panel__row'
-                  : 'spacecraft-panel__row spacecraft-panel__row--costly'
+                row.unavailable !== undefined
+                  ? 'spacecraft-panel__row spacecraft-panel__row--unavailable'
+                  : row.affordable
+                    ? 'spacecraft-panel__row'
+                    : 'spacecraft-panel__row spacecraft-panel__row--costly'
               }
               data-testid="component-row"
               onMouseEnter={() => {
@@ -414,7 +416,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                 <span className="spacecraft-panel__row-stats">
                   {row.mass} · {row.cost}
                 </span>
-                {!row.affordable && (
+                {!row.affordable && row.unavailable === undefined && (
                   <span className="spacecraft-panel__row-tag">
                     {`Need ${String(row.short)} more`}
                   </span>
@@ -425,7 +427,8 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                 className="spacecraft-panel__row-effect"
                 data-testid="component-effect"
               >
-                {row.effect}
+                {/* What stops it, whatever the Materials, takes the place of what it does. */}
+                {row.unavailable ?? row.effect}
               </p>
               <KitButton
                 width={64}

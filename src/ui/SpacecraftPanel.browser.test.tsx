@@ -536,3 +536,30 @@ it('lists the Jump Drive from the first screen, previews it and refuses it plain
     "Can't install. Not enough Materials: it costs 45 and you have 25, 20 short.",
   );
 });
+
+it('greys out a second Jump Drive, says why in its entry, and refuses it plainly', async () => {
+  const host = await renderUi(<Harness initial={runWith('lancer', 200)} />);
+  const jumpDriveRow = (): HTMLElement | undefined =>
+    [...host.querySelectorAll<HTMLElement>('[data-testid="component-row"]')].find((r) =>
+      r.textContent.includes('Jump Drive'),
+    );
+  expect(jumpDriveRow()?.className).not.toContain('unavailable');
+  act(() => {
+    installButton(host, /Install Jump Drive,/).click();
+  });
+  const row = jumpDriveRow();
+  expect(row?.className).toContain('spacecraft-panel__row--unavailable');
+  const effect = row?.querySelector<HTMLElement>('[data-testid="component-effect"]');
+  expect(effect?.textContent).toBe('You already carry a Jump Drive.');
+  expect(effect && effect.scrollWidth <= effect.clientWidth).toBe(true);
+  // A screen reader hears the reason on the Install button too.
+  const button = installButton(host, /Install Jump Drive,/);
+  const describedBy = button.getAttribute('aria-describedby') ?? '';
+  expect(document.getElementById(describedBy)?.textContent).toBe('You already carry a Jump Drive.');
+  act(() => {
+    button.click();
+  });
+  expect(byTestId(host, 'install-status').textContent).toBe(
+    "Can't install. You already carry a Jump Drive.",
+  );
+});

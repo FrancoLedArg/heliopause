@@ -366,6 +366,16 @@
   color: var(--gm5);
 }
 
+/* Greyed out: it cannot be installed whatever the Materials. The reason is its effect line, in words. */
+.spacecraft-panel__row--unavailable .spacecraft-panel__row-name,
+.spacecraft-panel__row--unavailable .spacecraft-panel__row-stats {
+  color: var(--gm5);
+}
+
+.spacecraft-panel__row--unavailable .spacecraft-panel__row-effect {
+  color: var(--am3);
+}
+
 .spacecraft-panel .spacecraft-panel__install {
   position: absolute;
   right: 3px;
