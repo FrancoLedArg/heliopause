@@ -25,8 +25,26 @@ export { assessStranding, endIfStranded } from './stranded.ts';
 export type { Stranding } from './stranded.ts';
 export { isBetterScore, runEnd, score } from './score.ts';
 export type { Score } from './score.ts';
-export { BURNS, flyHop, HELIOPAUSE, launchHop, marginShare, plannedBurns, planHop } from './hop.ts';
+export {
+  advanceCruise,
+  beginHop,
+  BURNS,
+  DESTROYED_REASON,
+  flyHop,
+  HELIOPAUSE,
+  launchHop,
+  marginShare,
+  plannedBurns,
+  planHop,
+} from './hop.ts';
+export { rushRepair, startRepair } from './repair.ts';
+export type { RepairRefusal, RepairResult, RushResult } from './repair.ts';
 export type {
+  BeginResult,
+  CruiseResult,
+  Departure,
+  FlownHop,
+  HopOptions,
   BodyHopPlan,
   Burn,
   BurnResult,

@@ -2,9 +2,11 @@
 // scene (which draws it) and the React HUD (which reads it) agree, and the rules run in Node.
 // The simulation has already settled the outcome; this only paces it.
 import {
+  CRUISE_TUNING,
   fuelAfterBurning,
   metersPerSecond,
   type Burn,
+  type CruiseEventKind,
   type HopFlight,
   type Kilograms,
   type Spacecraft,
@@ -113,8 +115,8 @@ export interface FlightPlayback {
    */
   readonly cruise: PlaybackWindow | undefined;
   /**
-   * The Cruise events to draw in the Cruise's event layer, in Cruise time. Always empty for now: #210
-   * brings the kinds and their schedule (from the Run's Cruise state) and plugs them in here.
+   * The Cruise events to draw in the Cruise's event layer, in Cruise time: the ones that struck in the
+   * Hop's Cruise (#210), its ticks spread over the Cruise shot. Empty while real Runs schedule none.
    */
   readonly events: readonly CruiseEvent[];
   /** What is on screen `ms` after Launch; clamped to the playback. */
@@ -276,7 +278,14 @@ export function flightPlayback(
     };
   };
 
-  return { duration, stopsAt: stopsAt ?? duration, shots, cruise, events: [], at };
+  return {
+    duration,
+    stopsAt: stopsAt ?? duration,
+    shots,
+    cruise,
+    events: cruiseEvents(flight, pace),
+    at,
+  };
 }
 
 /**
@@ -318,6 +327,21 @@ export function systemsLit(cruise: CruiseClock | undefined, count: number): numb
  * for Cruise events (#210) and Debris fields (#197). Its times are ms of Cruise time.
  */
 export interface CruiseEvent {
+  readonly kind: CruiseEventKind;
+  /** The Slot the event Damaged, `null` when it did no harm (it still plays). */
+  readonly slot: number | null;
   readonly startsAt: number;
+  /** When its Damage was cleared, or the end of the Cruise when it lasted. */
   readonly endsAt: number;
+}
+
+/** The Hop's struck Cruise events in Cruise time: each tick is its share of the Cruise shot. */
+function cruiseEvents(flight: HopFlight, pace: Pace): readonly CruiseEvent[] {
+  const msPerTick = SHOT_MS[pace].cruise / CRUISE_TUNING.ticks;
+  return flight.cruiseEvents.map((event) => ({
+    kind: event.kind,
+    slot: event.slot,
+    startsAt: event.tick * msPerTick,
+    endsAt: (event.endedAt ?? CRUISE_TUNING.ticks) * msPerTick,
+  }));
 }

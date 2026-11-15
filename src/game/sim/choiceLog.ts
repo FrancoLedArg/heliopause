@@ -4,13 +4,17 @@ import type { Run } from './run.ts';
 import { deepFreeze } from './starSystem.ts';
 
 /**
- * One player choice that changes a Run: install a Component in a Slot, remove one from a Slot, or
- * launch a Hop at a target. Plain data, so a log of them can be stored and sent as JSON.
+ * One player choice that changes a Run: install a Component in a Slot, remove one from a Slot,
+ * launch a Hop at a target, or start or Rush the Repair of a Damaged Component (#210). A Repair or a
+ * Rush made in the Cruise carries the Cruise tick it was made on; one made while landed has none.
+ * Cruise events are not choices: they replay from the seed. Plain data, so a log of them can be
+ * stored and sent as JSON.
  */
 export type Choice =
   | { readonly kind: 'install'; readonly slot: number; readonly componentId: ComponentId }
   | { readonly kind: 'remove'; readonly slot: number }
-  | { readonly kind: 'hop'; readonly target: HopTarget };
+  | { readonly kind: 'hop'; readonly target: HopTarget }
+  | { readonly kind: 'repair' | 'rush'; readonly slot: number; readonly tick?: number };
 
 /**
  * Every choice a Run's player made, in order. With the seed and the Chassis it is all a replay
@@ -26,7 +30,8 @@ export function recordChoice(run: Run, choice: Choice): Run {
 /**
  * The version of the stored choice log's shape. Bump it whenever a Choice gains, loses or renames a
  * field, or a field's meaning changes (for instance, Slots counted differently), so a log stored
- * before is refused rather than misread. A change to the game's rules is not a new version: the
+ * before is refused rather than misread. Adding a kind of Choice (as #210 added `repair` and `rush`)
+ * leaves the existing ones' shape alone, so it is not a new version either. A change to the game's rules is not a new version: the
  * stored record's build says which rules a log was played under.
  */
 export const CHOICE_LOG_VERSION = 1;
@@ -76,6 +81,14 @@ function parseChoice(value: unknown): Choice | undefined {
       const { slot } = value;
       if (typeof slot !== 'number' || !Number.isInteger(slot)) return undefined;
       return { kind: 'remove', slot };
+    }
+    case 'repair':
+    case 'rush': {
+      const { slot, tick } = value;
+      if (typeof slot !== 'number' || !Number.isInteger(slot)) return undefined;
+      if (tick === undefined) return { kind, slot };
+      if (typeof tick !== 'number' || !Number.isInteger(tick) || tick < 0) return undefined;
+      return { kind, slot, tick };
     }
     case 'hop': {
       const { target } = value;

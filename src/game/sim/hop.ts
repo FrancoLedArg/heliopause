@@ -10,7 +10,7 @@ import {
   type ScheduledEvent,
   type StruckEvent,
 } from './cruise.ts';
-import { CRUISE_TUNING, DISPERSION, SOURCED_CONSTANTS } from './data.ts';
+import { CRUISE_TUNING, DISPERSION, SOURCED_CONSTANTS, type CruiseEventKind } from './data.ts';
 import { collectYield, type Collection } from './gather.ts';
 import { jump } from './jump.ts';
 import { revealOnLanding, type Reveal } from './knowledge.ts';
@@ -576,6 +576,11 @@ export interface HopOptions {
    * so a Daily or replayed Run cannot be forged with it.
    */
   readonly schedule?: readonly ScheduledEvent[];
+  /**
+   * Test only: the kinds the seed schedules, in place of `CRUISE_TUNING.enabledKinds`, so the rules of
+   * kinds not yet switched on in real Runs can be played and replayed.
+   */
+  readonly events?: readonly CruiseEventKind[];
 }
 
 /**
@@ -600,7 +605,7 @@ export function beginHop(
       run.hopsFlown + 1,
       run.starSystemNumber,
       run.spacecraft,
-      CRUISE_TUNING.enabledKinds,
+      options.events ?? CRUISE_TUNING.enabledKinds,
     );
   const begun = depart(run, planned.plan, rng, schedule);
   const recorded = recordChoice(begun.run, { kind: 'hop', target });
