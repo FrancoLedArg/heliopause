@@ -9,17 +9,23 @@ const PANEL_WIDTH = 192;
 const BUTTON_WIDTH = 160;
 
 /** The title menu's buttons, so a screen can hand focus back to the one that opened it. */
-export type TitleButton = 'new-run' | 'how-to-play' | 'about' | 'credits';
+export type TitleButton = 'new-run' | 'daily' | 'how-to-play' | 'about' | 'credits';
 
 interface TitleMenuProps {
   /** A New Run was chosen and the game is moving to it. */
   starting: boolean;
   onNewRun: () => void;
+  /** Start today's Daily Star System. */
+  onDaily: () => void;
   onHowToPlay: () => void;
   onAbout: () => void;
   onCredits: () => void;
   /** The Best Score remembered on this device; `undefined` before any Run has ended. */
   best?: Score | undefined;
+  /** Today's UTC date, `YYYY-MM-DD`, the day the Daily line speaks about. */
+  today: string;
+  /** The Daily Best for today; `undefined` is "not played yet". */
+  dailyBest?: Score | undefined;
   /** Put keyboard focus on a button, e.g. when coming back from the screen it opened. */
   focus?: TitleButton | undefined;
 }
@@ -28,10 +34,13 @@ interface TitleMenuProps {
 export function TitleMenu({
   starting,
   onNewRun,
+  onDaily,
   onHowToPlay,
   onAbout,
   onCredits,
   best,
+  today,
+  dailyBest,
   focus,
 }: TitleMenuProps) {
   return (
@@ -52,14 +61,14 @@ export function TitleMenu({
         >
           New Run
         </KitButton>
-        {/* Rendered but off until the Daily Star System ticket enables it. */}
         <KitButton
           width={BUTTON_WIDTH}
           className="title-menu__daily"
-          disabled
-          aria-label="Daily Star System, coming soon"
+          disabled={starting}
+          autoFocus={focus === 'daily'}
+          onClick={onDaily}
         >
-          Daily: coming soon
+          Daily Star System
         </KitButton>
         <KitButton
           width={BUTTON_WIDTH}
@@ -91,6 +100,10 @@ export function TitleMenu({
       </div>
       <p className="title-menu__best" data-testid="title-best-score">
         Best Score: {best === undefined ? 'none yet' : formatScore(best)}
+      </p>
+      <p className="title-menu__daily-best" data-testid="title-daily-best">
+        Daily Star System {today} UTC:{' '}
+        {dailyBest === undefined ? 'not played yet' : formatScore(dailyBest)}
       </p>
       <p className="hud-tag title-menu__build">{formatBuildLabel(BUILD_INFO)}</p>
     </section>

@@ -12,6 +12,11 @@ const PANEL = { width: 392, height: 226 } as const;
 export interface RecordedScore {
   readonly best: Score;
   readonly isNewBest: boolean;
+  /**
+   * The day (`YYYY-MM-DD`, UTC) of the Daily Star System the Run was played on, when it was a Daily
+   * Run: `best` is then that day's Daily Best. `undefined` for any other Run.
+   */
+  readonly dailyDay?: string;
 }
 
 interface EndOfRunProps {
@@ -36,7 +41,13 @@ export function EndOfRun({ run, recorded, onNewRun, onLeave }: EndOfRunProps) {
     buttons.current?.querySelector<HTMLButtonElement>('button[data-primary]')?.focus();
   }, []);
   if (!end) throw new Error('The End-of-Run screen needs a Run that has ended');
-  const view = describeEndOfRun(end, finalScore, recorded.best, recorded.isNewBest);
+  const view = describeEndOfRun(
+    end,
+    finalScore,
+    recorded.best,
+    recorded.isNewBest,
+    recorded.dailyDay !== undefined,
+  );
 
   return (
     <section
@@ -70,10 +81,10 @@ export function EndOfRun({ run, recorded, onNewRun, onLeave }: EndOfRunProps) {
             <dd data-testid="end-of-run-score">{view.score}</dd>
           </div>
           <div className="end-of-run__score">
-            <dt>Best Score</dt>
+            <dt>{view.bestLabel}</dt>
             <dd data-testid="end-of-run-best">
               {view.best}
-              {view.newBest && <span className="end-of-run__new"> (new Best Score)</span>}
+              {view.newBest && <span className="end-of-run__new"> ({view.newBestMarker})</span>}
             </dd>
           </div>
         </dl>

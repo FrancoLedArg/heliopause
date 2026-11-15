@@ -11,6 +11,10 @@ export interface EndOfRunView {
   readonly score: string;
   /** The Best Score, which includes this Run's when it is the best. */
   readonly best: string;
+  /** What the best row is called: the Best Score, or Today's Daily Best for a Daily Run. */
+  readonly bestLabel: 'Best Score' | 'Today’s Daily Best';
+  /** The words that mark the best as set by this Run. */
+  readonly newBestMarker: 'new Best Score' | 'new Daily Best';
   /** This Run set the Best Score: said in words, not only by colour. */
   readonly newBest: boolean;
   /** How Scores are compared, said once on the screen. */
@@ -33,18 +37,24 @@ const ENDS: Record<RunEnd['kind'], Pick<EndOfRunView, 'title' | 'summary'>> = {
   stranded: { title: 'Stranded', summary: 'No Hop was left to fly.' },
 };
 
-/** What the End-of-Run screen shows for a Run that ended as `end` with `score`. */
+/**
+ * What the End-of-Run screen shows for a Run that ended as `end` with `score`. For a Daily Run,
+ * `best` is today's Daily Best and the row is named for it.
+ */
 export function describeEndOfRun(
   end: RunEnd,
   score: Score,
   best: Score,
   newBest: boolean,
+  daily = false,
 ): EndOfRunView {
   return {
     ...ENDS[end.kind],
     reason: end.reason,
     score: formatScore(score),
     best: formatScore(best),
+    bestLabel: daily ? 'Today’s Daily Best' : 'Best Score',
+    newBestMarker: daily ? 'new Daily Best' : 'new Best Score',
     newBest,
     rule: SCORE_RULE,
   };

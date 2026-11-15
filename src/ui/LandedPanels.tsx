@@ -28,6 +28,8 @@ interface LandedPanelsProps {
   onOpenSpacecraft: () => void;
   /** Counts requests to put focus on the Nav Chart button (after the Hop report closes, or a New Run). */
   focusRequest?: number;
+  /** The UTC day of the Daily Star System being played; `undefined` for any other Run. */
+  dailyDay?: string | undefined;
 }
 
 /** The Landed view's panels: the top bar (Star System, Fuel, Δv, Materials) and the plate naming the Body. */
@@ -37,6 +39,7 @@ export function LandedPanels({
   spacecraftOpen,
   onOpenSpacecraft,
   focusRequest = 0,
+  dailyDay,
 }: LandedPanelsProps) {
   const body = currentBody(run);
   const type = bodyFullLabel(run, body);
@@ -74,6 +77,7 @@ export function LandedPanels({
         fuel={run.spacecraft.fuelMass}
         deltaV={availableDeltaV(run.spacecraft)}
         materials={run.materials}
+        dailyDay={dailyDay}
       />
 
       {!chartOpen && !spacecraftOpen && (
