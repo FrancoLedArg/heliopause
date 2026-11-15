@@ -418,7 +418,7 @@ it('previews a Fuel Tank dropping Δv, in words, when its Install button is focu
   expect(text).toContain('22.1 km/s → 19.0 km/s');
   expect(text).toContain('Drops 3.1 km/s');
   expect(text).toContain('Starts empty, so Δv drops.');
-  expect(text).toContain('Filled up: 26.0 km/s, up from 22.1 km/s.');
+  expect(text).toContain('Filled up: 26.0 km/s, up from 22.1 km/s.');
   // Nothing was paid: the Materials and the Δv in the figures are as they were.
   expect(byTestId(host, 'install-target').textContent).toContain('25 Materials in stock');
   expect(byTestId(host, 'panel-delta-v').textContent).toBe('22.1 km/s');
