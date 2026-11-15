@@ -187,6 +187,15 @@ export const CREDITS: {
       ],
     },
     {
+      heading: 'Sound effects',
+      entries: [
+        {
+          name: 'Sound effects',
+          detail: 'Synthesised in code with the Web Audio API; no recorded samples',
+        },
+      ],
+    },
+    {
       heading: 'Inspiration',
       entries: [
         {

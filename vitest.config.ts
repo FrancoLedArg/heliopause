@@ -10,6 +10,9 @@ export default defineConfig({
   plugins: [react()],
   define: { BUILD_INFO: JSON.stringify(readBuildInfo(process.cwd())) },
   test: {
+    // Several agents run tests side by side on one laptop, and each run used every core, so the load
+    // hit about 11 on 10 cores. Locally, cap the workers per run; CI keeps all of its parallelism.
+    ...(process.env['CI'] ? {} : { maxWorkers: 4 }),
     projects: [
       {
         extends: true,

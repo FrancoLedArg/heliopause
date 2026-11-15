@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { FAST_CRUISE } from './cruise.ts';
 import { waitForOpening } from './opening.ts';
+import { recordShots, shotsSeen } from './shots.ts';
 import { formatFuel } from '../../src/ui/format.ts';
 import {
   firstDetectedBody,
@@ -111,27 +112,6 @@ async function expectWhy(report: Locator, why: string): Promise<void> {
 const currentBurn = (page: Page) =>
   page.getByTestId('phase-strip').locator('[aria-current="step"]');
 
-/**
- * Starts recording, every frame, each shot the HUD names (its `data-shot`), in order and once each;
- * `shotsSeen` reads the record back. The playback runs on its own clock, so polling from the test
- * could miss a short shot.
- */
-async function recordShots(page: Page): Promise<void> {
-  // A script in the page (the e2e project has no DOM types).
-  await page.evaluate(`(() => {
-    const seen = [];
-    window.shotsSeen = seen;
-    const look = () => {
-      const shot = document.querySelector('[data-shot]')?.getAttribute('data-shot');
-      if (shot && seen.at(-1) !== shot) seen.push(shot);
-      requestAnimationFrame(look);
-    };
-    look();
-  })()`);
-}
-
-const shotsSeen = (page: Page): Promise<unknown> => page.evaluate('window.shotsSeen');
-
 test('a Hop to the first target plays Takeoff, Transfer and Landing, then lands there and collects its Fuel', async ({
   page,
 }, testInfo) => {
@@ -178,7 +158,7 @@ test('a Hop to the first target plays Takeoff, Transfer and Landing, then lands 
   const report = page.getByRole('dialog', { name: 'Arrived' });
   await expect(report).toBeVisible();
   // The film's shots, in order, from the HUD (the Cruise played fast: see FAST_CRUISE).
-  expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise', 'landing']);
+  expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise', 'approach', 'landing']);
   // Show, don't tell: the Δv bar and the gathered icon first, the Burn table behind "Tell me more".
   await expect(report.getByRole('img', { name: /^Δv: .*Used / })).toBeVisible();
   await expect(report.getByRole('button', { name: 'Continue' })).toBeFocused();
@@ -254,6 +234,7 @@ test('under reduced motion the playback is shorter and still steps through the t
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openNavChart(page);
   await target(page, homeMoon.name);
+  await recordShots(page);
   await page.getByRole('button', { name: 'Launch' }).click();
   await expect(currentBurn(page)).toContainText('Takeoff');
   await expect(currentBurn(page)).toContainText('Transfer');
@@ -263,6 +244,8 @@ test('under reduced motion the playback is shorter and still steps through the t
   await expect(page.getByRole('heading', { name: homeMoon.name, level: 1 })).toBeVisible({
     timeout: 30_000,
   });
+  // The same four shots, with hard cuts between them.
+  expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise', 'approach', 'landing']);
 });
 
 test('a Hop that Crashes stops on the Landing and says why, and the title is the way out', async ({
@@ -351,6 +334,7 @@ test('fast-forward (F) turns on, keeps the flight log filling in, and lands with
   test.setTimeout(60_000);
   await openNavChart(page);
   await target(page, homeMoon.name);
+  await recordShots(page);
   await page.getByRole('button', { name: 'Launch' }).click();
   await expect(currentBurn(page)).toContainText('Takeoff');
   await page.keyboard.press('f');
@@ -369,6 +353,7 @@ test('fast-forward (F) turns on, keeps the flight log filling in, and lands with
   // How much faster it plays is checked on the playback clock (Flight.browser.test.tsx); wall time
   // here would only measure how busy the machine is.
   await expect(page.getByTestId('fuel')).toHaveText(formatFuel(moonHop.run.spacecraft.fuelMass));
+  expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise', 'approach', 'landing']);
 });
 
 test('after a failed Hop, New Run starts a different Star System on its Starting Moon', async ({

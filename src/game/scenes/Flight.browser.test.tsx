@@ -25,7 +25,8 @@ import type { Flight, FlightData } from './Flight.ts';
 import type { Landed } from './Landed.ts';
 import { FLIGHT_ANGLE, turn, type ShipPose } from './chassisArt.ts';
 import { composeSpacecraft } from './spacecraftComposition.ts';
-import { SHIP_PLACEMENT } from './landedView.ts';
+import { bodySprite, SHIP_PLACEMENT } from './landedView.ts';
+import { music } from '../audio/music.ts';
 import { flightPlayback } from './flightPlayback.ts';
 import type { JumpStage } from './jumpPlayback.ts';
 import { readBestScore } from '../lib/bestScore.ts';
@@ -264,7 +265,7 @@ it('the Cruise draws its event layer between the starfield and the Spacecraft', 
   expect(scene.playback.events).toEqual([]);
 });
 
-it.each(['takeoff', 'cruise', 'landing'] as const)(
+it.each(['takeoff', 'cruise', 'approach', 'landing'] as const)(
   'seeking to the end of an Arrived Hop from the %s hands off to the Landed view of the target',
   async (shot) => {
     const { scene, data } = await fly('hauler');
@@ -286,6 +287,95 @@ it.each(['takeoff', 'cruise', 'landing'] as const)(
     expect(EventBus.listenerCount('leave-run-requested')).toBe(1); // the Landed view's own
   },
 );
+
+/** The span of the playback spent on the Approach. */
+function approachSpan(scene: Flight): { start: number; end: number } {
+  const span = scene.playback.shots.find((s) => s.shot === 'approach');
+  if (!span) throw new Error('no Approach');
+  return span;
+}
+
+it.each(CHASSIS_IDS)(
+  'in the Approach the %s’s target Body is drawn big at lower right and grows, while the Spacecraft enters from the left, coasting, and shrinks to about a third',
+  async (chassis) => {
+    const { scene, data } = await fly(chassis);
+    const { start, end } = approachSpan(scene);
+    const looks: { body: Box; scale: number; x: number }[] = [];
+    for (let i = 0; i <= 20; i++) {
+      scene.seek(start + ((end - 1 - start) * i) / 20);
+      expect(scene.approachBody.visible).toBe(true);
+      // The Cruise's small target and the ground are not in this shot; the engine is off.
+      expect(scene.toBody.parentContainer.visible).toBe(false);
+      expect(shownPlumes(scene)).toHaveLength(0);
+      const b = scene.approachBody.getBounds();
+      looks.push({
+        body: { left: b.left, top: b.top, right: b.right, bottom: b.bottom },
+        scale: scene.ship.scaleX,
+        x: scene.ship.x - scene.cameras.main.scrollX,
+      });
+    }
+    const first = looks[0];
+    const last = looks.at(-1);
+    if (!first || !last) throw new Error('no looks');
+    for (const { body } of looks) {
+      // Big in frame: wider than a third of the frame, its centre in the lower right quarter.
+      expect(body.right - body.left).toBeGreaterThan(GAME_WIDTH / 3);
+      expect((body.left + body.right) / 2).toBeGreaterThan(GAME_WIDTH / 2);
+      expect((body.top + body.bottom) / 2).toBeGreaterThan(GAME_HEIGHT / 2);
+    }
+    expect(first.body.right - first.body.left).toBeGreaterThanOrEqual(200);
+    expect(last.body.right - last.body.left).toBeGreaterThanOrEqual(280);
+    // The Spacecraft comes in from the left and shrinks the whole way, to about a third.
+    expect(first.x).toBeLessThan(GAME_WIDTH / 4);
+    looks.forEach(({ scale }, i) => {
+      expect(scale).toBeLessThanOrEqual(looks[i - 1]?.scale ?? Infinity);
+    });
+    expect(last.scale / first.scale).toBeGreaterThan(0.25);
+    expect(last.scale / first.scale).toBeLessThan(0.45);
+    // The Body is the target's own: the same variant as on the Nav Chart, drawn from its Approach art.
+    const { plan } = data.flight;
+    if (plan.destination !== 'body') throw new Error('a Hop to a Body');
+    const target = findBody(data.before.starSystem, plan.toId);
+    if (!target) throw new Error('no target');
+    expect(scene.approachBody.texture.key).toBe(`${bodySprite(data.before, target)}_approach`);
+  },
+);
+
+it('the Approach fades in from the Cruise and out to the Landing, and holds the Approach music while it plays', async () => {
+  const setApproach = vi.spyOn(music, 'setApproach');
+  const { scene } = await fly('scout');
+  const { start, end } = approachSpan(scene);
+  const cam = scene.cameras.main;
+  scene.seek(start - 50);
+  expect(setApproach).not.toHaveBeenLastCalledWith(true);
+  cam.resetFX();
+  scene.seek(start + 10);
+  expect(cam.fadeEffect.isRunning).toBe(true);
+  expect(setApproach).toHaveBeenLastCalledWith(true);
+  cam.resetFX();
+  scene.seek(end + 10);
+  expect(cam.fadeEffect.isRunning).toBe(true);
+  expect(setApproach).toHaveBeenLastCalledWith(false);
+});
+
+it('leaving the Flight in the middle of the Approach lets go of the Approach music', async () => {
+  const setApproach = vi.spyOn(music, 'setApproach');
+  const { scene } = await fly('scout');
+  const { start, end } = approachSpan(scene);
+  scene.seek((start + end) / 2);
+  expect(setApproach).toHaveBeenLastCalledWith(true);
+  scene.scene.stop();
+  await act(frame);
+  expect(setApproach).toHaveBeenLastCalledWith(false);
+});
+
+it('a Hop to the Heliopause never shows the Approach', async () => {
+  const { scene } = await fly('lancer', () => HELIOPAUSE, readyForTheHeliopause);
+  for (let t = 0; t <= scene.playback.duration; t += 200) {
+    scene.seek(t);
+    expect(scene.approachBody.visible).toBe(false);
+  }
+});
 
 /** A lancer on seed 1 with a Jump Drive: it reaches the Heliopause from its Starting Moon. */
 function readyForTheHeliopause(): Run {

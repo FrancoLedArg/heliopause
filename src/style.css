@@ -1246,6 +1246,20 @@ body {
   height: 14px;
 }
 
+/* Each row's controls position against the popover. */
+.music-controls__row {
+  display: contents;
+}
+
+/* The effects row sits under the music row. */
+.music-controls__row--sfx > .music-controls__mute {
+  top: 36px;
+}
+
+.music-controls__row--sfx > .music-controls__slider {
+  top: 41px;
+}
+
 .music-controls__track {
   position: absolute;
   top: 4px;
