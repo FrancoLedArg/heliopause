@@ -35,7 +35,7 @@ The human makes **product** decisions (what the game is, how it feels, what ship
 | `builder:opus`    | Ticket needs an Opus Builder (architecture, tricky logic, wide refactors) |
 | `agent-approved`  | The Reviewer approved the PR                                              |
 | `needs-triage`    | Escalated to the human; read the latest comment                           |
-| `ready-for-human` | Work only the human can do (assets)                                       |
+| `ready-for-human` | Work only the human can do (assets and spec playtests)                    |
 | `asset`           | Asset request                                                             |
 
 ## Lifecycle
