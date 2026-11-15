@@ -3,6 +3,8 @@ import { imageUrl } from '../game/assets/manifest.ts';
 import { formatDeltaVKmS, formatFuel } from './format.ts';
 import { FuelGauge } from './FuelGauge.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { MissionTracker } from './MissionTracker.tsx';
+import type { MissionGoal } from './missionTrackerView.ts';
 import { MusicControls } from './MusicControls.tsx';
 
 const BAR_WIDTH = 624;
@@ -21,6 +23,8 @@ interface TopBarProps {
   dailyDay?: string | undefined;
   /** The readout a gathering moment is filling: its icon pulses as the resource arrives. */
   filling?: 'fuel' | 'materials' | undefined;
+  /** The mission tracker's three goals, beside the speaker controls; omitted where no Run is in play. */
+  goals?: readonly MissionGoal[] | undefined;
   /** Said once by a polite live region, e.g. what a gathering moment brought aboard. */
   announcement?: string;
 }
@@ -35,6 +39,7 @@ export function TopBar({
   materials,
   dailyDay,
   filling,
+  goals,
   announcement = '',
 }: TopBarProps) {
   const pulse = (resource: 'fuel' | 'materials'): string =>
@@ -80,6 +85,7 @@ export function TopBar({
         {materials}
       </p>
       <MusicControls className="music-controls--bar" />
+      {goals !== undefined && <MissionTracker goals={goals} className="top-bar__tracker" />}
       <p className="sr-only" role="status" data-testid="top-bar-status">
         {announcement}
       </p>

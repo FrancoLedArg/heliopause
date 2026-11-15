@@ -32,6 +32,7 @@ import { NavChartPanel } from './NavChartPanel.tsx';
 import { SpacecraftPanel } from './SpacecraftPanel.tsx';
 import { RunMenu } from './RunMenu.tsx';
 import { TitleMenu, type TitleButton } from './TitleMenu.tsx';
+import { missionGoals } from './missionTrackerView.ts';
 import { TopBar } from './TopBar.tsx';
 
 /** The device clock, read each time so a test's fake clock applies. */
@@ -434,6 +435,7 @@ export function GameUI() {
         <>
           <TopBar
             systemNumber={starSystemNumber(stranded.run)}
+            goals={missionGoals(stranded.run)}
             systemName={stranded.run.starSystem.name}
             fuel={stranded.run.spacecraft.fuelMass}
             fuelCapacity={stranded.run.spacecraft.fuelCapacity}

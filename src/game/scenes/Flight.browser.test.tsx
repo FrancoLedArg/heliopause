@@ -519,11 +519,6 @@ describe.each(['full', 'reduced'] as const)('the Jump, at %s motion', (pace) => 
   });
 });
 
-const wait = (ms: number): Promise<void> =>
-  new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-
 /** A plume's art: the takeoff exhaust (`fx_plume`) once the manifest has it, `fx_thruster` otherwise and in flight. */
 const isPlume = (image: GameObjects.Image): boolean =>
   ['fx_thruster', 'fx_plume'].includes(image.texture.key);
@@ -594,11 +589,17 @@ it('fast-forward stays on for the next Hop of the Run', async () => {
 it('Takeoff kicks up dust, and the Cruise trails sparks through the boost', async () => {
   const { scene } = await fly('scout');
   const { start } = cruiseSpan(scene);
+  // Hold the loop and step the scene (clock and particles) in fixed frames, so the emitters have
+  // their 500 ms however loaded the machine is.
+  scene.game.loop.sleep();
+  const emit = (): void => {
+    for (let time = 0; time < 500; time += 16) scene.sys.step(time, 16);
+  };
   scene.seek(900);
-  await act(() => wait(500));
+  emit();
   expect(emitters(scene).some((e) => e.getAliveParticleCount() > 0)).toBe(true);
   scene.seek(start + 200);
-  await act(() => wait(500));
+  emit();
   const alive = emitters(scene).filter((e) => e.getAliveParticleCount() > 0);
   expect(alive.length).toBeGreaterThan(0);
 });
