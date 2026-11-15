@@ -4,9 +4,11 @@ import {
   CHASSIS_IDS,
   kilograms,
   newSpacecraft,
+  refit,
   seconds,
   type Spacecraft,
 } from './index.ts';
+import { radarReach, withDamage } from './spacecraft.ts';
 
 describe('Δv from Fuel', () => {
   it('follows the rocket equation: Isp × g0 × ln(wet mass / dry mass)', () => {
@@ -74,5 +76,17 @@ describe('Chassis', () => {
       (a, b) => availableDeltaV(newSpacecraft(b)) - availableDeltaV(newSpacecraft(a)),
     );
     expect(byFuel[0]).not.toBe(byDeltaV[0]);
+  });
+});
+
+describe('a Damaged Radar', () => {
+  it('sees half as far, and a sound one sees its full range', () => {
+    const sound = refit(newSpacecraft('scout'), ['engine-1', 'fuel-tank-1', 'radar-1', null]);
+    const damaged = withDamage(
+      sound,
+      sound.damage.map((_, i) => (i === 2 ? { repair: null, burning: null } : null)),
+    );
+    expect(radarReach(sound)?.range).toBe(6);
+    expect(radarReach(damaged)?.range).toBe(3);
   });
 });

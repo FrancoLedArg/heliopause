@@ -19,6 +19,7 @@ import {
   type Run,
 } from '../sim/index.ts';
 import { DEBRIS_FIELD, debrisRocks } from './debrisField.ts';
+import { flareAlpha } from './flareWash.ts';
 import { createDamageMarks, repairClickAt, type DamageMarks } from './damageMarks.ts';
 import {
   advancePlayback,
@@ -407,6 +408,8 @@ export class Flight extends Scene {
   live: Run | undefined;
   /** The Damage drawn on the flying Spacecraft. */
   marks!: DamageMarks;
+  /** The solar flare's warm wash (#253), over the space shot, rolling in from the star's side. */
+  flareWash!: GameObjects.Image;
 
   constructor() {
     super(SceneKey.Flight);
@@ -453,6 +456,14 @@ export class Flight extends Scene {
     this.puffColors = { departure: departurePuff, arrival: atTarget?.puffColor };
     const space = this.buildSpace();
     this.eventLayer = this.add.container(0, 0).setScrollFactor(0);
+    this.flareWash = this.add
+      .image(0, this.scale.height / 2, glowTexture(this))
+      .setDisplaySize(this.scale.width * 2.4, this.scale.height * 2.6)
+      .setTint(paletteNumber('am3'))
+      .setBlendMode(BlendModes.ADD)
+      .setAlpha(0)
+      .setVisible(false);
+    this.eventLayer.add(this.flareWash);
     const approach = this.buildApproach();
     this.shadow = this.add.ellipse(
       SHIP_PLACEMENT.x,
@@ -659,6 +670,20 @@ export class Flight extends Scene {
       }
     }
     for (const rock of this.rocks.slice(used)) rock.setVisible(false);
+  }
+
+  /** Poses the solar flare's wash from how long ago the live Cruise's latest flare struck. */
+  private showFlare(run: Run | undefined): void {
+    let alpha = 0;
+    if (run?.status.kind === 'cruising') {
+      const { cruise } = run.status;
+      for (const event of cruise.struck) {
+        if (event.kind !== 'solar-flare') continue;
+        const age = (cruise.tick - event.tick) * CRUISE_TUNING.tickMs;
+        alpha = Math.max(alpha, flareAlpha(age, this.pace === 'reduced'));
+      }
+    }
+    this.flareWash.setAlpha(alpha).setVisible(alpha > 0);
   }
 
   /** The live Cruise changed: a new event drops the fast-forward (#210), and the HUD follows. */
@@ -869,6 +894,7 @@ export class Flight extends Scene {
     if (this.live) this.marks.show(this.live, this.componentBounds(), ms);
     else this.marks.hide();
     this.drawDebris(((ms - window.start) / window.length) * CRUISE_TUNING.ticks);
+    this.showFlare(this.live);
 
     // How far the stars have drifted: faster through the boost, slowing to a crawl once the engine died.
     const travel = flown + BOOST_GAIN * Math.min(flown, CRUISE_BOOST_MS) + since * 0.15;

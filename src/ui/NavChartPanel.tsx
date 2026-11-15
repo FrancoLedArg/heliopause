@@ -30,6 +30,7 @@ import {
   findBody,
   HELIOPAUSE,
   isDepleted,
+  isInHopRange,
   planHop,
   type Body,
   type HopTarget,
@@ -196,6 +197,7 @@ export function NavChartPanel({ run, state, daily = false }: NavChartPanelProps)
     if (surveyed && !body.landable) words.push('no surface');
     const icon = surveyed ? yieldIcon(run, body) : undefined;
     if (icon) words.push(icon.name);
+    if (!isInHopRange(run, body.id)) words.push('out of Hop range');
     if (body.id === target?.id) words.push('target');
     return words.join(', ');
   };
@@ -325,7 +327,7 @@ export function NavChartPanel({ run, state, daily = false }: NavChartPanelProps)
             key={id}
             className="nav-chart__unsurveyed"
             role="img"
-            aria-label={`${nameOf(id)}: Unsurveyed`}
+            aria-label={`${nameOf(id)}: Unsurveyed${isInHopRange(run, id) ? '' : ', out of Hop range'}`}
             data-testid="unsurveyed-mark"
             style={{ left: Math.round(at.x + dx), top: Math.round(at.y + dy) }}
           >

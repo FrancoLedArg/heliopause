@@ -4,6 +4,7 @@ import {
   findBody,
   firstDetectedBody,
   HELIOPAUSE,
+  hopRange,
   install,
   listBodies,
   materials,
@@ -14,6 +15,7 @@ import {
 import {
   BRACKET_GAP,
   chartReducer,
+  hopBand,
   crossSegments,
   dashedSegments,
   initialChartState,
@@ -584,6 +586,28 @@ describe('the Body tooltip height', () => {
       tooltipHeight('Too far for this Spacecraft') + 9,
     );
   });
+});
+
+describe('the Hop range band', () => {
+  it.each([7, 123])(
+    'seed %i: the rings sit on the orbit rings of the planets hopRange names',
+    (seed) => {
+      const run = freshRun(seed);
+      const layout = layoutChart(run);
+      const range = hopRange(run);
+      const band = hopBand(run, layout);
+      const ringOf = (au: number): number => {
+        if (au === 0) return 0;
+        if (au === run.starSystem.heliopauseRadius) return layout.heliopauseRadius;
+        const planet = run.starSystem.planets.find((p) => p.distanceFromStar === au);
+        if (!planet) throw new Error(`no planet at ${au} AU`);
+        return layout.orbitRadius(planet.id);
+      };
+      expect(band.inner).toBe(ringOf(range.inner));
+      expect(band.outer).toBe(ringOf(range.outer));
+      expect(band.outer).toBeGreaterThan(band.inner);
+    },
+  );
 });
 
 describe('the Nav Chart starfield (#303)', () => {
