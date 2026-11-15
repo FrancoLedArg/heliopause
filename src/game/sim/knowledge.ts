@@ -2,6 +2,7 @@
 // Surveyed, and whether the Heliopause is found. Generation still makes the whole Star System from
 // the seed; this is what the Spacecraft has learned of it, and it only ever grows.
 import { kilometersToAu } from './data.ts';
+import { isFuelSource } from './gather.ts';
 import type { Run } from './run.ts';
 import {
   findBody,
@@ -43,14 +44,20 @@ export interface Reveal {
   readonly detected: readonly BodyId[];
 }
 
+/** Whether `body` is In reach of the landed Run (hop.ts's `isInReach`, passed in to keep the modules apart). */
+export type InReach = (run: Run, body: LandableBody) => boolean;
+
 /**
  * What landing on `bodyId` teaches: the Body is Surveyed (only that Body), then Comms Detects the
- * nearest landable Body not yet Detected, measured from the Spacecraft. Gas Giants are never Comms'
+ * nearest landable Body not yet Detected, measured from the Spacecraft. The Fuel lifeline (#280)
+ * comes first: when no Fuel source (an Icy Body with Fuel left) is Detected and In reach, Comms
+ * Detects the nearest one that is In reach instead, if there is one. Gas Giants are never Comms'
  * pick. The Run's status is the caller's.
  */
 export function revealOnLanding(
   run: Run,
   bodyId: BodyId,
+  inReach: InReach,
 ): { readonly run: Run; readonly reveal: Reveal } {
   const body = findBody(run.starSystem, bodyId);
   if (!body?.landable) throw new Error(`${bodyId} is not a Body the Spacecraft can land on`);
@@ -61,7 +68,14 @@ export function revealOnLanding(
     detected: known.detected.includes(body.id) ? known.detected : [...known.detected, body.id],
     surveyed: wasSurveyed ? known.surveyed : [...known.surveyed, body.id],
   };
-  const next = nearestUndetected(run.starSystem, learned, body);
+  const lifeline = (candidate: LandableBody) =>
+    candidate.id !== body.id && isFuelSource(run, candidate) && inReach(run, candidate);
+  const knowsLifeline = knownBodies({ ...run, knowledge: learned }).some(
+    (known) => known.landable && lifeline(known),
+  );
+  const next =
+    (knowsLifeline ? undefined : nearestUndetected(run.starSystem, learned, body, lifeline)) ??
+    nearestUndetected(run.starSystem, learned, body);
   const knowledge = next ? { ...learned, detected: [...learned.detected, next.id] } : learned;
   return {
     run: { ...run, knowledge },
@@ -69,15 +83,19 @@ export function revealOnLanding(
   };
 }
 
-/** The landable Body nearest to `from` that the player has not Detected; ties go to the first listed. */
+/**
+ * The landable Body nearest to `from` that the player has not Detected, among those `accepts` takes;
+ * ties go to the first listed.
+ */
 export function nearestUndetected(
   system: StarSystem,
   knowledge: Knowledge,
   from: Body,
+  accepts: (body: LandableBody) => boolean = () => true,
 ): LandableBody | undefined {
   let nearest: { body: LandableBody; distance: number } | undefined;
   for (const body of listBodies(system)) {
-    if (!body.landable || knowledge.detected.includes(body.id)) continue;
+    if (!body.landable || knowledge.detected.includes(body.id) || !accepts(body)) continue;
     const distance = distanceBetween(system, from, body);
     if (!nearest || distance < nearest.distance) nearest = { body, distance };
   }

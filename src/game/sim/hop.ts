@@ -575,7 +575,7 @@ function arrive(run: Run, departure: Departure, cruise: Cruise): FlownHop {
       if (!target) throw new Error('Arrived on no Body');
       const landed = collectYield(settled({ kind: 'landed', bodyId: target.id }), target.id);
       // The landing Surveys the target, then Comms Detects one more Body.
-      const learned = revealOnLanding(landed.run, target.id);
+      const learned = revealOnLanding(landed.run, target.id, isInReach);
       // Stranded is judged after the Cruise, on the Spacecraft as it landed.
       return deepFreeze({
         flight: { ...flight, collection: landed.collection, reveal: learned.reveal },
@@ -733,6 +733,18 @@ function marginPhrase(plan: HopPlan): string {
     return `no Margin (the Fuel gave ${percent(-marginShare(plan))}% less Δv than the plan needs)`;
   const share = percent(marginShare(plan));
   return share < 100 ? `${share}% Margin` : `${formatDeltaV(plan.margin)} of Margin`;
+}
+
+/**
+ * Whether `body` is In reach of the landed Run: a Hop to it has a Success Chance above 0% with the
+ * Fuel on board, whether or not Comms has Detected it yet.
+ */
+export function isInReach(run: Run, body: LandableBody): boolean {
+  const knowing = run.knowledge.detected.includes(body.id)
+    ? run
+    : { ...run, knowledge: { ...run.knowledge, detected: [...run.knowledge.detected, body.id] } };
+  const planned = planToBody(knowing, body.id);
+  return planned.kind === 'planned' && planned.plan.successChance > 0;
 }
 
 /**
