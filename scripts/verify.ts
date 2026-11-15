@@ -16,7 +16,13 @@ const allSteps: Step[] = [
   { name: 'typecheck', command: ['pnpm', 'typecheck'] },
   { name: 'lint', command: ['pnpm', 'lint'] },
   { name: 'format:check', command: ['pnpm', 'format:check'] },
-  { name: 'unit', command: ['pnpm', 'test'] },
+  // --quick runs only the unit tests affected by this branch's changes; CI runs them all.
+  {
+    name: 'unit',
+    command: quick
+      ? ['pnpm', 'test', '--changed', 'origin/main', '--passWithNoTests']
+      : ['pnpm', 'test'],
+  },
   { name: 'browser', command: ['pnpm', 'test:browser'] },
   { name: 'build', command: ['pnpm', 'build'] },
   { name: 'e2e', command: ['pnpm', 'test:e2e', ...portArgs] },
