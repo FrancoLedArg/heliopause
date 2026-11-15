@@ -1,6 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { GameUI } from '../../ui/GameUI.tsx';
 import { formatFuel } from '../../ui/format.ts';
 import { EventBus } from '../EventBus.ts';
@@ -107,22 +108,47 @@ it('the gathering moment ends at once under reduced motion', async () => {
   expect(report()).not.toBeNull();
 });
 
-for (const skip of ['a key', 'a click'] as const) {
-  it(`${skip} skips the gathering moment to its end`, async () => {
+/** Lets the skip settle: React renders the report and its focus effect runs. */
+async function settle(): Promise<void> {
+  await act(() => new Promise((resolve) => setTimeout(resolve, 100)));
+}
+
+// The keys that also press a button: the skip must take the whole keypress, so the report it opens
+// stays up instead of being dismissed by the same key on its newly focused Continue button.
+for (const [key, typed] of [
+  ['Enter', '{Enter}'],
+  ['Space', ' '],
+] as const) {
+  it(`${key} skips the gathering moment to its end and leaves the Hop report open`, async () => {
     await land(arrival);
     expect(topBarFuel()).toBe(FUEL_BEFORE);
-    act(() => {
-      window.dispatchEvent(
-        skip === 'a key'
-          ? new KeyboardEvent('keydown', { key: ' ' })
-          : new PointerEvent('pointerdown', { bubbles: true }),
-      );
-    });
-    await act(() => Promise.resolve());
+    await userEvent.keyboard(typed);
+    await settle();
     expect(topBarFuel()).toBe(FUEL_AFTER);
     expect(report()).not.toBeNull();
   });
 }
+
+it('a click skips the gathering moment to its end, without pressing the Continue button that appears under it', async () => {
+  await land(arrival);
+  expect(topBarFuel()).toBe(FUEL_BEFORE);
+  const canvas = document.querySelector('#gathering-test-game canvas');
+  if (!canvas) throw new Error('no canvas');
+  // Where the report's Continue button will be: bottom right of the 392×226 panel at (8, 40).
+  // Forced: Playwright would otherwise retry once the report appears under the pointer mid-click.
+  await userEvent.click(canvas, { position: { x: 333, y: 248 }, force: true });
+  await settle();
+  expect(topBarFuel()).toBe(FUEL_AFTER);
+  expect(report()).not.toBeNull();
+  // The next click is the player's own again: it is not swallowed.
+  const proceed = document.querySelector<HTMLButtonElement>(
+    '[data-testid="hop-report"] button[data-primary]',
+  );
+  if (!proceed) throw new Error('no Continue button');
+  await userEvent.click(proceed);
+  await settle();
+  expect(report()).toBeNull();
+});
 
 it('the flow lands on the top bar icon of the resource it fills', async () => {
   await land(arrival);

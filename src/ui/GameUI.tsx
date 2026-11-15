@@ -212,11 +212,13 @@ export function GameUI() {
     };
   }, []);
 
-  // Any key or click skips the gathering moment, wherever it lands (canvas or panel).
+  // Any key or click skips the gathering moment, wherever it lands (canvas or panel), and does
+  // nothing else.
   const gatheringNow = gathering !== undefined;
   useEffect(() => {
     if (!gatheringNow) return;
-    const skip = (): void => {
+    const skip = (event: KeyboardEvent | PointerEvent): void => {
+      takeWhole(event);
       EventBus.emit('gathering-skip-requested');
     };
     window.addEventListener('keydown', skip, true);
@@ -467,6 +469,45 @@ export function GameUI() {
       )}
       <p className="hud-tag ai-label">AI-generated art and music</p>
     </div>
+  );
+}
+
+/**
+ * Takes the whole of the key press or click that skips the gathering moment, so the Hop report it
+ * opens is not pressed by the same input: Enter acts on the keydown and Space on the keyup of the
+ * Continue button the report focuses, and a click lands on whatever appears under the pointer.
+ */
+function takeWhole(event: KeyboardEvent | PointerEvent): void {
+  event.preventDefault();
+  event.stopPropagation();
+  const swallow = (next: Event): void => {
+    next.preventDefault();
+    next.stopPropagation();
+  };
+  if (event instanceof KeyboardEvent) {
+    // A held key repeats its keydown, then ends with one keyup.
+    const onKey = (next: KeyboardEvent): void => {
+      if (next.key !== event.key) return;
+      swallow(next);
+      if (next.type !== 'keyup') return;
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keyup', onKey, true);
+    };
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKey, true);
+    return;
+  }
+  // The click this press ends in comes straight after its pointerup; a drag that ends in none leaves
+  // the next click alone.
+  window.addEventListener('click', swallow, { capture: true, once: true });
+  window.addEventListener(
+    'pointerup',
+    () => {
+      setTimeout(() => {
+        window.removeEventListener('click', swallow, true);
+      }, 0);
+    },
+    { capture: true, once: true },
   );
 }
 
