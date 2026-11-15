@@ -79,17 +79,17 @@ it('a New Run request from any scene, not only the Title, starts a fresh Run on 
   // From the Flight scene (a failed Hop leaves the player there).
   const flying = nextSceneReady();
   game.scene.stop(SceneKey.Landed);
-  // Re-pinned for #188: no first Hop of a full scout on seed 123 crashes now; half its Fuel.
-  const full = startRun(123, 'scout');
+  // Re-pinned for #189: seed 1's scout, a tenth of its Fuel left, crashes on its first target.
+  const full = startRun(1, 'scout');
   const run = {
     ...full,
-    spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 2) },
+    spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 10) },
   };
   const target = listBodies(run.starSystem).find((body) => {
     const launched = launchHop(run, body.id);
     return launched.kind === 'flown' && launched.flight.outcome.kind === 'crashed';
   });
-  if (!target) throw new Error('seed 123 has no crashing Hop');
+  if (!target) throw new Error('seed 1 has no crashing Hop');
   const launched = launchHop(run, target.id);
   if (launched.kind !== 'flown') throw new Error('not flown');
   game.scene.start(SceneKey.Flight, {

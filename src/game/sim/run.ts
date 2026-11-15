@@ -1,7 +1,10 @@
 import type { ChoiceLog } from './choiceLog.ts';
 import type { ChassisId } from './data.ts';
-import { newSpacecraft, type Spacecraft } from './spacecraft.ts';
+import type { Collection } from './gather.ts';
 import { generateStarSystem } from './generation.ts';
+import type { Knowledge } from './knowledge.ts';
+import { startingRun } from './opening.ts';
+import type { Spacecraft } from './spacecraft.ts';
 import {
   deepFreeze,
   findBody,
@@ -11,13 +14,7 @@ import {
   type StarSystem,
 } from './starSystem.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
-import { materials, type Materials } from './units.ts';
-
-/**
- * The Materials a New Run starts with: enough for the cheapest Component (a Fuel Tank, 20) and for
- * a Drill (25), so the first design decision has more than one option.
- */
-export const STARTING_MATERIALS: Materials = materials(25);
+import type { Materials } from './units.ts';
 
 /**
  * How a Run ended, each with its plain-language reason. Fell Short and Crashed come from a flown Hop
@@ -31,7 +28,7 @@ export type RunEnd =
 
 /**
  * Where the Run stands: landed on a Body and free to plan a Hop, or ended by a failed Hop. A Hop
- * that reaches the Heliopause Jumps straight on and lands on the next Home Planet.
+ * that reaches the Heliopause Jumps straight on and lands on the next Starting Moon.
  */
 export type RunStatus =
   | { readonly kind: 'landed'; readonly bodyId: BodyId }
@@ -56,25 +53,21 @@ export interface Run {
   readonly depleted: readonly BodyId[];
   /** The player's choices so far, in order: with the seed and the Chassis, they rebuild the Run. */
   readonly choices: ChoiceLog;
+  /** What the Spacecraft knows of the Star System it is in: reset by the Jump, otherwise only growing. */
+  readonly knowledge: Knowledge;
+  /**
+   * What the Starting Moon gave when the Spacecraft was marooned on it, at the start of this Star
+   * System (a New Run, or the Jump's arrival): the Landed view plays it as it opens.
+   */
+  readonly startingYield: Collection;
 }
 
 /**
- * A New Run: the Star System its seed generates, and a full Spacecraft on the chosen Chassis landed
- * on the Home Planet.
+ * A New Run: the Star System its seed generates, and a Spacecraft on the chosen Chassis marooned on
+ * its Starting Moon, the Moon's yield collected (see `startingRun`).
  */
 export function startRun(seed: Seed, chassisId: ChassisId): Run {
-  const starSystem = generateSystem(seed, 1);
-  return deepFreeze({
-    seed,
-    starSystemNumber: 1,
-    starSystem,
-    spacecraft: newSpacecraft(chassisId),
-    status: { kind: 'landed', bodyId: starSystem.homePlanetId },
-    hopsFlown: 0,
-    materials: STARTING_MATERIALS,
-    depleted: [],
-    choices: [],
-  });
+  return deepFreeze(startingRun(generateSystem(seed, 1), chassisId, 1, seed));
 }
 
 /** The Body the Spacecraft is landed on. Throws for a Run that has ended: it is on no Body. */

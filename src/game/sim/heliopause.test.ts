@@ -5,7 +5,6 @@ import {
   flyHop,
   HELIOPAUSE,
   launchHop,
-  homePlanet,
   metersPerSecond,
   metersPerSecondSquared,
   plannedBurns,
@@ -13,9 +12,18 @@ import {
   startRun,
   type Run,
 } from './index.ts';
-import { homeMoon, landedOn, plan, withBodies, withDeltaV, withJumpDrive } from './testing.ts';
+import {
+  innerMoon,
+  innerPlanet,
+  landedOn,
+  onInnerPlanet,
+  plan,
+  withBodies,
+  withDeltaV,
+  withJumpDrive,
+} from './testing.ts';
 
-const run: Run = startRun(2026, 'scout');
+const run: Run = onInnerPlanet(startRun(2026, 'scout'));
 
 describe('the Heliopause as a Hop target', () => {
   it('the Heliopause cannot be targeted without a Jump Drive', () => {
@@ -38,10 +46,10 @@ describe('the Heliopause as a Hop target', () => {
 
   it('the Heliopause costs less Δv from farther out', () => {
     // The same Body, its gravity well unchanged, moved out from the star step by step.
-    const moon = homeMoon(run);
+    const moon = innerMoon(run);
     const transfers = [0.5, 1, 3, 10, 30].map((distance) => {
       const placed = withBodies(withJumpDrive(landedOn(run, moon.id)), {
-        [homePlanet(run.starSystem).id]: { distanceFromStar: astronomicalUnits(distance) },
+        [innerPlanet(run).id]: { distanceFromStar: astronomicalUnits(distance) },
         [moon.id]: { distanceFromStar: astronomicalUnits(distance) },
       });
       return plan(placed, HELIOPAUSE).estimates.transfer;
@@ -56,7 +64,7 @@ describe('the Heliopause as a Hop target', () => {
     // Sun-centred: v1 = 29.8 km/s, boost to the 120 AU ellipse v1 (√(2·120/121) − 1) = 12.17 km/s.
     // Patched conics from a circular orbit at R = v²/2g = 6,400 km: √(12.17² + 11.2²) − 11.2/√2 =
     // 16.54 − 7.92 = 8.62 km/s.
-    const home = homePlanet(run.starSystem);
+    const home = innerPlanet(run);
     const earthLike = withJumpDrive(
       withBodies(
         { ...run, starSystem: { ...run.starSystem, heliopauseRadius: astronomicalUnits(120) } },
@@ -101,9 +109,9 @@ describe('flying to the Heliopause', () => {
     ]);
     expect(flight.collection).toBeNull();
     expect(flight.why).toMatch(/Reached the Heliopause/);
-    // The Jump follows at once: the Run goes on, landed on the next Star System's Home Planet.
+    // The Jump follows at once: the Run goes on, marooned on the next Star System's Starting Moon.
     expect(next.starSystemNumber).toBe(from.starSystemNumber + 1);
-    expect(next.status).toEqual({ kind: 'landed', bodyId: next.starSystem.homePlanetId });
+    expect(next.status).toEqual({ kind: 'landed', bodyId: next.starSystem.startingMoonId });
     expect(next.hopsFlown).toBe(from.hopsFlown + 1);
     expect(flight.fuelRemaining).toBeGreaterThan(0);
     expect(next.spacecraft.fuelMass).toBeGreaterThanOrEqual(flight.fuelRemaining);

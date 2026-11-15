@@ -1,18 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
+import { waitForOpening } from './opening.ts';
 import { formatDeltaV, formatDeltaVKmS } from '../../src/ui/format.ts';
 import {
   availableDeltaV,
   COMPONENTS,
+  firstDetectedBody,
   install,
   startRun,
-  STARTING_MATERIALS,
 } from '../../src/game/sim/index.ts';
 
 const SEED = 123;
 const run = startRun(SEED, 'scout');
-const home = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId);
-const homeMoon = home?.moons[0];
-if (!homeMoon) throw new Error(`Seed ${SEED} has no Home Planet Moon`);
+// The one Body Comms Detected at the start: the Hop plan to it follows the install (#189).
+const homeMoon = firstDetectedBody(run.starSystem);
 
 // What the simulation says the cheapest Component does to this Spacecraft.
 const cheapest = Object.values(COMPONENTS).reduce((a, b) => (a.cost <= b.cost ? a : b));
@@ -24,6 +24,7 @@ const afterDeltaV = availableDeltaV(installed.run.spacecraft);
 async function startRunLanded(page: Page): Promise<void> {
   await page.goto(`/?seed=${String(SEED)}&chassis=scout`);
   await page.getByRole('button', { name: 'New Run' }).click();
+  await waitForOpening(page);
   await expect(page.getByRole('button', { name: 'Spacecraft' })).toBeVisible();
 }
 
@@ -45,7 +46,7 @@ test('the cheapest Component can be installed with the starting Materials using 
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await startRunLanded(page);
-  await expect(page.getByTestId('materials')).toHaveText(String(STARTING_MATERIALS));
+  await expect(page.getByTestId('materials')).toHaveText(String(run.materials));
   await expect(page.getByTestId('delta-v')).toHaveText(
     formatDeltaVKmS(availableDeltaV(run.spacecraft)),
   );
@@ -66,7 +67,7 @@ test('the cheapest Component can be installed with the starting Materials using 
   await tabTo(page, /^Install Fuel Tank, level 1/);
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('install-status')).toContainText(
-    `Installed Fuel Tank, level 1 in Slot 3. ${String(STARTING_MATERIALS - cheapest.cost)} Materials left.`,
+    `Installed Fuel Tank, level 1 in Slot 3. ${String(run.materials - cheapest.cost)} Materials left.`,
   );
   await expect(page.getByRole('radio', { name: /^Slot 3, Fuel Tank, level 1/ })).toBeVisible();
   await expect(page.getByTestId('materials')).toHaveText(String(installed.run.materials));
@@ -94,9 +95,10 @@ test('the cheapest Component can be installed with the starting Materials using 
   // The Hop plan reflects the new loadout.
   await page.keyboard.press('m');
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
-  for (let i = 0; i < 40; i += 1) {
-    if (await page.getByRole('heading', { name: homeMoon.name, level: 2 }).isVisible()) break;
-    await page.keyboard.press('PageDown');
+  // PageDown, then back with PageUp: the first target can sit before the Starting Moon.
+  const shown = page.getByRole('heading', { name: homeMoon.name, level: 2 });
+  for (const key of ['PageDown', 'PageUp']) {
+    for (let i = 0; i < 40 && !(await shown.isVisible()); i += 1) await page.keyboard.press(key);
   }
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('plan-available')).toHaveText(formatDeltaVKmS(afterDeltaV));
@@ -131,7 +133,7 @@ test('a Component is removed by keyboard alone after a confirm, and Materials ri
   const panel = page.getByRole('dialog', { name: 'Spacecraft' });
   await tabTo(page, /^Install Fuel Tank, level 1/);
   await page.keyboard.press('Enter');
-  const afterInstall = STARTING_MATERIALS - cheapest.cost;
+  const afterInstall = run.materials - cheapest.cost;
   await expect(page.getByTestId('materials')).toHaveText(String(afterInstall));
 
   // Choose the Tank's Slot, then Tab to Remove.

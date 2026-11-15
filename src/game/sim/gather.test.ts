@@ -4,27 +4,47 @@ import {
   CHASSIS_IDS,
   COMPONENTS,
   COMPONENT_IDS,
-  homePlanet,
   kilograms,
   collectYield,
   launchHop,
   listBodies,
   materials,
+  planHop,
   refit,
   startRun,
   STARTING_MATERIALS,
+  type LandableBody,
   type Run,
   type Slot,
 } from './index.ts';
-import { homeMoon, landedOn } from './testing.ts';
+import { landedOn, onInnerPlanet } from './testing.ts';
+
+/**
+ * A Run standing on the innermost planet, knowing every Body and with none Depleted: for the rules
+ * of gathering, apart from the opening (the Starting Moon's own yield is the opening's rule).
+ */
+function fresh(seed: number): Run {
+  return { ...onInnerPlanet(startRun(seed, 'scout')), depleted: [] };
+}
+
+/** A Body of `composition` that a Hop from `run` reaches for sure. */
+function sureTarget(run: Run, composition: 'icy' | 'rocky'): LandableBody {
+  const body = listBodies(run.starSystem).find((b): b is LandableBody => {
+    if (!b.landable || b.composition !== composition) return false;
+    const planned = planHop(run, b.id);
+    return planned.kind === 'planned' && planned.plan.successChance === 1;
+  });
+  if (!body) throw new Error(`No ${composition} Body in sure reach`);
+  return body;
+}
 
 function withFuel(run: Run, fuel: number): Run {
   return { ...run, spacecraft: { ...run.spacecraft, fuelMass: kilograms(fuel) } };
 }
 
 describe('landing collects a Body’s yield', () => {
-  const run = startRun(2026, 'scout');
-  const moon = homeMoon(run);
+  const run = fresh(2026);
+  const moon = sureTarget(run, 'icy');
 
   it('landing on an Icy Body adds Fuel up to Tank capacity', () => {
     expect(moon.composition).toBe('icy');
@@ -50,8 +70,7 @@ describe('landing collects a Body’s yield', () => {
   });
 
   it('landing on a Rocky Body adds Materials', () => {
-    const home = homePlanet(run.starSystem);
-    expect(home.composition).toBe('rocky');
+    const home = sureTarget(run, 'rocky');
     const away = landedOn(run, moon.id);
     const result = collectYield(away, home.id);
     expect(result.collection).toEqual({ kind: 'materials', collected: home.baseYield });
@@ -94,8 +113,9 @@ describe('a New Run', () => {
     expect(COMPONENTS['fuel-tank-1'].cost).toBeLessThanOrEqual(STARTING_MATERIALS);
   });
 
-  it('starts with no Body Depleted', () => {
-    expect(startRun(7, 'scout').depleted).toEqual([]);
+  it('starts with only its Starting Moon Depleted', () => {
+    const run = startRun(7, 'scout');
+    expect(run.depleted).toEqual([run.starSystem.startingMoonId]);
   });
 });
 
@@ -108,8 +128,8 @@ describe('an Icy yield against Tank capacity', () => {
 });
 
 describe('collection on arrival', () => {
-  const run = startRun(2026, 'scout');
-  const moon = homeMoon(run);
+  const run = fresh(2026);
+  const moon = sureTarget(run, 'icy');
 
   it('an arrived Hop collects the target’s yield and Depletes it', () => {
     const result = launchHop(run, moon.id);
@@ -140,17 +160,17 @@ describe('collection on arrival', () => {
 });
 
 describe('Fuel left behind in a real Run', () => {
-  // Re-pinned for #188 (was seed 14, Lydruthyx then Konvin): generation changed.
-  it('seed 5, scout: the Hop to Raertha after Culmusu leaves Fuel behind', () => {
-    const start = startRun(5, 'scout');
+  // Re-pinned for #189 (was seed 5, Culmusu then Raertha): Runs open on a Starting Moon now.
+  it('seed 98, scout: the Hop to Naeca after Ceprael leaves Fuel behind', () => {
+    const start = startRun(98, 'scout');
     const named = (run: Run, name: string) => {
       const body = listBodies(run.starSystem).find((b) => b.name === name);
       if (!body) throw new Error(`no Body ${name}`);
       return body.id;
     };
-    const first = launchHop(start, named(start, 'Culmusu'));
+    const first = launchHop(start, named(start, 'Ceprael'));
     if (first.kind !== 'flown') throw new Error('Expected a flown Hop');
-    const second = launchHop(first.run, named(first.run, 'Raertha'));
+    const second = launchHop(first.run, named(first.run, 'Naeca'));
     if (second.kind !== 'flown') throw new Error('Expected a flown Hop');
     const { collection } = second.flight;
     if (collection?.kind !== 'fuel') throw new Error('Expected Fuel collected');
@@ -160,9 +180,9 @@ describe('Fuel left behind in a real Run', () => {
 });
 
 describe('a Drill multiplies yields', () => {
-  const base = startRun(2026, 'scout');
-  const moon = homeMoon(base);
-  const home = homePlanet(base.starSystem);
+  const base = fresh(2026);
+  const moon = sureTarget(base, 'icy');
+  const home = sureTarget(base, 'rocky');
   const withSlots = (run: Run, slots: readonly Slot[]): Run => ({
     ...run,
     // A roomy Tank, so these tests see the multiplier and not the Tank's cap.
@@ -194,7 +214,7 @@ describe('a Drill multiplies yields', () => {
     const rockyWithout = collectYield(landedOn(none, moon.id), home.id).collection;
     const rockyWith = collectYield(landedOn(drill1, moon.id), home.id).collection;
     if (rockyWithout.kind !== 'materials' || rockyWith.kind !== 'materials') {
-      throw new Error('The Home Planet is Rocky');
+      throw new Error('The Body is Rocky');
     }
     expect(rockyWith.collected).toBeGreaterThan(rockyWithout.collected);
   });

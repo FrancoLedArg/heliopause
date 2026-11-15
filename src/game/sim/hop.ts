@@ -4,6 +4,7 @@ import { recordChoice } from './choiceLog.ts';
 import { DISPERSION, SOURCED_CONSTANTS } from './data.ts';
 import { collectYield, type Collection } from './gather.ts';
 import { jump } from './jump.ts';
+import { revealOnLanding, type Reveal } from './knowledge.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
 import { endIfStranded } from './stranded.ts';
 import { availableDeltaV, carriesJumpDrive, fuelAfterBurning } from './spacecraft.ts';
@@ -86,8 +87,12 @@ export function plannedBurns(plan: HopPlan): readonly PlannedBurn[] {
   return BURNS.map((burn) => ({ burn, estimate: estimates[burn] }));
 }
 
-/** Why a Body, or the Heliopause, cannot be a Hop target. */
-export type InvalidTargetReason = 'no-surface' | 'current-body' | 'no-jump-drive';
+/**
+ * Why a Body, or the Heliopause, cannot be a Hop target. A Body the player has not Detected, and the
+ * Heliopause before it is found, are not on the chart: only a forged choice could name them.
+ */
+export type InvalidTargetReason =
+  'no-surface' | 'current-body' | 'no-jump-drive' | 'not-detected' | 'not-found';
 
 /** Planning a Hop either works out a plan, or explains why the target cannot be chosen. */
 export type HopPlanResult<P extends HopPlan = HopPlan> =
@@ -115,6 +120,13 @@ function planToBody(run: Run, targetId: BodyId): HopPlanResult<BodyHopPlan> {
   const from = currentBody(run);
   const target = findBody(run.starSystem, targetId);
   if (!target) throw new Error(`Star System ${run.starSystem.name} has no Body ${targetId}`);
+  if (!run.knowledge.detected.includes(target.id)) {
+    return {
+      kind: 'invalid-target',
+      reason: 'not-detected',
+      why: 'Comms has not Detected that Body: the Spacecraft does not know where it is.',
+    };
+  }
   if (!target.landable) {
     return {
       kind: 'invalid-target',
@@ -152,6 +164,13 @@ function planToBody(run: Run, targetId: BodyId): HopPlanResult<BodyHopPlan> {
  */
 function planToHeliopause(run: Run): HopPlanResult<HeliopauseHopPlan> {
   const from = currentBody(run);
+  if (!run.knowledge.heliopauseFound) {
+    return {
+      kind: 'invalid-target',
+      reason: 'not-found',
+      why: 'The Heliopause has not been found yet: the Spacecraft does not know where it is.',
+    };
+  }
   if (!carriesJumpDrive(run.spacecraft)) {
     return {
       kind: 'invalid-target',
@@ -223,7 +242,7 @@ export type HopOutcome =
   | { readonly kind: 'arrived' }
   /**
    * The Transfer carried the Spacecraft out to the Heliopause, and the Jump carried it on to the
-   * next Star System's Home Planet.
+   * next Star System's Starting Moon.
    */
   | { readonly kind: 'reached-heliopause' }
   /** Fuel ran out during Takeoff or Transfer. */
@@ -247,6 +266,8 @@ export interface HopFlight {
   readonly fuelRemaining: Kilograms;
   /** What landing on the target collected; `null` when the Hop did not land on a Body. */
   readonly collection: Collection | null;
+  /** What landing on the target taught the player; `null` when the Hop did not land on a Body. */
+  readonly reveal: Reveal | null;
   readonly deltaVRemaining: MetersPerSecond;
   /** Plain language: what the Burns cost against their estimates, and why the Hop ended as it did. */
   readonly why: string;
@@ -308,6 +329,7 @@ export function flyHop(
     fuelAtLaunch: run.spacecraft.fuelMass,
     fuelRemaining,
     collection: null,
+    reveal: null,
     deltaVRemaining: remaining,
     why: explain(plan, outcome, burns, target?.name ?? 'the Heliopause'),
   };
@@ -330,10 +352,12 @@ export function flyHop(
     case 'arrived': {
       if (!target) throw new Error('Arrived on no Body');
       const landed = collectYield(flown({ kind: 'landed', bodyId: target.id }), target.id);
+      // The landing Surveys the target, then Comms Detects one more Body.
+      const learned = revealOnLanding(landed.run, target.id);
       // Landed where no change could give any Hop a chance: the Run ends there, as Stranded.
       return deepFreeze({
-        flight: { ...flight, collection: landed.collection },
-        run: endIfStranded(landed.run),
+        flight: { ...flight, collection: landed.collection, reveal: learned.reveal },
+        run: endIfStranded(learned.run),
       });
     }
   }

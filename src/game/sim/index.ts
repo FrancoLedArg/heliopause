@@ -1,15 +1,11 @@
 // The simulation module's public interface: pure TypeScript game rules, no Phaser or React.
 // The UI and tests use only what is exported here.
-export { findBody, homePlanet, listBodies } from './starSystem.ts';
+export { findBody, listBodies, startingMoon } from './starSystem.ts';
 export { generateStarSystem } from './generation.ts';
-export {
-  currentBody,
-  generateSystem,
-  starSystemNumber,
-  starSystemSeed,
-  startRun,
-  STARTING_MATERIALS,
-} from './run.ts';
+export { currentBody, generateSystem, starSystemNumber, starSystemSeed, startRun } from './run.ts';
+export { firstDetectedBody, STARTING_MATERIALS } from './opening.ts';
+export { bodyKnowledge, distanceBetween, knownBodies } from './knowledge.ts';
+export type { BodyKnowledge, Knowledge, Reveal } from './knowledge.ts';
 export { CHOICE_LOG_VERSION, parseChoiceLog, storedChoiceLog } from './choiceLog.ts';
 export type { Choice, ChoiceLog, StoredChoiceLog } from './choiceLog.ts';
 export { collectYield, isDepleted } from './gather.ts';
@@ -83,6 +79,7 @@ export {
   BODY_TUNING,
   ICE_LINE,
   CHASSIS_IDS,
+  OPENING_TUNING,
   CHASSIS_TUNING,
   DISPERSION,
   FUEL_NOTE,

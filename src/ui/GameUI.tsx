@@ -21,6 +21,7 @@ import { SceneKey } from '../game/scenes/keys.ts';
 import type { ChartState } from '../game/scenes/navChartView.ts';
 import { readoutAt, type Gathering, type GatheringReadout } from '../game/scenes/gathering.ts';
 import { ChassisPicker } from './ChassisPicker.tsx';
+import { commsAnnouncement } from './commsView.ts';
 import { EndOfRun, type RecordedScore } from './EndOfRun.tsx';
 import { formatFuel } from './format.ts';
 import { FlightHud, type FlightAfter } from './FlightHud.tsx';
@@ -90,6 +91,8 @@ export function GameUI() {
 
   // The report of the Hop that just Arrived, shown beside the Landed view of its target until dismissed.
   const [arrival, setArrival] = useState<{ before: Run; flight: HopFlight } | undefined>(undefined);
+  // What Comms just revealed, in words for the polite live region; the ping on the Landed view is the visual.
+  const [comms, setComms] = useState('');
   // The gathering moment playing in the Landed view, and where its readout has counted to; the
   // Hop report waits until it ends.
   const [gathering, setGathering] = useState<
@@ -105,7 +108,7 @@ export function GameUI() {
   const [navFocus, setNavFocus] = useState(0);
   // The next Landed view follows a New Run launched from a failure's report.
   const afterFailure = useRef(false);
-  // The next Landed view follows the Jump, on the next Star System's Home Planet.
+  // The next Landed view follows the Jump, on the next Star System's Starting Moon.
   const afterJump = useRef(false);
   // The panels fade in with the Landed view as it comes up out of the Jump's black.
   const [fadingIn, setFadingIn] = useState(false);
@@ -159,6 +162,7 @@ export function GameUI() {
     () =>
       EventBus.on('run-started', (started) => {
         setRun(started);
+        setComms('');
         setArrival(undefined);
         setGathering(undefined);
         setGathered('');
@@ -201,6 +205,13 @@ export function GameUI() {
     () =>
       EventBus.on('hop-arrived', (before, hop) => {
         setArrival({ before, flight: hop });
+      }),
+    [],
+  );
+  useEffect(
+    () =>
+      EventBus.on('comms-revealed', (revealedIn, reveal) => {
+        setComms(commsAnnouncement(revealedIn, reveal));
       }),
     [],
   );
@@ -465,6 +476,12 @@ export function GameUI() {
         )}
       {scene === SceneKey.Landed && run !== undefined && stranded === undefined && (
         <RunMenu open={menuOpen} onOpenChange={setMenuOpen} onLeave={leaveRun} />
+      )}
+      {scene === SceneKey.Landed && (
+        // Always in the page on the Landed view, so a change of text is what gets read out.
+        <p className="sr-only" role="status" data-testid="comms-announcement">
+          {comms}
+        </p>
       )}
       {scene === SceneKey.Flight && flight !== undefined && !picking && (
         <FlightHud

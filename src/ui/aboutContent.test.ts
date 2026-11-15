@@ -166,6 +166,14 @@ describe('How to play', () => {
     }
   });
 
+  it('the opening says where a Run starts and how the map grows (#96)', () => {
+    const opening = HOW_TO_PLAY.steps.find((s) => s.heading === 'The opening')?.body.join(' ');
+    for (const word of ['Starting Moon', 'Comms', 'Detected', 'Survey']) {
+      expect(opening).toContain(word);
+    }
+    expect(text()).not.toContain('Home Planet');
+  });
+
   it('uses the glossary words for the Hop, the end and the Score', () => {
     for (const word of [
       'Success Chance',

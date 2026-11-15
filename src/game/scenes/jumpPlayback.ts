@@ -4,7 +4,7 @@ import type { Pace } from './flightPlayback.ts';
 
 /**
  * The stages of the Jump moment: the Jump Drive charges, it fires and carries the Spacecraft away,
- * then the screen goes dark behind the flavour text until the Landed view of the next Home Planet.
+ * then the screen goes dark behind the flavour text until the Landed view of the next Starting Moon.
  */
 export type JumpStage = 'charge' | 'fire' | 'dark';
 
@@ -26,7 +26,7 @@ export interface JumpMoment {
   readonly progress: number;
   /** How dark the screen is, 0 (clear) to 1 (black). */
   readonly darkness: number;
-  /** The moment is over: hand off to the Landed view of the next Home Planet. */
+  /** The moment is over: hand off to the Landed view of the next Starting Moon. */
   readonly ended: boolean;
 }
 

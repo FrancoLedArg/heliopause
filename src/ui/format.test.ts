@@ -5,7 +5,13 @@ import type {
   MetersPerSecond,
   MetersPerSecondSquared,
 } from '../game/sim/index.ts';
-import { CHASSIS_IDS, homePlanet, listBodies, startRun } from '../game/sim/index.ts';
+import {
+  CHASSIS_IDS,
+  listBodies,
+  startRun,
+  type Moon,
+  type RockyPlanet,
+} from '../game/sim/index.ts';
 import {
   bodyCompositionLabel,
   bodyFullLabel,
@@ -56,37 +62,37 @@ describe('numbers shown to the player', () => {
 describe('Body type label', () => {
   const run = startRun(123, CHASSIS_IDS[0]);
   const bodies = listBodies(run.starSystem);
-  const home = homePlanet(run.starSystem);
+  // The innermost planet is always rocky, with two Moons.
+  const home = run.starSystem.planets[0] as RockyPlanet;
+  const icyMoon = bodies.find((b): b is Moon => b.kind === 'moon' && b.composition === 'icy');
+  if (!icyMoon) throw new Error('seed 123 has an Icy Moon');
+  const planetOfIcy = bodies.find((b) => b.id === icyMoon.planetId);
 
   it('names the kind only, never the composition', () => {
-    expect(bodyTypeLabel(run, home)).toBe('Home Planet');
+    expect(bodyTypeLabel(run, home)).toBe('Planet');
     const moon = home.moons[0];
-    if (!moon) throw new Error('seed 123 has no Home Planet Moon');
+    if (!moon) throw new Error('seed 123 has a Moon of its innermost planet');
     expect(bodyTypeLabel(run, moon)).toBe(`Moon of ${home.name}`);
     for (const body of bodies) {
-      if (body.kind === 'rocky-planet' && body.id !== home.id) {
-        expect(bodyTypeLabel(run, body)).toBe('Planet');
-      }
+      if (body.kind === 'rocky-planet') expect(bodyTypeLabel(run, body)).toBe('Planet');
     }
   });
 
   it('says Icy or Rocky as a separate word for every landable Body', () => {
-    expect(bodyCompositionLabel(home)).toBe('Rocky');
     for (const body of bodies) {
       if (!body.landable) continue;
       expect(bodyCompositionLabel(body)).toBe(body.composition === 'icy' ? 'Icy' : 'Rocky');
     }
-    const moon = home.moons[0];
-    if (moon) expect(bodyFullLabel(run, moon)).toBe(`Moon of ${home.name} · Icy`);
+    expect(bodyFullLabel(run, icyMoon)).toBe(`Moon of ${planetOfIcy?.name ?? '?'} · Icy`);
   });
 
   it('puts Depleted in the place of Icy or Rocky in the status label, leaving the full label alone', () => {
-    const moon = home.moons[0];
-    if (!moon) throw new Error('no moon');
+    const moon = icyMoon;
+    const fresh = { ...run, depleted: [] };
     const used = { ...run, depleted: [moon.id] };
-    expect(bodyStatusLabel(run, moon)).toBe('Icy');
+    expect(bodyStatusLabel(fresh, moon)).toBe('Icy');
     expect(bodyStatusLabel(used, moon)).toBe('Depleted');
-    expect(bodyFullLabel(used, moon)).toBe(`Moon of ${home.name} · Icy`);
+    expect(bodyFullLabel(used, moon)).toBe(`Moon of ${planetOfIcy?.name ?? '?'} · Icy`);
   });
 
   it('gives a Gas Giant no composition', () => {

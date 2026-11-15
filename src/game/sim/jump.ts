@@ -1,19 +1,21 @@
 import { COMPONENTS } from './catalogue.ts';
 import { DISPERSION } from './data.ts';
 import { planHop } from './hop.ts';
+import { firstDetectedBody, maroon } from './opening.ts';
 import { generateSystem, type Run } from './run.ts';
 import { fuelForDeltaV, refit } from './spacecraft.ts';
 import { endIfStranded } from './stranded.ts';
-import { deepFreeze, homePlanet } from './starSystem.ts';
+import { deepFreeze } from './starSystem.ts';
 import { kilograms, metersPerSecond, type Kilograms } from './units.ts';
 
 /**
  * The Jump, for a Run whose Hop has just reached the Heliopause: it always succeeds, carrying the
  * Spacecraft to the next Star System, one difficulty level up. The Jump Drive burns out; the
- * Spacecraft lands on the new Home Planet with its other Components, its Materials and its Fuel,
- * topped up when it arrives too low to reach one of the Home Planet's Moons for sure (see
- * `arrivalFuel`). Every other part of the Run, its choice log included, carries over. Should no Hop
- * be possible from there even so, the Run ends Stranded (`endIfStranded`).
+ * Spacecraft is marooned on the new Starting Moon knowing nothing but the opening (`maroon`), with
+ * its other Components, its Materials and its Fuel, the Moon's yield collected, and the Fuel topped
+ * up when it is still too low to reach the first Detected Body for sure (see `arrivalFuel`). Every
+ * other part of the Run, its choice log included, carries over. Should no Hop be possible from there
+ * even so, the Run ends Stranded (`endIfStranded`).
  */
 export function jump(run: Run): Run {
   // The Jump Drive burns out: its Slot is emptied, and nothing is refunded for it.
@@ -21,17 +23,18 @@ export function jump(run: Run): Run {
     slot !== null && COMPONENTS[slot].kind === 'jump-drive' ? null : slot,
   );
   const starSystemNumber = run.starSystemNumber + 1;
-  const starSystem = generateSystem(run.seed, starSystemNumber);
-  const arrived: Run = {
-    ...run,
-    starSystemNumber,
-    starSystem,
-    spacecraft: refit(run.spacecraft, slots),
-    status: { kind: 'landed', bodyId: starSystem.homePlanetId },
-    // A new Star System: none of its Bodies has given up its yield yet (Body ids repeat between Systems).
-    depleted: [],
-  };
-  // Landing on the new Home Planet is judged like any landing: it ends the Run if no Hop is left.
+  const arrived = maroon(
+    {
+      seed: run.seed,
+      starSystemNumber,
+      spacecraft: refit(run.spacecraft, slots),
+      hopsFlown: run.hopsFlown,
+      materials: run.materials,
+      choices: run.choices,
+    },
+    generateSystem(run.seed, starSystemNumber),
+  );
+  // Landing on the new Starting Moon is judged like any landing: it ends the Run if no Hop is left.
   return endIfStranded(
     deepFreeze({
       ...arrived,
@@ -41,20 +44,18 @@ export function jump(run: Run): Run {
 }
 
 /**
- * The Fuel the Spacecraft lands with after the Jump: what it kept, or, if more, enough for a Hop
- * with a 100% Success Chance from the new Home Planet to its nearest Moon (always Icy, so that Hop
- * refuels it), up to the Tank's capacity. A Run is never stranded by the Jump it earned (gameplay
- * tuning).
+ * The Fuel the Spacecraft has after the Jump: what it kept and gathered, or, if more, enough for a Hop
+ * with a 100% Success Chance from the new Starting Moon to the first Body Comms Detected there (which
+ * always yields something), up to the Tank's capacity. A Run is never stranded by the Jump it earned
+ * (gameplay tuning).
  */
 function arrivalFuel(arrived: Run): Kilograms {
   const { spacecraft } = arrived;
-  // A Hop is certain when the Fuel covers every Burn at the top of the dispersion range.
-  const worstCases = homePlanet(arrived.starSystem).moons.flatMap((moon) => {
-    const planned = planHop(arrived, moon.id);
-    return planned.kind === 'planned' ? [planned.plan.totalEstimate * DISPERSION.max] : [];
-  });
-  // A hair over, so rounding never leaves the Hop a fraction short of certain.
-  const certain = metersPerSecond(Math.min(...worstCases) * (1 + 1e-9));
+  const planned = planHop(arrived, firstDetectedBody(arrived.starSystem).id);
+  if (planned.kind !== 'planned') throw new Error(`No first Hop after the Jump: ${planned.reason}`);
+  // A Hop is certain when the Fuel covers every Burn at the top of the dispersion range; a hair
+  // over, so rounding never leaves it a fraction short of certain.
+  const certain = metersPerSecond(planned.plan.totalEstimate * DISPERSION.max * (1 + 1e-9));
   const floor = fuelForDeltaV(spacecraft, certain);
   return kilograms(Math.min(spacecraft.fuelCapacity, Math.max(spacecraft.fuelMass, floor)));
 }
