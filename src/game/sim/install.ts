@@ -1,7 +1,7 @@
 import { COMPONENTS, componentCost, type ComponentId } from './catalogue.ts';
+import { recordChoice } from './choiceLog.ts';
 import type { Run } from './run.ts';
 import { carriesJumpDrive, refit, SLOT_COUNT } from './spacecraft.ts';
-import { deepFreeze } from './starSystem.ts';
 import { assertNotEnded, endIfStranded } from './stranded.ts';
 import { materials, type Materials } from './units.ts';
 
@@ -65,7 +65,12 @@ export function install(run: Run, slotIndex: number, componentId: ComponentId): 
   if (refusal) return { kind: 'refused', reason: refusal };
   return {
     kind: 'installed',
-    run: endIfStranded(deepFreeze({ ...run, ...withInstalled(run, slotIndex, componentId) })),
+    run: endIfStranded(
+      recordChoice(
+        { ...run, ...withInstalled(run, slotIndex, componentId) },
+        { kind: 'install', slot: slotIndex, componentId },
+      ),
+    ),
   };
 }
 

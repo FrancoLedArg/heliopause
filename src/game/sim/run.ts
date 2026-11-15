@@ -1,3 +1,4 @@
+import type { ChoiceLog } from './choiceLog.ts';
 import type { ChassisId } from './data.ts';
 import { newSpacecraft, type Spacecraft } from './spacecraft.ts';
 import {
@@ -54,6 +55,8 @@ export interface Run {
   readonly materials: Materials;
   /** The Bodies the Spacecraft has landed on in this Run: each gave up its yield and yields no more. */
   readonly depleted: readonly BodyId[];
+  /** The player's choices so far, in order: with the seed and the Chassis, they rebuild the Run. */
+  readonly choices: ChoiceLog;
 }
 
 /**
@@ -71,6 +74,7 @@ export function startRun(seed: Seed, chassisId: ChassisId): Run {
     hopsFlown: 0,
     materials: STARTING_MATERIALS,
     depleted: [],
+    choices: [],
   });
 }
 

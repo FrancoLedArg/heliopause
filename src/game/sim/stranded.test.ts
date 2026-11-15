@@ -14,6 +14,7 @@ import {
   planHop,
   refit,
   remove,
+  replay,
   startRun,
   type ComponentId,
   type Run,
@@ -313,6 +314,22 @@ describe('the simulation settles Stranded itself', () => {
     const someBody = listBodies(ended.starSystem).find((body) => body.landable);
     if (!someBody) throw new Error('no Body');
     expect(() => launchHop(ended, someBody.id)).toThrow(/ended/);
+  });
+
+  it('a replayed Run ends Stranded where the game did, and takes no choice after it', () => {
+    const saveable = quiolxaexis(0);
+    expect(saveable.status).toMatchObject(stranded);
+    // Seed 7's own log: the one Hop to Quiolxaexis, which strands it.
+    const replayed = replay(7, 'scout', saveable.choices);
+    expect(replayed).toMatchObject({ kind: 'replayed', end: { kind: 'stranded' } });
+    if (replayed.kind !== 'replayed') return;
+    expect(replayed.run.status).toEqual(saveable.status);
+    // A choice made after the end is refused.
+    const after = replay(7, 'scout', [
+      ...saveable.choices,
+      { kind: 'install', slot: 2, componentId: 'drill-1' },
+    ]);
+    expect(after).toMatchObject({ kind: 'rejected', at: 1 });
   });
 
   it('a New Run is never Stranded', () => {

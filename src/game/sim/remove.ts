@@ -1,8 +1,8 @@
 import { COMPONENTS, componentCost, type ComponentId } from './catalogue.ts';
+import { recordChoice } from './choiceLog.ts';
 import type { Outfit } from './install.ts';
 import type { Run } from './run.ts';
 import { refit, SLOT_COUNT, type Slot } from './spacecraft.ts';
-import { deepFreeze } from './starSystem.ts';
 import { assertNotEnded, endIfStranded } from './stranded.ts';
 import { kilograms, materials, type Kilograms, type Materials } from './units.ts';
 
@@ -43,7 +43,7 @@ export function remove(run: Run, slotIndex: number): RemoveResult {
   const after = withRemoved(run, slotIndex);
   return {
     kind: 'removed',
-    run: endIfStranded(deepFreeze({ ...run, ...after })),
+    run: endIfStranded(recordChoice({ ...run, ...after }, { kind: 'remove', slot: slotIndex })),
     refund: materials(after.materials - run.materials),
     fuelLost: kilograms(run.spacecraft.fuelMass - after.spacecraft.fuelMass),
   };

@@ -17,7 +17,13 @@ interface InfoPanelProps {
 /** A link that opens in a new tab (another site, or the notices file) and never hands the opener over. */
 function ExternalLink({ link }: { link: ContentLink }) {
   return (
-    <a className="info-link" href={link.url} target="_blank" rel="noopener noreferrer">
+    <a
+      className="info-link"
+      href={link.url}
+      aria-label={link.accessibleName}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
       {link.label}
     </a>
   );
@@ -81,8 +87,8 @@ export function AboutPanel({ onBack }: InfoPanelProps) {
       <h2>{ABOUT.team.heading}</h2>
       <ul>
         {ABOUT.team.members.map((member) => (
-          <li key={member.name} className={member.placeholder ? 'info-placeholder' : undefined}>
-            {member.placeholder ? member.name : `${member.name}: ${member.role}`}
+          <li key={member.name}>
+            {member.name}: {member.role}
           </li>
         ))}
       </ul>
