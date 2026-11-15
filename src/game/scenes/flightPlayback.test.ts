@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../lib/rng.ts';
 import {
+  advanceCruise,
+  beginHop,
   BURNS,
   flyHop,
   HELIOPAUSE,
@@ -10,6 +12,7 @@ import {
   launchHop,
   materials,
   planHop,
+  startRepair,
   startRun,
   type BodyId,
   type HopFlight,
@@ -465,5 +468,34 @@ describe('the shots of a Hop’s playback', () => {
     });
     expect(lit(10_000)).toBe(3);
     expect(lit(49_000)).toBe(3);
+  });
+});
+
+describe('Cruise events in the playback', () => {
+  it('the Cruise events that struck play in Cruise time, until their Damage is cleared', () => {
+    const fuelTank = 1;
+    const begun = beginHop(run, moonId, {
+      schedule: [
+        { kind: 'fuel-leak', tick: 600, slot: fuelTank },
+        { kind: 'debris-field', tick: 900, slot: null },
+      ],
+    });
+    if (begun.kind !== 'cruising') throw new Error('Expected a Cruise');
+    const repaired = startRepair(advanceCruise(begun.run, 600).run, fuelTank);
+    if (repaired.kind !== 'repairing') throw new Error('Expected a Repair');
+    const flown = advanceCruise(repaired.run, 1_200);
+    if (flown.kind !== 'flown') throw new Error('Expected the Hop to be flown');
+    const playback = flightPlayback(run.spacecraft, flown.flight, 'full');
+    // The Cruise shot is 50 s for 1,200 ticks: tick 600 is 25 s in; the 30 s Repair ends on tick 900.
+    expect(playback.events).toEqual([
+      { kind: 'fuel-leak', slot: fuelTank, startsAt: 25_000, endsAt: 37_500 },
+      { kind: 'debris-field', slot: null, startsAt: 37_500, endsAt: 50_000 },
+    ]);
+  });
+
+  it('a Hop with no Cruise events has none to play', () => {
+    const launched = launchHop(run, moonId);
+    if (launched.kind !== 'flown') throw new Error('Expected a flight');
+    expect(flightPlayback(run.spacecraft, launched.flight, 'full').events).toEqual([]);
   });
 });
