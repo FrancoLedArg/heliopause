@@ -81,7 +81,12 @@
   left: 0;
   top: 12px;
   display: flex;
-  gap: 14px;
+  gap: 8px;
+}
+
+.spacecraft-panel .spacecraft-panel__remove {
+  left: 172px;
+  top: 18px;
 }
 
 .slot-button {
@@ -336,4 +341,37 @@
 .spacecraft-panel__close {
   left: 264px;
   top: 218px;
+}
+
+/* ---- Remove: the question sits over the figures, above the About spot ---- */
+
+.spacecraft-panel__confirm {
+  left: 0;
+  top: 58px;
+  width: 228px;
+  height: 102px;
+  box-sizing: border-box;
+  border: 1px solid var(--am3);
+  background: var(--ink);
+  z-index: 1;
+}
+
+.spacecraft-panel__confirm-text {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 214px;
+  margin: 0;
+  font: 12px/12px var(--font-pixel-body);
+  color: var(--wh2);
+}
+
+.spacecraft-panel__confirm-buttons {
+  position: absolute;
+  left: 6px;
+  top: 70px;
+  width: 214px;
+  height: 24px;
+  display: flex;
+  gap: 8px;
 }
