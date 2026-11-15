@@ -1,9 +1,9 @@
 import { COMPONENTS } from './catalogue.ts';
 import type { Choice, ChoiceLog } from './choiceLog.ts';
-import type { ChassisId } from './data.ts';
+import { CHASSIS_IDS, type ChassisId } from './data.ts';
 import { HELIOPAUSE, launchHop } from './hop.ts';
-import { install } from './install.ts';
-import { remove } from './remove.ts';
+import { install, type InstallRefusal } from './install.ts';
+import { remove, type RemoveRefusal } from './remove.ts';
 import { startRun, type Run, type RunEnd } from './run.ts';
 import { runEnd, score, type Score } from './score.ts';
 import { SLOT_COUNT } from './spacecraft.ts';
@@ -11,7 +11,8 @@ import { findBody, type Seed } from './starSystem.ts';
 
 /**
  * A replayed choice log either rebuilds the Run, or stops at the first choice the Run could not
- * have taken: a log that was not played, so its Score cannot be trusted.
+ * have taken: a log that was not played, so its Score cannot be trusted. A seed or Chassis no Run
+ * can start from is unplayable.
  */
 export type ReplayResult =
   | {
@@ -28,16 +29,30 @@ export type ReplayResult =
       readonly choice: Choice;
       /** Plain language: why the Run could not take it. */
       readonly why: string;
+    }
+  | {
+      readonly kind: 'unplayable';
+      /** Plain language: why no Run starts from this seed and Chassis. */
+      readonly why: string;
     };
 
 /**
  * Rebuilds a Run from its seed, its Chassis and the choices its player made, by playing each choice
  * in order exactly as the game did. Every Hop draws its Burns from the seed and how many Hops came
- * before it, so the same log always flies the same Hops. A log the game could not have produced
- * (for instance, from a tampered record) is rejected, not thrown: a server replaying a submitted
- * Score must expect one.
+ * before it, so the same log always flies the same Hops.
+ *
+ * A stored or received log must come through `parseChoiceLog` first: that is where malformed data
+ * is turned away. A well-formed log the game could not have played (for instance, from a tampered
+ * record) is rejected here, and a seed or Chassis from such a record is unplayable; neither throws,
+ * since a server replaying a submitted Score must expect both.
  */
 export function replay(seed: Seed, chassisId: ChassisId, log: ChoiceLog): ReplayResult {
+  if (!Number.isSafeInteger(seed)) {
+    return { kind: 'unplayable', why: `The seed ${String(seed)} is not a whole number.` };
+  }
+  if (!CHASSIS_IDS.includes(chassisId)) {
+    return { kind: 'unplayable', why: `There is no Chassis ${chassisId}.` };
+  }
   let run = startRun(seed, chassisId);
   for (const [at, choice] of log.entries()) {
     const taken = take(run, choice);
@@ -67,7 +82,7 @@ function take(run: Run, choice: Choice): Taken {
       const result = install(run, choice.slot, choice.componentId);
       return result.kind === 'installed'
         ? { kind: 'taken', run: result.run }
-        : impossible(`The install was refused: ${result.reason.kind}.`);
+        : impossible(installRefused(result.reason));
     }
     case 'remove': {
       if (!isSlot(choice.slot))
@@ -75,7 +90,7 @@ function take(run: Run, choice: Choice): Taken {
       const result = remove(run, choice.slot);
       return result.kind === 'removed'
         ? { kind: 'taken', run: result.run }
-        : impossible(`The removal was refused: ${result.reason.kind}.`);
+        : impossible(removeRefused(result.reason));
     }
     case 'hop': {
       if (choice.target !== HELIOPAUSE && !findBody(run.starSystem, choice.target)) {
@@ -89,4 +104,30 @@ function take(run: Run, choice: Choice): Taken {
 
 function isSlot(slot: number): boolean {
   return Number.isInteger(slot) && slot >= 0 && slot < SLOT_COUNT;
+}
+
+/** Why the Run refused an install, in plain language. */
+function installRefused(reason: InstallRefusal): string {
+  switch (reason.kind) {
+    case 'no-empty-slot':
+      return 'Every Slot already held a Component.';
+    case 'slot-taken':
+      return `Slot ${String(reason.slot)} already held a Component (${reason.holds}).`;
+    case 'jump-drive-installed':
+      return 'A Jump Drive was already installed.';
+    case 'not-enough-materials':
+      return `It cost ${String(reason.cost)} Materials and the Run had ${String(reason.have)}.`;
+  }
+}
+
+/** Why the Run refused a removal, in plain language. */
+function removeRefused(reason: RemoveRefusal): string {
+  switch (reason.kind) {
+    case 'empty-slot':
+      return `Slot ${String(reason.slot)} was empty.`;
+    case 'last-engine':
+      return 'It was the only Engine.';
+    case 'last-fuel-tank':
+      return 'It was the only Fuel Tank.';
+  }
 }
