@@ -8,9 +8,11 @@ import {
   type ChassisTuning,
 } from './data.ts';
 import {
+  astronomicalUnits,
   kilograms,
   metersPerSecond,
   seconds,
+  type AstronomicalUnits,
   type Kilograms,
   type MetersPerSecond,
   type Seconds,
@@ -187,7 +189,8 @@ export type ComponentEffect =
   | { readonly kind: 'engine'; readonly isp: Seconds }
   | { readonly kind: 'fuel-tank'; readonly fuelCapacity: Kilograms }
   | { readonly kind: 'drill'; readonly yieldMultiplier: number }
-  | { readonly kind: 'jump-drive' };
+  | { readonly kind: 'jump-drive' }
+  | { readonly kind: 'radar'; readonly range: AstronomicalUnits; readonly surveys: boolean };
 
 /**
  * What a Component gives on this Chassis: an Engine's Isp and a Fuel Tank's capacity scaled by the
@@ -209,6 +212,8 @@ export function componentEffect(chassisId: ChassisId, id: ComponentId): Componen
       return { kind: 'drill', yieldMultiplier: component.yieldMultiplier };
     case 'jump-drive':
       return { kind: 'jump-drive' };
+    case 'radar':
+      return { kind: 'radar', range: component.range, surveys: component.surveys };
   }
 }
 
@@ -226,6 +231,30 @@ export function drillMultiplier(spacecraft: Spacecraft): number {
     if (effect.kind === 'drill') best = Math.max(best, effect.yieldMultiplier);
   }
   return best;
+}
+
+/** What the Radars aboard give: the best range, and whether any Surveys. */
+export interface RadarReach {
+  readonly range: AstronomicalUnits;
+  readonly surveys: boolean;
+}
+
+/**
+ * What the Spacecraft's Radars reach, or `undefined` with none aboard. Stacking: the best Radar sets
+ * the range, and a level-2 Radar anywhere aboard Surveys what is in it.
+ */
+export function radarReach(spacecraft: Pick<Spacecraft, 'slots'>): RadarReach | undefined {
+  let reach: RadarReach | undefined;
+  for (const slot of spacecraft.slots) {
+    if (slot === null) continue;
+    const component = COMPONENTS[slot];
+    if (component.kind !== 'radar') continue;
+    reach = {
+      range: astronomicalUnits(Math.max(reach?.range ?? 0, component.range)),
+      surveys: (reach?.surveys ?? false) || component.surveys,
+    };
+  }
+  return reach;
 }
 
 /** Whether a Jump Drive is installed: the only way to target the Heliopause and make the Jump. */
@@ -278,6 +307,7 @@ function figures(
         break;
       case 'drill':
       case 'jump-drive':
+      case 'radar':
         break;
     }
   }
@@ -306,6 +336,7 @@ function loadoutTotals(slots: readonly Slot[]) {
         break;
       case 'drill':
       case 'jump-drive':
+      case 'radar':
         break;
     }
   }

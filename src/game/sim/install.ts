@@ -1,5 +1,6 @@
 import { COMPONENTS, componentCost, type ComponentId } from './catalogue.ts';
 import { recordChoice } from './choiceLog.ts';
+import { radarSweep, type RadarSweep } from './knowledge.ts';
 import type { Run } from './run.ts';
 import { carriesJumpDrive, isSlotOf, refit } from './spacecraft.ts';
 import { assertNotEnded, endIfStranded } from './stranded.ts';
@@ -22,7 +23,12 @@ export type InstallRefusal =
     };
 
 export type InstallResult =
-  | { readonly kind: 'installed'; readonly run: Run }
+  | {
+      readonly kind: 'installed';
+      readonly run: Run;
+      /** What a Radar's sweep taught on install; `undefined` for any other Component. */
+      readonly sweep: RadarSweep | undefined;
+    }
   | { readonly kind: 'refused'; readonly reason: InstallRefusal };
 
 /** A refusal that no free Slot or Materials can lift. */
@@ -53,7 +59,8 @@ export function standingRefusal(
  * Installs `componentId` in Slot `slotIndex` (0-based) by paying its Materials, and refits the
  * Spacecraft so its mass, Fuel capacity and Isp follow. Refuses for a standing reason (a second
  * Jump Drive), when no Slot is empty, when the chosen Slot is taken, or when the Run cannot afford
- * it. Ends the Run as Stranded when the install leaves no way out (see `endIfStranded`). Throws for
+ * it. A Radar sweeps as soon as it is installed (see `radarSweep`). Ends the Run as Stranded when
+ * the install leaves no way out (see `endIfStranded`). Throws for
  * a Slot that does not exist, or a Run that has ended: programmer errors.
  */
 export function install(run: Run, slotIndex: number, componentId: ComponentId): InstallResult {
@@ -64,15 +71,15 @@ export function install(run: Run, slotIndex: number, componentId: ComponentId): 
   assertNotEnded(run);
   const refusal = installRefusal(run, slotIndex, componentId);
   if (refusal) return { kind: 'refused', reason: refusal };
-  return {
-    kind: 'installed',
-    run: endIfStranded(
-      recordChoice(
-        { ...run, ...withInstalled(run, slotIndex, componentId) },
-        { kind: 'install', slot: slotIndex, componentId },
-      ),
-    ),
-  };
+  const installed = recordChoice(
+    { ...run, ...withInstalled(run, slotIndex, componentId) },
+    { kind: 'install', slot: slotIndex, componentId },
+  );
+  const swept =
+    COMPONENTS[componentId].kind === 'radar'
+      ? radarSweep(installed)
+      : { run: installed, sweep: undefined };
+  return { kind: 'installed', run: endIfStranded(swept.run), sweep: swept.sweep };
 }
 
 /** Why `install` would refuse, or `undefined` when it would install. */

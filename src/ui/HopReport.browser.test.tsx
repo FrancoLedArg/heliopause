@@ -16,6 +16,12 @@ import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { HopReport } from './HopReport.tsx';
 import { expectTextBudget, visibleSentences } from './textBudget.ts';
 
+/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
+const found = (run: Run): Run => ({
+  ...run,
+  knowledge: { ...run.knowledge, heliopauseFound: true },
+});
+
 afterEach(cleanUp);
 
 /** Flies a Hop to the Body called `name`. */
@@ -92,7 +98,7 @@ it('the worst report with a Drill fits with room to spare: ice line, left-behind
 function heliopauseHop(share: number): [Run, HopFlight] {
   for (let seed = 1; seed < 200; seed++) {
     const start = startRun(seed, 'lancer');
-    const built = install({ ...start, materials: materials(100) }, 2, 'jump-drive');
+    const built = install(found({ ...start, materials: materials(100) }), 2, 'jump-drive');
     if (built.kind !== 'installed') throw new Error('Expected an install');
     const { spacecraft } = built.run;
     const run = {

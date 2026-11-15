@@ -3,17 +3,19 @@
 // Fuel Tank's capacity here are base figures: the Chassis it is installed on scales them (ADR 0005),
 // so what the player gets, and must be shown, comes from `componentEffect` in spacecraft.ts.
 import {
+  astronomicalUnits,
   kilograms,
   materials,
   seconds,
+  type AstronomicalUnits,
   type Kilograms,
   type Materials,
   type Seconds,
 } from './units.ts';
 
 /**
- * Every Component the Spacecraft can carry: Engine, Fuel Tank and Drill at levels 1 and 2, and the
- * Jump Drive. These ids are stored in choice logs (see `choiceLog.ts`): never rename or reuse one,
+ * Every Component the Spacecraft can carry: Engine, Fuel Tank, Drill and Radar at levels 1 and 2,
+ * and the Jump Drive. These ids are stored in choice logs (see `choiceLog.ts`): never rename or reuse one,
  * or stored logs stop parsing or replay a different Component. Add new ids instead.
  */
 export const COMPONENT_IDS = [
@@ -23,6 +25,8 @@ export const COMPONENT_IDS = [
   'fuel-tank-2',
   'drill-1',
   'drill-2',
+  'radar-1',
+  'radar-2',
   'jump-drive',
 ] as const;
 export type ComponentId = (typeof COMPONENT_IDS)[number];
@@ -82,7 +86,20 @@ export interface JumpDrive extends ComponentEntry {
   readonly kind: 'jump-drive';
 }
 
-export type Component = Engine | FuelTank | Drill | JumpDrive;
+/**
+ * The Radar (#96): at each landing, and when it is installed, it Detects every Body within its range
+ * of the Spacecraft, and at level 2 Surveys them too. It is the only way to find the Heliopause: found
+ * when the Spacecraft's distance from the star plus the range reaches it. Stacking: the best Radar
+ * sets the range, and a level-2 Radar anywhere aboard Surveys.
+ */
+export interface Radar extends ComponentEntry {
+  readonly kind: 'radar';
+  readonly range: AstronomicalUnits;
+  /** Whether it Surveys what it Detects: type, gravity and resources known from afar. */
+  readonly surveys: boolean;
+}
+
+export type Component = Engine | FuelTank | Drill | JumpDrive | Radar;
 export type ComponentKind = Component['kind'];
 
 /**
@@ -97,6 +114,23 @@ export const JUMP_DRIVE_TUNING = {
   /** What each later Star System adds to the cost. */
   costPerStarSystem: materials(3),
 } as const;
+
+/**
+ * The Radar's gameplay tuning, in one place. One reveal radius per level is the simplification
+ * `docs/research/sensors-and-communication.md` §5 suggests: real instruments range from kilometres
+ * (a lidar) to billions of kilometres (New Horizons' LORRI saw Pluto as a point of light from about
+ * 28 AU, §1), so no single figure is real. The ranges are set against generation: the Heliopause
+ * lies a little less than a level-1 range past the outermost planet (`GENERATION_TUNING`), so a
+ * level-1 Radar finds it from that planet's Moons, about 10 to 15 Hops from the Starting Moon (#96).
+ * Level 1 costs what a New Run starts with at most, so it is affordable before the first Hop.
+ */
+export const RADAR_TUNING = {
+  range: { 1: astronomicalUnits(6), 2: astronomicalUnits(10) },
+  cost: { 1: materials(20), 2: materials(40) },
+  mass: { 1: kilograms(500), 2: kilograms(900) },
+} as const;
+
+const SENSORS = 'docs/research/sensors-and-communication.md';
 
 const PROPULSION = 'docs/research/propulsion-trade-offs.md';
 const BOROWSKI = 'Borowski et al., NTRS 20120003776 https://ntrs.nasa.gov/citations/20120003776';
@@ -183,6 +217,34 @@ export const COMPONENTS = {
     cost: JUMP_DRIVE_TUNING.baseCost,
     explanation: 'Jumps you to the next Star System, but only at the Heliopause.',
     provenance: { kind: 'gameplay-tuning' },
+  },
+  'radar-1': {
+    id: 'radar-1',
+    kind: 'radar',
+    level: 1,
+    mass: RADAR_TUNING.mass[1],
+    cost: RADAR_TUNING.cost[1],
+    range: RADAR_TUNING.range[1],
+    surveys: false,
+    explanation: 'Finds every Body in range, and is how you find the Heliopause.',
+    provenance: {
+      kind: 'sourced',
+      source: `A camera sees a far Body as a point of light first (New Horizons' LORRI saw Pluto from about 28 AU): ${SENSORS} §1 and §2. The range, one reveal radius per level, is gameplay tuning (§5).`,
+    },
+  },
+  'radar-2': {
+    id: 'radar-2',
+    kind: 'radar',
+    level: 2,
+    mass: RADAR_TUNING.mass[2],
+    cost: RADAR_TUNING.cost[2],
+    range: RADAR_TUNING.range[2],
+    surveys: true,
+    explanation: 'Reaches farther, and Surveys every Body it finds.',
+    provenance: {
+      kind: 'sourced',
+      source: `Spectrometers tell ice from rock from afar (OSIRIS-REx's OVIRS, Dawn's VIR): ${SENSORS} §1 and §2. Range, mass and cost are gameplay tuning (§5).`,
+    },
   },
 } as const satisfies { readonly [Id in ComponentId]: Component & { readonly id: Id } };
 

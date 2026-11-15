@@ -649,3 +649,27 @@ it('draws a stand-in plate at the mount point of a Component whose art is missin
   const at = composeSpacecraft('scout', run.spacecraft.slots, 'landed').components.get(2)?.bounds;
   expect([plate?.x, plate?.y]).toEqual([at?.x, at?.y]);
 });
+
+it('sweeps a Radar ring out from the Spacecraft when one is installed, and says what it found', async () => {
+  const scene = await landOn(runWith('scout', []));
+  expect(scene.radarSweep).toBeUndefined();
+  act(() => {
+    EventBus.emit('component-install-requested', 2, 'radar-1');
+  });
+  expect(scene.radarSweep?.parentContainer).toBe(scene.layers.ship);
+  await expect
+    .poll(() => document.querySelector('[data-testid="comms-announcement"]')?.textContent)
+    .toMatch(/^Radar Detected \d+ Bod(y|ies)\.$/);
+  await expect.poll(() => scene.radarSweep, { timeout: 3000 }).toBeUndefined();
+});
+
+it('skips the Radar sweep when the player prefers reduced motion', async () => {
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
+  );
+  const scene = await landOn(runWith('scout', []));
+  act(() => {
+    EventBus.emit('component-install-requested', 2, 'radar-1');
+  });
+  expect(scene.radarSweep).toBeUndefined();
+});

@@ -14,9 +14,16 @@ import {
   launchHop,
   materials,
   type BodyHopPlan,
+  type Run,
   type HopFlight,
 } from '../game/sim/index.ts';
 import { describeFlight } from './flightHudView.ts';
+
+/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
+const found = (run: Run): Run => ({
+  ...run,
+  knowledge: { ...run.knowledge, heliopauseFound: true },
+});
 
 const run = startRun(123, 'scout');
 const moonId = firstDetectedBody(run.starSystem).id;
@@ -211,7 +218,11 @@ describe('the flight HUD', () => {
   });
 
   it('shows a Hop to the Heliopause as Takeoff and Transfer, with the Heliopause at the end of the route', () => {
-    const built = install({ ...startRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+    const built = install(
+      found({ ...startRun(1, 'lancer'), materials: materials(100) }),
+      2,
+      'jump-drive',
+    );
     if (built.kind !== 'installed') throw new Error('Expected an install');
     const launched = launchHop(built.run, HELIOPAUSE);
     if (launched.kind !== 'flown') throw new Error('Expected a flight');
