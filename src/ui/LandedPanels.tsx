@@ -15,6 +15,7 @@ import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import { ResourceIcon } from './ResourceIcon.tsx';
 import { describeSpacecraft } from './spacecraftPanelView.ts';
+import { useApproachMusic } from './useApproachMusic.ts';
 import { yieldIcon } from './yieldIcon.ts';
 import { TopBar } from './TopBar.tsx';
 
@@ -73,6 +74,8 @@ export function LandedPanels({
   const materials = gathering?.resource === 'materials' ? gathering.value : run.materials;
   // Kept per Run by the simulation, so asking on every render costs nothing.
   const stranding = assessStranding(run);
+  // The Stranded warning plays the Approach music for as long as it shows.
+  useApproachMusic(stranding.kind === 'warning' && !chartOpen && !spacecraftOpen);
 
   // Closing the Nav Chart hands focus back to the button that opened it.
   const buttonSlot = useRef<HTMLDivElement>(null);

@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { HopFlight, Run } from '../game/sim/index.ts';
+import { DeltaVBar } from './DeltaVBar.tsx';
+import { Disclosure, DisclosurePanel, TellMeMoreToggle } from './Disclosure.tsx';
 import { trapTab } from './focusTrap.ts';
 import { describeReport } from './hopReportView.ts';
 import { KitButton } from './kit/KitButton.tsx';
@@ -27,14 +29,16 @@ interface HopReportProps {
 }
 
 /**
- * The Hop report, set beside the scene of what happened: the outcome in words, each Burn's estimate
- * against its actual Δv, the Margin left, an icon row of what landing gathered and the simulation's why. Outcome is always text; colour only
- * backs it up. Focus goes to the primary action when the report opens.
+ * The Hop report, set beside the scene of what happened: the outcome as the title, the Δv bar (each
+ * Burn's estimate against its actual), an icon row of what landing gathered and one line saying why.
+ * The Burn table, the Margin, the whole explanation and the real-missions fact wait behind "Tell me
+ * more". Outcome is always text; colour only backs it up. Focus goes to the primary action when the report opens.
  */
 export function HopReport({ before, flight, actions, onEscape }: HopReportProps) {
   const view = describeReport(before, flight);
   // Only a Hop that ran out of Fuel or Δv ends the Run; one that reached the Heliopause did not fail.
   const failed = flight.outcome.kind === 'fell-short' || flight.outcome.kind === 'crashed';
+  const body = useRef<HTMLDivElement>(null);
   const buttons = useRef<HTMLDivElement>(null);
   useEffect(() => {
     buttons.current?.querySelector<HTMLButtonElement>('button[data-primary]')?.focus();
@@ -56,11 +60,11 @@ export function HopReport({ before, flight, actions, onEscape }: HopReportProps)
           return;
         }
         // Focus stays inside the report: Tab and Shift+Tab cycle through its buttons.
-        trapTab(event, buttons.current);
+        trapTab(event, body.current);
       }}
     >
       <KitFrame frame="panel_metal" width={PANEL.width} height={PANEL.height} />
-      <div className="hop-report__body">
+      <div ref={body} className="hop-report__body">
         <p className="hop-report__badge">
           <KitFrame frame={failed ? 'badge_alert' : 'badge_ok'} />
           {failed ? 'Run over' : 'Hop report'}
@@ -68,30 +72,7 @@ export function HopReport({ before, flight, actions, onEscape }: HopReportProps)
         <h2 id="hop-report-title" className="hop-report__title">
           {view.title}
         </h2>
-        <p className="hop-report__headline">{view.headline}</p>
-        <table className="hop-report__table">
-          <thead>
-            <tr>
-              <th scope="col">Burn</th>
-              <th scope="col">Est. Δv</th>
-              <th scope="col">Actual</th>
-              <th scope="col">±</th>
-            </tr>
-          </thead>
-          <tbody>
-            {view.rows.map((row) => (
-              <tr key={row.label}>
-                <th scope="row">{row.label}</th>
-                <td>{row.estimate}</td>
-                <td>{row.actual}</td>
-                <td>{row.change}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="hop-report__margin" data-testid="hop-report-margin">
-          {view.margin}
-        </p>
+        <DeltaVBar bar={view.bar} className="hop-report__bar" />
         {view.gains.length > 0 && (
           <ul className="hop-report__gains" aria-label="Gathered" data-testid="hop-report-gains">
             {view.gains.map((gain) => (
@@ -123,10 +104,45 @@ export function HopReport({ before, flight, actions, onEscape }: HopReportProps)
             ))}
           </ul>
         )}
-        {view.note !== undefined && <p className="hop-report__note">{view.note}</p>}
         <p id="hop-report-why" className="hop-report__why">
           {view.why}
         </p>
+        <Disclosure>
+          <TellMeMoreToggle className="hop-report__more" />
+          <DisclosurePanel className="hop-report__details">
+            <table className="hop-report__table">
+              <thead>
+                <tr>
+                  <th scope="col">Burn</th>
+                  <th scope="col">Est. Δv</th>
+                  <th scope="col">Actual</th>
+                  <th scope="col">±</th>
+                </tr>
+              </thead>
+              <tbody>
+                {view.rows.map((row) => (
+                  <tr key={row.label}>
+                    <th scope="row">{row.label}</th>
+                    <td>{row.estimate}</td>
+                    <td>{row.actual}</td>
+                    <td>{row.change}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="hop-report__margin" data-testid="hop-report-margin">
+              {view.margin}
+            </p>
+            {view.outcomeLine !== undefined && (
+              <p className="hop-report__outcome">{view.outcomeLine}</p>
+            )}
+            {view.fact !== undefined && (
+              <p className="hop-report__fact" data-testid="hop-report-fact">
+                {view.fact}
+              </p>
+            )}
+          </DisclosurePanel>
+        </Disclosure>
         <div ref={buttons} className="hop-report__actions">
           {actions.map((action) => (
             <KitButton

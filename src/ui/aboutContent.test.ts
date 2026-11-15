@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { manifest } from '../game/assets/manifest.ts';
 import { COMPONENTS } from '../game/sim/catalogue.ts';
 import { FUEL_NOTE, ICE_LINE, SOURCED_CONSTANTS, SOURCED_RANGES } from '../game/sim/data.ts';
 import { SLOT_COUNT } from '../game/sim/spacecraft.ts';
@@ -64,6 +65,21 @@ describe('About and Credits content', () => {
     expect(voxel?.detail).toContain('CC BY-ND 4.0');
     expect(voxel?.detail).toMatch(/style reference for the earlier Spacecraft art/i);
     expect(voxel?.detail).toContain('nothing from the pack is used in the game');
+  });
+
+  it('credits every music track in the audio manifest to Suno and the human', () => {
+    const music = JSON.stringify(group('Music'));
+    expect(music).toContain('generated with Suno by FrancoLedArg');
+    const tracks = new Set(
+      manifest.audio.map((entry) => /music_([a-z_]+)_\d+\.mp3$/.exec(entry.file)?.[1]),
+    );
+    expect(tracks.size).toBeGreaterThan(0);
+    for (const track of tracks) {
+      const title = (track ?? '').replace(/(^|_)(\w)/g, (_m, sep: string, c: string) =>
+        sep === '_' ? ` ${c.toUpperCase()}` : c.toUpperCase(),
+      );
+      expect(music).toContain(title);
+    }
   });
 
   it('lists shipped libraries apart from dev-only tools', () => {
