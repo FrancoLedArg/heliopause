@@ -9,7 +9,7 @@ import { expectTextBudget } from './textBudget.ts';
 
 afterEach(cleanUp);
 
-/** The first Hop from the Starting Moon, and its playback, for seed 123's Scout (#189). */
+/** The Hop to the first Body Comms Detected, and its playback, for seed 123's Scout (#189). */
 function moonHop() {
   const run = startRun(123, 'scout');
   const moon = firstDetectedBody(run.starSystem);

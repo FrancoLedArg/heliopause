@@ -812,10 +812,12 @@ it('Takeoff dust and smoke start at the strip top edge under the Spacecraft', as
 
 it('Takeoff smoke is still on screen 1.5 s after it was kicked up, while the strip has dropped away', async () => {
   const { scene } = await fly('scout');
-  // Step the whole scene (its clock and the particles) through 1.7 s of fixed 16 ms frames, with
-  // the game loop held, so the result never depends on how busy the machine is.
+  // Step the whole scene (its clock and the particles) in fixed 16 ms frames, with the game loop
+  // held, until the playback is 1.5 s past Launch, as the name says. Counting to the playback's own
+  // time, not a number of frames, keeps it exact however much played before the loop was held
+  // (#189: from the innermost planet, 1.7 s of frames left the smoke at the screen's edge).
   scene.game.loop.sleep();
-  for (let i = 0, time = 0; i < 106; i++, time += 16) scene.sys.step(time, 16);
+  for (let time = 0; scene.playbackMs < 1500; time += 16) scene.sys.step(time, 16);
   const smoke = emitters(scene).find((e) => e.texture.key === 'fx_smoke');
   if (!smoke) throw new Error('no smoke emitter');
   // The camera has climbed: the strip's top edge is off the bottom of the screen.

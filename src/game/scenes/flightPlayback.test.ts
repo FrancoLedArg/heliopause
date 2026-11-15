@@ -400,8 +400,8 @@ describe('the shots of a Hop’s playback', () => {
   });
 
   it('a Spacecraft that Fell Short in the Takeoff never reaches the Cruise', () => {
-    // Fuel for most of the Takeoff alone: from the Starting Moon the Takeoff is a small share of the
-    // Hop (#189), so a fixed 0.2 of the estimate would get past it.
+    // Fuel for most of the Takeoff alone (not a fixed 0.2: from the Starting Moon, #189, the Takeoff
+    // is a small share of the Hop).
     const planned = planHop(run, moonId);
     if (planned.kind !== 'planned') throw new Error('no plan');
     const from = shortRun((0.8 * planned.plan.estimates.takeoff) / planned.plan.totalEstimate);
