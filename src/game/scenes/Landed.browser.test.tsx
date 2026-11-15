@@ -5,6 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { GameUI } from '../../ui/GameUI.tsx';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
+import { paletteNumber } from '../../ui/kit/palette.ts';
 import { DRIFT_PERIOD_MS } from './landedMotion.ts';
 import {
   GROUND_HEIGHT,
@@ -240,29 +241,67 @@ for (const where of ['Home Planet', 'Moon'] as const) {
   });
 }
 
-it('paints the stand-in strip for every surface kind: Moon, Rocky and Icy', async () => {
+/** The strip's RGBA pixels, read back through a canvas. */
+function stripPixels(scene: Landed, key: string): Uint8ClampedArray {
+  const source = scene.textures.get(key).getSourceImage();
+  expect(source.width).toBe(SURFACE_WIDTH);
+  expect(source.height).toBe(GROUND_HEIGHT);
+  const canvas = document.createElement('canvas');
+  canvas.width = SURFACE_WIDTH;
+  canvas.height = GROUND_HEIGHT;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('no 2d context');
+  context.drawImage(source as CanvasImageSource, 0, 0);
+  return context.getImageData(0, 0, SURFACE_WIDTH, GROUND_HEIGHT).data;
+}
+
+/** The pixel at (x, y) as 0xRRGGBB. */
+function rgbAt(data: Uint8ClampedArray, x: number, y: number): number {
+  const i = (y * SURFACE_WIDTH + x) * 4;
+  return ((data[i] ?? 0) << 16) | ((data[i + 1] ?? 0) << 8) | (data[i + 2] ?? 0);
+}
+
+const luma = (c: number) => (c >> 16) * 3 + ((c >> 8) & 255) * 6 + (c & 255);
+
+/** Each kind's dust colour (see `landscape.ts`): the motes must read against the ground's top rows. */
+const DUST = { moon: 'gm5', rocky: 'am2', icy: 'cy4' } as const;
+
+it('draws a one-colour surface line and an opaque strip for every surface kind: Moon, Rocky and Icy', async () => {
   const scene = await landOn(landedRun());
   const topLeft: number[] = [];
   for (const kind of ['moon', 'rocky', 'icy'] as const) {
-    const key = groundTexture(scene, kind);
-    const source = scene.textures.get(key).getSourceImage();
-    expect(source.width).toBe(SURFACE_WIDTH);
-    expect(source.height).toBe(GROUND_HEIGHT);
-    const canvas = document.createElement('canvas');
-    canvas.width = SURFACE_WIDTH;
-    canvas.height = GROUND_HEIGHT;
-    const context = canvas.getContext('2d');
-    if (!context) throw new Error('no 2d context');
-    context.drawImage(source as CanvasImageSource, 0, 0);
-    const top = context.getImageData(0, 0, SURFACE_WIDTH, 1).data;
+    const data = stripPixels(scene, groundTexture(scene, kind));
     for (let x = 0; x < SURFACE_WIDTH; x++) {
-      // The surface line is opaque and one colour along the whole strip.
-      expect(top[x * 4 + 3]).toBe(255);
-      expect(top[x * 4]).toBe(top[0]);
+      // The surface line is one colour along the whole strip, and the whole strip is opaque.
+      expect(rgbAt(data, x, 0)).toBe(rgbAt(data, 0, 0));
+      for (let y = 0; y < GROUND_HEIGHT; y++) {
+        expect(data[(y * SURFACE_WIDTH + x) * 4 + 3]).toBe(255);
+      }
     }
-    topLeft.push(top[0] ?? -1);
-    // Opaque to the bottom row, so no sky shows through.
-    expect(context.getImageData(0, GROUND_HEIGHT - 1, SURFACE_WIDTH, 1).data[3]).toBe(255);
+    topLeft.push(rgbAt(data, 0, 0));
   }
   expect(new Set(topLeft).size).toBe(3);
+});
+
+it('uses the generated ground art, with mortar no stone fills and dust that reads against it', async () => {
+  const scene = await landOn(landedRun());
+  for (const kind of ['moon', 'rocky', 'icy'] as const) {
+    // The manifest has the art, so no stand-in is painted.
+    expect(groundTexture(scene, kind)).toBe(`surface_${kind}`);
+    const data = stripPixels(scene, `surface_${kind}`);
+    const colours: number[] = [];
+    for (let y = 0; y < GROUND_HEIGHT; y++) {
+      for (let x = 0; x < SURFACE_WIDTH; x++) colours.push(rgbAt(data, x, y));
+    }
+    // The mortar is the strip's darkest colour: never on the surface rows, and a thin share of
+    // the strip, so no stone is filled with it.
+    const mortar = colours.reduce((a, b) => (luma(b) < luma(a) ? b : a));
+    const rows01 = colours.slice(0, 2 * SURFACE_WIDTH);
+    expect(rows01.includes(mortar)).toBe(false);
+    expect(colours.filter((c) => c === mortar).length / colours.length).toBeLessThan(0.25);
+    // Dust blows over the top rows: its colour is a small share of them.
+    const dust = paletteNumber(DUST[kind]);
+    const topRows = colours.slice(2 * SURFACE_WIDTH, 18 * SURFACE_WIDTH);
+    expect(topRows.filter((c) => c === dust).length / topRows.length).toBeLessThan(0.1);
+  }
 });
