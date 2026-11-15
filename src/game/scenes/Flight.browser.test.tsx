@@ -7,6 +7,7 @@ import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
 import {
+  CHASSIS_IDS,
   findBody,
   homePlanet,
   launchHop,
@@ -18,6 +19,7 @@ import {
 } from '../sim/index.ts';
 import type { Flight, FlightData } from './Flight.ts';
 import type { Landed } from './Landed.ts';
+import { FLIGHT_ANGLE, nozzles, turn, type ShipPose } from './chassisArt.ts';
 import { SHIP_PLACEMENT } from './landedView.ts';
 import { flightPlayback } from './flightPlayback.ts';
 import { SceneKey } from './keys.ts';
@@ -357,29 +359,156 @@ it('Takeoff smoke is still on screen 1.5 s after it was kicked up, while the str
   expect(visible).toBeGreaterThan(0);
 });
 
-it('Landing comes down onto the strip and ends on exactly the Landed view composition', async () => {
-  const { scene, data } = await fly('scout');
-  scene.seek(scene.playback.duration - 1);
-  const arrival = scene.layers.arrival;
-  const cam = scene.cameras.main;
-  const frame = {
-    groundTop: arrival.ground.y - cam.scrollY,
-    groundX: arrival.ground.x - cam.scrollX,
-    shipX: scene.ship.x - cam.scrollX,
-    shipY: scene.ship.y - cam.scrollY,
+it.each(CHASSIS_IDS)(
+  'the %s hovers down upright onto the strip and ends on exactly the Landed view composition',
+  async (chassis) => {
+    const { scene, data } = await fly(chassis);
+    scene.seek(scene.playback.duration - 1);
+    const arrival = scene.layers.arrival;
+    const cam = scene.cameras.main;
+    const frame = {
+      groundTop: arrival.ground.y - cam.scrollY,
+      groundX: arrival.ground.x - cam.scrollX,
+      shipX: scene.ship.x - cam.scrollX,
+      shipY: scene.ship.y - cam.scrollY,
+      shipAngle: scene.ship.angle,
+      pose: hullOf(scene.ship).frame.name,
+    };
+    const landed = nextSceneReady(SceneKey.Landed);
+    scene.seek(scene.playback.duration);
+    await landed;
+    const view = game?.scene.getScene<Landed>(SceneKey.Landed);
+    if (!view) throw new Error('no Landed view');
+    expect(data.after.status.kind).toBe('landed');
+    expect(frame.groundTop).toBeCloseTo(view.layers.ground.y, 0);
+    expect(frame.groundX).toBeCloseTo(view.layers.ground.x, 0);
+    expect(frame.shipX).toBeCloseTo(view.layers.ship.x, 0);
+    expect(frame.shipY).toBeCloseTo(view.layers.ship.y, 0);
+    expect(frame.groundTop).toBe(SHIP_PLACEMENT.baseY);
+    // Upright on its fins or legs, in the same standing pose the Landed view opens on.
+    expect(frame.shipAngle).toBe(0);
+    expect(frame.pose).toBe('landed');
+    expect(hullOf(view.layers.ship).frame.name).toBe(frame.pose);
+  },
+);
+
+/** The first ms of the playback at `progress` through `burn` with the engine firing. */
+function momentOf(scene: Flight, burn: string, progress: number): number {
+  for (let t = 0; t <= scene.playback.duration; t += 5) {
+    const at = scene.playback.at(t);
+    if (at.burn === burn && at.progress >= progress && at.thrusting) return t;
+  }
+  throw new Error(`no thrusting ${burn} at ${String(progress)}`);
+}
+
+/** The visible plumes on the Spacecraft: where each starts in the world, and which way it points (degrees clockwise from straight down). */
+function shownPlumes(scene: Flight): { x: number; y: number; angle: number }[] {
+  return scene.ship.list
+    .filter(
+      (child): child is GameObjects.Image =>
+        child instanceof GameObjects.Image && child.texture.key === 'fx_thruster' && child.visible,
+    )
+    .map((plume) => {
+      const m = plume.getWorldTransformMatrix();
+      return { x: m.tx, y: m.ty, angle: (Math.atan2(m.b, m.a) * 180) / Math.PI };
+    });
+}
+
+const PLUME_MOMENTS = [
+  { name: 'rising off the ground', burn: 'takeoff', progress: 0.3, pose: 'standing' },
+  { name: 'tipping toward its heading', burn: 'takeoff', progress: 0.61, pose: 'standing' },
+  { name: 'boosting away', burn: 'takeoff', progress: 0.85, pose: 'flight' },
+  { name: 'in the Transfer', burn: 'transfer', progress: 0.3, pose: 'flight' },
+  { name: 'hovering down', burn: 'landing', progress: 0.5, pose: 'standing' },
+] as const satisfies readonly { name: string; burn: string; progress: number; pose: ShipPose }[];
+
+it.each(CHASSIS_IDS)(
+  'the %s fires one plume from every nozzle exit, down while standing and rearward in flight',
+  async (chassis) => {
+    const { scene } = await fly(chassis);
+    for (const moment of PLUME_MOMENTS) {
+      scene.seek(momentOf(scene, moment.burn, moment.progress));
+      const { x, y, angle } = scene.ship;
+      const expected = nozzles(chassis, moment.pose).map((nozzle) => {
+        const at = turn(nozzle.exit, angle);
+        return { x: x + at.x, y: y + at.y };
+      });
+      const shown = shownPlumes(scene);
+      expect(shown, moment.name).toHaveLength(expected.length);
+      for (const exit of expected) {
+        const plume = shown.find((p) => Math.hypot(p.x - exit.x, p.y - exit.y) < 0.5);
+        expect(
+          plume,
+          `${moment.name}: a plume at (${exit.x.toFixed(1)}, ${exit.y.toFixed(1)})`,
+        ).toBeDefined();
+        // Straight down from the ship standing; back along the flight heading, turned with the ship.
+        const heading = moment.pose === 'standing' ? 0 : FLIGHT_ANGLE;
+        expect(plume?.angle, moment.name).toBeCloseTo(heading + angle, 1);
+      }
+    }
+  },
+);
+
+/** The Chassis art in a ship's container (the plumes and glow left out). */
+function hullOf(ship: GameObjects.Container): GameObjects.Image {
+  const hull = ship.list.find(
+    (child): child is GameObjects.Image =>
+      child instanceof GameObjects.Image && child.texture.key.startsWith('chassis_'),
+  );
+  if (!hull) throw new Error('no Chassis art on the ship');
+  return hull;
+}
+
+/** The Chassis art on screen (its whole frame, plumes left out), in 640x360 stage pixels. */
+function hullOnScreen(scene: Flight): Box {
+  const b = hullOf(scene.ship).getBounds();
+  const { scrollX, scrollY } = scene.cameras.main;
+  return {
+    left: b.left - scrollX,
+    top: b.top - scrollY,
+    right: b.right - scrollX,
+    bottom: b.bottom - scrollY,
   };
-  const landed = nextSceneReady(SceneKey.Landed);
-  scene.seek(scene.playback.duration);
-  await landed;
-  const view = game?.scene.getScene<Landed>(SceneKey.Landed);
-  if (!view) throw new Error('no Landed view');
-  expect(data.after.status.kind).toBe('landed');
-  expect(frame.groundTop).toBeCloseTo(view.layers.ground.y, 0);
-  expect(frame.groundX).toBeCloseTo(view.layers.ground.x, 0);
-  expect(frame.shipX).toBeCloseTo(view.layers.ship.x, 0);
-  expect(frame.shipY).toBeCloseTo(view.layers.ship.y, 0);
-  expect(frame.groundTop).toBe(SHIP_PLACEMENT.baseY);
-});
+}
+
+it.each(CHASSIS_IDS)(
+  'the %s stays wholly on screen through the whole Hop, the boost and the Transfer included',
+  async (chassis) => {
+    const { scene } = await fly(chassis);
+    for (let t = 0; t < scene.playback.duration; t += 25) {
+      scene.seek(t);
+      const hull = hullOnScreen(scene);
+      const where = `${scene.playback.at(t).burn} at ${String(t)} ms`;
+      expect(hull.left, where).toBeGreaterThanOrEqual(0);
+      expect(hull.top, where).toBeGreaterThanOrEqual(0);
+      expect(hull.right, where).toBeLessThanOrEqual(GAME_WIDTH);
+      expect(hull.bottom, where).toBeLessThanOrEqual(GAME_HEIGHT);
+    }
+  },
+);
+
+it.each(CHASSIS_IDS)(
+  'the %s trails sparks from each of its rear nozzles in turn',
+  async (chassis) => {
+    const { scene } = await fly(chassis);
+    scene.seek(momentOf(scene, 'transfer', 0.3));
+    const sparks = emitters(scene).find((e) => e.texture.key === 'fx_spark');
+    if (!sparks) throw new Error('no spark emitter');
+    const born: { x: number; y: number }[] = [];
+    sparks.onParticleEmit((p) => born.push({ x: sparks.x + p.x, y: sparks.y + p.y }));
+    await act(() => wait(600));
+    const { x, y, angle } = scene.ship;
+    const exits = nozzles(chassis, 'flight').map((nozzle) => {
+      const at = turn(nozzle.exit, angle);
+      return { x: x + at.x, y: y + at.y };
+    });
+    const near = (a: { x: number; y: number }, b: { x: number; y: number }): boolean =>
+      Math.hypot(a.x - b.x, a.y - b.y) < 0.5;
+    expect(born.length).toBeGreaterThan(0);
+    for (const spark of born) expect(exits.some((exit) => near(exit, spark))).toBe(true);
+    for (const exit of exits) expect(born.some((spark) => near(exit, spark))).toBe(true);
+  },
+);
 
 /** The texture key of the ground strip a landscape drew. */
 function groundKey(layers: { readonly ground: GameObjects.Container }): string | undefined {

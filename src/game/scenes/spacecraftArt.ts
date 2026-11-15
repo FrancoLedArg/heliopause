@@ -2,7 +2,14 @@ import type { GameObjects, Scene } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { hasAsset } from '../assets/manifest.ts';
 import type { ChassisId } from '../sim/index.ts';
-import { FLIGHT_ANGLE, frameGeometry, type ShipFrame } from './chassisArt.ts';
+import {
+  FLIGHT_ANGLE,
+  frameGeometry,
+  nozzles,
+  type Nozzle,
+  type ShipFrame,
+  type ShipPose,
+} from './chassisArt.ts';
 
 export type { ShipFrame } from './chassisArt.ts';
 
@@ -16,6 +23,17 @@ const STAND_IN_FLIGHT_ANGLE = FLIGHT_ANGLE - 90;
 const STAND_IN_SHADOW_WIDTH = 72;
 /** The share of the standing Spacecraft's width its shadow covers: it sits under the fins or legs, not the tips. */
 const SHADOW_SHARE = 0.75;
+
+/** The stand-in has one engine: its tail, under the base standing, and down-left of it in flight. */
+const STAND_IN_NOZZLES: Readonly<Record<ShipPose, readonly Nozzle[]>> = {
+  standing: [{ kind: 'main', exit: { x: 0, y: -2 } }],
+  flight: [{ kind: 'main', exit: { x: -18, y: -12 } }],
+};
+
+/** Every nozzle the drawn Spacecraft fires from in a pose: the Chassis art's, or the stand-in's single engine. */
+export function spacecraftNozzles(chassisId: ChassisId, pose: ShipPose): readonly Nozzle[] {
+  return hasAsset(`chassis_${chassisId}`) ? nozzles(chassisId, pose) : STAND_IN_NOZZLES[pose];
+}
 
 /** How wide the Spacecraft's shadow on the ground is (px). */
 export function shadowWidth(chassisId: ChassisId): number {

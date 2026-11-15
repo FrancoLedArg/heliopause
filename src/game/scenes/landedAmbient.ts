@@ -10,6 +10,7 @@ import {
   phaseAt,
 } from './landedMotion.ts';
 import { prefersReducedMotion } from '../lib/motion.ts';
+import type { Point } from './chassisArt.ts';
 import type { TwinklingStarfield } from './starfield.ts';
 import { twinkle } from './starfield.ts';
 
@@ -19,6 +20,8 @@ const DUST_Y = { min: 272, max: 346 } as const;
 const DUST_SPEED = { min: 9, max: 26 } as const;
 const LIGHTS_ON_MS = 700;
 const LIGHTS_OFF_MS = 1500;
+/** The engine-idle glow at each nozzle: a small warm ellipse just under the exit (presentation tuning). */
+const GLOW = { dy: 1, width: 9, height: 5, alpha: { from: 0.04, to: 0.4 } } as const;
 
 export interface AmbientTargets {
   /** The scene's layers, back to front. */
@@ -28,6 +31,8 @@ export interface AmbientTargets {
   readonly starfield: TwinklingStarfield;
   /** Turns the Spacecraft's lights on or off. */
   readonly setShipLights: (on: boolean) => void;
+  /** The standing Spacecraft's nozzle exits, from the centre of its base: where its engines idle. */
+  readonly nozzles: readonly Point[];
   readonly dustColor: PaletteColor;
   readonly seed: number;
 }
@@ -62,7 +67,7 @@ export function createLandedAmbient(scene: Scene, targets: AmbientTargets): Land
       ...targets.starfield.twinklers.map(({ star, index }) => twinkle(scene, star, index)),
     );
     stopLights = blinkLights(scene, targets.setShipLights);
-    tweens.push(glowTween(scene, targets.layers.ship));
+    tweens.push(glowTween(scene, targets.layers.ship, targets.nozzles));
     stopDust = blowDust(scene, targets);
   }
 
@@ -131,16 +136,23 @@ function blinkLights(scene: Scene, setLights: (on: boolean) => void): () => void
   };
 }
 
-/** A faint warm glow under the Spacecraft that swells and fades, as if its thrusters idled. */
-function glowTween(scene: Scene, ship: GameObjects.Container): Tweens.Tween {
-  const glow = scene.add
-    .ellipse(0, -3, 56, 9, paletteNumber('am3'), 1)
-    .setAlpha(0.04)
-    .setBlendMode(BlendModes.ADD);
-  ship.addAt(glow, 1); // above the shadow, below the Chassis
+/** A faint warm glow at each nozzle exit that swells and fades together, as if the engines idled. */
+function glowTween(
+  scene: Scene,
+  ship: GameObjects.Container,
+  nozzles: readonly Point[],
+): Tweens.Tween {
+  // Centred just under each exit and drawn behind the Chassis, so it shows below the nozzle's bell.
+  const glows = nozzles.map((exit) =>
+    scene.add
+      .ellipse(exit.x, exit.y + GLOW.dy, GLOW.width, GLOW.height, paletteNumber('am3'), 1)
+      .setAlpha(GLOW.alpha.from)
+      .setBlendMode(BlendModes.ADD),
+  );
+  ship.addAt(glows, 1); // above the shadow, below the Chassis
   return scene.tweens.add({
-    targets: glow,
-    alpha: 0.24,
+    targets: glows,
+    alpha: GLOW.alpha.to,
     duration: 2600,
     ease: 'Sine.easeInOut',
     yoyo: true,

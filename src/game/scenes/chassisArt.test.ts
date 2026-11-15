@@ -3,8 +3,8 @@ import { CHASSIS_IDS } from '../sim/index.ts';
 import {
   FLIGHT_ANGLE,
   frameGeometry,
-  mainExit,
   nozzleExits,
+  nozzles,
   standingExtent,
   turn,
   type ShipPose,
@@ -38,10 +38,8 @@ describe.each(CHASSIS_IDS)('the %s nozzle data', (id) => {
     });
   });
 
-  it('fires one plume from the middle of the main engine, above the base line', () => {
-    const exit = mainExit(id, 'standing');
-    expect(Math.abs(exit.x)).toBeLessThan(1);
-    expect(exit.y).toBeLessThan(0);
+  it.each(POSES)('lists every %s nozzle once, with its kind, in the order of its exits', (pose) => {
+    expect(nozzles(id, pose).map((nozzle) => nozzle.exit)).toEqual(nozzleExits(id, pose));
   });
 
   it('puts the flight frame origin at the base centre, so the turn swaps frames unseen', () => {
@@ -52,6 +50,27 @@ describe.each(CHASSIS_IDS)('the %s nozzle data', (id) => {
     expect(flight.pivot.x).toBeLessThan(flight.width);
     expect(flight.pivot.y).toBeGreaterThan(0);
     expect(flight.pivot.y).toBeLessThan(flight.height);
+  });
+});
+
+// From spec #134's table: Herald Mk II (Nacelles, Cluster), Bastion (Quad boosters, Cluster), Lancer (Nacelles, Twin).
+describe.each([
+  { id: 'scout', side: 2, main: 3 },
+  { id: 'hauler', side: 4, main: 3 },
+  { id: 'lancer', side: 2, main: 2 },
+] as const)('the $id propulsors', ({ id, side, main }) => {
+  it.each(POSES)('fire from every side propulsor and main engine nozzle in the %s pose', (pose) => {
+    const kinds = nozzles(id, pose).map((nozzle) => nozzle.kind);
+    expect(kinds.filter((kind) => kind === 'side')).toHaveLength(side);
+    expect(kinds.filter((kind) => kind === 'main')).toHaveLength(main);
+  });
+
+  it('has side propulsors either side of the main engine', () => {
+    const standing = nozzles(id, 'standing');
+    const sideX = standing.filter((n) => n.kind === 'side').map((n) => n.exit.x);
+    const mainX = standing.filter((n) => n.kind === 'main').map((n) => n.exit.x);
+    expect(Math.min(...sideX)).toBeLessThan(Math.min(...mainX));
+    expect(Math.max(...sideX)).toBeGreaterThan(Math.max(...mainX));
   });
 });
 
