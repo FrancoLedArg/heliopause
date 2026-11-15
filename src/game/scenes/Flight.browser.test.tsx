@@ -132,24 +132,19 @@ function hudPanels(): Box[] {
   });
 }
 
-/** The first and last ms of the playback spent on the Transfer. */
-function transferSpan(scene: Flight): { start: number; end: number } {
-  const ms: number[] = [];
-  for (let t = 0; t <= scene.playback.duration; t += 10) {
-    if (scene.playback.at(t).burn === 'transfer') ms.push(t);
-  }
-  const start = ms[0];
-  const end = ms.at(-1);
-  if (start === undefined || end === undefined) throw new Error('no Transfer');
-  return { start, end };
+/** The first and last ms of the playback spent on the Cruise. */
+function cruiseSpan(scene: Flight): { start: number; end: number } {
+  const span = scene.playback.shots.find((s) => s.shot === 'cruise');
+  if (!span) throw new Error('no Cruise');
+  return { start: span.start, end: span.end - 1 };
 }
 
-it('the departure Body stays in view, clear of the HUD, and shrinks through the Transfer while the target grows', async () => {
+it('the departure Body stays in view, clear of the HUD, and shrinks behind through the Cruise', async () => {
   const { scene } = await fly('scout');
-  const { start, end } = transferSpan(scene);
+  const { start } = cruiseSpan(scene);
   const sizes: { from: number; to: number }[] = [];
-  for (const share of [1 / 3, 2 / 3]) {
-    scene.seek(start + (end - start) * share);
+  for (const into of [3000, 20_000]) {
+    scene.seek(start + into);
     await act(frame);
     const b = scene.fromBody.getBounds();
     const body: Box = { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
@@ -160,23 +155,112 @@ it('the departure Body stays in view, clear of the HUD, and shrinks through the 
     for (const panel of hudPanels()) expect(overlaps(body, panel)).toBe(false);
     sizes.push({ from: b.width, to: scene.toBody.getBounds().width });
   }
-  const [third, twoThirds] = sizes;
-  expect(twoThirds?.from).toBeLessThan(third?.from ?? 0);
-  expect(twoThirds?.to).toBeGreaterThan(third?.to ?? 0);
+  const [early, later] = sizes;
+  expect(later?.from).toBeLessThan(early?.from ?? 0);
 });
 
-it('seeking to the end of an Arrived Hop hands off to the Landed view of the target', async () => {
-  const { scene, data } = await fly('hauler');
-  const landed = nextSceneReady(SceneKey.Landed);
-  const runs: unknown[] = [];
-  const off = EventBus.on('run-started', (run) => runs.push(run));
-  scene.seek(scene.playback.duration);
-  await landed;
-  off();
-  expect(runs).toEqual([data.after]);
-  // The Flight scene let go of its listeners when it shut down.
-  expect(EventBus.listenerCount('leave-run-requested')).toBe(1); // the Landed view's own
+it.each([
+  ['a Body', 'scout'],
+  ['the Heliopause', 'lancer'],
+] as const)(
+  'the target, %s, stays small and far ahead the whole Cruise',
+  async (_name, chassis) => {
+    const { scene } = await (chassis === 'lancer'
+      ? fly('lancer', () => HELIOPAUSE, readyForTheHeliopause)
+      : fly('scout'));
+    const { start, end } = cruiseSpan(scene);
+    for (let t = start; t <= end; t += 6000) {
+      scene.seek(t);
+      expect(scene.toBody.visible).toBe(true);
+      const b = scene.toBody.getBounds();
+      expect(b.width).toBeLessThan(40);
+      expect(b.left).toBeGreaterThanOrEqual(0);
+      expect(b.right).toBeLessThanOrEqual(GAME_WIDTH);
+      expect(b.top).toBeGreaterThanOrEqual(0);
+    }
+    scene.seek(end);
+    expect(scene.toBody.getBounds().width).toBeLessThan(40);
+  },
+);
+
+it('the Cruise is never a still image: the Spacecraft and the stars keep moving', async () => {
+  const { scene } = await fly('scout');
+  const { start } = cruiseSpan(scene);
+  const look = (ms: number) => {
+    scene.seek(ms);
+    return { x: scene.ship.x, y: scene.ship.y, angle: scene.ship.angle };
+  };
+  // Long after the boost, deep in the coast: every second something has moved.
+  for (const t of [30_000, 60_000, 100_000]) {
+    expect(look(start + t + 1000)).not.toEqual(look(start + t));
+  }
 });
+
+it('the Spacecraft flies big in the Cruise, and each installed Component’s bounds lie inside the frame, large enough to click', async () => {
+  const { scene, data } = await fly('scout');
+  const { start } = cruiseSpan(scene);
+  scene.seek(start + 20_000);
+  await act(frame);
+  const installed = data.before.spacecraft.slots.flatMap((slot, i) => (slot === null ? [] : [i]));
+  const bounds = scene.componentBounds();
+  expect([...bounds.keys()]).toEqual(installed);
+  const hull = hullOnScreen(scene);
+  expect(hull.right - hull.left).toBeGreaterThan(200);
+  for (const [slot, rect] of bounds) {
+    const where = `Slot ${String(slot)}`;
+    expect(rect.width, where).toBeGreaterThanOrEqual(24);
+    expect(rect.height, where).toBeGreaterThanOrEqual(24);
+    expect(rect.x, where).toBeGreaterThanOrEqual(0);
+    expect(rect.y, where).toBeGreaterThanOrEqual(0);
+    expect(rect.x + rect.width, where).toBeLessThanOrEqual(GAME_WIDTH);
+    expect(rect.y + rect.height, where).toBeLessThanOrEqual(GAME_HEIGHT);
+    // On the Spacecraft, and no HUD panel covers it.
+    const box: Box = {
+      left: rect.x,
+      top: rect.y,
+      right: rect.x + rect.width,
+      bottom: rect.y + rect.height,
+    };
+    expect(overlaps(box, hull), where).toBe(true);
+    for (const panel of hudPanels()) expect(overlaps(box, panel), where).toBe(false);
+  }
+});
+
+it('the Cruise draws its event layer between the starfield and the Spacecraft', async () => {
+  const { scene } = await fly('scout');
+  scene.seek(cruiseSpan(scene).start + 5000);
+  const list = scene.children.list;
+  const space = list.findIndex(
+    (o) => o instanceof GameObjects.Container && o.list.includes(scene.fromBody),
+  );
+  expect(scene.eventLayer.visible).toBe(true);
+  expect(list.indexOf(scene.eventLayer)).toBeGreaterThan(space);
+  expect(list.indexOf(scene.eventLayer)).toBeLessThan(list.indexOf(scene.ship));
+  expect(scene.playback.events).toEqual([]);
+});
+
+it.each(['takeoff', 'cruise', 'landing'] as const)(
+  'seeking to the end of an Arrived Hop from the %s hands off to the Landed view of the target',
+  async (shot) => {
+    const { scene, data } = await fly('hauler');
+    const span = scene.playback.shots.find((s) => s.shot === shot);
+    if (!span) throw new Error(`no ${shot}`);
+    scene.seek((span.start + span.end) / 2);
+    await act(frame);
+    expect(document.querySelector('[data-testid="phase-strip"]')?.getAttribute('data-shot')).toBe(
+      shot,
+    );
+    const landed = nextSceneReady(SceneKey.Landed);
+    const runs: unknown[] = [];
+    const off = EventBus.on('run-started', (run) => runs.push(run));
+    scene.seek(scene.playback.duration);
+    await landed;
+    off();
+    expect(runs).toEqual([data.after]);
+    // The Flight scene let go of its listeners when it shut down.
+    expect(EventBus.listenerCount('leave-run-requested')).toBe(1); // the Landed view's own
+  },
+);
 
 /** A lancer on seed 1 with a Jump Drive: it reaches the Heliopause from its Home Planet. */
 function readyForTheHeliopause(): Run {
@@ -199,8 +283,8 @@ it('a Hop to the Heliopause plays Takeoff and Transfer with the Spacecraft in vi
   expect(phases).toContain('Transfer');
   expect(phases).not.toContain('Landing');
 
-  // The camera keeps the Spacecraft on screen through the Transfer, up to its last moment.
-  const { start } = transferSpan(scene);
+  // The camera keeps the Spacecraft on screen through the Cruise, up to its last moment.
+  const { start } = cruiseSpan(scene);
   for (const ms of [start + 100, scene.playback.duration - 1]) {
     scene.seek(ms);
     const cam = scene.cameras.main;
@@ -347,9 +431,9 @@ it('the F key turns fast-forward on and off: the clock runs about 4x as fast and
   expect(button?.textContent).not.toContain('4×');
 });
 
-it('Takeoff kicks up dust, and the Transfer trails sparks', async () => {
+it('Takeoff kicks up dust, and the Cruise trails sparks through the boost', async () => {
   const { scene } = await fly('scout');
-  const { start } = transferSpan(scene);
+  const { start } = cruiseSpan(scene);
   scene.seek(900);
   await act(() => wait(500));
   expect(emitters(scene).some((e) => e.getAliveParticleCount() > 0)).toBe(true);
@@ -359,9 +443,24 @@ it('Takeoff kicks up dust, and the Transfer trails sparks', async () => {
   expect(alive.length).toBeGreaterThan(0);
 });
 
-/** Steps the whole playback, `every` ms, calling `look` at each moment. */
+/**
+ * Every `every` ms of the playback, except through the long coast of the Cruise, which is sampled
+ * once a second (its first seconds, with the boost, are stepped finely like the other shots).
+ */
+function sampleMs(scene: Flight, every: number): number[] {
+  const cruise = scene.playback.cruise;
+  const coastFrom = cruise ? cruise.start + 10_000 : Infinity;
+  const coastTo = cruise ? cruise.start + cruise.length - 2000 : -Infinity;
+  const ms: number[] = [];
+  for (let t = 0; t < scene.playback.duration; t += t >= coastFrom && t < coastTo ? 1000 : every) {
+    ms.push(t);
+  }
+  return ms;
+}
+
+/** Steps through the playback (see `sampleMs`), calling `look` at each moment. */
 function stepThrough(scene: Flight, every: number, look: (ms: number) => void): void {
-  for (let t = 0; t < scene.playback.duration; t += every) {
+  for (const t of sampleMs(scene, every)) {
     scene.seek(t);
     look(t);
   }
@@ -446,7 +545,7 @@ it('under reduced motion there are no particles, flashes, shakes or stage fades,
 
 it('the route inset names the two Bodies and shows how far along the Hop is', async () => {
   const { scene, data } = await fly('scout');
-  const { start, end } = transferSpan(scene);
+  const { start, end } = cruiseSpan(scene);
   const name = (id: BodyId): string | undefined => findBody(data.before.starSystem, id)?.name;
   scene.seek((start + end) / 2);
   await act(frame);
@@ -718,13 +817,16 @@ it.each(CHASSIS_IDS)(
   },
 );
 
-/** The first ms of the playback at `progress` through `burn` with the engine firing. */
-function momentOf(scene: Flight, burn: string, progress: number): number {
-  for (let t = 0; t <= scene.playback.duration; t += 5) {
-    const at = scene.playback.at(t);
-    if (at.burn === burn && at.progress >= progress && at.thrusting) return t;
+/** The first ms of the playback at `progress` through `shot` with the engine firing. */
+function momentOf(scene: Flight, shot: string, progress: number): number {
+  for (const { start, end, shot: name } of scene.playback.shots) {
+    if (name !== shot) continue;
+    for (let t = start; t < end; t += 5) {
+      const at = scene.playback.at(t);
+      if (at.shotProgress >= progress && at.thrusting) return t;
+    }
   }
-  throw new Error(`no thrusting ${burn} at ${String(progress)}`);
+  throw new Error(`no thrusting ${shot} at ${String(progress)}`);
 }
 
 /** The visible plumes on the Spacecraft: where each starts in the world, and which way it points (degrees clockwise from straight down). */
@@ -744,7 +846,7 @@ const PLUME_MOMENTS = [
   { name: 'lighting on the ground', burn: 'takeoff', progress: 0.1, pose: 'standing' },
   { name: 'rising off the ground', burn: 'takeoff', progress: 0.3, pose: 'standing' },
   { name: 'climbing away', burn: 'takeoff', progress: 0.85, pose: 'standing' },
-  { name: 'in the Transfer', burn: 'transfer', progress: 0.3, pose: 'flight' },
+  { name: 'boosting in the Cruise', burn: 'cruise', progress: 0.03, pose: 'flight' },
   { name: 'hovering down', burn: 'landing', progress: 0.5, pose: 'standing' },
 ] as const satisfies readonly { name: string; burn: string; progress: number; pose: ShipPose }[];
 
@@ -754,10 +856,10 @@ it.each(CHASSIS_IDS)(
     const { scene } = await fly(chassis);
     for (const moment of PLUME_MOMENTS) {
       scene.seek(momentOf(scene, moment.burn, moment.progress));
-      const { x, y, angle } = scene.ship;
+      const { x, y, angle, scaleX: k } = scene.ship;
       const expected = nozzles(chassis, moment.pose).map((nozzle) => {
         const at = turn(nozzle.exit, angle);
-        return { x: x + at.x, y: y + at.y };
+        return { x: x + k * at.x, y: y + k * at.y };
       });
       const shown = shownPlumes(scene);
       expect(shown, moment.name).toHaveLength(expected.length);
@@ -797,12 +899,11 @@ function hullOnScreen(scene: Flight): Box {
   };
 }
 
-/** Every ms of the playback spent on `burn`, every 25 ms. */
-function msOf(scene: Flight, burn: string): number[] {
+/** Every ms of the playback spent on `shot`, every 25 ms. */
+function msOf(scene: Flight, shot: string): number[] {
+  const span = scene.playback.shots.find((s) => s.shot === shot);
   const ms: number[] = [];
-  for (let t = 0; t < scene.playback.duration; t += 25) {
-    if (scene.playback.at(t).burn === burn) ms.push(t);
-  }
+  if (span) for (let t = span.start; t < span.end; t += 25) ms.push(t);
   return ms;
 }
 
@@ -854,16 +955,16 @@ it.each(CHASSIS_IDS)(
   'the %s stays on screen through the whole Hop, leaving and coming back only through the top edge',
   async (chassis) => {
     const { scene } = await fly(chassis);
-    for (let t = 0; t < scene.playback.duration; t += 25) {
+    for (const t of sampleMs(scene, 25)) {
       scene.seek(t);
       const hull = hullOnScreen(scene);
-      const { burn } = scene.playback.at(t);
-      const where = `${burn} at ${String(t)} ms`;
+      const { shot } = scene.playback.at(t);
+      const where = `${shot} at ${String(t)} ms`;
       expect(hull.left, where).toBeGreaterThanOrEqual(0);
       expect(hull.right, where).toBeLessThanOrEqual(GAME_WIDTH);
       expect(hull.bottom, where).toBeLessThanOrEqual(GAME_HEIGHT);
       // Only the vertical climb and descent take it past the top edge.
-      if (burn === 'transfer') expect(hull.top, where).toBeGreaterThanOrEqual(0);
+      if (shot === 'cruise') expect(hull.top, where).toBeGreaterThanOrEqual(0);
     }
   },
 );
@@ -872,16 +973,16 @@ it.each(CHASSIS_IDS)(
   'the %s trails sparks from each of its rear nozzles in turn',
   async (chassis) => {
     const { scene } = await fly(chassis);
-    scene.seek(momentOf(scene, 'transfer', 0.3));
+    scene.seek(momentOf(scene, 'cruise', 0.03));
     const sparks = emitters(scene).find((e) => e.texture.key === 'fx_spark');
     if (!sparks) throw new Error('no spark emitter');
     const born: { x: number; y: number }[] = [];
     sparks.onParticleEmit((p) => born.push({ x: sparks.x + p.x, y: sparks.y + p.y }));
     await act(() => wait(600));
-    const { x, y, angle } = scene.ship;
+    const { x, y, angle, scaleX: k } = scene.ship;
     const exits = nozzles(chassis, 'flight').map((nozzle) => {
       const at = turn(nozzle.exit, angle);
-      return { x: x + at.x, y: y + at.y };
+      return { x: x + k * at.x, y: y + k * at.y };
     });
     const near = (a: { x: number; y: number }, b: { x: number; y: number }): boolean =>
       Math.hypot(a.x - b.x, a.y - b.y) < 0.5;

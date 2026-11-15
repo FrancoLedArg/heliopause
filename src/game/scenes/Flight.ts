@@ -1,23 +1,22 @@
-import { BlendModes, Scene, Scenes, type GameObjects, type Tweens } from 'phaser';
+import { BlendModes, Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber, type PaletteColor } from '../../ui/kit/palette.ts';
 import { hasAsset } from '../assets/manifest.ts';
 import { EventBus } from '../EventBus.ts';
 import { prefersReducedMotion } from '../lib/motion.ts';
+import { chooseCruiseSpeed } from '../lib/cruiseSpeed.ts';
 import { createRng } from '../lib/rng.ts';
+import { findBody, listBodies, type BodyId, type HopFlight, type Run } from '../sim/index.ts';
+import { componentLayout, type Rect } from './componentBounds.ts';
 import {
-  CHASSIS_IDS,
-  findBody,
-  type BodyId,
-  type Burn,
-  type HopFlight,
-  type Run,
-} from '../sim/index.ts';
-import {
+  advancePlayback,
+  CRUISE_BOOST_MS,
   FAST_FORWARD,
   flightPlayback,
+  systemsLit,
   type FlightMoment,
   type FlightPlayback,
   type Pace,
+  type Shot,
 } from './flightPlayback.ts';
 import { anchorFx } from './groundAnchor.ts';
 import { jumpPlayback, type JumpPlayback, type JumpStage } from './jumpPlayback.ts';
@@ -52,7 +51,7 @@ import {
   spacecraftNozzles,
   type ShipFrame,
 } from './spacecraftArt.ts';
-import { addStarfield } from './starfield.ts';
+import { generateStars } from './starfield.ts';
 import {
   CRASH_FALL_MS,
   deadEngine,
@@ -121,32 +120,57 @@ function plumeArt(pose: ShipPose): PlumeArt | undefined {
 /** How the landscape moves as the camera climbs: the sky barely, the ground fully. */
 const SCROLL_FACTOR = { sky: 0.06, ground: 1 } as const;
 
-/** Layout tuning: the open sky kept between the flying Spacecraft's nose and the right edge (px). */
-const NOSE_MARGIN = 8;
-/** How far the flight frame reaches right of the centre of the base: the longest Chassis' nose (px). */
-const FLIGHT_REACH = Math.max(
-  ...CHASSIS_IDS.map((id) => {
-    const { width, pivot } = frameGeometry(id, 'flight');
-    return width - pivot.x;
-  }),
-);
-/** How far the flight frame reaches above the centre of the base: the tallest Chassis (px). */
-const FLIGHT_TOP = Math.max(...CHASSIS_IDS.map((id) => frameGeometry(id, 'flight').pivot.y));
 /**
- * Where the Transfer picks the Spacecraft up on screen: where the vertical climb left the frame,
- * above its Landed spot at the top edge, as far right as the whole flight frame still fits.
+ * The Cruise (presentation tuning, px and ms of Cruise time). The Spacecraft flies big, at `scale`,
+ * so each Component is large enough to click (#210), its base resting at `rest`: right of the flight
+ * log and below the phase strip, its nose clear of the right edge. It glides in from `entry` over the
+ * first moments, then bobs, sways and tilts gently so it is never still.
  */
-const TRANSFER_ENTRY = {
-  x: Math.min(SHIP_PLACEMENT.x, SCREEN_WIDTH - NOSE_MARGIN - FLIGHT_REACH),
-  y: FLIGHT_TOP + NOSE_MARGIN,
+const CRUISE = {
+  scale: 2,
+  rest: { x: 378, y: 200 },
+  entry: { dx: -90, dy: 70, ms: 2400 },
+  bob: { px: 3, ms: 1300 },
+  sway: { px: 5, ms: 4100 },
+  tilt: { degrees: 1.2, ms: 3700 },
 } as const;
 /**
- * The share of the Transfer over which the camera catches up with the Spacecraft. Long, and onto a
- * line that starts near where the climb left the frame, so the catch-up reads as a calm drift, not a pan.
+ * The star layers of the Cruise, far to near: how many stars, how big, and how fast they drift
+ * against the heading (px per s of coasting). The boost drifts them `BOOST_GAIN` times faster again.
  */
-const TRANSFER_SETTLE = 0.45;
-/** Where the Transfer's line carries the Spacecraft on screen: from `x` at the start, `dx` further by the end. */
-const TRANSFER_LINE = { x: 380, dx: 36 } as const;
+const STAR_LAYERS = [
+  { count: 110, size: 1, speed: 3 },
+  { count: 46, size: 1, speed: 9 },
+  { count: 16, size: 2, speed: 24 },
+] as const;
+const BOOST_GAIN = 3;
+/** The target, small and far ahead the whole Cruise: it barely grows (px across), up and right. */
+const TARGET_AHEAD = {
+  at: { x: 604, y: 70 },
+  body: { from: 12, to: 22 },
+  heliopause: { from: 18, to: 36 },
+} as const;
+/**
+ * Distant Bodies of the Star System passing far behind the Spacecraft (presentation tuning): the
+ * first after `first` ms of Cruise, then one every `every` ms, each taking `crossMs` to cross the
+ * screen against the heading, `size` px across.
+ */
+const PASSING = { first: 9000, every: 26_000, crossMs: 15_000, size: { min: 8, max: 22 } } as const;
+/** The sun's glint behind the Spacecraft (`fx_flare` once the manifest has it): where, how big, how it breathes. */
+const GLINT = { x: 150, y: 104, scale: 2, alpha: { min: 0.18, max: 0.4 }, ms: 5200 } as const;
+/**
+ * The attitude thrusters' puffs (`fx_vent`): one every `every` ms of Cruise, each `frameMs` per
+ * frame of its four, from one of the spots (px from the base, standing, turned with the ship).
+ */
+const VENT = {
+  every: 6500,
+  frameMs: 80,
+  frames: 4,
+  spots: [
+    { x: 7, y: -96, angle: 90 },
+    { x: -7, y: -40, angle: -90 },
+  ],
+} as const;
 /**
  * How far the dust and smoke follow the camera. At Takeoff the camera climbs and the ground drops
  * away fast; at 0.4 the puffs fall away slower, so they stay on screen for the first 1.5 s or more
@@ -155,13 +179,16 @@ const TRANSFER_LINE = { x: 380, dx: 36 } as const;
  */
 const FX_SCROLL_FACTOR = { departure: 0.4, arrival: 1 } as const;
 /**
- * The departure Body in the Transfer: large at the left, receding toward the left edge. It stays in
- * the open sky between the top bar and phase strip (above y 78 right of x 170) and the flight log
- * (below y 212), so the player sees it shrink the whole way.
+ * The departure Body in the Cruise: large at the left, receding toward the left edge over `ms` of
+ * Cruise, then drifting off it. It stays in the open sky between the top bar and phase strip (above y
+ * 78 right of x 170) and the flight log (below y 212), so the player sees it shrink the whole way.
  */
 const DEPARTURE = {
   from: { x: 96, y: 132, size: 136 },
   to: { x: 34, y: 118, size: 26 },
+  ms: 30_000,
+  /** After receding, how fast it drifts off the left edge (px per ms). */
+  drift: 0.0006,
 } as const;
 /** How long the fade at a cut between the ground and space lasts (ms). */
 const STAGE_FADE_MS = 180;
@@ -194,21 +221,26 @@ const JUMP_THROW = 760;
 const JUMP_FLASH_ALPHA = 0.85;
 
 const STREAK_COUNT = 34;
+/** After the boost the streaks fade to this share of their brightness: the coast is calmer. */
+const COAST_STREAKS = 0.35;
 /** Speed streaks run against the direction of travel: down and to the left. */
 const STREAK_ANGLE = Math.atan2(0.42, -1);
 /** The direction of travel through space, a unit vector: up and to the right. */
 const HEADING = { x: -Math.cos(STREAK_ANGLE), y: -Math.sin(STREAK_ANGLE) } as const;
-const SPACE_STARS = 160;
+/** The longest frame the clock steps (ms): a long stall (a hidden tab) never leaps the playback ahead. */
+const MAX_FRAME_MS = 250;
 
 /**
  * Hop playback: the camera stays on the Spacecraft through every Burn (a Hop to the Heliopause has
  * no Landing: it ends in space, the Heliopause ahead, and the Jump follows: the Jump Drive charges
  * and fires, the screen goes dark behind the flavour text, and the Landed view of the next Home
  * Planet comes up out of the black). Takeoff rises straight up off the departure Body, upright on
- * its engines, and climbs out through the top edge (see `verticalShots`); the Transfer crosses space
- * at a 3/4 view, the departure Body shrinking and the target growing; Landing comes straight down
- * onto the target, upright, ending on exactly the Landed view's composition. One clock drives everything from the
+ * its engines, and climbs out through the top edge (see `verticalShots`); the Cruise (about 2
+ * minutes, the Transfer) flies the Spacecraft big at a 3/4 view through drifting stars, the departure
+ * Body falling behind and the target small far ahead; Landing comes straight down onto the target,
+ * upright, ending on exactly the Landed view's composition. One clock drives everything from the
  * simulation's flight (see `flightPlayback`), so playback can only show the outcome, never change it.
+ * The scene's `update` steps it with real frame time, at the fast-forward and test-only Cruise speeds.
  */
 export class Flight extends Scene {
   private before!: Run;
@@ -218,7 +250,11 @@ export class Flight extends Scene {
   playback!: FlightPlayback;
   /** Shorter, with no streaks or shake, when the player prefers reduced motion. */
   private pace: Pace = 'full';
-  private clock!: Tweens.Tween;
+  /** Whether the fast-forward is on, and the test-only Cruise speed from the URL (`?cruiseSpeed=`). */
+  private fast = false;
+  private cruiseSpeed = 1;
+  /** A test seek holds the playback where it put it: the clock no longer steps. */
+  private held = false;
   private finished = false;
   /** The pooled particles; none under reduced motion. */
   private fx: FlightEffects | undefined;
@@ -274,15 +310,31 @@ export class Flight extends Scene {
   /** One plume per nozzle in each pose: down from the standing ship, back along the heading in flight. */
   private plumes!: Readonly<Record<ShipPose, readonly Plume[]>>;
   private shadow!: GameObjects.Ellipse;
-  /** The Transfer's departure and target Bodies; tests check the HUD never hides them. */
+  /** The Cruise's departure and target Bodies; tests check the HUD never hides them. */
   fromBody!: GameObjects.Image;
   toBody!: GameObjects.Image;
+  /**
+   * The Cruise's event layer, drawn between the starfield and the Spacecraft: where timed Cruise
+   * events (`playback.events`, in Cruise time) are drawn. Empty for now; Cruise events (#210) and
+   * Debris fields (#197) add their pieces here and pose them from the Cruise clock in `cruise`.
+   */
+  eventLayer!: GameObjects.Container;
+  /** The Cruise's star layers, far to near, each drifting at its own pace. */
+  private starLayers: GameObjects.TileSprite[] = [];
+  /** A distant Body passing far behind the Spacecraft, and the sprites it is drawn from. */
+  private passing!: { readonly image: GameObjects.Image; readonly sprites: readonly string[] };
+  private glint!: GameObjects.Image;
+  /** The attitude thruster's puff, on the Spacecraft; `undefined` under reduced motion. */
+  private vent: GameObjects.Image | undefined;
+  /** The frame the Spacecraft is drawn in now: the Component layout follows it. */
+  private shipFrame: ShipFrame = 'landed';
   private stage: 'departure' | 'arrival' | 'space' | undefined;
   private streaks: {
     readonly line: GameObjects.Rectangle;
     readonly x0: number;
     readonly y0: number;
     readonly speed: number;
+    readonly alpha: number;
   }[] = [];
   /** One-off moments already played (a Crash's hit), so a seek past them plays them once. */
   private played = new Set<string>();
@@ -297,7 +349,11 @@ export class Flight extends Scene {
     this.flight = data.flight;
     this.after = data.after;
     this.finished = false;
+    this.held = false;
+    this.fast = false;
+    this.shipFrame = 'landed';
     this.streaks = [];
+    this.starLayers = [];
     this.played = new Set();
     this.flash = 0;
     this.rumble = 0;
@@ -327,6 +383,7 @@ export class Flight extends Scene {
     this.layers = { departure, arrival };
     this.puffColors = { departure: departurePuff, arrival: atTarget?.puffColor };
     const space = this.buildSpace();
+    this.eventLayer = this.add.container(0, 0).setScrollFactor(0);
     this.shadow = this.add.ellipse(
       SHIP_PLACEMENT.x,
       SHIP_PLACEMENT.baseY + SHIP_SHADOW.dy,
@@ -344,7 +401,7 @@ export class Flight extends Scene {
     this.stages = {
       departure: [...Object.values(departure)],
       arrival: arrival ? [...Object.values(arrival)] : [],
-      space: [space],
+      space: [space, this.eventLayer],
     };
     this.fx = this.pace === 'full' ? createFlightEffects(this) : undefined;
     this.jumpFx = this.buildJumpFx();
@@ -355,28 +412,16 @@ export class Flight extends Scene {
     this.jumpFx.flash.setDepth(1);
     this.jumpFx.veil.setDepth(2);
 
-    this.clock = this.tweens.addCounter({
-      from: 0,
-      to: this.duration,
-      duration: this.duration,
-      ease: 'Linear',
-      onUpdate: (tween) => {
-        this.render(tween.getValue() ?? 0);
-      },
-      onComplete: () => {
-        // The last update already finished the Hop; posing again would undo where a failure left the ship.
-        if (!this.finished) this.render(this.duration);
-      },
-    });
+    this.cruiseSpeed = chooseCruiseSpeed(window.location.search);
 
     onLeaveRun(this);
     // Fast-forward only scales the clock (and the particles keep up): the outcome is settled already.
     const offSpeed = EventBus.on('hop-fast-forward-requested', (fast) => {
-      this.setSpeed(fast ? FAST_FORWARD : 1);
+      this.fast = fast;
+      this.fx?.setSpeed(fast ? FAST_FORWARD : 1);
     });
     const stop = (): void => {
       offSpeed();
-      this.clock.remove();
       this.events.off(Scenes.Events.SHUTDOWN, stop);
       this.events.off(Scenes.Events.DESTROY, stop);
     };
@@ -388,15 +433,60 @@ export class Flight extends Scene {
     EventBus.emit('scene-ready', SceneKey.Flight);
   }
 
-  /** Test seam: holds the playback `ms` after Launch. Seeking to the end hands off as playback would. */
-  seek(ms: number): void {
-    this.clock.pause();
+  /**
+   * Steps the playback by the frame's real time: at the fast-forward's speed, and the Cruise at the
+   * test-only Cruise speed too, changing speed exactly where the shot changes (`advancePlayback`).
+   */
+  override update(_time: number, delta: number): void {
+    if (this.held || this.finished) return;
+    const real = Math.min(delta, MAX_FRAME_MS);
+    const speed = this.fast ? FAST_FORWARD : 1;
+    const { duration } = this.playback;
+    const ms =
+      this.playbackMs < duration
+        ? advancePlayback(
+            this.playback,
+            this.playbackMs,
+            real,
+            (shot) => speed * (shot === 'cruise' ? this.cruiseSpeed : 1),
+          )
+        : Math.min(this.playbackMs + real * speed, this.duration);
     this.render(ms);
   }
 
-  private setSpeed(speed: number): void {
-    this.clock.timeScale = speed;
-    this.fx?.setSpeed(speed);
+  /** Test seam: holds the playback `ms` after Launch. Seeking to the end hands off as playback would. */
+  seek(ms: number): void {
+    this.held = true;
+    this.render(ms);
+  }
+
+  /**
+   * Each installed Component's rectangle on the screen, keyed by its Slot: what Cruise events (#210)
+   * hit-test a click against. #233 backs it with the composed Spacecraft's own `componentBounds()`.
+   */
+  componentBounds(): ReadonlyMap<number, Rect> {
+    const matrix = this.ship.getWorldTransformMatrix();
+    const { scrollX, scrollY } = this.cameras.main;
+    const out = new Map<number, Rect>();
+    for (const [slot, rect] of componentLayout(this.before.spacecraft.slots, this.shipFrame)) {
+      const corners = [
+        [rect.x, rect.y],
+        [rect.x + rect.width, rect.y],
+        [rect.x, rect.y + rect.height],
+        [rect.x + rect.width, rect.y + rect.height],
+      ].map(([x = 0, y = 0]) => matrix.transformPoint(x, y));
+      const xs = corners.map((p) => p.x - scrollX);
+      const ys = corners.map((p) => p.y - scrollY);
+      const left = Math.min(...xs);
+      const top = Math.min(...ys);
+      out.set(slot, {
+        x: left,
+        y: top,
+        width: Math.max(...xs) - left,
+        height: Math.max(...ys) - top,
+      });
+    }
+    return out;
   }
 
   private render(ms: number): void {
@@ -413,16 +503,18 @@ export class Flight extends Scene {
     const pose = this.playback.at(stopped);
     const aftermath = Math.max(0, ms - this.playback.stopsAt);
     this.flicker(ms);
-    this.showStage(moment.burn);
-    switch (moment.burn) {
+    this.showStage(moment.shot);
+    switch (moment.shot) {
       case 'takeoff':
-        this.takeoff(pose.progress, this.firing(ms, moment.thrusting), aftermath, ms);
+        this.takeoff(pose.shotProgress, this.firing(ms, moment.thrusting), aftermath, ms);
         break;
-      case 'transfer':
-        this.transfer(pose.progress, moment.thrusting, stopped + aftermath * 0.15);
+      // Until #205 draws the Approach, it holds the Cruise's view (it has no length yet).
+      case 'cruise':
+      case 'approach':
+        this.cruise(ms, this.firing(ms, moment.thrusting));
         break;
       case 'landing':
-        this.landing(pose.progress, this.firing(ms, moment.thrusting), aftermath, ms);
+        this.landing(pose.shotProgress, this.firing(ms, moment.thrusting), aftermath, ms);
         break;
     }
     this.report(moment);
@@ -442,8 +534,9 @@ export class Flight extends Scene {
       this.jumpStage = moment.stage;
       EventBus.emit('jump-stage', moment.stage);
     }
-    this.showStage('transfer');
-    this.transfer(1, false, this.playback.duration + ms * 0.15);
+    this.showStage('cruise');
+    // The end of the Cruise holds, drifting slowly on, while the Jump Drive charges.
+    this.cruise(this.playback.duration + ms * 0.15, false);
     const rest = { x: this.ship.x, y: this.ship.y };
     const hull = this.hullCentre(rest);
     switch (moment.stage) {
@@ -483,7 +576,11 @@ export class Flight extends Scene {
     };
     const { width, pivot } = frameGeometry(chassisId, 'flight');
     const along = (width - pivot.x - rear.x) / 2 / HEADING.x;
-    return { x: at.x + rear.x + HEADING.x * along, y: at.y + rear.y + HEADING.y * along };
+    const k = this.ship.scaleX;
+    return {
+      x: at.x + k * (rear.x + HEADING.x * along),
+      y: at.y + k * (rear.y + HEADING.y * along),
+    };
   }
 
   /**
@@ -523,43 +620,122 @@ export class Flight extends Scene {
     this.vertical(aftermath > 0 ? deadEngine(shot, aftermath, false) : shot, firing, ms);
   }
 
-  private transfer(progress: number, thrusting: boolean, streakMs: number): void {
+  /**
+   * The Cruise, `ms` after Launch: the Spacecraft flies big in its flight frame, gliding in, then
+   * bobbing and swaying; its rearward plumes and sparks fire through the boost (`firing`). Behind it
+   * the stars drift at three depths (faster through the boost), streaks fly past, a distant Body
+   * passes now and then, the departure Body falls behind and the target waits small far ahead, so
+   * the 2 minutes are never a still image. A Spacecraft whose engine died drifts and slows.
+   */
+  private cruise(ms: number, firing: boolean): void {
+    const window = this.playback.cruise;
+    if (!window) throw new Error('The Cruise is drawn only in a Hop that reaches it');
     this.cameras.main.setScroll(0, 0);
-    // The Spacecraft climbs diagonally to the upper right, bobbing a little as it goes. It starts
-    // where the vertical climb left the frame and the camera catches up, so the cut reads as one movement.
-    const settle = smooth(progress / TRANSFER_SETTLE);
-    const lineX = TRANSFER_LINE.x + TRANSFER_LINE.dx * progress;
-    const lineY = 214 - 40 * progress + Math.sin(progress * 9) * 2;
-    const x = Math.round(TRANSFER_ENTRY.x + (lineX - TRANSFER_ENTRY.x) * settle);
-    const y = Math.round(TRANSFER_ENTRY.y + (lineY - TRANSFER_ENTRY.y) * settle);
-    this.shipArt('flight');
-    this.ship.setPosition(x, y).setAngle(0);
-    this.thrust(0, thrusting);
-    this.fx?.exhaust(thrusting, this.flightNozzles(x, y, 0));
-    // Behind, the departure Body shrinks away toward the left edge; ahead, the target grows. Both
-    // stay in the open sky, clear of the HUD (phase strip above, flight log and Fuel below left).
-    const recede = smooth(progress);
+    this.rumble = 0;
+    // Where the engine left it: a dead engine freezes the headway, though the bob goes on.
+    const { stopsAt } = this.playback;
+    const flown = Math.min(ms, stopsAt) - window.start;
+    const since = Math.max(0, ms - stopsAt);
+    const live = ms - window.start;
+    const drifting = this.flight.outcome.kind === 'fell-short' ? since : 0;
+    const calm = this.pace === 'reduced';
+    const entry = calm ? 1 : smooth(flown / CRUISE.entry.ms);
+    const wave = (spec: { readonly ms: number }, phase = 0): number =>
+      Math.sin((live / spec.ms) * 2 * Math.PI + phase);
+    const x =
+      CRUISE.rest.x +
+      CRUISE.entry.dx * (1 - entry) +
+      CRUISE.sway.px * wave(CRUISE.sway) -
+      drifting * 0.012;
+    const y =
+      CRUISE.rest.y +
+      CRUISE.entry.dy * (1 - entry) +
+      CRUISE.bob.px * wave(CRUISE.bob, 1) +
+      drifting * 0.008;
+    const angle = CRUISE.tilt.degrees * wave(CRUISE.tilt, 2) + Math.min(drifting * 0.002, 4);
+    this.showShip('flight');
+    this.ship.setScale(CRUISE.scale).setPosition(Math.round(x), Math.round(y)).setAngle(angle);
+    this.thrust(0, firing);
+    this.fx?.exhaust(firing, this.flightNozzles(this.ship.x, this.ship.y, angle));
+    this.puff(live);
+
+    // How far the stars have drifted: faster through the boost, slowing to a crawl once the engine died.
+    const travel = flown + BOOST_GAIN * Math.min(flown, CRUISE_BOOST_MS) + since * 0.15;
+    this.starLayers.forEach((layer, i) => {
+      const speed = ((STAR_LAYERS[i]?.speed ?? 0) * travel) / 1000;
+      layer.setTilePosition(HEADING.x * speed, HEADING.y * speed);
+    });
+    const boosting = flown < CRUISE_BOOST_MS;
+    for (const streak of this.streaks) {
+      const travelled = (streak.speed * travel) / 4000;
+      const span = 760;
+      const along = (((streak.x0 - travelled) % span) + span) % span;
+      streak.line
+        .setPosition(
+          Math.round(along - 60),
+          Math.round(streak.y0 - (along - streak.x0) * Math.tan(STREAK_ANGLE)),
+        )
+        .setAlpha(streak.alpha * (boosting ? 1 : COAST_STREAKS));
+    }
+    this.pass(live);
+    this.glint.setAlpha(
+      GLINT.alpha.min + (GLINT.alpha.max - GLINT.alpha.min) * (calm ? 0.5 : (1 + wave(GLINT)) / 2),
+    );
+
+    // Behind, the departure Body shrinks away toward the left edge, then drifts off it; ahead, the
+    // target stays small and far. Both stay in the open sky, clear of the HUD.
+    const recede = smooth(live / DEPARTURE.ms);
     const fromDiameter = DEPARTURE.from.size + (DEPARTURE.to.size - DEPARTURE.from.size) * recede;
-    const to = { size: 14, to: 120 };
-    const toDiameter = to.size + (to.to - to.size) * progress ** 1.6;
+    const offEdge = Math.max(0, live - DEPARTURE.ms) * DEPARTURE.drift;
     this.fromBody
       .setScale(fromDiameter / this.fromBody.width)
       .setPosition(
-        Math.round(DEPARTURE.from.x + (DEPARTURE.to.x - DEPARTURE.from.x) * recede),
+        Math.round(DEPARTURE.from.x + (DEPARTURE.to.x - DEPARTURE.from.x) * recede - offEdge),
         Math.round(DEPARTURE.from.y + (DEPARTURE.to.y - DEPARTURE.from.y) * recede),
       );
+    const ahead =
+      this.flight.plan.destination === 'body' ? TARGET_AHEAD.body : TARGET_AHEAD.heliopause;
+    const closing = Math.min(flown / window.length, 1);
     this.toBody
-      .setScale(toDiameter / this.toBody.width)
-      .setPosition(Math.round(560 - 40 * progress), Math.round(96 + 24 * progress));
-    for (const streak of this.streaks) {
-      const travelled = (streak.speed * streakMs) / 1000;
-      const span = 760;
-      const along = (((streak.x0 - travelled) % span) + span) % span;
-      streak.line.setPosition(
-        Math.round(along - 60),
-        Math.round(streak.y0 - (along - streak.x0) * Math.tan(STREAK_ANGLE)),
-      );
-    }
+      .setScale((ahead.from + (ahead.to - ahead.from) * closing) / this.toBody.width)
+      .setPosition(TARGET_AHEAD.at.x, TARGET_AHEAD.at.y);
+  }
+
+  /** The attitude thrusters puff now and then (`live` ms into the Cruise), from alternating spots on the hull. */
+  private puff(live: number): void {
+    const vent = this.vent;
+    if (!vent) return;
+    const index = Math.floor(live / VENT.every);
+    const frame = Math.floor((live - index * VENT.every) / VENT.frameMs);
+    const spot = VENT.spots[index % VENT.spots.length];
+    const on = index > 0 && frame < VENT.frames && spot !== undefined;
+    vent.setVisible(on);
+    if (!on) return;
+    const at = turn(spot, FLIGHT_ANGLE);
+    vent.setPosition(at.x, at.y).setAngle(FLIGHT_ANGLE + spot.angle);
+    if (vent.texture.key === 'fx_vent') vent.setFrame(`spray_${String(frame)}`);
+    else vent.setAlpha(1 - frame / VENT.frames);
+  }
+
+  /** Now and then a distant Body of the Star System crosses far behind the Spacecraft, against the heading. */
+  private pass(live: number): void {
+    const { image, sprites } = this.passing;
+    const since = live - PASSING.first;
+    const index = Math.floor(since / PASSING.every);
+    const t = (since - index * PASSING.every) / PASSING.crossMs;
+    const sprite = sprites[index % Math.max(1, sprites.length)];
+    const on = since >= 0 && t < 1 && sprite !== undefined;
+    image.setVisible(on);
+    if (!on) return;
+    const rng = createRng(this.before.seed ^ (0xb0d1 + index));
+    const size = rng.int(PASSING.size.min, PASSING.size.max);
+    const y0 = rng.int(96, 200);
+    if (image.texture.key !== sprite) image.setTexture(sprite);
+    const x = 660 - 700 * t;
+    image
+      .setScale(size / image.width)
+      .setPosition(Math.round(x), Math.round(y0 + (660 - x) * 0.18))
+      .setAlpha(0.75);
   }
 
   /**
@@ -588,15 +764,16 @@ export class Flight extends Scene {
   private vertical(shot: VerticalShot, firing: boolean, ms: number): void {
     const x = SHIP_PLACEMENT.x;
     const y = Math.round(SHIP_PLACEMENT.baseY - shot.altitude);
-    this.shipArt('landed');
-    this.ship.setPosition(x, y).setAngle(0);
+    this.showShip('landed');
+    this.ship.setScale(1).setPosition(x, y).setAngle(0);
     this.thrust(firing ? shot.plume : 0, false);
     // The camera rides a step behind it, rumbling (never under reduced motion).
     const rumble = this.pace === 'full' ? shot.rumble : 0;
     this.rumble = rumble;
+    // Adding 0 turns a -0 (no rumble, camera on the ground) into 0, the Landed view's own scroll.
     this.cameras.main.setScroll(
-      Math.round(rumble * wobble(ms, 23, 9.7)),
-      Math.round(-shot.camera + rumble * wobble(ms + 400, 19, 7.9)),
+      Math.round(rumble * wobble(ms, 23, 9.7)) + 0,
+      Math.round(rumble * wobble(ms + 400, 19, 7.9) - shot.camera) + 0,
     );
     this.light(shot, firing);
     this.shadow.setAlpha(0.45 * (1 - Math.min(shot.altitude / 80, 1)));
@@ -673,12 +850,22 @@ export class Flight extends Scene {
     return this.plumes.standing.map(({ image }) => ({ x: x + image.x, y: y + image.y }));
   }
 
-  /** The flight frame's nozzle exits in the world, for a Spacecraft whose base is at (`x`, `y`) and turned `angle` degrees. */
+  /**
+   * The flight frame's nozzle exits in the world, for a Spacecraft whose base is at (`x`, `y`), turned
+   * `angle` degrees and drawn at its current scale.
+   */
   private flightNozzles(x: number, y: number, angle: number): Point[] {
+    const k = this.ship.scaleX;
     return this.plumes.flight.map(({ image }) => {
       const at = turn({ x: image.x, y: image.y }, angle);
-      return { x: x + at.x, y: y + at.y };
+      return { x: x + k * at.x, y: y + k * at.y };
     });
+  }
+
+  /** Draws the Spacecraft in `frame`; the Component layout follows it. */
+  private showShip(frame: ShipFrame): void {
+    this.shipFrame = frame;
+    this.shipArt(frame);
   }
 
   /** Fires every downward nozzle of the standing pose `stretch` long (0 is off), and the rearward ones of the flight pose while `rear`. */
@@ -709,8 +896,8 @@ export class Flight extends Scene {
     }
   }
 
-  private showStage(burn: Burn): void {
-    const stage = burn === 'takeoff' ? 'departure' : burn === 'transfer' ? 'space' : 'arrival';
+  private showStage(shot: Shot): void {
+    const stage = shot === 'takeoff' ? 'departure' : shot === 'landing' ? 'arrival' : 'space';
     // A brief fade softens each cut between the ground and space.
     // Reduced motion takes the cut as it is.
     if (this.pace === 'full' && this.stage !== undefined && this.stage !== stage) {
@@ -731,17 +918,25 @@ export class Flight extends Scene {
     this.fx?.setStage(stage === 'space');
   }
 
-  /** Tells the HUD when something it shows has changed: the Burn, the thrust, the log or a Fuel step. */
+  /**
+   * Tells the HUD when something it shows has changed: the Burn or shot, the thrust, the log, a Fuel
+   * step, a step along the route, or a systems light coming on.
+   */
   private report(moment: FlightMoment): void {
     const last = this.lastMoment;
     const step = (m: FlightMoment): number =>
       Math.round((m.fuel / this.before.spacecraft.fuelCapacity) * 400);
+    const installed = this.before.spacecraft.slots.filter((slot) => slot !== null).length;
+    const lit = (m: FlightMoment): number => systemsLit(m.cruise, installed);
     if (
       last?.burn === moment.burn &&
+      last.shot === moment.shot &&
       last.thrusting === moment.thrusting &&
       last.logged === moment.logged &&
       last.ended === moment.ended &&
-      step(last) === step(moment)
+      step(last) === step(moment) &&
+      Math.round(last.route * 100) === Math.round(moment.route * 100) &&
+      lit(last) === lit(moment)
     ) {
       return;
     }
@@ -837,13 +1032,14 @@ export class Flight extends Scene {
   /** Fell Short: the engine is dead and the Spacecraft drifts, turning slowly. Still under reduced motion. */
   private drift(): void {
     if (this.flight.outcome.kind === 'fell-short' && this.flight.outcome.burn === 'transfer') {
-      // In deep space, move clear of the report panel.
-      if (this.pace === 'reduced') this.ship.setPosition(DRIFT_REST.x, DRIFT_REST.y);
+      // In deep space it drifts away, smaller and smaller, clear of the report panel.
+      if (this.pace === 'reduced') this.ship.setPosition(DRIFT_REST.x, DRIFT_REST.y).setScale(1);
       else
         this.tweens.add({
           targets: this.ship,
           x: DRIFT_REST.x,
           y: DRIFT_REST.y,
+          scale: 1,
           duration: 1400,
           ease: 'Sine.easeOut',
         });
@@ -866,17 +1062,41 @@ export class Flight extends Scene {
     return { layers, puffColor };
   }
 
-  /** Deep space, held still on screen: stars, the two Bodies and the speed streaks. */
+  /**
+   * Deep space, fixed on screen: the star layers, the sun's glint, a passing Body, the two Bodies of
+   * the Hop and the speed streaks. Everything is built once; the Cruise only moves it.
+   */
   private buildSpace(): GameObjects.Container {
     const space = this.add.container(0, 0).setScrollFactor(0);
-    space.add(this.add.rectangle(0, 0, 640, 360, paletteNumber('void')).setOrigin(0));
-    space.add(addStarfield(this, this.before.seed ^ 0x5fa7, SPACE_STARS));
+    space.add(this.add.rectangle(0, 0, SCREEN_WIDTH, 360, paletteNumber('void')).setOrigin(0));
+    this.starLayers = STAR_LAYERS.map((layer, i) =>
+      this.add
+        .tileSprite(0, 0, SCREEN_WIDTH, 360, starLayerTexture(this, this.before.seed, i, layer))
+        .setOrigin(0),
+    );
+    space.add(this.starLayers);
+    this.glint = this.add
+      .image(GLINT.x, GLINT.y, hasAsset('fx_flare') ? 'fx_flare' : glowTexture(this))
+      .setScale(GLINT.scale)
+      .setTint(paletteNumber('am4'))
+      .setBlendMode(BlendModes.ADD);
+    // Any Body of the Star System but the two of this Hop.
+    const { plan } = this.flight;
+    const sprites = listBodies(this.before.starSystem)
+      .filter(
+        (body) => body.id !== plan.fromId && (plan.destination !== 'body' || body.id !== plan.toId),
+      )
+      .map((body) => bodySprite(this.before, body));
+    this.passing = {
+      image: this.add.image(0, 0, sprites[0] ?? glowTexture(this)).setVisible(false),
+      sprites,
+    };
+    space.add([this.glint, this.passing.image]);
     const sprite = (run: Run, id: BodyId): GameObjects.Image => {
       const body = findBody(run.starSystem, id);
       if (!body) throw new Error(`No Body ${id}`);
       return this.add.image(0, 0, bodySprite(run, body));
     };
-    const { plan } = this.flight;
     this.fromBody = sprite(this.before, plan.fromId);
     this.toBody =
       plan.destination === 'body'
@@ -887,21 +1107,16 @@ export class Flight extends Scene {
       const rng = createRng(this.before.seed ^ 0x57ea);
       for (let i = 0; i < STREAK_COUNT; i++) {
         const length = rng.int(6, 26);
+        const alpha = 0.35 + rng.next() * 0.4;
         const line = this.add
-          .rectangle(
-            0,
-            0,
-            length,
-            1,
-            paletteNumber(i % 3 === 0 ? 'cy3' : 'wh1'),
-            0.35 + rng.next() * 0.4,
-          )
+          .rectangle(0, 0, length, 1, paletteNumber(i % 3 === 0 ? 'cy3' : 'wh1'), alpha)
           .setRotation(STREAK_ANGLE + Math.PI);
         this.streaks.push({
           line,
           x0: rng.int(0, 760),
           y0: rng.int(-40, 420),
           speed: 260 + rng.next() * 420,
+          alpha,
         });
         space.add(line);
       }
@@ -974,11 +1189,20 @@ export class Flight extends Scene {
     this.nozzleGlows = nozzleGlows;
     const ship = addSpacecraftArt(this, chassisId);
     this.shipArt = ship.show;
+    // The attitude thrusters' puff (the generated vent spray once the manifest has it). Not under reduced motion.
+    this.vent =
+      this.pace === 'full'
+        ? (hasAsset('fx_vent')
+            ? this.add.image(0, 0, 'fx_vent', 'spray_0').setOrigin(0.5, 1)
+            : this.add.image(0, 0, glowTexture(this)).setDisplaySize(6, 10).setOrigin(0.5, 1)
+          ).setVisible(false)
+        : undefined;
     this.ship = this.add.container(SHIP_PLACEMENT.x, SHIP_PLACEMENT.baseY, [
       ...this.plumes.standing.map((plume) => plume.image),
       ...this.plumes.flight.map((plume) => plume.image),
       ...ship.objects,
       ...nozzleGlows,
+      ...(this.vent ? [this.vent] : []),
     ]);
   }
 
@@ -1008,6 +1232,31 @@ export class Flight extends Scene {
       : undefined;
     return { screen, burst, nozzles: this.nozzleGlows, explosion };
   }
+}
+
+/**
+ * One star layer of the Cruise drawn once into a screen-sized texture that tiles seamlessly, so the
+ * layer drifts forever by moving its tile position.
+ */
+function starLayerTexture(
+  scene: Scene,
+  seed: number,
+  index: number,
+  layer: { readonly count: number; readonly size: number },
+): string {
+  const key = `cruise_stars_${String(index)}`;
+  if (scene.textures.exists(key)) scene.textures.remove(key);
+  const graphics = scene.make.graphics({}, false);
+  for (const star of generateStars(seed ^ (0x5fa7 + index), layer.count, {
+    width: SCREEN_WIDTH,
+    height: 360,
+  })) {
+    graphics.fillStyle(paletteNumber(star.color), star.alpha);
+    graphics.fillRect(star.x, star.y, layer.size, layer.size);
+  }
+  graphics.generateTexture(key, SCREEN_WIDTH, 360);
+  graphics.destroy();
+  return key;
 }
 
 /** Size (px) of the Heliopause's art; the stand-in is drawn at the same size. */

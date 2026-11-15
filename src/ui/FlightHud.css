@@ -314,3 +314,45 @@
     opacity: 0;
   }
 }
+
+/* The Cruise's systems check: a row of small lights right of the fast-forward, beside the route inset. */
+.systems-lights {
+  position: absolute;
+  top: 304px;
+  left: 492px;
+  display: flex;
+  gap: 0;
+  height: 26px;
+  margin: 0;
+  padding: 2px 4px;
+  box-sizing: border-box;
+  list-style: none;
+  background: color-mix(in srgb, var(--gm0) 80%, transparent);
+  border: 1px solid var(--gm3);
+}
+
+.systems-lights__light {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.systems-lights__lamp {
+  box-sizing: border-box;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid var(--gm4);
+}
+
+/* Lit: a filled cyan dot with a glow; unlit: a hollow ring (the shape changes, not only the colour). */
+.systems-lights__light--on .systems-lights__lamp {
+  border-color: var(--cy4);
+  background: var(--cy3);
+  box-shadow: 0 0 4px var(--cy3);
+}
+
+.systems-lights__light--on .systems-lights__mark {
+  filter: drop-shadow(0 0 1px var(--cy2));
+}

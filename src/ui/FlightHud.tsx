@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { hasAsset, imageUrl } from '../game/assets/manifest.ts';
 import { EventBus } from '../game/EventBus.ts';
-import { FAST_FORWARD, type FlightMoment } from '../game/scenes/flightPlayback.ts';
+import { FAST_FORWARD, systemsLit, type FlightMoment } from '../game/scenes/flightPlayback.ts';
 import type { JumpStage } from '../game/scenes/jumpPlayback.ts';
 import {
   availableDeltaV,
@@ -15,6 +15,7 @@ import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import { EndOfRun, type RecordedScore } from './EndOfRun.tsx';
 import { HopReport } from './HopReport.tsx';
+import { SystemsLights } from './SystemsLights.tsx';
 import { JUMP_FLAVOUR_TEXT } from './jumpFlavour.ts';
 import { TopBar } from './TopBar.tsx';
 import './FlightHud.css';
@@ -163,7 +164,13 @@ export function FlightHud({
         dailyDay={dailyDay}
       />
 
-      <section className="phase-strip" aria-label="Hop progress" data-testid="phase-strip">
+      {/* The shot on screen (`data-shot`) is for tests: the canvas shows it. */}
+      <section
+        className="phase-strip"
+        aria-label="Hop progress"
+        data-testid="phase-strip"
+        data-shot={moment?.shot ?? 'takeoff'}
+      >
         <KitFrame frame="panel_holo" width={STRIP.width} height={STRIP.height} />
         <ol className="phase-strip__list">
           {view.phases.map((phase) => (
@@ -230,6 +237,16 @@ export function FlightHud({
           {view.route.to}
         </p>
       </section>
+
+      {moment?.cruise && (
+        <SystemsLights
+          slots={before.spacecraft.slots}
+          lit={systemsLit(
+            moment.cruise,
+            before.spacecraft.slots.filter((slot) => slot !== null).length,
+          )}
+        />
+      )}
 
       {!over && (
         <KitButton
