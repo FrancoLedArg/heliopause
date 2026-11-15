@@ -89,7 +89,7 @@ export function playGatheringMoment(
 
   // 1. The source: the ground under the Spacecraft glows where the resource comes up.
   const seep = scene.add
-    .ellipse(0, 5, shipExtent.halfWidth * 1.8, 7, colour, 0)
+    .ellipse(0, 5, shipExtent.halfWidth * 2.2, 10, colour, 0)
     .setBlendMode(BlendModes.ADD);
   // Above the shadow (index 0), under the Spacecraft's art.
   ship.addAt(seep, 1);
@@ -97,7 +97,7 @@ export function playGatheringMoment(
   tweens.push(
     scene.tweens.add({
       targets: seep,
-      fillAlpha: { from: 0, to: 0.55 },
+      fillAlpha: { from: 0, to: 0.8 },
       duration: (BEAT.rise.end - BEAT.rise.start) / 2,
       yoyo: true,
       ease: 'Sine.easeInOut',
@@ -106,11 +106,11 @@ export function playGatheringMoment(
 
   // 2. The flow: droplets or crystals rise from the ground strip into the Spacecraft. The emitter sits
   // at the layer's origin, so its zone and target are in the Spacecraft's own frame and ride the drift.
-  const lifespan = { min: 380, max: 560 };
+  const lifespan = { min: 320, max: 460 };
   const rise = scene.add.particles(0, 0, ensureParticle(scene, gathering.resource), {
     emitting: false,
-    frequency: 22,
-    quantity: 2,
+    frequency: 16,
+    quantity: 3,
     lifespan,
     // Anywhere in the ground strip under the Spacecraft, a little wider in the middle than at the edges.
     emitZone: {
@@ -125,10 +125,10 @@ export function playGatheringMoment(
     },
     moveToX: { min: -3, max: 3 },
     moveToY: intakeY,
-    scale: { start: 1, end: 0.5 },
+    scale: { start: 2, end: 1 },
     alpha: { start: 0.95, end: 0.35 },
     tint: colour,
-    maxAliveParticles: 60,
+    maxAliveParticles: 120,
   });
   ship.add(rise);
   objects.push(rise);
@@ -143,7 +143,7 @@ export function playGatheringMoment(
   tweens.push(
     scene.tweens.add({
       targets: intake,
-      fillAlpha: { from: 0, to: 0.28 },
+      fillAlpha: { from: 0, to: 0.4 },
       delay: lifespan.min,
       duration: (BEAT.rise.end - lifespan.min) / 2,
       yoyo: true,
@@ -156,17 +156,25 @@ export function playGatheringMoment(
     const pulses = Math.ceil((BEAT.rise.end - BEAT.rise.start) / BEAT.drillEvery);
     for (let i = 0; i < pulses; i++) {
       at(BEAT.rise.start + i * BEAT.drillEvery, () => {
-        const ring = scene.add
-          .ellipse(0, 3, 12, 4)
-          .setStrokeStyle(1, paletteNumber('cy3'), 1)
-          .setFillStyle();
-        ship.add(ring);
-        objects.push(ring);
+        // A bright ring over a dark one, so it reads on pale ice and dark rock alike.
+        const rings = (
+          [
+            [3, 'void', 0.6],
+            [1, 'cy4', 1],
+          ] as const
+        ).map(([width, colour, alpha]) =>
+          scene.add
+            .ellipse(0, 3, 16, 5)
+            .setFillStyle()
+            .setStrokeStyle(width, paletteNumber(colour), alpha),
+        );
+        ship.add(rings);
+        objects.push(...rings);
         tweens.push(
           scene.tweens.add({
-            targets: ring,
-            scaleX: 5,
-            scaleY: 3,
+            targets: rings,
+            scaleX: 6,
+            scaleY: 2.5,
             alpha: 0,
             duration: 520,
             ease: 'Quad.easeOut',
@@ -180,21 +188,25 @@ export function playGatheringMoment(
   if (gathering.resource === 'fuel' && gathering.leftBehind > 0) {
     const share =
       gathering.leftBehind / Math.max(gathering.leftBehind + gathering.to - gathering.from, 1);
-    const spill = scene.add.particles(0, 0, ensureParticle(scene, 'fuel'), {
+    const spill = scene.add.particles(0, -shipExtent.height * 0.8, ensureParticle(scene, 'fuel'), {
       emitting: false,
       lifespan: 1100,
       speed: { min: 45, max: 95 },
       angle: { min: 205, max: 335 },
       gravityY: 300,
       tint: colour,
+      scale: 1.5,
       alpha: { start: 1, end: 0.6 },
-      // Gone where it meets the ground: it is left there, as the puddles show.
-      deathZone: { type: 'onEnter', source: { contains: (_x: number, y: number) => y > 4 } },
+      // Gone where it meets the ground (zones test world positions): it is left there, as the puddles show.
+      deathZone: {
+        type: 'onEnter',
+        source: { contains: (_x: number, y: number) => y > ship.y + 4 },
+      },
     });
     ship.add(spill);
     objects.push(spill);
     at(BEAT.spill.start, () => {
-      spill.explode(Math.round(10 + 22 * share), 0, -shipExtent.height * 0.8);
+      spill.explode(Math.round(16 + 24 * share));
     });
     for (const side of [-1, 1]) {
       const puddle = scene.add
@@ -227,8 +239,8 @@ export function playGatheringMoment(
       BEAT.fly.start + ((BEAT.fly.end - BEAT.fly.start - FLIGHT_MS) * i) / (FLYING_ICONS - 1);
     at(delay, () => {
       const start = { x: ship.x, y: ship.y + intakeY };
-      // The arc bulges up and out, so the icons rise off the Spacecraft before heading for the bar.
-      const control = { x: start.x + (target.x - start.x) * 0.2, y: target.y + 10 };
+      // The arc sweeps across the sky and comes up into the icon from below, clear of the readout's number.
+      const control = { x: target.x, y: start.y - 40 };
       const icon = (
         gathering.resource === 'fuel'
           ? scene.add.image(start.x, start.y, KIT_ATLAS_KEY, 'res_fuel')

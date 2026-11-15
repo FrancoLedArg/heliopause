@@ -88,9 +88,9 @@ export function describeGathering(
 /** The moment's beats (ms from its start; presentation tuning). About 1.5 s in all, as the human approved. */
 export const GATHERING_TIMING = {
   /** The resource rises out of the ground into the Spacecraft. */
-  rise: { start: 0, end: 850 },
+  rise: { start: 0, end: 950 },
   /** A short stream of icons flies to the top bar, which counts up as they land. */
-  fly: { start: 650, end: 1400 },
+  fly: { start: 700, end: 1400 },
   /** A full Tank's leftover spills back down. */
   spill: { start: 700 },
   /** The Drill pulses this often while the resource rises. */
