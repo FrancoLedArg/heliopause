@@ -14,7 +14,7 @@ import {
 } from './index.ts';
 
 describe('the Component catalogue', () => {
-  it('holds an Engine, a Fuel Tank and a Drill, each at levels 1 and 2, and the Jump Drive', () => {
+  it('holds an Engine, a Fuel Tank, a Drill and a Radar, each at levels 1 and 2, and the Jump Drive', () => {
     const kindsAndLevels = Object.values(COMPONENTS).map((c) => `${c.kind} ${String(c.level)}`);
     expect(kindsAndLevels.sort()).toEqual([
       'drill 1',
@@ -24,6 +24,8 @@ describe('the Component catalogue', () => {
       'fuel-tank 1',
       'fuel-tank 2',
       'jump-drive 1',
+      'radar 1',
+      'radar 2',
     ]);
   });
 
@@ -42,10 +44,14 @@ describe('the Component catalogue', () => {
     }
   });
 
-  it('every Component cites the propulsion research or is marked gameplay tuning', () => {
-    for (const { provenance } of Object.values(COMPONENTS)) {
+  it('every Component cites its research (propulsion, or sensors for the Radar) or is marked gameplay tuning', () => {
+    for (const { kind, provenance } of Object.values(COMPONENTS)) {
       if (provenance.kind === 'sourced') {
-        expect(provenance.source).toContain('docs/research/propulsion-trade-offs.md');
+        expect(provenance.source).toContain(
+          kind === 'radar'
+            ? 'docs/research/sensors-and-communication.md'
+            : 'docs/research/propulsion-trade-offs.md',
+        );
       } else {
         expect(provenance.kind).toBe('gameplay-tuning');
         expect(JSON.stringify(provenance)).not.toContain('"source"');
@@ -58,6 +64,7 @@ describe('the Component catalogue', () => {
       [COMPONENTS['engine-1'], COMPONENTS['engine-2']],
       [COMPONENTS['fuel-tank-1'], COMPONENTS['fuel-tank-2']],
       [COMPONENTS['drill-1'], COMPONENTS['drill-2']],
+      [COMPONENTS['radar-1'], COMPONENTS['radar-2']],
     ] as const;
     for (const [one, two] of levels) {
       expect(two.mass).toBeGreaterThan(one.mass);
@@ -67,7 +74,7 @@ describe('the Component catalogue', () => {
   });
 });
 
-/** A Component's base figure: an Engine's Isp, a Fuel Tank's capacity, a Drill's multiplier. */
+/** A Component's base figure: an Engine's Isp, a Fuel Tank's capacity, a Drill's multiplier, a Radar's range. */
 function effectOf(component: Component): number {
   switch (component.kind) {
     case 'engine':
@@ -79,6 +86,8 @@ function effectOf(component: Component): number {
     case 'jump-drive':
       // It has no figure to compare: its effect is the Jump itself.
       return 1;
+    case 'radar':
+      return component.range;
   }
 }
 

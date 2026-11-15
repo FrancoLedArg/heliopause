@@ -3,7 +3,7 @@
 // open this way, and so does the generator's own check of a fair opening.
 import type { ChassisId } from './data.ts';
 import { collectYield } from './gather.ts';
-import { distanceBetween, type Knowledge } from './knowledge.ts';
+import { distanceBetween, radarSweep, type Knowledge } from './knowledge.ts';
 import type { Run } from './run.ts';
 import { newSpacecraft } from './spacecraft.ts';
 import {
@@ -41,15 +41,14 @@ export function firstDetectedBody(system: StarSystem): LandableBody {
 /**
  * What the Spacecraft knows when it is marooned: the Starting Moon, Surveyed, and the first Body
  * Comms Detects. A Gas Giant it orbits is Surveyed too: its size gives it away, so it is never
- * mistaken for a target. Until the Radar (#191) can find the Heliopause, it is found from the start:
- * nothing else could, and no Run could escape.
+ * mistaken for a target. The Heliopause is not found: only the Radar finds it (#191).
  */
 export function openingKnowledge(system: StarSystem): Knowledge {
   const moon = startingMoon(system);
   const first = firstDetectedBody(system);
   const planet = findBody(system, moon.planetId);
   const surveyed = planet?.kind === 'gas-giant' ? [planet.id, moon.id] : [moon.id];
-  return { detected: [...surveyed, first.id], surveyed, heliopauseFound: true };
+  return { detected: [...surveyed, first.id], surveyed, heliopauseFound: false };
 }
 
 /** Everything a Run carries into a Star System; the opening sets the rest. */
@@ -61,7 +60,8 @@ export type Arriving = Omit<
 /**
  * The Run marooned on the Starting Moon of `starSystem`: landed there knowing only the opening, with
  * the Moon's yield collected (through the land operation, so a Drill counts and Fuel is capped at the
- * Tank) and the Moon Depleted. Nothing in the new Star System has given up its yield before.
+ * Tank) and the Moon Depleted. Nothing in the new Star System has given up its yield before. A Radar
+ * carried through the Jump sweeps from the Starting Moon, as on any landing.
  */
 export function maroon(arriving: Arriving, starSystem: StarSystem): Run {
   const moon = startingMoon(starSystem);
@@ -76,7 +76,7 @@ export function maroon(arriving: Arriving, starSystem: StarSystem): Run {
     },
     moon.id,
   );
-  return { ...landed.run, startingYield: landed.collection };
+  return { ...radarSweep(landed.run).run, startingYield: landed.collection };
 }
 
 /**
@@ -104,6 +104,7 @@ export function startingRun(
       starSystemNumber: level,
       spacecraft: { ...spacecraft, fuelMass: kilograms(spacecraft.fuelMass - fuelShort) },
       hopsFlown: 0,
+      gameHours: 0,
       materials: materials(STARTING_MATERIALS - materialsShort),
       choices: [],
     },

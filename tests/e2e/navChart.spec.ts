@@ -50,11 +50,11 @@ test('the Nav Chart opens over the Landed view, names the Spacecraft Body and cl
   const here = page.getByTestId('inspect');
   await expect(here.getByRole('heading', { name: homeName })).toBeVisible();
   await expect(page.getByTestId('verdict')).toContainText('already on');
-  await expect(page.getByText('Heliopause', { exact: true })).toBeVisible();
-  // Only what the player knows: the Starting Moon, its Gas Giant and the one Body Comms Detected,
-  // and the Heliopause (found from the start until the Radar, #191).
+  // Only what the player knows: the Starting Moon, its Gas Giant and the one Body Comms Detected.
+  // The Heliopause is not on the chart until the Radar finds it (#191).
+  await expect(page.getByText('Heliopause', { exact: true })).toHaveCount(0);
   const options = page.getByRole('option');
-  await expect(options).toHaveCount(4);
+  await expect(options).toHaveCount(3);
   for (const body of [home, gasGiant, homeMoon]) {
     await expect(page.getByRole('option', { name: new RegExp(`^${body.name},`) })).toBeAttached();
   }
