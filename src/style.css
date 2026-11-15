@@ -247,6 +247,28 @@ body {
   left: 450px;
 }
 
+/* The readout a gathering moment fills: its icon swells and glows as each icon lands (shape, not just colour). */
+.top-bar__icon--filling {
+  animation: top-bar-filling 250ms ease-out infinite alternate;
+}
+
+@keyframes top-bar-filling {
+  from {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  to {
+    transform: scale(1.25);
+    filter: brightness(1.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .top-bar__icon--filling {
+    animation: none;
+  }
+}
+
 .top-bar__label {
   position: absolute;
   top: 9px;
