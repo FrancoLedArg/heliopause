@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { COMPONENTS } from '../game/sim/catalogue.ts';
-import { ICE_LINE, SOURCED_CONSTANTS, SOURCED_RANGES } from '../game/sim/data.ts';
+import { FUEL_NOTE, ICE_LINE, SOURCED_CONSTANTS, SOURCED_RANGES } from '../game/sim/data.ts';
 import { ABOUT, CREDITS, type ContentLink } from './aboutContent.ts';
 
 /** Every URL the simulation data cites in a `source` field or a Component's sourced provenance. */
@@ -9,6 +9,7 @@ function citedUrls(): Set<string> {
     ...Object.values(SOURCED_RANGES).flatMap((body) => Object.values(body).map((r) => r.source)),
     ...Object.values(SOURCED_CONSTANTS).map((c) => c.source),
     ICE_LINE.distance.source,
+    FUEL_NOTE.source,
     ...Object.values(COMPONENTS).flatMap((c) =>
       c.provenance.kind === 'sourced' ? [c.provenance.source] : [],
     ),
@@ -87,6 +88,12 @@ describe('About and Credits content', () => {
     expect(entries.map((e) => e.link?.url)).toContain(
       'https://github.com/FrancoLedArg/heliopause/blob/main/docs/research/',
     );
+  });
+
+  it('gives every Reference link a distinct accessible name', () => {
+    const labels = (group('References')?.entries ?? []).map((e) => e.link?.label);
+    expect(new Set(labels).size).toBe(labels.length);
+    for (const label of labels) expect(label).toMatch(/^Source: /);
   });
 
   it('is named Credits & References', () => {

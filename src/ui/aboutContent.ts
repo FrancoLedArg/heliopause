@@ -13,8 +13,6 @@ export interface ContentLink {
 export interface TeamMember {
   name: string;
   role: string;
-  /** A stand-in the team replaces; the screen marks it visibly. */
-  placeholder?: boolean;
 }
 
 export interface CreditEntry {
@@ -93,7 +91,7 @@ export const ABOUT = {
 };
 
 function ref(label: string, detail: string, url: string): CreditEntry {
-  return { name: label, detail, link: { label: 'Source', url } };
+  return { name: label, detail, link: { label: `Source: ${label}`, url } };
 }
 
 export const CREDITS: {
@@ -167,11 +165,10 @@ export const CREDITS: {
       heading: 'Inspiration',
       entries: [
         {
-          name: 'NASA Space Apps Challenge 2026: "Lunar Landing Site Navigator"',
-          detail:
-            'The challenge behind our day and night and temperature ideas (a challenge, not a team project)',
+          name: 'NASA Space Apps Challenge 2026 challenge: Lunar Landing Site Navigator',
+          detail: 'The challenge behind our day and night and temperature ideas',
           link: {
-            label: 'Challenge page',
+            label: 'Challenge page: Lunar Landing Site Navigator',
             url: 'https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/',
           },
         },
@@ -179,7 +176,7 @@ export const CREDITS: {
           name: 'Astro Sweepers: We Catch What Space Leaves Behind',
           detail: 'NASA Space Apps Challenge 2025 project that inspired our space debris ideas',
           link: {
-            label: 'Project page',
+            label: 'Project page: Astro Sweepers',
             url: 'https://www.spaceappschallenge.org/2025/find-a-team/astro-sweepers-we-catch-what-space-leaves-behind/',
           },
         },
@@ -229,6 +226,11 @@ export const CREDITS: {
           'https://ntrs.nasa.gov/citations/20120003776',
         ),
         ref(
+          'NASA NTRS: Sanders et al., NASA plans for in situ resource utilization',
+          'Real missions plan to make propellant from lunar water ice',
+          'https://ntrs.nasa.gov/citations/20220008799',
+        ),
+        ref(
           'NASA/JPL Solar System Dynamics: Astrodynamic Parameters',
           'The astronomical unit',
           'https://ssd.jpl.nasa.gov/astro_par.html',
@@ -237,6 +239,16 @@ export const CREDITS: {
           'Lecar et al. 2006, ApJ 640, 1115',
           'The Solar System ice line',
           'https://doi.org/10.1086/500159',
+        ),
+        ref(
+          'Martin & Livio 2013, MNRAS',
+          'The Solar System ice line',
+          'https://arxiv.org/abs/1306.5243',
+        ),
+        ref(
+          'IAU 2012 Resolution B2',
+          'The astronomical unit, defined exactly',
+          'https://www.iau.org/Iau/Publications/List-of-Resolutions',
         ),
         ref(
           'Our research notes',

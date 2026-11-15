@@ -119,7 +119,7 @@ export const ICE_LINE = {
   distance: {
     value: astronomicalUnits(2.7),
     source:
-      'Lecar et al. 2006, ApJ 640, 1115 https://doi.org/10.1086/500159; Martin & Livio 2013, MNRAS (ice line of the Solar System); see docs/research/ for the ice-line note from research PR #120',
+      'Lecar et al. 2006, ApJ 640, 1115 https://doi.org/10.1086/500159; Martin & Livio 2013, MNRAS, "On the evolution of the snow line in protoplanetary discs II" https://arxiv.org/abs/1306.5243; see docs/research/ for the ice-line note from research PR #120',
   } satisfies SourcedValue<AstronomicalUnits>,
 } as const;
 
@@ -135,6 +135,15 @@ export const BODY_TUNING = {
     rocky: { min: materials(10), max: materials(30) },
   },
 } as const satisfies Record<string, Record<string, TuningRange>>;
+
+/**
+ * Where the in-game Fuel note ("real missions plan to split lunar water ice into hydrogen and oxygen")
+ * comes from. Not a game figure, so it has no value.
+ */
+export const FUEL_NOTE = {
+  source:
+    'Sanders, Kleinhenz and Linne (NASA), "NASA Plans for In Situ Resource Utilization (ISRU) Development, Demonstration, and Implementation", NTRS 20220008799 https://ntrs.nasa.gov/citations/20220008799; docs/research/ice-and-resources.md',
+} as const;
 
 /** Real-world figures behind the Hop rules. Each cites its source. */
 export const SOURCED_CONSTANTS = {
@@ -163,7 +172,7 @@ export const SOURCED_CONSTANTS = {
   kilometersPerAu: {
     value: 149_597_870.7,
     source:
-      'IAU 2012 Resolution B2, NASA/JPL Solar System Dynamics "Astrodynamic Parameters" https://ssd.jpl.nasa.gov/astro_par.html',
+      'IAU 2012 Resolution B2 https://www.iau.org/Iau/Publications/List-of-Resolutions, NASA/JPL Solar System Dynamics "Astrodynamic Parameters" https://ssd.jpl.nasa.gov/astro_par.html',
   } satisfies SourcedValue<number>,
 } as const;
 
