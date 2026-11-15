@@ -16,13 +16,24 @@ import {
 } from '../game/sim/index.ts';
 import { describeReport } from './hopReportView.ts';
 
-/** The first Hop of a seeded Run that ends `kind`: Launch settles the outcome, so a seed can be searched. */
+/** A New Run on `chassis` with only `share` of its Fuel left. */
+function withFuelShare(seed: number, chassis: ChassisId, share: number): Run {
+  const run = startRun(seed, chassis);
+  const fuelMass = kilograms(run.spacecraft.fuelMass * share);
+  return { ...run, spacecraft: { ...run.spacecraft, fuelMass } };
+}
+
+/**
+ * The first Hop of a seeded Run, with `share` of its Fuel, that ends `kind`: Launch settles the
+ * outcome, so a seed can be searched.
+ */
 function hopThatEnds(
   kind: HopOutcome['kind'],
   seed: number,
   chassis: ChassisId,
+  share = 1,
 ): { run: Run; flight: HopFlight } {
-  const run = startRun(seed, chassis);
+  const run = withFuelShare(seed, chassis, share);
   for (const body of listBodies(run.starSystem)) {
     const launched = launchHop(run, body.id);
     if (launched.kind === 'flown' && launched.flight.outcome.kind === kind) {
@@ -88,7 +99,8 @@ describe('the Hop report', () => {
   });
 
   it('says during which Burn the Fuel ran out when a Hop Fell Short, and that the later Burns never flew', () => {
-    const { run, flight } = hopThatEnds('fell-short', 123, 'hauler');
+    // Re-pinned for #188: no first Hop of a full hauler falls short now, so it sets off half-fuelled.
+    const { run, flight } = hopThatEnds('fell-short', 123, 'hauler', 0.5);
     const view = describeReport(run, flight);
     expect(view.title).toBe('Fell Short');
     expect(view.headline).toMatch(/Fuel ran out during the Transfer/);
@@ -101,18 +113,20 @@ describe('the Hop report', () => {
   });
 
   it('gives the same Margin share in the report as in the why text: a hauler on seed 123', () => {
-    const run = startRun(123, 'hauler');
-    const viormio = listBodies(run.starSystem).find((body) => body.name === 'Viormio');
-    if (!viormio) throw new Error('seed 123 has no Viormio');
-    const launched = launchHop(run, viormio.id);
+    // Re-pinned for #188: a half-fuelled hauler's Hop to Sircer is short (was a full one to Viormio).
+    const run = withFuelShare(123, 'hauler', 0.5);
+    const sircer = listBodies(run.starSystem).find((body) => body.name === 'Sircer');
+    if (!sircer) throw new Error('seed 123 has no Sircer');
+    const launched = launchHop(run, sircer.id);
     if (launched.kind !== 'flown') throw new Error('expected a flight');
     const view = describeReport(run, launched.flight);
-    expect(view.margin).toBe('Margin: none left (planned −1,336 m/s, 6%)');
-    expect(view.why).toMatch(/The Fuel gives 6% less Δv/);
+    expect(view.margin).toBe('Margin: none left (planned −1,793 m/s, 11%)');
+    expect(view.why).toMatch(/The Fuel gives 11% less Δv/);
   });
 
   it('says a Crashed Hop completed the Transfer but ran out of Δv in the Landing', () => {
-    const { run, flight } = hopThatEnds('crashed', 123, 'scout');
+    // Re-pinned for #188: no first Hop of a full scout crashes now, so it sets off half-fuelled.
+    const { run, flight } = hopThatEnds('crashed', 123, 'scout', 0.5);
     const view = describeReport(run, flight);
     expect(view.title).toBe('Crashed');
     expect(view.headline).toMatch(/Transfer succeeded.*Landing/);
@@ -125,7 +139,8 @@ describe('the Hop report', () => {
   });
 
   describe('what landing collected', () => {
-    const run = startRun(2026, 'scout');
+    // Re-pinned for #188: seed 2026's Home Moon now overfills a Drill-carrying scout's Tank.
+    const run = startRun(2027, 'scout');
     const moon = homePlanet(run.starSystem).moons[0];
     if (!moon) throw new Error('The Home Planet has a Moon');
     const flown = (from: Run) => {
@@ -172,7 +187,7 @@ describe('the Hop report', () => {
       const elsewhere = listBodies(run.starSystem).find(
         (body) => body.landable && body.composition === 'icy' && body.id !== moon.id,
       );
-      if (!elsewhere) throw new Error('seed 2026 has a second Icy Body');
+      if (!elsewhere) throw new Error('seed 2027 has a second Icy Body');
       const second = { ...run, depleted: [elsewhere.id] };
       const view = describeReport(second, flown(second).flight);
       expect(view.gains[0]?.name).toMatch(/of Fuel/);
@@ -247,7 +262,7 @@ describe('the Hop report', () => {
     });
 
     it('says nothing was collected after a failed Hop', () => {
-      const { run: failedRun, flight } = hopThatEnds('fell-short', 123, 'hauler');
+      const { run: failedRun, flight } = hopThatEnds('fell-short', 123, 'hauler', 0.5);
       expect(describeReport(failedRun, flight).gains).toEqual([]);
     });
   });

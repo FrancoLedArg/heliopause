@@ -9,7 +9,9 @@ import {
   type Body,
 } from '../../src/game/sim/index.ts';
 
-const SEED = 123;
+// Re-pinned for #188 (was 123): since generation changed, seed 305 is the first with a Hop that
+// Crashes for the scout and one that Falls Short in the Transfer for the hauler.
+const SEED = 305;
 const run = startRun(SEED, 'scout');
 const home = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId);
 const homeMoon = home?.moons[0];
@@ -31,7 +33,7 @@ const crashLaunch = launchHop(run, crashTarget.id);
 if (crashLaunch.kind !== 'flown') throw new Error('unreachable');
 const crashFlight = crashLaunch.flight;
 
-/** Seed 123's Hauler Falls Short in the Transfer on its way to Tyquesion (found by a scan over seeds, Chassis and targets). */
+/** Seed 305's Hauler Falls Short in the Transfer on its way to Lyquin (found by a scan over seeds, Chassis and targets). */
 const haulerRun = startRun(SEED, 'hauler');
 const shortTarget: Body | undefined = listBodies(haulerRun.starSystem).find((body) => {
   const launched = launchHop(haulerRun, body.id);

@@ -148,7 +148,11 @@ describe('the Landed sky', () => {
         const half = (s: (typeof sky)[number]) => (SPRITE_SIZE[s.kind] * s.scale) / 2;
         const apart = Math.hypot(moon.x - planet.x, moon.y - planet.y);
         expect(apart, `seed ${seed}`).toBeGreaterThanOrEqual(half(moon) + half(planet));
-        expect(apart).toBeLessThanOrEqual(half(moon) + half(planet) + 2 * 2 * half(moon) + 6);
+        // Moons fan out sideways, so "beside" bounds the sideways distance: a Moon at the end of its
+        // fan may also sit a pixel or two higher or lower (#188 seed 191: 48 px across, 1 px down).
+        expect(Math.abs(moon.x - planet.x), `seed ${seed}`).toBeLessThanOrEqual(
+          half(moon) + half(planet) + 2 * 2 * half(moon) + 6,
+        );
       }
     }
     expect(checked).toBeGreaterThan(100);
@@ -191,11 +195,16 @@ describe('the Landed sky layout', () => {
     }
   });
 
-  it('seed 123: the Gas Giant no longer sits on the nearer rocky planet', () => {
-    const sky = skyBodies(newRun(123));
+  // Re-pinned for #188: generation changed, and a Home Planet's sky no longer shows a Gas Giant.
+  // From a Gas Giant's Moon on seed 1, its planet's bearing puts it on a rocky planet near the star.
+  it("seed 1, from a Gas Giant's Moon: the Gas Giant no longer sits on the rocky planet", () => {
+    const run = newRun(1);
+    const moonId = listBodies(run.starSystem).find((b) => b.id === 'planet-5-moon-1')?.id;
+    if (!moonId) throw new Error('seed 1 has no planet-5-moon-1');
+    const sky = skyBodies({ ...run, status: { kind: 'landed', bodyId: moonId } });
     const gas = sky.find((s) => s.kind === 'gas-giant');
     const rocky = sky.find((s) => s.kind === 'rocky-planet');
-    if (!gas || !rocky) throw new Error('seed 123 should show a Gas Giant and a rocky planet');
+    if (!gas || !rocky) throw new Error('this sky should show a Gas Giant and a rocky planet');
     expect(apart(gas, rocky)).toBeGreaterThanOrEqual(half(gas) + half(rocky));
   });
 

@@ -465,7 +465,7 @@ export function GameUI() {
           dailyDay={flight.after?.kind === 'ended' ? flight.after.recorded.dailyDay : daily}
         />
       )}
-      <p className="hud-tag ai-label">AI-generated art</p>
+      <p className="hud-tag ai-label">AI-generated art and music</p>
     </div>
   );
 }

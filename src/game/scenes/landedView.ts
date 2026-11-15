@@ -110,8 +110,8 @@ const MOON_SPREAD = 4;
 const MAX_SKY_BODIES = 5;
 
 /** How many art variants each kind of Body has (`body_*` in the manifest). */
-const VARIANTS = { 'rocky-planet': 4, 'gas-giant': 3, moon: 4 } as const;
-const SPRITE_PREFIX = {
+export const VARIANTS = { 'rocky-planet': 4, 'gas-giant': 3, moon: 4 } as const;
+export const SPRITE_PREFIX = {
   'rocky-planet': 'body_rocky_',
   'gas-giant': 'body_gas_',
   moon: 'body_moon_',

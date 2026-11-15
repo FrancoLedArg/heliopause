@@ -6,13 +6,14 @@ import { LandedPanels } from './LandedPanels.tsx';
 
 afterEach(cleanUp);
 
-// Seed 4171 has the longest names in 20,000 seeds; Thirthiothux Minor is a Moon of Praespraethaen Prime.
+// Seed 10540 has the longest Moon name in 20,000 seeds: Drioldrionlael Minor, a Moon of Tioraevel Rho.
+// Re-pinned for #188 (was seed 4171's Thirthiothux Minor).
 const SLACK = 6;
 
 it('marks a Depleted Body on the Landed plate, on the kind row, inside an unchanged plate', async () => {
-  const run = startRun(4171, 'scout');
-  const body = listBodies(run.starSystem).find((b) => b.name === 'Thirthiothux Minor');
-  if (!body) throw new Error('seed 4171 has no Thirthiothux Minor');
+  const run = startRun(10540, 'scout');
+  const body = listBodies(run.starSystem).find((b) => b.name === 'Drioldrionlael Minor');
+  if (!body) throw new Error('seed 10540 has no Drioldrionlael Minor');
   const host = await renderUi(
     <LandedPanels
       run={{ ...run, status: { kind: 'landed', bodyId: body.id }, depleted: [body.id] }}

@@ -5,6 +5,7 @@ import {
   DIFFICULTY_TUNING,
   GENERATION_TUNING,
   ICE_LINE,
+  ROCKY_PLANET_SIZE,
   SOURCED_RANGES,
   difficultyFactor,
   type Range,
@@ -110,11 +111,12 @@ export interface StarSystem {
 }
 
 /**
- * The Star System a seed generates at a difficulty level (the Star System number, from 1). Level 1
- * is the baseline and every higher level only scales its values, so the same seed gives the same
- * layout, names and rolls at every level, just harder.
+ * One draw of the generator: the Star System a seed draws at a difficulty level (the Star System
+ * number, from 1). Level 1 is the baseline and every higher level only scales its values, so the
+ * same seed draws the same layout, names and rolls at every level, just harder. A draw can still
+ * hold an early dead end: `generateStarSystem` (generation.ts) is the generator Runs use.
  */
-export function generateStarSystem(seed: Seed, level = 1): StarSystem {
+export function drawStarSystem(seed: Seed, level = 1): StarSystem {
   const gravityFactor = difficultyFactor(DIFFICULTY_TUNING.gravity, level);
   const rng = createRng(seed);
   const nextName = createNamer(rng);
@@ -133,7 +135,7 @@ export function generateStarSystem(seed: Seed, level = 1): StarSystem {
     kind: 'rocky-planet' as const,
     landable: true as const,
     distanceFromStar: astronomicalUnits(distance),
-    ...sampleBodySize(rng, SOURCED_RANGES.rockyPlanet, gravityFactor),
+    ...sampleBodySize(rng, SOURCED_RANGES.rockyPlanet, gravityFactor, ROCKY_PLANET_LARGEST_SIZE),
   }));
   const gasGiants = spreadOrbits(
     rng,
@@ -285,6 +287,14 @@ export function listBodies(system: StarSystem): Body[] {
 }
 
 /**
+ * How far up the sourced rocky-planet range a rocky planet's size is drawn, from 0 (Mercury) to 1
+ * (Earth): up to the size whose escape velocity is `ROCKY_PLANET_SIZE.largestEscapeVelocity`.
+ */
+const ROCKY_PLANET_LARGEST_SIZE =
+  (ROCKY_PLANET_SIZE.largestEscapeVelocity - SOURCED_RANGES.rockyPlanet.escapeVelocity.min) /
+  (SOURCED_RANGES.rockyPlanet.escapeVelocity.max - SOURCED_RANGES.rockyPlanet.escapeVelocity.min);
+
+/**
  * Surface gravity and escape velocity from one size draw, so a Body with stronger gravity also has
  * a higher escape velocity, both inside their sourced ranges.
  */
@@ -295,8 +305,9 @@ function sampleBodySize(
     readonly escapeVelocity: Range<MetersPerSecond>;
   },
   gravityFactor: number,
+  largest = 1,
 ): { surfaceGravity: MetersPerSecondSquared; escapeVelocity: MetersPerSecond } {
-  const size = rng.next();
+  const size = rng.next() * largest;
   return {
     surfaceGravity: metersPerSecondSquared(lerp(ranges.surfaceGravity, size) * gravityFactor),
     escapeVelocity: metersPerSecond(lerp(ranges.escapeVelocity, size) * gravityFactor),

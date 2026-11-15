@@ -118,15 +118,20 @@ describe('Burn estimates', () => {
     expect(plan(earthMars, target.id).estimates.transfer).toBeCloseTo(3_660, -1);
   });
 
-  it("a Transfer to another planet's system costs more than one to any of the Home Planet's Moons", () => {
-    for (const seed of Array.from({ length: 2_000 }, (_, i) => i * 7_919 + 13)) {
-      const start = startRun(seed, 'scout');
-      const home = homePlanet(start.starSystem);
-      const toMoons = home.moons.map((moon) => plan(start, moon.id).estimates.transfer);
-      const toOthers = farLandables(start).map((body) => plan(start, body.id).estimates.transfer);
-      expect(Math.min(...toOthers)).toBeGreaterThan(Math.max(...toMoons));
-    }
-  });
+  // 2,000 Star Systems: about 3 s, longer on a loaded machine (generation redraws, #188).
+  it(
+    "a Transfer to another planet's system costs more than one to any of the Home Planet's Moons",
+    { timeout: 60_000 },
+    () => {
+      for (const seed of Array.from({ length: 2_000 }, (_, i) => i * 7_919 + 13)) {
+        const start = startRun(seed, 'scout');
+        const home = homePlanet(start.starSystem);
+        const toMoons = home.moons.map((moon) => plan(start, moon.id).estimates.transfer);
+        const toOthers = farLandables(start).map((body) => plan(start, body.id).estimates.transfer);
+        expect(Math.min(...toOthers)).toBeGreaterThan(Math.max(...toMoons));
+      }
+    },
+  );
 
   it('a Transfer costs more the farther apart the Bodies are', () => {
     for (const seed of SEEDS) {
@@ -303,7 +308,8 @@ describe('flying a Hop', () => {
 
   it('Landing that needs more Δv than remains ends as Crashed', () => {
     const { from, plan: short } = tight((takeoff + transfer) * 1.1 + landing * 0.5);
-    const { flight, run: next } = flyHop(from, short, createRng(1));
+    // Re-pinned for #188 (was createRng(1)): Burns drawn so that the Landing is what runs out.
+    const { flight, run: next } = flyHop(from, short, createRng(4));
     expect(flight.outcome).toMatchObject({ kind: 'crashed' });
     expect(flight.burns.map((burn) => burn.status)).toEqual(['completed', 'completed', 'ran-out']);
     expect(flight.fuelRemaining).toBe(0);
@@ -359,14 +365,16 @@ describe('flying a Hop', () => {
   });
 
   it('the Margin share is the Margin over the estimate: a shortfall reads as "N% less Δv"', () => {
-    // Hauler on seed 123: Viormio needs 21,347 m/s of the 20,011 m/s the Fuel gives (-6.3%).
+    // A hauler on seed 123 with Fuel for 93.7% of its Hop to the Home Planet's Moon (-6.3%).
+    // Re-pinned for #188: no Body is out of a new hauler's reach on seed 123 any more (it was
+    // Viormio, 21,347 m/s of the 20,011 m/s the Fuel gives), so the Fuel is set instead.
     const hauler = startRun(123, 'hauler');
-    const viormio = listBodies(hauler.starSystem).find((body) => body.name === 'Viormio');
-    if (!viormio) throw new Error('seed 123 has no Viormio');
-    const planned = planHop(hauler, viormio.id);
+    const moon = homeMoon(hauler);
+    const short = withDeltaV(hauler, plan(hauler, moon.id).totalEstimate * 0.937);
+    const planned = planHop(short, moon.id);
     if (planned.kind !== 'planned') throw new Error('expected a plan');
     expect(Math.round(marginShare(planned.plan) * 1000)).toBe(-63);
-    const { flight } = flyHop(hauler, planned.plan, createRng(1));
+    const { flight } = flyHop(short, planned.plan, createRng(1));
     expect(flight.why).toMatch(
       /The Fuel gives 6% less Δv than the plan needs, so it had no Margin\./,
     );
