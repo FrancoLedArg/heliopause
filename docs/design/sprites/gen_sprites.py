@@ -141,6 +141,41 @@ def in_disc(x, y, cx, cy, r):
     return (x + 0.5 - cx) ** 2 + (y + 0.5 - cy) ** 2 <= r * r
 
 
+# The Approach art (issue #202): the same per-variant drawing as the small sprite, made on a
+# bigger canvas. Each drawing function takes `size` (its canvas edge in px, default the native
+# size) and scales every coordinate, radius and line width by `size / native`.
+APPROACH_SIZE = 256
+
+
+class Grid:
+    """Scale from a sprite's native pixel grid to a canvas of `size` px."""
+
+    def __init__(self, native, size):
+        self.f = size / native
+        self.size = size
+
+    def __call__(self, v):
+        return v * self.f
+
+    def pt(self, p):
+        return (round(p[0] * self.f), round(p[1] * self.f))
+
+    @property
+    def thick(self):
+        """Line width and outline thickness: 1 at native size, about f/4 on the Approach art."""
+        return max(1, round(self.f / 4))
+
+    def cell(self, x, y):
+        """The native pixel a canvas pixel belongs to, so per-pixel noise keeps its pattern."""
+        return int(x / self.f), int(y / self.f)
+
+
+def outline_n(spr, n):
+    for _ in range(n):
+        spr.outline()
+    return spr
+
+
 # ------------------------------------------------------------------ star
 def star():
     s = Spr(64, 64)
@@ -220,7 +255,8 @@ def heliopause():
 
 
 # ------------------------------------------------------------------ rocky planets (24x24)
-def crater_layer(s, cx, cy, r, craters, dark, rim):
+def crater_layer(s, cx, cy, r, craters, dark, rim, step=1):
+    """`step` is the rim thickness in px (1 at native size, larger on the Approach art)."""
     for (kx, ky, kr) in craters:
         for y in range(s.h):
             for x in range(s.w):
@@ -228,44 +264,64 @@ def crater_layer(s, cx, cy, r, craters, dark, rim):
                     continue
                 if in_disc(x, y, kx, ky, kr):
                     # lower-right inner wall catches the light
-                    if not in_disc(x - 1, y - 1, kx, ky, kr):
+                    if not in_disc(x - step, y - step, kx, ky, kr):
                         s.px(x, y, dark)
-                    elif not in_disc(x + 1, y + 1, kx, ky, kr):
+                    elif not in_disc(x + step, y + step, kx, ky, kr):
                         s.px(x, y, rim)
 
 
-def seams(s, cx, cy, r, polylines, key_fn, glow=None):
-    """Draw crack/lava polylines clipped inside the disc; key_fn(lit) picks the colour."""
+def _stamp(x, y, width):
+    """The `width` x `width` block of pixels a line point covers (just the point when width is 1)."""
+    return [(x + i, y + j) for i in range(width) for j in range(width)]
+
+
+def seams(s, cx, cy, r, polylines, key_fn, glow=None, width=1, lit_offset=4):
+    """Draw crack/lava polylines clipped inside the disc; key_fn(lit) picks the colour.
+
+    `width` is the line thickness in px and `lit_offset` where the light edge falls, both
+    scaled up on the Approach art."""
     pts = []
     for line in polylines:
         for (x0, y0), (x1, y1) in zip(line, line[1:]):
             n = max(abs(x1 - x0), abs(y1 - y0))
             for i in range(n + 1):
                 pts.append((round(x0 + (x1 - x0) * i / n), round(y0 + (y1 - y0) * i / n)))
+    line_px = {q for x, y in pts for q in _stamp(x, y, width)}
     for x, y in pts:
         if in_disc(x, y, cx, cy, r - 1.0):
-            lit = (x + y) < (cx + cy) + 4
+            lit = (x + y) < (cx + cy) + lit_offset
             if glow:
-                for dx, dy in ((1, 0), (0, 1)):
-                    if in_disc(x + dx, y + dy, cx, cy, r - 1.0) and (x + dx, y + dy) not in pts:
-                        s.px(x + dx, y + dy, glow)
-            s.px(x, y, key_fn(lit))
+                for dx, dy in ((width, 0), (0, width)):
+                    for gx, gy in _stamp(x + dx, y + dy, width):
+                        if in_disc(gx, gy, cx, cy, r - 1.0) and (gx, gy) not in line_px:
+                            s.px(gx, gy, glow)
+            for lx, ly in _stamp(x, y, width):
+                if in_disc(lx, ly, cx, cy, r - 1.0):
+                    s.px(lx, ly, key_fn(lit))
 
 
-def rocky(kind):
-    s = Spr(24, 24)
-    cx = cy = 12
-    r = 10.5
+def rocky(kind, size=24):
+    g = Grid(24, size)
+    s = Spr(size, size)
+    cx = cy = g(12)
+    r = g(10.5)
     if kind == 0:  # grey, cratered
         ramp = ["gm1", "gm2", "gm4", "gm5", "gm6"]
         sphere(s, cx, cy, r, lambda x, y, l, nx, ny: ramp_pick(ramp, l, CUTS5))
-        crater_layer(s, cx, cy, r, [(9, 9, 2.2), (15, 13, 2.8), (10, 16, 1.6), (16, 7, 1.4)], "gm2", "gm5")
+        crater_layer(s, cx, cy, r, [(g(kx), g(ky), g(kr)) for kx, ky, kr in
+                                    [(9, 9, 2.2), (15, 13, 2.8), (10, 16, 1.6), (16, 7, 1.4)]],
+                     "gm2", "gm5", step=g.thick)
     elif kind == 1:  # rust desert with dark maria and a pale polar cap
         ramp = ["rd0", "am0", "am1", "am2", "am3"]
 
         def f(x, y, l, nx, ny):
             k = ramp_pick(ramp, l, CUTS5)
-            if ny < -0.82 and l > 0.25:
+            if size != 24:
+                # Approach art: a curved cap that follows the limb, with a ragged lower edge, in one colour.
+                reach = 0.62 + 0.05 * math.sin(nx * 21.0 + 1.0) + 0.035 * math.sin(nx * 47.0)
+                if math.hypot(nx + 0.08, ny + 1.22) < reach:
+                    return "wh2"
+            elif ny < -0.82 and l > 0.25:
                 return "rd4" if l > 0.6 else "wh1"
             band = math.sin(nx * 4.0 + ny * 6.5) + 0.6 * math.sin(nx * 9 - ny * 3)
             if band > 0.95 and k not in ("rd0",):
@@ -275,15 +331,18 @@ def rocky(kind):
     elif kind == 2:  # icy blue-white with cracks
         ramp = ["cy0", "cy1", "wh1", "wh2", "wh3"]
         sphere(s, cx, cy, r, lambda x, y, l, nx, ny: ramp_pick(ramp, l, CUTS5))
-        seams(s, cx, cy, r, [[(4, 9), (9, 11), (13, 10), (19, 13)], [(9, 11), (11, 16), (10, 20)],
-                             [(13, 4), (14, 8), (13, 10)]], lambda l: "cy2" if l else "cy1")
+        lines = [[(4, 9), (9, 11), (13, 10), (19, 13)], [(9, 11), (11, 16), (10, 20)],
+                 [(13, 4), (14, 8), (13, 10)]]
+        seams(s, cx, cy, r, [[g.pt(p) for p in line] for line in lines], lambda l: "cy2" if l else "cy1",
+              width=g.thick, lit_offset=g(4))
     else:  # dark volcanic with lava seams
         ramp = ["ink", "gm0", "gm1", "gm2", "gm3"]
         sphere(s, cx, cy, r, lambda x, y, l, nx, ny: ramp_pick(ramp, l, CUTS5))
-        seams(s, cx, cy, r, [[(3, 13), (7, 12), (10, 14), (14, 13), (17, 15), (21, 14)],
-                             [(10, 14), (11, 18), (9, 21)], [(8, 4), (10, 7), (9, 10)],
-                             [(15, 5), (16, 9)]], lambda l: "am3" if l else "rd2", glow="am1")
-    return s.outline()
+        lines = [[(3, 13), (7, 12), (10, 14), (14, 13), (17, 15), (21, 14)],
+                 [(10, 14), (11, 18), (9, 21)], [(8, 4), (10, 7), (9, 10)], [(15, 5), (16, 9)]]
+        seams(s, cx, cy, r, [[g.pt(p) for p in line] for line in lines], lambda l: "am3" if l else "rd2",
+              glow="am1", width=g.thick, lit_offset=g(4))
+    return outline_n(s, g.thick)
 
 
 # ------------------------------------------------------------------ gas giants (48x48)
@@ -307,62 +366,64 @@ def banded(s, cx, cy, r, bands, storm=None):
     sphere(s, cx, cy, r, f)
 
 
-def gas(kind):
-    s = Spr(48, 48)
+def gas(kind, size=48):
+    g = Grid(48, size)
+    s = Spr(size, size)
     if kind == 0:  # amber/brown bands, red storm
         light = ["am1", "am2", "am3", "am4"]
         dark = ["am0", "am1", "am2", "am3"]
         brown = ["rd0", "am0", "am1", "am2"]
         bands = [(-0.7, dark), (-0.45, light), (-0.25, brown), (0.0, light),
                  (0.22, dark), (0.45, light), (0.7, brown), (1.1, dark)]
-        banded(s, 24, 24, 19.5, bands, storm=(0.25, 0.32, 0.22, 0.11))
-        return s.outline()
+        banded(s, g(24), g(24), g(19.5), bands, storm=(0.25, 0.32, 0.22, 0.11))
+        return outline_n(s, g.thick)
     if kind == 1:  # cyan ice giant, soft bands
         a = ["cy0", "cy1", "cy2", "cy3"]
         b = ["cy0", "cy1", "cy3", "cy4"]
         bands = [(-0.55, a), (-0.15, b), (0.25, a), (0.6, b), (1.1, a)]
-        banded(s, 24, 24, 18.5, bands)
-        return s.outline()
+        banded(s, g(24), g(24), g(18.5), bands)
+        return outline_n(s, g.thick)
     # ringed, pale gold/white, ring tilted
-    body = Spr(48, 48)
+    body = Spr(size, size)
     pale = ["am1", "am2", "am3", "am4"]
     white = ["wh0", "wh1", "wh2", "wh3"]
     cream = ["am0", "am2", "am4", "wh3"]
     bands = [(-0.6, pale), (-0.3, white), (0.05, cream), (0.35, white), (0.65, pale), (1.1, cream)]
-    banded(body, 24, 24, 13.5, bands)
-    body.outline()
+    banded(body, g(24), g(24), g(13.5), bands)
+    outline_n(body, g.thick)
     tilt = math.radians(-18)
 
     def ring_layer(front):
-        ring = Spr(48, 48)
-        for y in range(48):
-            for x in range(48):
-                dx, dy = x + 0.5 - 24, y + 0.5 - 24
+        ring = Spr(size, size)
+        for y in range(size):
+            for x in range(size):
+                dx, dy = x + 0.5 - g(24), y + 0.5 - g(24)
                 u = dx * math.cos(tilt) + dy * math.sin(tilt)
                 v = -dx * math.sin(tilt) + dy * math.cos(tilt)
-                e = (u / 22.5) ** 2 + (v / 6.0) ** 2
-                e_in = (u / 17.0) ** 2 + (v / 4.3) ** 2
+                e = (u / g(22.5)) ** 2 + (v / g(6.0)) ** 2
+                e_in = (u / g(17.0)) ** 2 + (v / g(4.3)) ** 2
                 if e <= 1.0 and e_in > 1.0:
                     if (v > 0) != front:
                         continue
                     t = math.sqrt(e)
                     k = "wh2" if t > 0.93 else ("gm5" if t > 0.86 else ("wh1" if t > 0.8 else "gm4"))
-                    if not front and in_disc(x, y, 24, 24, 14.5):
+                    if not front and in_disc(x, y, g(24), g(24), g(14.5)):
                         continue
                     ring.px(x, y, k)
         return ring
-    back = ring_layer(False).outline()
+    back = outline_n(ring_layer(False), g.thick)
     s.blit(back)
     s.blit(body)
     front = ring_layer(True)
     # shadow of the planet on the front ring stays dark (right/below side)
-    s.blit(front.outline())
+    s.blit(outline_n(front, g.thick))
     return s
 
 
 # ------------------------------------------------------------------ moons (12x12)
-def moon(kind):
-    s = Spr(12, 12)
+def moon(kind, size=12):
+    g = Grid(12, size)
+    s = Spr(size, size)
     cuts = (0.22, 0.55, 0.85)
     ramps = [
         ["gm2", "gm4", "gm5", "gm6"],      # grey
@@ -374,15 +435,16 @@ def moon(kind):
 
     def f(x, y, l, nx, ny):
         k = ramp_pick(ramp, l, cuts)
-        if kind == 2 and hash01(x, y, 5) < 0.18 and l > 0.3:
-            return "gr3" if hash01(x, y, 6) < 0.3 else "am1"
-        if kind in (0, 3) and hash01(x, y, 11 + kind) < 0.14 and l > 0.25:
+        hx, hy = g.cell(x, y)
+        if kind == 2 and hash01(hx, hy, 5) < 0.18 and l > 0.3:
+            return "gr3" if hash01(hx, hy, 6) < 0.3 else "am1"
+        if kind in (0, 3) and hash01(hx, hy, 11 + kind) < 0.14 and l > 0.25:
             return ramp[max(0, ramp.index(k) - 1)]
         if kind == 1 and abs(nx - ny * 0.6) < 0.1 and l > 0.3:
             return "cy2"
         return k
-    sphere(s, 6, 6, 4.6, f)
-    return s.outline()
+    sphere(s, g(6), g(6), g(4.6), f)
+    return outline_n(s, g.thick)
 
 
 # ------------------------------------------------------------------ spacecraft (16x16, faces right)
@@ -532,6 +594,18 @@ def fx_sprite(grid):
 
 
 # ------------------------------------------------------------------ build
+def approach_sprites():
+    """body_<kind>_<n>_approach: every Body variant again, large, for the Hop's Approach shot."""
+    out = {}
+    for i in range(4):
+        out[f"body_rocky_{i}_approach"] = rocky(i, APPROACH_SIZE)
+    for i in range(3):
+        out[f"body_gas_{i}_approach"] = gas(i, APPROACH_SIZE)
+    for i in range(4):
+        out[f"body_moon_{i}_approach"] = moon(i, APPROACH_SIZE)
+    return out
+
+
 def build():
     sprites = {"body_star": star()}
     for i in range(4):
@@ -541,6 +615,7 @@ def build():
     for i in range(4):
         sprites[f"body_moon_{i}"] = moon(i)
     sprites["body_heliopause"] = heliopause()
+    sprites.update(approach_sprites())
     sprites["spacecraft"] = spacecraft()
     sprites["spacecraft_flame"] = flame()
     sprites["res_materials"] = materials()

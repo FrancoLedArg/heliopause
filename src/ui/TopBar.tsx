@@ -1,6 +1,6 @@
 import type { Kilograms, Materials, MetersPerSecond } from '../game/sim/index.ts';
 import { imageUrl } from '../game/assets/manifest.ts';
-import { formatDeltaV, formatFuel } from './format.ts';
+import { formatDeltaVKmS, formatFuel } from './format.ts';
 import { KitFrame } from './kit/KitFrame.tsx';
 import { MusicControls } from './MusicControls.tsx';
 
@@ -16,6 +16,10 @@ interface TopBarProps {
   materials: Materials;
   /** The UTC day of the Daily Star System being played, `YYYY-MM-DD`; `undefined` for any other Run. */
   dailyDay?: string | undefined;
+  /** The readout a gathering moment is filling: its icon pulses as the resource arrives. */
+  filling?: 'fuel' | 'materials' | undefined;
+  /** Said once by a polite live region, e.g. what a gathering moment brought aboard. */
+  announcement?: string;
 }
 
 /** The top bar over every in-Run screen: the Star System (and, in a Daily Run, its day), the Fuel on board, the Δv it provides and the Materials in stock. */
@@ -26,7 +30,11 @@ export function TopBar({
   deltaV,
   materials,
   dailyDay,
+  filling,
+  announcement = '',
 }: TopBarProps) {
+  const pulse = (resource: 'fuel' | 'materials'): string =>
+    filling === resource ? ' top-bar__icon--filling' : '';
   return (
     <header className="top-bar" style={{ width: BAR_WIDTH, height: BAR_HEIGHT }}>
       <KitFrame frame="panel_holo" width={BAR_WIDTH} height={BAR_HEIGHT} />
@@ -39,7 +47,7 @@ export function TopBar({
         </p>
       )}
       <p className="top-bar__value top-bar__system">{systemName}</p>
-      <KitFrame frame="res_fuel" className="top-bar__icon top-bar__fuel-icon" />
+      <KitFrame frame="res_fuel" className={`top-bar__icon top-bar__fuel-icon${pulse('fuel')}`} />
       <p className="top-bar__label top-bar__fuel-label">Fuel</p>
       <p className="top-bar__value top-bar__fuel" data-testid="fuel">
         {formatFuel(fuel)}
@@ -47,20 +55,23 @@ export function TopBar({
       <KitFrame frame="res_delta_v" className="top-bar__icon top-bar__dv-icon" />
       <p className="top-bar__label top-bar__dv-label">Δv available</p>
       <p className="top-bar__value top-bar__dv" data-testid="delta-v">
-        {formatDeltaV(deltaV)}
+        {formatDeltaVKmS(deltaV)}
       </p>
       <img
         src={imageUrl('res_materials')}
         alt=""
         width={32}
         height={32}
-        className="top-bar__icon top-bar__materials-icon"
+        className={`top-bar__icon top-bar__materials-icon${pulse('materials')}`}
       />
       <p className="top-bar__label top-bar__materials-label">Materials</p>
       <p className="top-bar__value top-bar__materials" data-testid="materials">
         {materials}
       </p>
-      <MusicControls />
+      <MusicControls className="music-controls--bar" />
+      <p className="sr-only" role="status" data-testid="top-bar-status">
+        {announcement}
+      </p>
     </header>
   );
 }

@@ -2,16 +2,18 @@ import {
   assessStranding,
   availableDeltaV,
   currentBody,
-  isDepleted,
   starSystemNumber,
   type Run,
 } from '../game/sim/index.ts';
 import { useEffect, useRef } from 'react';
 import { EventBus } from '../game/EventBus.ts';
+import type { GatheringReadout } from '../game/scenes/gathering.ts';
 import { bodyFullLabel, formatDistanceAu, formatGravity } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { ResourceIcon } from './ResourceIcon.tsx';
 import { useApproachMusic } from './useApproachMusic.ts';
+import { yieldIcon } from './yieldIcon.ts';
 import { TopBar } from './TopBar.tsx';
 
 const PLATE_WIDTH = 284;
@@ -31,6 +33,13 @@ interface LandedPanelsProps {
   focusRequest?: number;
   /** The UTC day of the Daily Star System being played; `undefined` for any other Run. */
   dailyDay?: string | undefined;
+  /**
+   * Set while the gathering moment plays: the readout it has counted to. The top bar shows it in place
+   * of the Run's value, and the plate's icon turns Depleted only once the flow ends.
+   */
+  gathering?: GatheringReadout | undefined;
+  /** What the last gathering moment brought aboard, for the top bar's polite live region. */
+  gathered?: string;
 }
 
 /** The Landed view's panels: the top bar (Star System, Fuel, Δv, Materials) and the plate naming the Body. */
@@ -41,10 +50,20 @@ export function LandedPanels({
   onOpenSpacecraft,
   focusRequest = 0,
   dailyDay,
+  gathering,
+  gathered = '',
 }: LandedPanelsProps) {
   const body = currentBody(run);
   const type = bodyFullLabel(run, body);
-  const depleted = isDepleted(run, body.id);
+  const icon = yieldIcon(run, body);
+  // The Body empties as the flow ends, not before.
+  const yields = icon && gathering ? { ...icon, depleted: false } : icon;
+  // Fuel counts up during the moment, and the Δv it gives with it.
+  const spacecraft =
+    gathering?.resource === 'fuel'
+      ? { ...run.spacecraft, fuelMass: gathering.value }
+      : run.spacecraft;
+  const materials = gathering?.resource === 'materials' ? gathering.value : run.materials;
   // Kept per Run by the simulation, so asking on every render costs nothing.
   const stranding = assessStranding(run);
   // The Stranded warning plays the Approach music for as long as it shows.
@@ -77,10 +96,12 @@ export function LandedPanels({
       <TopBar
         systemNumber={starSystemNumber(run)}
         systemName={run.starSystem.name}
-        fuel={run.spacecraft.fuelMass}
-        deltaV={availableDeltaV(run.spacecraft)}
-        materials={run.materials}
+        fuel={spacecraft.fuelMass}
+        deltaV={availableDeltaV(spacecraft)}
+        materials={materials}
         dailyDay={dailyDay}
+        filling={gathering?.resource}
+        announcement={gathered}
       />
 
       {!chartOpen && !spacecraftOpen && (
@@ -113,12 +134,15 @@ export function LandedPanels({
               {body.name}
             </h1>
             <p className="landed-plate__kind" data-testid="landed-kind">
-              {type}
-              {depleted && (
-                <span className="landed-plate__depleted" data-testid="landed-depleted">
-                  {' · Depleted'}
-                </span>
+              {yields && (
+                <ResourceIcon
+                  resource={yields.resource}
+                  depleted={yields.depleted}
+                  className="resource-icon--inline"
+                  testId={yields.depleted ? 'landed-depleted' : 'resource-icon'}
+                />
               )}
+              <span>{type}</span>
             </p>
             <p className="landed-plate__detail">
               Gravity {formatGravity(body.surfaceGravity)} ·{' '}

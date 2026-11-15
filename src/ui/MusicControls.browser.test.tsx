@@ -33,36 +33,68 @@ function part(host: HTMLElement, selector: string): HTMLElement {
   return found;
 }
 
-it('the top bar holds a "Mute music" icon button and a volume slider, in view and clear of the bar and its Menu button', async () => {
+const settle = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0));
+
+it('the top bar holds a speaker icon with no text, inside the bar between the Materials and the Menu button', async () => {
   const host = await renderUi(bar);
   const frame = part(host, '.top-bar').getBoundingClientRect();
-  const mute = part(host, 'button[aria-label="Mute music"]');
-  const volume = part(host, 'input[aria-label="Music volume"]');
-  expect(mute.textContent).toBe('');
-  for (const control of [mute, volume]) {
-    const box = control.getBoundingClientRect();
-    expect(box.top).toBeGreaterThanOrEqual(frame.bottom);
-    expect(box.right).toBeLessThanOrEqual(GAME_WIDTH);
-    expect(box.bottom).toBeLessThanOrEqual(GAME_HEIGHT);
-  }
+  const materialsValue = part(host, '[data-testid="materials"]').getBoundingClientRect();
+  const button = part(host, 'button[aria-label="Music"]');
+  expect(button.textContent).toBe('');
+  const box = button.getBoundingClientRect();
+  expect(box.left).toBeGreaterThanOrEqual(materialsValue.right);
+  expect(box.right).toBeLessThanOrEqual(frame.left + 560 - 4);
+  expect(box.top).toBeGreaterThanOrEqual(frame.top);
+  expect(box.bottom).toBeLessThanOrEqual(frame.bottom);
+  expect(host.querySelector('input')).toBeNull();
 });
 
-it('mute toggles by click and is remembered; the slider is a keyboard-reachable range', async () => {
+it('the icon opens a popover with mute and the volume range; Escape and an outside click close it', async () => {
   const host = await renderUi(bar);
-  const mute = part(host, 'button[aria-label="Mute music"]');
-  expect(mute.getAttribute('aria-pressed')).toBe('false');
-  mute.click();
-  await Promise.resolve();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  expect(mute.getAttribute('aria-pressed')).toBe('true');
-  expect(window.localStorage.getItem('heliopause:music')).toContain('"muted":true');
+  const button = part(host, 'button[aria-label="Music"]');
+  button.click();
+  await settle();
+  expect(button.getAttribute('aria-expanded')).toBe('true');
   const volume = part(host, 'input[aria-label="Music volume"]') as HTMLInputElement;
   expect(volume.type).toBe('range');
   expect(volume.tabIndex).toBe(0);
+  const box = part(host, '.music-controls__popover').getBoundingClientRect();
+  expect(box.left).toBeGreaterThanOrEqual(0);
+  expect(box.right).toBeLessThanOrEqual(GAME_WIDTH);
+  expect(box.bottom).toBeLessThanOrEqual(GAME_HEIGHT);
+
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await settle();
+  expect(host.querySelector('input')).toBeNull();
+  expect(button.getAttribute('aria-expanded')).toBe('false');
+
+  button.click();
+  await settle();
+  expect(host.querySelector('input')).not.toBeNull();
+  document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+  await settle();
+  expect(host.querySelector('input')).toBeNull();
+});
+
+it('mute lives in the popover, changes the icon and is remembered', async () => {
+  const host = await renderUi(bar);
+  part(host, 'button[aria-label="Music"]').click();
+  await settle();
+  const mute = part(host, 'button[aria-label="Mute music"]');
+  expect(mute.getAttribute('aria-pressed')).toBe('false');
+  const icon = part(host, '.music-controls__button .music-controls__icon') as HTMLCanvasElement;
+  const drawn = (): string => icon.toDataURL();
+  const unmutedShape = drawn();
+  mute.click();
+  await settle();
+  expect(mute.getAttribute('aria-pressed')).toBe('true');
+  expect(window.localStorage.getItem('heliopause:music')).toContain('"muted":true');
+  // The speaker's shape changes with the mute state (the kit's sound-off icon is a different picture).
+  expect(drawn()).not.toBe(unmutedShape);
   mute.click();
 });
 
-it('the title screen has the music controls inside the frame and clear of the menu', async () => {
+it('the title screen has the speaker icon inside the frame and clear of the menu', async () => {
   const host = await renderUi(
     <TitleMenu
       starting={false}
@@ -74,10 +106,8 @@ it('the title screen has the music controls inside the frame and clear of the me
       today="2026-11-15"
     />,
   );
-  const controls = part(host, '.music-controls').getBoundingClientRect();
+  const controls = part(host, 'button[aria-label="Music"]').getBoundingClientRect();
   const menu = part(host, '.title-menu__panel').getBoundingClientRect();
-  part(host, 'button[aria-label="Mute music"]');
-  part(host, 'input[aria-label="Music volume"]');
   expect(controls.left).toBeGreaterThanOrEqual(0);
   expect(controls.top).toBeGreaterThanOrEqual(0);
   expect(controls.right).toBeLessThanOrEqual(GAME_WIDTH);

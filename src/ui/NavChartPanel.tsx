@@ -1,11 +1,4 @@
-import {
-  Fragment,
-  useEffect,
-  useMemo,
-  useRef,
-  type CSSProperties,
-  type KeyboardEvent,
-} from 'react';
+import { useEffect, useMemo, useRef, type CSSProperties, type KeyboardEvent } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import {
   CHART,
@@ -41,7 +34,11 @@ import {
 } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { ResourceIcon } from './ResourceIcon.tsx';
+import { yieldIcon, type YieldIcon } from './yieldIcon.ts';
 import { DELTA_V_EXPLANATION, describeHopPlan } from './hopPlanView.ts';
+import { Disclosure, DisclosurePanel, HelpToggle } from './Disclosure.tsx';
+import { HopPlan } from './HopPlan.tsx';
 
 const PANEL = { x: 8, y: 52, width: 432, height: 284 } as const;
 const SIDE = { x: 444, y: 52, width: 188, height: 284 } as const;
@@ -93,7 +90,7 @@ interface NavChartPanelProps {
 
 /**
  * The panel round the Nav Chart: frame, title, a label for each Body, a tooltip for the focused Body,
- * the Hop plan side panel (target, Burns, totals, Success Chance, Cancel and Launch) and the keyboard. The chart itself is Phaser's,
+ * the Hop plan side panel (target, Success Chance, Δv bar, Fuel gauge, Cancel and Launch) and the keyboard. The chart itself is Phaser's,
  * behind this layer; this layer sends key presses to it as commands and shows what it reports back.
  */
 export function NavChartPanel({ run, state }: NavChartPanelProps) {
@@ -124,10 +121,11 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
     planned?.kind === 'planned' && hasTarget ? describeHopPlan(run, planned.plan) : undefined;
 
   // A long target name wraps onto a second line, so the target block is taller and the plan moves down.
+  const targetYield = target ? yieldIcon(run, target) : undefined;
   const longTarget = target !== undefined && target.name.length > LONG_TARGET_NAME;
 
   const chartRef = useRef<HTMLDivElement>(null);
-  const actionsRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     chartRef.current?.focus();
   }, []);
@@ -155,14 +153,14 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
     if (!event.repeat || command.kind !== 'select') EventBus.emit('nav-chart-command', command);
   };
 
-  // The panel is modal: Tab goes round the chart, Cancel and Launch and never leaves. Launch is disabled
-  // until there is a target, so the loop ends on the last button that can take focus.
+  // The panel is modal: Tab goes round the chart, Cancel, Launch and the toggles and never leaves.
+  // Launch is disabled until there is a target, so the loop ends on the last button that can take focus.
   const onPanelKey = (event: KeyboardEvent<HTMLElement>): void => {
     if (event.key !== 'Tab') return;
     const first = chartRef.current;
-    const last =
-      actionsRef.current?.querySelector<HTMLButtonElement>('button:last-of-type:enabled') ??
-      actionsRef.current?.querySelector('button');
+    const last = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:enabled')].at(
+      -1,
+    );
     if (!first || !last) return;
     if (event.shiftKey && document.activeElement === first) {
       event.preventDefault();
@@ -178,7 +176,8 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
     const words = [bodyFullLabel(run, body)];
     if (body.id === here.id) words.push('you are here');
     if (!body.landable) words.push('no surface');
-    if (isDepleted(run, body.id)) words.push('Depleted, yields nothing');
+    const icon = yieldIcon(run, body);
+    if (icon) words.push(icon.name);
     if (body.id === target?.id) words.push('target');
     return words.join(', ');
   };
@@ -286,7 +285,15 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
           className={`nav-chart__badge ${inspect.badge.ok ? 'nav-chart__badge--ok' : 'nav-chart__badge--warn'}`}
           data-testid="landable"
         >
-          <KitFrame frame={inspect.badge.frame} />
+          {inspect.yield ? (
+            <ResourceIcon
+              resource={inspect.yield.resource}
+              depleted={inspect.yield.depleted}
+              className="resource-icon--inline"
+            />
+          ) : (
+            <KitFrame frame={inspect.badge.frame} />
+          )}
           {inspect.badge.text}
           {inspect.badge.note && (
             <span data-testid="tip-composition">{` · ${inspect.badge.note}`}</span>
@@ -299,14 +306,6 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         )}
       </div>
 
-      <p className="nav-chart__help" data-testid="plan-explain">
-        {view?.yieldNote ? (
-          <span data-testid="plan-yield">{view.yieldNote}</span>
-        ) : (
-          'Click a Body to set it as the target.'
-        )}{' '}
-        {DELTA_V_EXPLANATION}
-      </p>
       <p id="nav-chart-keys" className="sr-only">
         Arrow keys look at a Body; Page Up and Page Down step through them all, out to the
         Heliopause; Enter makes the focused Body the target; Escape closes.
@@ -338,12 +337,12 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
             >
               {isDepleted(run, target.id) ? (
                 <>
-                  <KitFrame frame="badge_warning" />
+                  <TargetYield icon={targetYield} fallback="badge_warning" />
                   <span data-testid="target-composition">Depleted · no yield</span>
                 </>
               ) : (
                 <>
-                  <KitFrame frame="badge_ok" />
+                  <TargetYield icon={targetYield} fallback="badge_ok" />
                   Landable
                   <span data-testid="target-composition">{` · ${bodyStatusLabel(run, target)}`}</span>
                 </>
@@ -375,77 +374,12 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         <KitFrame frame="divider" width={164} height={5} className="nav-chart__divider" />
       </div>
 
-      <div className="nav-chart__plan" data-testid="hop-plan">
-        {view ? (
-          <>
-            <table className="nav-chart__burns">
-              <thead className="sr-only">
-                <tr>
-                  <th scope="col">Burn</th>
-                  <th scope="col">Est. Δv</th>
-                </tr>
-              </thead>
-              <tbody>
-                {view.burns.map((burn) => (
-                  <Fragment key={burn.label}>
-                    <tr>
-                      <th scope="row">{burn.label}</th>
-                      <td>{burn.estimate}</td>
-                    </tr>
-                    <tr className="nav-chart__reason-row">
-                      <td colSpan={2}>
-                        <span className="nav-chart__reason" data-testid="burn-reason">
-                          {burn.reason}
-                        </span>
-                      </td>
-                    </tr>
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-            <KitFrame frame="divider" width={164} height={5} />
-            <dl className="nav-chart__totals">
-              <dt>Needed</dt>
-              <dd data-testid="plan-needed">{view.needed}</dd>
-              <dt>Available</dt>
-              <dd className="nav-chart__available" data-testid="plan-available">
-                {view.available}
-              </dd>
-              <dd className="nav-chart__basis" data-testid="plan-basis">
-                from {view.availableBasis}
-              </dd>
-              <dt>Margin</dt>
-              <dd
-                className={view.marginIsShort ? 'nav-chart__short' : undefined}
-                data-testid="plan-margin"
-              >
-                {view.margin}
-              </dd>
-            </dl>
-            <p
-              className={`nav-chart__success ${view.low ? 'nav-chart__success--low' : 'nav-chart__success--ok'}`}
-              data-testid="plan-success"
-            >
-              <span className="nav-chart__success-label">Success</span>
-              <KitFrame frame={view.low ? 'badge_warning' : 'badge_ok'} />
-              <span className="nav-chart__success-value">{view.successChance}</span>
-            </p>
-            {view.warning && (
-              <p className="nav-chart__warning" data-testid="plan-warning">
-                {view.warning}
-              </p>
-            )}
-          </>
-        ) : (
-          <p className="nav-chart__explain">Pick a landable Body on the chart to plan a Hop.</p>
-        )}
-      </div>
       {/* Announces each new plan; always in the page, so a change of text is what gets read out. */}
       <p className="sr-only" role="status" data-testid="plan-summary">
         {view?.summary ?? ''}
       </p>
 
-      <div ref={actionsRef} className="nav-chart__actions">
+      <div className="nav-chart__actions">
         <KitButton
           width={76}
           onClick={
@@ -474,7 +408,37 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
           Launch
         </KitButton>
       </div>
+
+      {/* The plan and the Δv help come after Cancel and Launch in the page: Tab reaches the decision
+          first, then "Tell me more" and the "?". The help waits behind the "?" in the chart's title
+          bar, so nothing covers the map. */}
+      <HopPlan view={view} />
+      <Disclosure>
+        <HelpToggle label="What is Δv?" className="nav-chart__help-toggle" />
+        <DisclosurePanel className="nav-chart__help">
+          <p data-testid="plan-explain">{DELTA_V_EXPLANATION}</p>
+        </DisclosurePanel>
+      </Disclosure>
     </section>
+  );
+}
+
+/** The Hop plan target's yield icon in place of the badge's check mark; the kit badge if it has none. */
+function TargetYield({
+  icon,
+  fallback,
+}: {
+  icon: YieldIcon | undefined;
+  fallback: 'badge_ok' | 'badge_warning';
+}) {
+  return icon ? (
+    <ResourceIcon
+      resource={icon.resource}
+      depleted={icon.depleted}
+      className="resource-icon--inline"
+    />
+  ) : (
+    <KitFrame frame={fallback} />
   );
 }
 
@@ -483,6 +447,8 @@ interface Inspected {
   readonly name: string;
   readonly kind: string;
   readonly fact: string;
+  /** What the Body yields, if it can be landed on. */
+  readonly yield: YieldIcon | undefined;
   /** A kit badge and its words (never colour alone): `ok` reads green, otherwise amber. */
   readonly badge: {
     readonly frame: 'badge_ok' | 'badge_warning' | 'badge_lock';
@@ -498,6 +464,7 @@ function inspectBody(run: Run, body: Body): Inspected {
     name: body.name,
     kind: bodyTypeLabel(run, body),
     fact: `${formatGravity(body.surfaceGravity)} · ${formatDistanceAu(body.distanceFromStar)}`,
+    yield: yieldIcon(run, body),
     badge: {
       frame: !body.landable ? 'badge_lock' : depleted ? 'badge_warning' : 'badge_ok',
       ok: body.landable && !depleted,
@@ -514,6 +481,7 @@ function inspectHeliopause(run: Run): Inspected {
     name: 'Heliopause',
     kind: 'Star System edge',
     fact: `${formatDistanceAu(run.starSystem.heliopauseRadius)} from the star`,
+    yield: undefined,
     badge: {
       frame: ready ? 'badge_ok' : 'badge_lock',
       ok: ready,

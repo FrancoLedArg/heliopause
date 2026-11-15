@@ -50,6 +50,17 @@ const samples = (playback: FlightPlayback) =>
 const arrived = flightEnding('arrived', run);
 
 /** The Run with just enough Fuel for `fraction` of the Hop's estimated Δv. */
+/**
+ * The share of the Hop's estimate that its Takeoff and Transfer take: Fuel for just that much runs
+ * dry during the Transfer, whatever the Burns cost.
+ */
+function transferShare(): number {
+  const planned = planHop(run, moonId);
+  if (planned.kind !== 'planned') throw new Error('no plan');
+  const { takeoff, transfer } = planned.plan.estimates;
+  return (takeoff + transfer) / planned.plan.totalEstimate;
+}
+
 function shortRun(fraction: number): Run {
   const planned = planHop(run, moonId);
   if (planned.kind !== 'planned') throw new Error('no plan');
@@ -111,6 +122,21 @@ describe('Hop playback', () => {
     expect(new Set(coasting.map((m) => m.fuel)).size).toBe(1);
   });
 
+  it('the Landing engine cuts at touchdown, leaving a beat for the Spacecraft to settle before the hand-off', () => {
+    const playback = flightPlayback(run.spacecraft, arrived, 'full');
+    const landing = samples(playback).filter((m) => m.burn === 'landing');
+    const lastThrust = landing.findLast((m) => m.thrusting);
+    expect(lastThrust?.progress).toBeGreaterThan(0.7);
+    expect(lastThrust?.progress).toBeLessThan(0.95);
+    // The Fuel the simulation left is shown from touchdown on, and the Landing is logged there.
+    const settled = landing.filter((m) => !m.thrusting);
+    expect(settled.length * 10).toBeGreaterThanOrEqual(300);
+    for (const moment of settled) {
+      expect(moment.fuel).toBeCloseTo(arrived.fuelRemaining, 6);
+      expect(moment.logged).toBe(3);
+    }
+  });
+
   it('adds each Burn to the flight log only once it is done', () => {
     const moments = samples(flightPlayback(run.spacecraft, arrived, 'full'));
     expect(moments[0]?.logged).toBe(0);
@@ -136,7 +162,8 @@ describe('Hop playback', () => {
   });
 
   it('a Hop that stops short holds its route progress where the engine cut out', () => {
-    const from = shortRun(0.97);
+    // Re-pinned for #188: was 0.97, before seed 123's Home Moon took a bigger share in Landing.
+    const from = shortRun(transferShare());
     const flight = flightEnding('fell-short', from, 'transfer');
     const playback = flightPlayback(from.spacecraft, flight, 'full');
     const stop = playback.at(playback.stopsAt).route;
@@ -146,7 +173,8 @@ describe('Hop playback', () => {
   });
 
   it('a Hop that Fell Short in the Transfer stops when the Fuel runs dry, partway through it', () => {
-    const from = shortRun(0.97);
+    // Re-pinned for #188: was 0.97, before seed 123's Home Moon took a bigger share in Landing.
+    const from = shortRun(transferShare());
     const flight = flightEnding('fell-short', from, 'transfer');
     const playback = flightPlayback(from.spacecraft, flight, 'full');
     expect(playback.stopsAt).toBeLessThan(playback.duration);
@@ -176,7 +204,8 @@ describe('Hop playback', () => {
   });
 
   it('a Hop that Crashed stops partway through the Landing, with the Fuel spent', () => {
-    const from = shortRun(0.97);
+    // Re-pinned for #188: was 0.97, before seed 123's Home Moon took a bigger share in Landing.
+    const from = shortRun(transferShare());
     const flight = flightEnding('crashed', from);
     const playback = flightPlayback(from.spacecraft, flight, 'full');
     const stop = playback.at(playback.stopsAt);

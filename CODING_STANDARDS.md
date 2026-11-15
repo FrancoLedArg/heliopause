@@ -27,7 +27,13 @@ Binding for every Builder and every review. Tooling enforces the mechanical rule
 
 - Use the `frontend-design` and `web-design-guidelines` skills for React UI; `vercel-react-best-practices` and `vercel-composition-patterns` for component structure.
 - Accessible by default: keyboard operable, visible focus, text contrast ≥ 4.5:1, no information carried by colour alone.
-- Explain _why_: whenever the game judges a player's decision, show the reason in plain language (challenge requirement).
+- **Show, don't tell** (the human's playtest, 2026-11-15, #172). The game reads like a sci-fi game, not a manual. Every new or changed screen leads with visuals: the Spacecraft and its parts, icons, gauges and bars, shape plus colour, motion. Sentences come last.
+  - **Text budget:** at most one short line of visible prose per panel or card. Anything longer goes behind a "?" or "Tell me more" toggle.
+  - **Numbers only where the player decides with them** (Δv, Margin, Success Chance, costs). Everywhere else, use a gauge or an icon.
+  - **Show the cause and effect:** when something changes (Fuel gathered, mass added, a part damaged), animate it where it happens, e.g. Fuel flowing from the Body into the gauge, rather than writing it in a log.
+  - **Words stay in the accessible name:** visible text can go, but every visual carries its meaning in an `aria-label` or Phaser text alternative, and nothing is carried by colour alone.
+  - A Reviewer rejects a PR that adds a visible paragraph where a visual would do.
+- Explain _why_: whenever the game judges a player's decision, show the reason in plain language (challenge requirement). Keep it to one short line beside the visual, with more behind "Tell me more".
 - Art and audio follow `docs/agents/assets.md`.
 
 ## Commits and PRs

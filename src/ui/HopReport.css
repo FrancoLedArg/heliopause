@@ -106,10 +106,53 @@
   flex: none;
 }
 
-.hop-report__collected {
-  margin: 0;
+/* The icon row: what came aboard, as the resource's icon and a signed amount in its top-bar colour. */
+.hop-report__gains {
+  display: flex;
+  gap: 10px;
+  margin: 1px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hop-report__gain-figure {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  height: 16px;
   font: 14px/12px var(--font-pixel-body);
+}
+
+.hop-report__gain-amount {
+  font: 16px/14px var(--font-pixel-body);
+}
+
+.hop-report__gain-figure--fuel .hop-report__gain-amount {
+  color: var(--am3);
+}
+
+.hop-report__gain-figure--materials .hop-report__gain-amount {
   color: var(--gr3);
+}
+
+/* The Drill's multiplier rides beside the amount, a cyan chip like the kit's interactive parts. */
+.hop-report__gain-drill {
+  padding: 0 3px;
+  border: 1px solid var(--cy2);
+  color: var(--cy3);
+}
+
+/* What the full Tank left on the ground: the same icon, small and dimmed, beside its amount. */
+.hop-report__gain-spill {
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
+  margin-left: 2px;
+  color: var(--gm5);
+}
+
+.hop-report__gain-spill .resource-icon {
+  opacity: 0.55;
 }
 
 .hop-report__note {

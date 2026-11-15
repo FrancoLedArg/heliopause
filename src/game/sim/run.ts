@@ -1,10 +1,10 @@
 import type { ChoiceLog } from './choiceLog.ts';
 import type { ChassisId } from './data.ts';
 import { newSpacecraft, type Spacecraft } from './spacecraft.ts';
+import { generateStarSystem } from './generation.ts';
 import {
   deepFreeze,
   findBody,
-  generateStarSystem,
   type BodyId,
   type LandableBody,
   type Seed,

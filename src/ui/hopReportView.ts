@@ -1,6 +1,6 @@
 // The Hop report as words and numbers: what each Burn cost against its estimate, the Margin left and
 // the simulation's plain-language why. Every figure comes from the flight; nothing is recomputed here. The one exception is the Drill's
-// factor, read from the Run before the Hop (a Hop never changes the Slots) to name it on the Collected line.
+// factor, read from the Run before the Hop (a Hop never changes the Slots) to credit it in the icon row.
 import {
   drillMultiplier,
   FUEL_NOTE,
@@ -15,6 +15,7 @@ import {
   type Run,
 } from '../game/sim/index.ts';
 import { formatFuel, formatMarginShare, formatPlanDeltaV as formatDeltaV } from './format.ts';
+import type { YieldResource } from './yieldIcon.ts';
 
 const BURN_LABEL: Record<Burn, string> = {
   takeoff: 'Takeoff',
@@ -31,6 +32,22 @@ export interface ReportRow {
   readonly change: string;
 }
 
+/**
+ * One entry of the report's icon row (show, don't tell): what the Hop changed, as an icon and an
+ * amount. Today only what landing gathered; Cruise events and Debris join the row later.
+ */
+export interface ReportGain {
+  readonly resource: YieldResource;
+  /** What came aboard, signed: "+5.1 t" of Fuel, "+12" Materials. */
+  readonly amount: string;
+  /** The Drill's factor when it multiplied the yield, "×1.5". */
+  readonly drill?: string;
+  /** The Fuel that stayed on the ground because the Tank was full, "5.7 t". */
+  readonly leftBehind?: string;
+  /** The whole entry in words, for its accessible name. */
+  readonly name: string;
+}
+
 export interface ReportView {
   readonly title: 'Arrived' | 'Reached the Heliopause' | 'Fell Short' | 'Crashed';
   /** One line saying what happened, before the table. */
@@ -38,8 +55,8 @@ export interface ReportView {
   readonly rows: readonly ReportRow[];
   /** The Margin left after the Hop, or that none was left. */
   readonly margin: string;
-  /** What landing collected, in words; absent when the Hop did not arrive. */
-  readonly collected?: string;
+  /** The icon row: what landing gathered. Empty when nothing came aboard (a Depleted Body, a failed Hop). */
+  readonly gains: readonly ReportGain[];
   /** The ice-to-propellant line, the first time the Run collects Fuel. */
   readonly note?: string;
   /** The simulation's explanation, as written. */
@@ -66,17 +83,16 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
         headline: `Landed on ${targetName}.`,
         rows,
         margin: `Margin left: ${formatDeltaV(flight.deltaVRemaining)} of Δv (${planned})`,
-        ...(flight.collection && {
-          collected: describeCollection(flight.collection, drillMultiplier(before.spacecraft)),
-          ...(flight.collection.kind === 'fuel' &&
-            !hadFuelBefore(before) && { note: FUEL_NOTE.text }),
-        }),
+        gains: gains(flight.collection, drillMultiplier(before.spacecraft)),
+        ...(flight.collection?.kind === 'fuel' &&
+          !hadFuelBefore(before) && { note: FUEL_NOTE.text }),
         why: flight.why,
       };
     // The game plays the Jump instead of this report; kept so every outcome has one.
     case 'reached-heliopause':
       return {
         title: 'Reached the Heliopause',
+        gains: [],
         headline: 'The Spacecraft reached the edge of the Star System.',
         rows,
         margin: `Margin left: ${formatDeltaV(flight.deltaVRemaining)} of Δv (${planned})`,
@@ -85,6 +101,7 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
     case 'fell-short':
       return {
         title: 'Fell Short',
+        gains: [],
         headline: `Fuel ran out during the ${BURN_LABEL[outcome.burn]}, short by ${formatDeltaV(outcome.shortfall)}.`,
         rows,
         margin: `Margin: none left (${planned})`,
@@ -93,6 +110,7 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
     case 'crashed':
       return {
         title: 'Crashed',
+        gains: [],
         headline: `The Transfer succeeded, but the Landing lacked ${formatDeltaV(outcome.shortfall)} of Δv.`,
         rows,
         margin: `Margin: none left (${planned})`,
@@ -145,21 +163,44 @@ function hadFuelBefore(run: Run): boolean {
 }
 
 /**
- * What a landing collected, as one line for the player. The Drill, when there is one, is named
- * inside the "Collected" clause: the report has no room for another line.
+ * What a landing gathered, as the icon row's entries. The words that used to be the Collected line
+ * travel in the entry's accessible name, the Drill named inside it.
  */
-function describeCollection(collection: Collection, drill: number): string {
+function gains(collection: Collection | null, drill: number): ReportGain[] {
+  if (collection === null || collection.kind === 'depleted') return [];
   // A Drill is only credited for a yield it produced: nothing collected, nothing to credit.
-  const collectedSomething = collection.kind !== 'depleted' && collection.collected > 0;
-  const by = drill > 1 && collectedSomething ? ` (Drill ×${String(drill)})` : '';
+  const drilled = drill > 1 && collection.collected > 0;
+  const by = drilled ? ` (Drill ×${String(drill)})` : '';
+  const credit = drilled ? { drill: `×${String(drill)}` } : {};
   switch (collection.kind) {
-    case 'fuel':
-      return collection.leftBehind > 0
-        ? `Collected ${formatFuel(collection.collected)} of Fuel${by}; ${formatFuel(collection.leftBehind)} left behind: the Tank is full.`
-        : `Collected ${formatFuel(collection.collected)} of Fuel${by}.`;
-    case 'materials':
-      return `Collected ${String(collection.collected)} Materials${by}.`;
-    case 'depleted':
-      return 'Nothing to collect: this Body is Depleted.';
+    case 'fuel': {
+      const got = formatFuel(collection.collected);
+      if (collection.leftBehind > 0) {
+        const left = formatFuel(collection.leftBehind);
+        return [
+          {
+            resource: 'fuel',
+            amount: `+${got}`,
+            ...credit,
+            leftBehind: left,
+            name: `Collected ${got} of Fuel${by}; ${left} left behind: the Tank is full.`,
+          },
+        ];
+      }
+      return [
+        { resource: 'fuel', amount: `+${got}`, ...credit, name: `Collected ${got} of Fuel${by}.` },
+      ];
+    }
+    case 'materials': {
+      const got = String(collection.collected);
+      return [
+        {
+          resource: 'materials',
+          amount: `+${got}`,
+          ...credit,
+          name: `Collected ${got} Materials${by}.`,
+        },
+      ];
+    }
   }
 }

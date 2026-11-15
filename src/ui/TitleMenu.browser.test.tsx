@@ -37,7 +37,7 @@ it('the title menu shows five actions in order, fitting 640x360 beside the Best 
         onCredits={noop}
         best={{ starSystemsEscaped: 3, hopsFlown: 12 }}
       />
-      <p className="hud-tag ai-label">AI-generated art</p>
+      <p className="hud-tag ai-label">AI-generated art and music</p>
     </>,
   );
   const buttons = [...host.querySelectorAll<HTMLButtonElement>('.title-menu__panel button')];
@@ -92,7 +92,7 @@ it('How to play renders in the shell with its eight steps, no sideways overflow 
   const host = await renderUi(
     <>
       <HowToPlayPanel onBack={noop} />
-      <p className="hud-tag ai-label">AI-generated art</p>
+      <p className="hud-tag ai-label">AI-generated art and music</p>
     </>,
   );
   const plate = part(host, '.info-panel__plate');

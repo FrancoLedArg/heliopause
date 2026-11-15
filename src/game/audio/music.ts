@@ -66,7 +66,10 @@ export class Music {
     this.reconcile();
   }
 
-  /** Drops the player (the game is gone); its voices went with it. */
+  /**
+   * Drops the player (the game is gone). The voices are not stopped here: destroying the game
+   * tears down its sound manager, which removes them.
+   */
   detach(): void {
     this.player = undefined;
     this.current = undefined;

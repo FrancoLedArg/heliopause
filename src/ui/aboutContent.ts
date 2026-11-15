@@ -55,7 +55,7 @@ export const ABOUT = {
       'The idea, the design direction and every product decision are human. AI interviewed the team, stress-tested ideas and wrote the agreed decisions down as specs.',
       'Real-world data was gathered by AI research agents from NASA and other primary sources, and every figure cites its source in docs/research.',
       'The code is written and reviewed by AI agents (Anthropic Claude) and checked by automated tests.',
-      'The art is AI-generated, and every screen carries an "AI-generated art" label. The human sketches set the composition.',
+      'The art is AI-generated, and every screen carries an "AI-generated art and music" label. The music is generated with Suno. The human sketches set the composition.',
     ],
     link: {
       label: 'Read the full AI usage statement',

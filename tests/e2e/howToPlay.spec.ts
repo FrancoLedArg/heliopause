@@ -21,7 +21,7 @@ test('title to How to play to Back restores focus to the button, keyboard only',
   const panel = page.getByRole('region', { name: 'How to play' });
   await expect(panel).toBeVisible();
   await expect(panel.getByRole('heading', { name: 'Hop' })).toBeVisible();
-  await expect(page.getByText('AI-generated art', { exact: true })).toBeVisible();
+  await expect(page.getByText('AI-generated art and music', { exact: true })).toBeVisible();
   await testInfo.attach('how-to-play', { body: await page.screenshot(), contentType: 'image/png' });
 
   await expect(page.getByRole('button', { name: 'Back' })).toBeFocused();

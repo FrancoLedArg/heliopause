@@ -247,6 +247,28 @@ body {
   left: 450px;
 }
 
+/* The readout a gathering moment fills: its icon swells and glows as each icon lands (shape, not just colour). */
+.top-bar__icon--filling {
+  animation: top-bar-filling 250ms ease-out infinite alternate;
+}
+
+@keyframes top-bar-filling {
+  from {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  to {
+    transform: scale(1.25);
+    filter: brightness(1.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .top-bar__icon--filling {
+    animation: none;
+  }
+}
+
 .top-bar__label {
   position: absolute;
   top: 9px;
@@ -698,8 +720,8 @@ body {
   position: absolute;
 }
 
-/* Mouse clicks fall through to the chart in the canvas below; only the Cancel and Launch buttons take them. */
-.nav-chart > *:not(.nav-chart__actions) {
+/* Mouse clicks fall through to the chart in the canvas below; only the buttons take them. */
+.nav-chart > *:not(.nav-chart__actions, .disclosure-toggle) {
   pointer-events: none;
 }
 
@@ -767,6 +789,12 @@ body {
   overflow: hidden;
   font: 12px/10px var(--font-pixel-body);
   color: var(--gm5);
+}
+
+/* The "?" for the Δv help, in the chart's title bar just after its title. */
+.nav-chart__help-toggle {
+  left: 92px;
+  top: 59px;
 }
 
 /* The tooltip for the focused Body, on the chart (wireframe callout 4). */
@@ -922,7 +950,7 @@ body {
   gap: 8px;
 }
 
-/* The plan: Burns, totals, Success Chance and the Δv line, wireframe y 147 to 300. */
+/* The plan's box, wireframe y 147 to 300; HopPlan.css lays out what is inside. */
 .nav-chart__plan {
   left: 456px;
   top: 144px;
@@ -933,159 +961,89 @@ body {
   color: var(--wh3);
 }
 
-.nav-chart__plan p,
-.nav-chart__plan dl,
-.nav-chart__plan dd {
-  margin: 0;
+/* The Fuel and Materials icons (ResourceIcon): a Depleted one is dimmed and struck through. */
+.resource-icon {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
 }
 
-.nav-chart__plan canvas {
+.resource-icon > .kit-frame,
+.resource-icon__image {
   display: block;
-  margin: 1px 0;
+  image-rendering: pixelated;
 }
 
-.nav-chart__burns {
-  width: 100%;
-  border-collapse: collapse;
+.resource-icon--depleted > .kit-frame,
+.resource-icon--depleted > .resource-icon__image {
+  opacity: 0.4;
 }
 
-.nav-chart__burns th,
-.nav-chart__burns td {
-  padding: 0;
-  height: 11px;
-  font-weight: normal;
+.resource-icon--depleted::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: 50%;
+  height: 2px;
+  background: var(--am3);
+  box-shadow:
+    0 -1px 0 var(--void),
+    0 1px 0 var(--void);
+  transform: rotate(-45deg);
 }
 
-.nav-chart__burns thead th {
-  height: 10px;
-  font: 8px/10px var(--font-pixel);
-  text-transform: uppercase;
-  color: var(--gm5);
+/* In a one-line badge or a plate row the 16 px icon is taller than the text, so it hangs out evenly. */
+.resource-icon--inline {
+  margin: -4px 0;
 }
 
-.nav-chart__burns th {
-  text-align: left;
-}
-
-.nav-chart__burns td,
-.nav-chart__burns thead th:last-child {
-  text-align: right;
-}
-
-.nav-chart__reason-row td {
-  height: 10px;
-  font: 12px/10px var(--font-pixel-body);
-  text-align: left;
-  color: var(--gm6);
-}
-
-/* One line each, by construction: a long Body name is cut off rather than wrapping into the totals. */
-.nav-chart__reason {
-  display: block;
-  width: 164px;
-  height: 10px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.nav-chart__totals {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: baseline;
-}
-
-.nav-chart__totals dt {
-  font: 8px/11px var(--font-pixel);
-  text-transform: uppercase;
-  color: var(--gm5);
-}
-
-.nav-chart__totals dd {
-  text-align: right;
-  line-height: 11px;
-}
-
-.nav-chart__totals .nav-chart__available {
-  color: var(--cy3);
-}
-
-.nav-chart__totals .nav-chart__basis {
-  grid-column: 1 / -1;
-  font-size: 12px;
-  line-height: 10px;
-  color: var(--gm6);
-}
-
-.nav-chart__totals .nav-chart__short {
-  color: var(--rd3);
-}
-
-.nav-chart__success {
+.landed-plate__kind {
   display: flex;
   align-items: center;
   gap: 4px;
+}
+
+/* The music controls: one speaker icon that opens a popover with mute and volume, kit frames only. */
+.music-controls {
+  position: absolute;
+  pointer-events: auto;
+}
+
+/* In the top bar, on the value row between the Materials and the Menu button: the bare icon, no button frame. */
+.music-controls--bar {
+  top: 19px;
+  left: 532px;
+}
+
+.music-controls--bar > .music-controls__button {
+  width: 18px;
   height: 18px;
 }
 
-.nav-chart__success-label {
-  flex: 1;
-  font: 8px/8px var(--font-pixel);
-  text-transform: uppercase;
-  color: var(--gm5);
+.music-controls--bar > .music-controls__button .music-controls__face {
+  display: none;
 }
 
-.nav-chart__success-value {
-  font: 16px/16px var(--font-pixel);
+.music-controls--bar > .music-controls__button .music-controls__icon {
+  top: 1px;
+  left: 1px;
 }
 
-.nav-chart__success--ok .nav-chart__success-value {
-  color: var(--gr3);
-}
-
-.nav-chart__success--low .nav-chart__success-value {
-  color: var(--am3);
-}
-
-.nav-chart__warning {
-  height: 11px;
-  white-space: nowrap;
-  overflow: hidden;
-  color: var(--am3);
-  line-height: 11px;
-}
-
-.nav-chart__explain {
-  margin-top: 2px;
-  line-height: 11px;
-  color: var(--gm6);
-}
-
-/* Depleted ends the kind row, in amber (and in words, so not by colour alone). */
-.landed-plate__depleted {
-  color: var(--am3);
-}
-
-/* Mute and volume for the music: an icon button and a slider, kit frames only (no captions). */
-.music-controls {
-  position: absolute;
-  /* In the top bar, under it at the right: the bar's own row is full (the Menu button takes its end). */
-  top: 46px;
-  left: 548px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  pointer-events: auto;
+.music-controls--bar > .music-controls__button:is(:hover, :focus-visible, [aria-expanded='true']) {
+  outline: 1px solid var(--cy3);
+  outline-offset: 0;
 }
 
 .music-controls--title {
   top: 8px;
-  left: auto;
   right: 8px;
 }
 
-.music-controls__mute {
+.music-controls__button {
   position: relative;
+  display: block;
   width: 24px;
   height: 24px;
   padding: 0;
@@ -1104,12 +1062,12 @@ body {
   visibility: hidden;
 }
 
-.music-controls__mute:is(:hover, :focus-visible) .music-controls__face--hover,
-.music-controls__mute:active .music-controls__face--pressed {
+.music-controls__button:is(:hover, :focus-visible) .music-controls__face--hover,
+.music-controls__button:active .music-controls__face--pressed {
   visibility: visible;
 }
 
-.music-controls__mute:focus-visible {
+.music-controls__button:focus-visible {
   outline: 1px solid var(--cy3);
   outline-offset: 1px;
 }
@@ -1120,12 +1078,33 @@ body {
   left: 4px;
 }
 
-.music-controls__mute:active .music-controls__icon {
+.music-controls__button:active .music-controls__icon {
   transform: translateY(2px);
 }
 
+/* Opens under the icon, its right edge level with the icon's. */
+.music-controls__popover {
+  position: absolute;
+  top: 24px;
+  right: 0;
+  z-index: 1;
+}
+
+.music-controls__popover > .kit-frame:first-child {
+  position: absolute;
+  inset: 0;
+}
+
+.music-controls__mute {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+}
+
 .music-controls__slider {
-  position: relative;
+  position: absolute;
+  top: 9px;
+  left: 34px;
   height: 14px;
 }
 
