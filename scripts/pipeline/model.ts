@@ -113,12 +113,14 @@ export function attentionReason(pull: PullSnapshot): string | null {
 export const isBehind = (pull: PullSnapshot): boolean => pull.mergeState === 'BEHIND';
 
 /**
- * Approved, and not failing: CI is still running or GitHub has not settled the merge state.
- * Failing CI is never waiting; it needs a Builder. Pending CI is waiting whatever the merge state.
+ * Approved, and CI is still running or GitHub has not settled the merge state. Failing CI and
+ * conflicts with main are never waiting: they need a Builder. A conflicting PR gets no workflow
+ * run, so its checks read pending forever; it is `needsAttention`, not waiting.
  */
 export const isWaitingForCi = (pull: PullSnapshot): boolean =>
   has(pull, Label.AgentApproved) &&
   pull.checks !== 'failing' &&
+  !isDirty(pull) &&
   (pull.checks === 'pending' || pull.mergeState === 'UNKNOWN');
 
 /** A PR as the Orchestrator sees it: no body, just the tickets it closes. */

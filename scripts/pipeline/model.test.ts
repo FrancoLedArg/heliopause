@@ -355,20 +355,32 @@ describe('runStepsUntilFailure', () => {
 describe('waiting for CI', () => {
   const approved = [Label.AgentApproved];
 
-  it('lists an approved PR with pending checks only in waitingForCi, whatever its merge state', () => {
+  it('lists an approved PR with pending checks only in waitingForCi, unless it conflicts', () => {
     const status = summarize(
       [],
       [
         pull(1, '', { labels: approved, checks: 'pending', mergeState: 'BEHIND' }),
         pull(2, '', { labels: approved, checks: 'pending', mergeState: 'CLEAN' }),
-        pull(3, '', { labels: approved, checks: 'pending', mergeState: 'DIRTY' }),
       ],
     );
-    expect(status.waitingForCi.map((p) => p.number)).toEqual([1, 2, 3]);
+    expect(status.waitingForCi.map((p) => p.number)).toEqual([1, 2]);
     expect(status.behindMain).toEqual([]);
     expect(status.mergeable).toEqual([]);
     expect(status.needsAttention).toEqual([]);
     expect(status.awaitingReview).toEqual([]);
+  });
+
+  it('sends a conflicting PR with pending CI only to needsAttention, never waitingForCi', () => {
+    const status = summarize(
+      [],
+      [pull(3, '', { labels: approved, checks: 'pending', mergeState: 'DIRTY' })],
+    );
+    expect(status.waitingForCi).toEqual([]);
+    expect(status.needsAttention.map((p) => [p.number, p.reason])).toEqual([
+      [3, 'conflicts with main'],
+    ]);
+    expect(status.mergeable).toEqual([]);
+    expect(status.behindMain).toEqual([]);
   });
 
   it('lists an approved PR whose merge state is UNKNOWN only in waitingForCi', () => {
