@@ -1,7 +1,7 @@
 import { Geom, Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
-import { currentBody, isDepleted, type BodyId, type Run } from '../sim/index.ts';
+import { currentBody, HELIOPAUSE, isDepleted, type HopTarget, type Run } from '../sim/index.ts';
 import { bodySprite } from './landedView.ts';
 import {
   BRACKET_ARM,
@@ -18,6 +18,7 @@ import {
   type ChartCommand,
   type ChartLayout,
   type ChartNode,
+  type ChartSpot,
   type ChartState,
 } from './navChartView.ts';
 import { SceneKey } from './keys.ts';
@@ -62,6 +63,7 @@ export class NavChart extends Scene {
       this.add.image(this.layout.star.x, this.layout.star.y, 'body_star').setOrigin(0.5, 0.5),
     );
     for (const node of this.layout.nodes) chart.add(this.addBody(node));
+    chart.add(this.addHeliopauseMark());
     this.marks = this.add.graphics();
     chart.add(this.marks);
     this.drawMarks();
@@ -146,12 +148,44 @@ export class NavChart extends Scene {
     return image;
   }
 
+  /**
+   * The Heliopause's mark: a violet diamond on its ring (a shape, not just a colour), with a hit
+   * circle for the mouse like a Body's.
+   */
+  private addHeliopauseMark(): GameObjects.Graphics {
+    const { x, y, radius } = this.layout.heliopause;
+    const mark = this.add.graphics({ x, y });
+    mark.fillStyle(paletteNumber('vi4'));
+    mark.lineStyle(1, paletteNumber('vi2'));
+    mark.beginPath();
+    mark.moveTo(0, -radius);
+    mark.lineTo(radius, 0);
+    mark.lineTo(0, radius);
+    mark.lineTo(-radius, 0);
+    mark.closePath();
+    mark.fillPath();
+    mark.strokePath();
+    mark.setInteractive({
+      hitArea: new Geom.Circle(0, 0, MIN_HIT_RADIUS),
+      hitAreaCallback: (area: Geom.Circle, hx: number, hy: number) => area.contains(hx, hy),
+    });
+    if (mark.input) mark.input.cursor = 'pointer';
+    mark.on('pointerover', () => {
+      this.apply({ kind: 'focus', id: HELIOPAUSE });
+    });
+    mark.on('pointerdown', () => {
+      this.apply({ kind: 'click', id: HELIOPAUSE });
+    });
+    return mark;
+  }
+
   /** Where the Spacecraft is, what has focus, and the chosen target with its route. */
   private drawMarks(): void {
     const g = this.marks;
     g.clear();
-    const at = (id: BodyId): ChartNode | undefined =>
-      this.layout.nodes.find((n) => n.body.id === id);
+    // The Heliopause's mark stands in for a Body: focus and the target square ring it the same way.
+    const at = (id: HopTarget): ChartSpot | undefined =>
+      id === HELIOPAUSE ? this.layout.heliopause : this.layout.nodes.find((n) => n.body.id === id);
 
     // Gas Giants carry a dotted ring: no surface to land on (shape, not just colour).
     for (const node of this.layout.nodes) {
@@ -212,7 +246,7 @@ export class NavChart extends Scene {
   }
 
   /** The focus mark: four pale corner brackets round a Body. */
-  private cornerBrackets(node: ChartNode, half: number): void {
+  private cornerBrackets(node: ChartSpot, half: number): void {
     const g = this.marks;
     const arm = BRACKET_ARM;
     g.lineStyle(1, paletteNumber('wh3'));

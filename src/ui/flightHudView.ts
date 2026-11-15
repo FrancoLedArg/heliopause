@@ -1,8 +1,8 @@
 // The Hop playback's HUD as words and numbers: the phase strip, the Fuel bar and the flight log.
 // Every figure comes from the simulation's flight; the playback's moment only says how far along it is.
 import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
-import { bodySprite } from '../game/scenes/landedView.ts';
-import { BURNS, findBody, type Burn, type HopFlight, type Run } from '../game/sim/index.ts';
+import { bodySprite, HELIOPAUSE_SPRITE } from '../game/scenes/landedView.ts';
+import { findBody, type Burn, type HopFlight, type Run } from '../game/sim/index.ts';
 import { formatFuel, formatPlanDeltaV } from './format.ts';
 
 const BURN_LABEL: Record<Burn, string> = {
@@ -32,10 +32,13 @@ export interface LogRow {
 export interface RouteView {
   readonly from: string;
   readonly to: string;
-  /** Texture keys of the two Bodies' sprites (`public/assets/sprites/<key>.png`). */
+  /**
+   * Texture keys of the two ends' sprites (`public/assets/sprites/<key>.png`). The Heliopause's may
+   * not be in the manifest yet: check `hasAsset` and draw its stand-in until it is.
+   */
   readonly fromSprite: string;
   readonly toSprite: string;
-  /** 0 at the departure Body, 1 at the target. */
+  /** 0 at the departure Body, 1 at the target (a Body, or the Heliopause). */
   readonly share: number;
 }
 
@@ -59,10 +62,10 @@ export function describeFlight(
   const logged = moment?.logged ?? 0;
   const fuel = moment?.fuel ?? flight.fuelAtLaunch;
   const capacity = before.spacecraft.fuelCapacity;
-  const currentIndex = BURNS.indexOf(current);
+  const currentIndex = flight.burns.findIndex((result) => result.burn === current);
   return {
     route: describeRoute(before, flight, moment),
-    phases: BURNS.map((burn, index) => ({
+    phases: flight.burns.map(({ burn }, index) => ({
       label: BURN_LABEL[burn],
       state: index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'next',
     })),
@@ -116,12 +119,12 @@ function describeRoute(
     return found;
   };
   const from = body(flight.plan.fromId);
-  const to = body(flight.plan.toId);
+  const to = flight.plan.destination === 'body' ? body(flight.plan.toId) : undefined;
   return {
     from: from.name,
-    to: to.name,
+    to: to?.name ?? 'Heliopause',
     fromSprite: bodySprite(before, from),
-    toSprite: bodySprite(before, to),
+    toSprite: to ? bodySprite(before, to) : HELIOPAUSE_SPRITE,
     share: Math.min(Math.max(moment?.route ?? 0, 0), 1),
   };
 }

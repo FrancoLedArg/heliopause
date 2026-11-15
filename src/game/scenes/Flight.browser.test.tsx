@@ -9,12 +9,17 @@ import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
 import {
   CHASSIS_IDS,
   findBody,
+  HELIOPAUSE,
   homePlanet,
+  install,
   launchHop,
   listBodies,
+  materials,
   startRun,
   type BodyId,
   type ChassisId,
+  type HopFlight,
+  type HopTarget,
   type Run,
 } from '../sim/index.ts';
 import type { Flight, FlightData } from './Flight.ts';
@@ -68,7 +73,7 @@ const frame = (): Promise<void> =>
 /** Mounts the whole app and starts the playback of the Hop to the Home Planet's Moon on `chassis`. */
 async function fly(
   chassis: ChassisId,
-  pick: (run: Run) => BodyId | undefined = (run) => homePlanet(run.starSystem).moons[0]?.id,
+  pick: (run: Run) => HopTarget | undefined = (run) => homePlanet(run.starSystem).moons[0]?.id,
   from: (run: Run) => Run = (run) => run,
 ): Promise<{ scene: Flight; data: FlightData }> {
   host = document.createElement('div');
@@ -98,6 +103,13 @@ async function fly(
   await ready;
   await act(() => Promise.resolve());
   return { scene: game.scene.getScene<Flight>(SceneKey.Flight), data };
+}
+
+/** The arrival ground of a Hop to a Body. */
+function arrivalOf(scene: Flight): NonNullable<Flight['layers']['arrival']> {
+  const { arrival } = scene.layers;
+  if (!arrival) throw new Error('A Hop to a Body has an arrival ground');
+  return arrival;
 }
 
 /** Every HUD panel the UI layer draws, in native 640x360 stage pixels. */
@@ -161,6 +173,59 @@ it('seeking to the end of an Arrived Hop hands off to the Landed view of the tar
   expect(runs).toEqual([data.after]);
   // The Flight scene let go of its listeners when it shut down.
   expect(EventBus.listenerCount('leave-run-requested')).toBe(1); // the Landed view's own
+});
+
+/** A lancer on seed 1 with a Jump Drive: it reaches the Heliopause from its Home Planet. */
+function readyForTheHeliopause(): Run {
+  const result = install({ ...startRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+  if (result.kind !== 'installed') throw new Error('Expected an install');
+  return result.run;
+}
+
+it('a Hop to the Heliopause plays Takeoff and Transfer with the Spacecraft in view, then hands over to its report', async () => {
+  const reached: HopFlight[] = [];
+  const off = EventBus.on('hop-reached-heliopause', (flight) => reached.push(flight));
+  const { scene, data } = await fly('lancer', () => HELIOPAUSE, readyForTheHeliopause);
+  expect(data.flight.outcome.kind).toBe('reached-heliopause');
+  expect(scene.layers.arrival).toBeUndefined();
+  // Takeoff then Transfer, and never a Landing.
+  const burns = new Set<string>();
+  for (let t = 0; t <= scene.playback.duration; t += 50) burns.add(scene.playback.at(t).burn);
+  expect([...burns]).toEqual(['takeoff', 'transfer']);
+  const phases = document.querySelector('[data-testid="phase-strip"]')?.textContent ?? '';
+  expect(phases).toContain('Transfer');
+  expect(phases).not.toContain('Landing');
+
+  // The camera keeps the Spacecraft on screen through the Transfer, up to its last moment.
+  const { start } = transferSpan(scene);
+  for (const ms of [start + 100, scene.playback.duration - 1]) {
+    scene.seek(ms);
+    const cam = scene.cameras.main;
+    const x = scene.ship.x - cam.scrollX;
+    const y = scene.ship.y - cam.scrollY;
+    expect(x).toBeGreaterThan(0);
+    expect(x).toBeLessThan(GAME_WIDTH);
+    expect(y).toBeGreaterThan(0);
+    expect(y).toBeLessThan(GAME_HEIGHT);
+    expect(scene.toBody.visible).toBe(true);
+  }
+
+  scene.seek(scene.playback.duration);
+  await act(frame);
+  off();
+  expect(reached).toEqual([data.flight]);
+  // The Flight stays on screen behind the placeholder report: no Landed view follows.
+  expect(game?.scene.isActive(SceneKey.Flight)).toBe(true);
+  expect(game?.scene.isActive(SceneKey.Landed)).toBe(false);
+  const report = document.querySelector<HTMLElement>('[data-testid="hop-report"]');
+  expect(report?.getAttribute('aria-labelledby')).toBe('hop-report-title');
+  // Not a failure: the Run is not over.
+  expect(report?.getAttribute('role')).toBe('dialog');
+  expect(report?.textContent).not.toContain('Run over');
+  expect(document.getElementById('hop-report-title')?.textContent).toBe('Reached the Heliopause');
+  expect(report?.textContent).not.toContain('Landing');
+  // Its one way on takes focus, ready for the keyboard.
+  expect(document.activeElement?.textContent).toBe('Back to title');
 });
 
 const wait = (ms: number): Promise<void> =>
@@ -241,7 +306,10 @@ it('the route inset names the two Bodies and shows how far along the Hop is', as
   await act(frame);
   const inset = document.querySelector('[data-testid="route-inset"]');
   expect(inset?.textContent).toContain(name(data.flight.plan.fromId) ?? '?');
-  expect(inset?.textContent).toContain(name(data.flight.plan.toId) ?? '?');
+  const { plan } = data.flight;
+  expect(inset?.textContent).toContain(
+    plan.destination === 'body' ? (name(plan.toId) ?? '?') : 'Heliopause',
+  );
   const bar = inset?.querySelector('[role="progressbar"]');
   const share = Number(bar?.getAttribute('aria-valuenow'));
   expect(share).toBeGreaterThan(30);
@@ -364,7 +432,7 @@ it.each(CHASSIS_IDS)(
   async (chassis) => {
     const { scene, data } = await fly(chassis);
     scene.seek(scene.playback.duration - 1);
-    const arrival = scene.layers.arrival;
+    const arrival = arrivalOf(scene);
     const cam = scene.cameras.main;
     const frame = {
       groundTop: arrival.ground.y - cam.scrollY,
@@ -526,7 +594,7 @@ const standOnHomeMoon = (run: Run): Run => {
 
 it("seed 123's Icy Home Moon: Landing on it and the Landed view after use the Icy strip", async () => {
   const { scene } = await fly('scout');
-  expect(groundKey(scene.layers.arrival)).toBe('surface_icy');
+  expect(groundKey(arrivalOf(scene))).toBe('surface_icy');
   expect(groundKey(scene.layers.departure)).toBe('surface_rocky');
   const landed = nextSceneReady(SceneKey.Landed);
   scene.seek(scene.playback.duration);

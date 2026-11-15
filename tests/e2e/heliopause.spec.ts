@@ -1,0 +1,148 @@
+import { expect, test, type Page } from '@playwright/test';
+import {
+  HELIOPAUSE,
+  install,
+  launchHop,
+  listBodies,
+  planHop,
+  startRun,
+} from '../../src/game/sim/index.ts';
+import { formatPlanDeltaV } from '../../src/ui/format.ts';
+
+// Spec #15's way out, on one seed, by keyboard alone: the Heliopause says it needs a Jump Drive;
+// gather Materials on a Rocky Body, build the Jump Drive, target the Heliopause, Launch, reach it.
+const SEED = 5;
+const run = startRun(SEED, 'scout');
+const rocky = listBodies(run.starSystem).find((body) => body.name === 'Kylsuxcul');
+if (!rocky) throw new Error(`Seed ${String(SEED)} has no Kylsuxcul`);
+const gathered = launchHop(run, rocky.id);
+if (gathered.kind !== 'flown' || gathered.flight.outcome.kind !== 'arrived') {
+  throw new Error(`Seed ${String(SEED)}: the Hop to ${rocky.name} should Arrive`);
+}
+const built = install(gathered.run, gathered.run.spacecraft.slots.indexOf(null), 'jump-drive');
+if (built.kind !== 'installed') throw new Error('Kylsuxcul should pay for the Jump Drive');
+const planned = planHop(built.run, HELIOPAUSE);
+const escape = launchHop(built.run, HELIOPAUSE);
+if (planned.kind !== 'planned' || escape.kind !== 'flown') throw new Error('Expected a plan');
+if (escape.flight.outcome.kind !== 'reached-heliopause') {
+  throw new Error(`Seed ${String(SEED)}: the Hop to the Heliopause should reach it`);
+}
+
+/** Steps through the chart until the tooltip shows `name` (a Body, or the Heliopause). */
+async function focusOnChart(page: Page, name: string): Promise<void> {
+  const shown = page.getByRole('heading', { name, level: 2, exact: true });
+  for (const key of ['PageDown', 'PageUp']) {
+    for (let i = 0; i < 40 && !(await shown.isVisible()); i += 1) await page.keyboard.press(key);
+  }
+  await expect(shown).toBeVisible();
+}
+
+/** Tabs until the focused element's accessible label (or text) matches `name`. */
+async function tabTo(page: Page, name: RegExp): Promise<void> {
+  for (let i = 0; i < 20; i += 1) {
+    const focused = page.locator(':focus');
+    if ((await focused.count()) > 0) {
+      const label =
+        (await focused.getAttribute('aria-label')) ?? (await focused.textContent()) ?? '';
+      if (name.test(label)) return;
+    }
+    await page.keyboard.press('Tab');
+  }
+  throw new Error(`Tab never reached ${String(name)}`);
+}
+
+/** Launches the Hop the plan shows: on the plan, Tab goes to Cancel and then to Launch. */
+async function launch(page: Page): Promise<void> {
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Launch' })).toBeFocused();
+  await page.keyboard.press('Enter');
+}
+
+test('build a Jump Drive, target the Heliopause by keyboard and reach it', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(90_000);
+  await page.setViewportSize({ width: 640, height: 360 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  await page.goto(`/?seed=${String(SEED)}&chassis=scout`);
+  await expect(page.getByRole('button', { name: 'New Run' })).toBeVisible();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('materials')).toHaveText(String(run.materials));
+
+  // 1. Without a Jump Drive the chart says why the Heliopause cannot be the target, and Enter does nothing.
+  await page.keyboard.press('m');
+  const chart = page.getByRole('dialog', { name: 'Nav Chart' });
+  await expect(chart).toBeVisible();
+  await focusOnChart(page, 'Heliopause');
+  await expect(page.getByTestId('verdict')).toContainText('Jump Drive');
+  await expect(page.getByRole('option', { name: /^Heliopause, / })).toHaveAttribute(
+    'aria-disabled',
+    'true',
+  );
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('target')).toContainText('None chosen');
+  await testInfo.attach('heliopause-needs-a-jump-drive', {
+    body: await page.screenshot(),
+    contentType: 'image/png',
+  });
+
+  // 2. Gather Materials on a Rocky Body.
+  await focusOnChart(page, rocky.name);
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('target')).toContainText(rocky.name);
+  await launch(page);
+  const arrived = page.getByRole('dialog', { name: 'Arrived' });
+  await expect(arrived).toBeVisible({ timeout: 30_000 });
+  await page.keyboard.press('Enter');
+  await expect(arrived).toBeHidden();
+  await expect(page.getByTestId('materials')).toHaveText(String(gathered.run.materials));
+
+  // 3. Build the Jump Drive in the Spacecraft panel.
+  await tabTo(page, /^Spacecraft/);
+  await page.keyboard.press('Enter');
+  const panel = page.getByRole('dialog', { name: 'Spacecraft' });
+  await expect(panel).toBeVisible();
+  await tabTo(page, /^Install Jump Drive,/);
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('install-status')).toContainText('Installed Jump Drive');
+  await expect(page.getByTestId('materials')).toHaveText(String(built.run.materials));
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+
+  // 4. Target the Heliopause: its plan has Takeoff and Transfer, and no Landing.
+  await page.keyboard.press('m');
+  await expect(chart).toBeVisible();
+  await focusOnChart(page, 'Heliopause');
+  await expect(page.getByTestId('verdict')).toHaveCount(0);
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('target')).toContainText('Heliopause');
+  const burns = page.locator('.nav-chart__burns tbody th');
+  await expect(burns).toHaveText(['Takeoff', 'Transfer']);
+  await expect(page.getByTestId('plan-needed')).toHaveText(
+    formatPlanDeltaV(planned.plan.totalEstimate),
+  );
+  await testInfo.attach('heliopause-plan', {
+    body: await page.screenshot(),
+    contentType: 'image/png',
+  });
+
+  // 5. Launch: Takeoff and Transfer play, then the placeholder report says the Heliopause was reached.
+  await launch(page);
+  const strip = page.getByTestId('phase-strip');
+  await expect(strip).toBeVisible();
+  await expect(strip).not.toContainText('Landing');
+  const reached = page.getByRole('dialog', { name: 'Reached the Heliopause' });
+  await expect(reached).toBeVisible({ timeout: 30_000 });
+  await expect(reached).not.toContainText('Landing');
+  await expect(page.getByRole('button', { name: 'Back to title' })).toBeFocused();
+  await testInfo.attach('reached-the-heliopause', {
+    body: await page.screenshot(),
+    contentType: 'image/png',
+  });
+  expect(errors).toEqual([]);
+});

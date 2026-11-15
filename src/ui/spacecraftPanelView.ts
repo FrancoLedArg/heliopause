@@ -10,6 +10,7 @@ import {
   metersPerSecond,
   preview,
   SLOT_COUNT,
+  standingRefusal,
   starSystemNumber,
   type Preview,
   type ProposedChange,
@@ -79,6 +80,8 @@ export function describeRefusal(reason: InstallRefusal): string {
       const article = /^[AEIOU]/.test(label) ? 'an' : 'a';
       return `Slot ${String(reason.slot + 1)} already holds ${article} ${label}.`;
     }
+    case 'jump-drive-installed':
+      return 'You already carry a Jump Drive.';
     case 'not-enough-materials':
       return `Not enough Materials: it costs ${String(reason.cost)} and you have ${String(reason.have)}, ${String(reason.short)} short.`;
   }
@@ -131,6 +134,11 @@ export interface PanelRow {
   readonly affordable: boolean;
   /** How many more Materials the Run needs to afford it; 0 when it can. */
   readonly short: number;
+  /**
+   * Why it cannot be installed whatever the Materials (a second Jump Drive); `undefined` when it can.
+   * The panel greys the entry out and shows this.
+   */
+  readonly unavailable: string | undefined;
 }
 
 /** Every Component in the catalogue, in catalogue order, as it reads on this Run's Chassis. */
@@ -138,6 +146,8 @@ export function panelRows(run: Run): readonly PanelRow[] {
   return COMPONENT_IDS.map((id) => {
     const component = COMPONENTS[id];
     const cost = componentCost(id, starSystemNumber(run));
+    // The simulation's own rule, so the panel and `install` never disagree.
+    const standing = standingRefusal(run, id);
     return {
       id,
       name: componentName(id),
@@ -148,6 +158,7 @@ export function panelRows(run: Run): readonly PanelRow[] {
       effect: describeEffect(run.spacecraft.chassisId, id),
       affordable: run.materials >= cost,
       short: Math.max(0, cost - run.materials),
+      unavailable: standing ? describeRefusal(standing) : undefined,
     };
   });
 }

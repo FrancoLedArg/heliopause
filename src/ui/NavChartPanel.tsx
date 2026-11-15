@@ -22,11 +22,14 @@ import {
   type Direction,
 } from '../game/scenes/navChartView.ts';
 import {
+  carriesJumpDrive,
   currentBody,
   findBody,
+  HELIOPAUSE,
   isDepleted,
   planHop,
   type Body,
+  type HopTarget,
   type Run,
 } from '../game/sim/index.ts';
 import {
@@ -96,23 +99,29 @@ interface NavChartPanelProps {
 export function NavChartPanel({ run, state }: NavChartPanelProps) {
   const layout = useMemo(() => layoutChart(run), [run]);
   const here = currentBody(run);
-  const focused = findBody(run.starSystem, state.focusedId);
-  const target =
-    state.selectedId === undefined ? undefined : findBody(run.starSystem, state.selectedId);
-  if (!focused) throw new Error(`Nav Chart is focused on unknown Body ${state.focusedId}`);
-  const status = targetStatus(run, focused.id);
+  const bodyOf = (id: HopTarget): Body | undefined =>
+    id === HELIOPAUSE ? undefined : findBody(run.starSystem, id);
+  const focused = bodyOf(state.focusedId);
+  if (!focused && state.focusedId !== HELIOPAUSE) {
+    throw new Error(`Nav Chart is focused on unknown Body ${state.focusedId}`);
+  }
+  // The chosen target: a Body, or the Heliopause (`targetIsEdge`, with no Body).
+  const target = state.selectedId === undefined ? undefined : bodyOf(state.selectedId);
+  const targetIsEdge = state.selectedId === HELIOPAUSE;
+  const hasTarget = target !== undefined || targetIsEdge;
+  const status = targetStatus(run, state.focusedId);
+  const inspect = focused ? inspectBody(run, focused) : inspectHeliopause(run);
 
   // Labels and tooltip take about a millisecond, and the panel only renders when the chart changes.
   const context = { hereId: here.id, targetId: state.selectedId, focusedId: state.focusedId };
   const labels = placeLabels(layout, context);
-  const focusedKind = bodyTypeLabel(run, focused);
-  const kindExtra = tooltipKindExtra(focusedKind);
+  const kindExtra = tooltipKindExtra(inspect.kind);
   const tipHeight = tooltipHeight(status.valid ? undefined : status.why, kindExtra);
   const tooltip = placeTooltip(layout, context, tipHeight, labels);
 
   const planned = state.selectedId === undefined ? undefined : planHop(run, state.selectedId);
   const view =
-    planned?.kind === 'planned' && target ? describeHopPlan(run, planned.plan) : undefined;
+    planned?.kind === 'planned' && hasTarget ? describeHopPlan(run, planned.plan) : undefined;
 
   // A long target name wraps onto a second line, so the target block is taller and the plan moves down.
   const longTarget = target !== undefined && target.name.length > LONG_TARGET_NAME;
@@ -164,7 +173,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
     }
   };
 
-  const optionId = (body: Body): string => `nav-option-${body.id}`;
+  const optionId = (id: HopTarget): string => `nav-option-${id}`;
   const stateWords = (body: Body): string => {
     const words = [bodyFullLabel(run, body)];
     if (body.id === here.id) words.push('you are here');
@@ -173,6 +182,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
     if (body.id === target?.id) words.push('target');
     return words.join(', ');
   };
+  const edgeStatus = targetStatus(run, HELIOPAUSE);
   const at = (box: { x: number; y: number }): CSSProperties => ({
     left: CHART.x + box.x,
     top: CHART.y + box.y,
@@ -207,7 +217,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         role="listbox"
         tabIndex={0}
         aria-label="Bodies in the Star System"
-        aria-activedescendant={optionId(focused)}
+        aria-activedescendant={optionId(state.focusedId)}
         aria-describedby="nav-chart-keys"
         onKeyDown={onChartKey}
         style={{ left: CHART.x, top: CHART.y, width: CHART.width, height: CHART.height }}
@@ -215,7 +225,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         {layout.nodes.map(({ body }) => (
           <div
             key={body.id}
-            id={optionId(body)}
+            id={optionId(body.id)}
             role="option"
             aria-selected={body.id === target?.id}
             aria-disabled={!targetStatus(run, body.id).valid}
@@ -224,6 +234,17 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
             {body.name}, {stateWords(body)}
           </div>
         ))}
+        <div
+          id={optionId(HELIOPAUSE)}
+          role="option"
+          aria-selected={targetIsEdge}
+          aria-disabled={!edgeStatus.valid}
+          className="sr-only"
+        >
+          Heliopause, the edge of the Star System,{' '}
+          {edgeStatus.valid ? 'can be the target' : edgeStatus.why}
+          {targetIsEdge ? ', target' : ''}
+        </div>
       </div>
 
       {labels.map((label) => (
@@ -258,27 +279,17 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
           height={tipHeight}
           className="nav-chart__tooltip-frame"
         />
-        <h2 className="nav-chart__tip-name">{focused.name}</h2>
-        <p className="nav-chart__tip-kind">{focusedKind}</p>
-        <p className="nav-chart__tip-fact">
-          {formatGravity(focused.surfaceGravity)} · {formatDistanceAu(focused.distanceFromStar)}
-        </p>
+        <h2 className="nav-chart__tip-name">{inspect.name}</h2>
+        <p className="nav-chart__tip-kind">{inspect.kind}</p>
+        <p className="nav-chart__tip-fact">{inspect.fact}</p>
         <p
-          className={`nav-chart__badge ${focused.landable && !isDepleted(run, focused.id) ? 'nav-chart__badge--ok' : 'nav-chart__badge--warn'}`}
+          className={`nav-chart__badge ${inspect.badge.ok ? 'nav-chart__badge--ok' : 'nav-chart__badge--warn'}`}
           data-testid="landable"
         >
-          <KitFrame
-            frame={
-              !focused.landable
-                ? 'badge_lock'
-                : isDepleted(run, focused.id)
-                  ? 'badge_warning'
-                  : 'badge_ok'
-            }
-          />
-          {focused.landable ? 'Landable' : 'No surface'}
-          {bodyStatusLabel(run, focused) && (
-            <span data-testid="tip-composition">{` · ${bodyStatusLabel(run, focused)}`}</span>
+          <KitFrame frame={inspect.badge.frame} />
+          {inspect.badge.text}
+          {inspect.badge.note && (
+            <span data-testid="tip-composition">{` · ${inspect.badge.note}`}</span>
           )}
         </p>
         {!status.valid && (
@@ -297,8 +308,8 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         {DELTA_V_EXPLANATION}
       </p>
       <p id="nav-chart-keys" className="sr-only">
-        Arrow keys look at a Body; Page Up and Page Down step through them all; Enter makes the
-        focused Body the target; Escape closes.
+        Arrow keys look at a Body; Page Up and Page Down step through them all, out to the
+        Heliopause; Enter makes the focused Body the target; Escape closes.
       </p>
 
       <div className="nav-chart__side" style={{ left: SIDE.x, top: SIDE.y }}>
@@ -315,6 +326,12 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
       <div className="nav-chart__target" data-testid="target">
         <div className="nav-chart__target-head">
           <p className="nav-chart__target-label">Target</p>
+          {targetIsEdge && (
+            <p className="nav-chart__badge nav-chart__badge--ok">
+              <KitFrame frame="badge_ok" />
+              <span data-testid="target-composition">No Landing</span>
+            </p>
+          )}
           {target && (
             <p
               className={`nav-chart__badge ${isDepleted(run, target.id) ? 'nav-chart__badge--warn' : 'nav-chart__badge--ok'}`}
@@ -334,7 +351,18 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
             </p>
           )}
         </div>
-        <p className="nav-chart__target-name">{target ? target.name : 'None chosen'}</p>
+        <p className="nav-chart__target-name">
+          {target ? target.name : targetIsEdge ? 'Heliopause' : 'None chosen'}
+        </p>
+        {targetIsEdge && (
+          <p className="nav-chart__target-kind" data-testid="target-kind">
+            <span data-testid="target-type">Star System edge</span>
+            {' · '}
+            <span className="nav-chart__target-gravity" data-testid="target-gravity">
+              {formatDistanceAu(run.starSystem.heliopauseRadius)}
+            </span>
+          </p>
+        )}
         {target && (
           <p className="nav-chart__target-kind" data-testid="target-kind">
             <span data-testid="target-type">{bodyTypeLabel(run, target)}</span>
@@ -421,24 +449,26 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         <KitButton
           width={76}
           onClick={
-            target
+            hasTarget
               ? () => {
                   cancelPlan();
                   chartRef.current?.focus();
                 }
               : requestClose
           }
-          aria-keyshortcuts={target ? undefined : 'Escape'}
+          aria-keyshortcuts={hasTarget ? undefined : 'Escape'}
         >
-          {target ? 'Cancel' : 'Close'}
+          {hasTarget ? 'Cancel' : 'Close'}
         </KitButton>
         <KitButton
           width={80}
           variant="primary"
-          disabled={!target}
+          disabled={!hasTarget}
           onClick={() => {
             // The Landed scene flies the Hop and starts its playback, which closes this panel.
-            if (target) EventBus.emit('hop-launch-requested', target.id);
+            if (state.selectedId !== undefined) {
+              EventBus.emit('hop-launch-requested', state.selectedId);
+            }
           }}
         >
           Launch
@@ -446,4 +476,49 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
       </div>
     </section>
   );
+}
+
+/** What the tooltip says about the focused Body or the Heliopause. */
+interface Inspected {
+  readonly name: string;
+  readonly kind: string;
+  readonly fact: string;
+  /** A kit badge and its words (never colour alone): `ok` reads green, otherwise amber. */
+  readonly badge: {
+    readonly frame: 'badge_ok' | 'badge_warning' | 'badge_lock';
+    readonly ok: boolean;
+    readonly text: string;
+    readonly note: string | undefined;
+  };
+}
+
+function inspectBody(run: Run, body: Body): Inspected {
+  const depleted = isDepleted(run, body.id);
+  return {
+    name: body.name,
+    kind: bodyTypeLabel(run, body),
+    fact: `${formatGravity(body.surfaceGravity)} · ${formatDistanceAu(body.distanceFromStar)}`,
+    badge: {
+      frame: !body.landable ? 'badge_lock' : depleted ? 'badge_warning' : 'badge_ok',
+      ok: body.landable && !depleted,
+      text: body.landable ? 'Landable' : 'No surface',
+      note: bodyStatusLabel(run, body),
+    },
+  };
+}
+
+/** The Heliopause: the edge of the Star System, which only a Spacecraft with a Jump Drive may target. */
+function inspectHeliopause(run: Run): Inspected {
+  const ready = carriesJumpDrive(run.spacecraft);
+  return {
+    name: 'Heliopause',
+    kind: 'Star System edge',
+    fact: `${formatDistanceAu(run.starSystem.heliopauseRadius)} from the star`,
+    badge: {
+      frame: ready ? 'badge_ok' : 'badge_lock',
+      ok: ready,
+      text: ready ? 'Jump Drive ready' : 'Needs a Jump Drive',
+      note: undefined,
+    },
+  };
 }

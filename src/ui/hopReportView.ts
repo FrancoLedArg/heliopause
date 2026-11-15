@@ -2,7 +2,6 @@
 // the simulation's plain-language why. Every figure comes from the flight; nothing is recomputed here. The one exception is the Drill's
 // factor, read from the Run before the Hop (a Hop never changes the Slots) to name it on the Collected line.
 import {
-  BURNS,
   drillMultiplier,
   FUEL_NOTE,
   type Collection,
@@ -33,7 +32,7 @@ export interface ReportRow {
 }
 
 export interface ReportView {
-  readonly title: 'Arrived' | 'Fell Short' | 'Crashed';
+  readonly title: 'Arrived' | 'Reached the Heliopause' | 'Fell Short' | 'Crashed';
   /** One line saying what happened, before the table. */
   readonly headline: string;
   readonly rows: readonly ReportRow[];
@@ -50,12 +49,12 @@ export interface ReportView {
 /** What the report shows for `flight`, flown from the Run `before`. */
 export function describeReport(before: Run, flight: HopFlight): ReportView {
   const { outcome } = flight;
-  const targetName = findBody(before.starSystem, flight.plan.toId)?.name ?? flight.plan.toId;
-  const rows = BURNS.map((burn) => {
-    const result = flight.burns.find((r) => r.burn === burn);
-    if (!result) throw new Error(`Flight has no ${burn} Burn`);
-    return row(result);
-  });
+  const { plan } = flight;
+  const targetName =
+    plan.destination === 'body'
+      ? (findBody(before.starSystem, plan.toId)?.name ?? plan.toId)
+      : 'the Heliopause';
+  const rows = flight.burns.map(row);
   const { margin } = flight.plan;
   // The same minus sign the Hop plan uses.
   const share = formatMarginShare(marginShare(flight.plan));
@@ -72,6 +71,15 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
           ...(flight.collection.kind === 'fuel' &&
             !hadFuelBefore(before) && { note: FUEL_NOTE.text }),
         }),
+        why: flight.why,
+      };
+    // A placeholder until the Jump (#157) takes over from here.
+    case 'reached-heliopause':
+      return {
+        title: 'Reached the Heliopause',
+        headline: 'The Spacecraft reached the edge of the Star System.',
+        rows,
+        margin: `Margin left: ${formatDeltaV(flight.deltaVRemaining)} of Δv (${planned})`,
         why: flight.why,
       };
     case 'fell-short':

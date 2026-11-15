@@ -15,8 +15,7 @@ import {
 import { SceneKey } from '../game/scenes/keys.ts';
 import type { ChartState } from '../game/scenes/navChartView.ts';
 import { ChassisPicker } from './ChassisPicker.tsx';
-import { FlightHud } from './FlightHud.tsx';
-import type { RecordedScore } from './EndOfRun.tsx';
+import { FlightHud, type FlightAfter } from './FlightHud.tsx';
 import { HopReport } from './HopReport.tsx';
 import { LandedPanels } from './LandedPanels.tsx';
 import { AboutPanel, CreditsPanel } from './InfoPanels.tsx';
@@ -47,9 +46,8 @@ export function GameUI() {
         before: Run;
         flight: HopFlight;
         moment?: FlightMoment;
-        ended?: Run;
-        recorded?: RecordedScore;
-        reportDone?: boolean;
+        /** What follows the playback once it is over. */
+        after?: FlightAfter;
       }
     | undefined
   >(undefined);
@@ -132,7 +130,14 @@ export function GameUI() {
       EventBus.on('hop-failed', (_failed, ended) => {
         // The Run is over: its Score is recorded here, once, whatever the end screen does after.
         const recorded = recordScore(score(ended));
-        setFlight((now) => now && { ...now, ended, recorded });
+        setFlight(
+          (now) =>
+            now && { ...now, after: { kind: 'ended', run: ended, recorded, step: 'report' } },
+        );
+      }),
+      EventBus.on('hop-reached-heliopause', () => {
+        // No Score: the Run is not over, the Jump (#157) takes over from here.
+        setFlight((now) => now && { ...now, after: { kind: 'reached-heliopause' } });
       }),
     ];
     return () => {
@@ -231,7 +236,8 @@ export function GameUI() {
       )}
       {scene === SceneKey.Title && info === 'about' && <AboutPanel onBack={closeInfo} />}
       {scene === SceneKey.Title && info === 'credits' && <CreditsPanel onBack={closeInfo} />}
-      {(scene === SceneKey.Title || (scene === SceneKey.Flight && flight?.ended !== undefined)) &&
+      {(scene === SceneKey.Title ||
+        (scene === SceneKey.Flight && flight?.after?.kind === 'ended')) &&
         picking && (
           <ChassisPicker
             launching={launching}
@@ -279,11 +285,12 @@ export function GameUI() {
           before={flight.before}
           flight={flight.flight}
           moment={flight.moment}
-          ended={flight.ended}
-          recorded={flight.recorded}
-          reportDone={flight.reportDone === true}
+          after={flight.after}
           onContinue={() => {
-            setFlight((now) => now && { ...now, reportDone: true });
+            // From the failed Hop's report on to the End-of-Run screen.
+            setFlight((now) =>
+              now?.after?.kind === 'ended' ? { ...now, after: { ...now.after, step: 'end' } } : now,
+            );
           }}
           onNewRun={startNewRun}
           onLeave={leaveRun}

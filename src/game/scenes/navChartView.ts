@@ -4,9 +4,11 @@
 // the simulation's rule (`planHop`); nothing here re-implements it.
 import {
   currentBody,
+  HELIOPAUSE,
   planHop,
   type Body,
   type BodyId,
+  type HopTarget,
   type InvalidTargetReason,
   type Planet,
   type Run,
@@ -21,12 +23,16 @@ interface Point {
   readonly y: number;
 }
 
-/** One Body on the chart: its centre in chart pixels and the radius of its 1x sprite. */
-export interface ChartNode {
-  readonly body: Body;
+/** Something round on the chart that focus can rest on: its centre in chart pixels and its radius. */
+export interface ChartSpot {
   readonly x: number;
   readonly y: number;
   readonly radius: number;
+}
+
+/** One Body on the chart: its centre in chart pixels and the radius of its 1x sprite. */
+export interface ChartNode extends ChartSpot {
+  readonly body: Body;
 }
 
 export interface ChartLayout {
@@ -36,7 +42,15 @@ export interface ChartLayout {
   /** The orbit ring of a planet, in chart pixels from the star. */
   orbitRadius(planetId: BodyId): number;
   readonly heliopauseRadius: number;
+  /** Where the Heliopause can be focused and chosen: a small mark on its ring (see `placeHeliopauseMark`). */
+  readonly heliopause: HeliopauseMark;
 }
+
+/** The Heliopause's mark on the chart: a small diamond on its ring, focused and targeted like a Body. */
+export type HeliopauseMark = ChartSpot;
+
+/** Half the size of the Heliopause's diamond, in pixels. */
+export const HELIOPAUSE_MARK_RADIUS = 4;
 
 /** A box on the chart, in chart pixels. */
 export interface Rect {
@@ -142,6 +156,7 @@ export function layoutChart(run: Run): ChartLayout {
 
   const nodes = placements.flatMap((p) => p.cluster);
   const rings = new Map(placements.map((p) => [p.planet.id, p.ring]));
+  const heliopauseRadius = Math.max(MIN_HELIOPAUSE, (placements.at(-1)?.ring ?? 0) + 30);
   return {
     star: STAR,
     nodes,
@@ -150,8 +165,39 @@ export function layoutChart(run: Run): ChartLayout {
       if (ring === undefined) throw new Error(`Nav Chart has no orbit ring for ${planetId}`);
       return ring;
     },
-    heliopauseRadius: Math.max(MIN_HELIOPAUSE, (placements.at(-1)?.ring ?? 0) + 30),
+    heliopauseRadius,
+    heliopause: placeHeliopauseMark(nodes, heliopauseRadius),
   };
+}
+
+/**
+ * The Heliopause's mark: on its ring, as near the star's level as it can be while its focus brackets
+ * stay on the chart and clear of every Body. When the ring runs off the chart there, it sits at the
+ * right edge instead, the way out of the Star System.
+ */
+function placeHeliopauseMark(nodes: readonly ChartNode[], ringRadius: number): HeliopauseMark {
+  const radius = HELIOPAUSE_MARK_RADIUS;
+  const room = radius + BRACKET_GAP;
+  const fitsAt = (x: number, y: number): boolean =>
+    x - room >= 0 &&
+    x + room <= CHART.width &&
+    y - room >= 0 &&
+    y + room <= CHART.height &&
+    nodes.every((n) => Math.hypot(n.x - x, n.y - y) > n.radius + room + GAP);
+  for (let step = 0; step * 2 < CHART.height / 2; step += 1) {
+    for (const dy of step === 0 ? [0] : [2 * step, -2 * step]) {
+      if (Math.abs(dy) >= ringRadius) continue;
+      const x = Math.round(STAR.x + Math.sqrt(ringRadius ** 2 - dy ** 2));
+      const y = Math.round(STAR.y + dy);
+      if (fitsAt(x, y)) return { x, y, radius };
+    }
+  }
+  for (let dy = 0; dy < CHART.height / 2; dy += 2) {
+    for (const y of [STAR.y + dy, STAR.y - dy]) {
+      if (fitsAt(CHART.width - room, y)) return { x: CHART.width - room, y, radius };
+    }
+  }
+  return { x: CHART.width - room, y: STAR.y, radius };
 }
 
 /**
@@ -427,7 +473,7 @@ export function ringSegments(centre: Point, radius: number): Segment[] {
  * The ends of the route line: from just outside the "you" ring to the edge of the box the focus brackets
  * draw round the target (which holds the target square), so the dashes are never hidden under a mark.
  */
-export function routeEnds(from: ChartNode, to: ChartNode): [Point, Point] {
+export function routeEnds(from: ChartSpot, to: ChartSpot): [Point, Point] {
   const length = Math.hypot(to.x - from.x, to.y - from.y);
   const [ux, uy] = [(to.x - from.x) / length, (to.y - from.y) / length];
   const start = from.radius + MARK_GAP + 1;
@@ -452,12 +498,12 @@ export function dashedSegments(a: Point, b: Point, dash: number, gap: number): S
   return segments;
 }
 
-/** Whether a Body can be chosen as the Hop target, and if not, why, in the simulation's own words. */
+/** Whether a Body, or the Heliopause, can be chosen as the Hop target, and if not, why, in the simulation's own words. */
 export type TargetStatus =
   | { readonly valid: true }
   | { readonly valid: false; readonly reason: InvalidTargetReason; readonly why: string };
 
-export function targetStatus(run: Run, id: BodyId): TargetStatus {
+export function targetStatus(run: Run, id: HopTarget): TargetStatus {
   const result = planHop(run, id);
   return result.kind === 'planned'
     ? { valid: true }
@@ -473,40 +519,51 @@ const HEADING: Record<Direction, Point> = {
   down: { x: 0, y: 1 },
 };
 
+/** Everything focus can rest on, in order out from the star: each planet before its Moons, the Heliopause last. */
+function focusStops(layout: ChartLayout): { readonly id: HopTarget; readonly at: Point }[] {
+  return [
+    ...layout.nodes.map((node) => ({ id: node.body.id, at: node })),
+    { id: HELIOPAUSE, at: layout.heliopause },
+  ];
+}
+
 /**
- * The Body an arrow key moves focus to: the nearest one in that direction, counting sideways
- * distance double so a key follows its own line. At the edge of the chart focus stays put.
+ * The Body (or the Heliopause) an arrow key moves focus to: the nearest one in that direction,
+ * counting sideways distance double so a key follows its own line. At the edge of the chart focus
+ * stays put.
  */
-export function moveFocus(layout: ChartLayout, from: BodyId, direction: Direction): BodyId {
-  const origin = layout.nodes.find((n) => n.body.id === from);
+export function moveFocus(layout: ChartLayout, from: HopTarget, direction: Direction): HopTarget {
+  const stops = focusStops(layout);
+  const origin = stops.find((stop) => stop.id === from);
   if (!origin) return from;
   const heading = HEADING[direction];
-  let best: { id: BodyId; score: number } | undefined;
-  for (const node of layout.nodes) {
-    if (node === origin) continue;
-    const dx = node.x - origin.x;
-    const dy = node.y - origin.y;
+  let best: { id: HopTarget; score: number } | undefined;
+  for (const { id, at } of stops) {
+    if (id === origin.id) continue;
+    const dx = at.x - origin.at.x;
+    const dy = at.y - origin.at.y;
     const along = dx * heading.x + dy * heading.y;
     if (along <= 0) continue;
     const across = Math.abs(dx * heading.y - dy * heading.x);
     const score = along + 2 * across;
-    if (!best || score < best.score || (score === best.score && node.body.id < best.id)) {
-      best = { id: node.body.id, score };
+    if (!best || score < best.score || (score === best.score && id < best.id)) {
+      best = { id, score };
     }
   }
   return best?.id ?? from;
 }
 
-/** The next (`1`) or previous (`-1`) Body in order out from the star, each planet before its Moons. */
-export function stepFocus(layout: ChartLayout, from: BodyId, delta: 1 | -1): BodyId {
-  const index = layout.nodes.findIndex((n) => n.body.id === from);
-  return layout.nodes[index + delta]?.body.id ?? from;
+/** The next (`1`) or previous (`-1`) stop in order out from the star, each planet before its Moons, the Heliopause last. */
+export function stepFocus(layout: ChartLayout, from: HopTarget, delta: 1 | -1): HopTarget {
+  const stops = focusStops(layout);
+  const index = stops.findIndex((stop) => stop.id === from);
+  return stops[index + delta]?.id ?? from;
 }
 
-/** What the Nav Chart is showing: the Body focus is on, and the chosen target, if any. */
+/** What the Nav Chart is showing: the Body (or the Heliopause) focus is on, and the chosen target, if any. */
 export interface ChartState {
-  readonly focusedId: BodyId;
-  readonly selectedId: BodyId | undefined;
+  readonly focusedId: HopTarget;
+  readonly selectedId: HopTarget | undefined;
 }
 
 /** What can happen to the chart: keys, or the mouse. */
@@ -516,8 +573,8 @@ export type ChartCommand =
   | { readonly kind: 'select' }
   /** Cancel the Hop plan: no target. */
   | { readonly kind: 'clear' }
-  | { readonly kind: 'focus'; readonly id: BodyId }
-  | { readonly kind: 'click'; readonly id: BodyId };
+  | { readonly kind: 'focus'; readonly id: HopTarget }
+  | { readonly kind: 'click'; readonly id: HopTarget };
 
 /** Opens with focus on the Body the Spacecraft is on, nothing chosen. */
 export function initialChartState(run: Run): ChartState {
@@ -550,19 +607,19 @@ export function chartReducer(
   }
 }
 
-function choose(run: Run, state: ChartState, id: BodyId): ChartState {
+function choose(run: Run, state: ChartState, id: HopTarget): ChartState {
   return targetStatus(run, id).valid ? { ...state, selectedId: id } : state;
 }
 
 /** What the labels depend on: where the Spacecraft is, the chosen target and the Body in focus. */
 export interface LabelContext {
   readonly hereId: BodyId;
-  readonly targetId: BodyId | undefined;
-  readonly focusedId: BodyId;
+  readonly targetId: HopTarget | undefined;
+  readonly focusedId: HopTarget;
 }
 
 export interface PlacedLabel {
-  readonly id: BodyId | 'heliopause';
+  readonly id: HopTarget;
   readonly text: string;
   /** The text as drawn: one line, or the name over its "you" / "target" note when that fits better. */
   readonly lines: readonly string[];
@@ -587,18 +644,32 @@ interface Footprint {
 
 function footprint(node: ChartNode, context: LabelContext): Footprint {
   const ringed = node.body.id === context.hereId || node.body.kind === 'gas-giant';
+  return markFootprint(node, node.body.id, ringed, context);
+}
+
+/** The Heliopause mark's footprint: its diamond, and the target square and brackets when it has them. */
+function heliopauseFootprint(layout: ChartLayout, context: LabelContext): Footprint {
+  return markFootprint(layout.heliopause, HELIOPAUSE, false, context);
+}
+
+function markFootprint(
+  spot: ChartSpot,
+  id: HopTarget,
+  ringed: boolean,
+  context: LabelContext,
+): Footprint {
   const boxes: Rect[] = [];
-  if (node.body.id === context.targetId) {
-    const half = node.radius + MARK_GAP + 1;
-    boxes.push({ x: node.x - half, y: node.y - half, w: 2 * half, h: 2 * half });
+  if (id === context.targetId) {
+    const half = spot.radius + MARK_GAP + 1;
+    boxes.push({ x: spot.x - half, y: spot.y - half, w: 2 * half, h: 2 * half });
   }
-  if (node.body.id === context.focusedId) boxes.push(...bracketArms(node));
-  const radius = node.radius + (ringed ? MARK_GAP + 1 : 0);
-  return { circle: { x: node.x, y: node.y, radius }, boxes };
+  if (id === context.focusedId) boxes.push(...bracketArms(spot));
+  const radius = spot.radius + (ringed ? MARK_GAP + 1 : 0);
+  return { circle: { x: spot.x, y: spot.y, radius }, boxes };
 }
 
 /** The focus brackets' arms, each a 1 px line, as boxes. */
-function bracketArms(node: ChartNode): Rect[] {
+function bracketArms(node: ChartSpot): Rect[] {
   const half = node.radius + BRACKET_GAP;
   const arms: Rect[] = [];
   for (const [sx, sy] of CORNERS) {
@@ -635,7 +706,7 @@ const LABEL_GAPS = [1, 2, 3, 4, 6, 8, 10, 13, 17, 22, 30, 40];
 const SLIDES = Array.from({ length: 9 }, (_, i) => i / 8);
 
 /** Spots for a box of `w` x `h` round a Body: below and above (slid along), right and left, and the corners. */
-function spotsAround(node: ChartNode, w: number, h: number): Rect[] {
+function spotsAround(node: ChartSpot, w: number, h: number): Rect[] {
   const spots: Rect[] = [];
   for (const gap of LABEL_GAPS) {
     const out = node.radius + gap;
@@ -709,6 +780,13 @@ const CRAMPED_COST = 3;
 const OPTIONAL_REACH = 8;
 /** Pixels a label may sit nearer another Body than its own and still read as its own. */
 const STRAY_LEEWAY = 2;
+/** Heights (px from the star's level) tried for the Heliopause label along its ring, nearest first. */
+const RING_LABEL_STEPS = [
+  0,
+  ...Array.from({ length: 15 }, (_, i) => (i + 1) * 7).flatMap((d) => [-d, d]),
+];
+/** For the Heliopause label with nowhere clear: covering another label costs this many marks. */
+const LABEL_OVER_LABEL = 10;
 /** How much worse than straying a label is when it covers another label or a mark, per thing covered. */
 const NOWHERE_CLEAR = 1000;
 
@@ -723,6 +801,7 @@ const NOWHERE_CLEAR = 1000;
 export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedLabel[] {
   const marks = new Map(layout.nodes.map((n) => [n, footprint(n, context)]));
   const star: Footprint = { circle: layout.star, boxes: [] };
+  const edge = heliopauseFootprint(layout, context);
   let placed: PlacedLabel[] = [];
 
   /** On the chart, clear of the labels so far and of every footprint (its own Body's by just 1 px). */
@@ -730,6 +809,7 @@ export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedL
     insideBox(box) &&
     placed.every((l) => !boxesTouch(l.box, box, margin === 1 ? 1 : 2)) &&
     !touches(star, box, margin) &&
+    !touches(edge, box, margin) &&
     layout.nodes.every((n) => !touches(marks.get(n) ?? star, box, n === own ? 1 : margin));
   /** How much nearer a box is to some other Body (or the star) than to its own; 0 when its own is nearest. */
   const stray = (option: LabelOption, own: ChartNode): number => {
@@ -794,7 +874,7 @@ export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedL
       // all no Body or the star (a label may sit over a ring or bracket, never over a sprite).
       const covers = (box: Rect): number =>
         placed.filter((l) => boxesTouch(l.box, box, 0)).length +
-        [star, ...marks.values()].filter((f) => touches(f, box, 0)).length +
+        [star, edge, ...marks.values()].filter((f) => touches(f, box, 0)).length +
         [layout.star, ...layout.nodes].filter((n) => circleTouchesBox(n, box, 0)).length *
           NOWHERE_CLEAR;
       for (const o of options) {
@@ -807,6 +887,54 @@ export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedL
     if (!least) return Infinity;
     placed.push({ id: node.body.id, text, kind, lines: least.option.lines, box: least.option.box });
     return least.by;
+  };
+
+  /**
+   * A spot for the Heliopause label beside its mark, the way a Body's label sits beside its sprite:
+   * nearer the mark than any Body, on one line or as "Heliopause" over "target". `undefined` when
+   * none is clear.
+   */
+  const besideMark = (text: string): LabelOption | undefined => {
+    const mark = layout.heliopause;
+    const shapes: { lines: string[]; w: number; h: number }[] = [
+      { lines: [text], w: text.length * LABEL.charWidth, h: LABEL.height },
+    ];
+    if (text !== 'Heliopause') {
+      shapes.push({
+        lines: ['Heliopause', 'target'],
+        w: 10 * LABEL.charWidth,
+        h: 2 * LABEL.height + 1,
+      });
+    }
+    const options = shapes
+      .flatMap(({ lines, w, h }) =>
+        spotsAround(mark, w, h).map((box) => ({ lines, box, d: edgeDistance(box, mark) })),
+      )
+      // Right beside the mark, or it would not read as its name.
+      .filter((option) => option.d <= OPTIONAL_REACH)
+      .sort((a, b) => a.d - b.d);
+    const ownIsNearest = (option: LabelOption): boolean =>
+      [layout.star, ...layout.nodes].every(
+        (n) => edgeDistance(option.box, n) + STRAY_LEEWAY >= option.d,
+      );
+    const clear =
+      nearestFit(options, undefined, ownIsNearest) ?? nearestFit(options, undefined, () => true);
+    if (clear) return clear;
+    // Nowhere clear (a crowded edge of the chart): the spot beside the mark that covers the fewest
+    // labels and marks, and never a Body, the star or the mark itself.
+    let least: { option: LabelOption; cost: number } | undefined;
+    for (const o of options) {
+      const box = clampToChart(o.box);
+      if (circleTouchesBox(mark, box, 1)) continue;
+      const cost =
+        [layout.star, ...layout.nodes].filter((n) => circleTouchesBox(n, box, 0)).length *
+          NOWHERE_CLEAR +
+        placed.filter((l) => boxesTouch(l.box, box, 0)).length * LABEL_OVER_LABEL +
+        [star, edge, ...marks.values()].filter((f) => touches(f, box, 0)).length +
+        edgeDistance(box, mark) / 100;
+      if (!least || cost < least.cost) least = { option: { ...o, box }, cost };
+    }
+    return least?.option;
   };
 
   // The Spacecraft's Body, the target and the focused Body, each labelled once. One label can take
@@ -832,9 +960,10 @@ export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedL
   const shown = new Set(required.map(([node]) => node.body.id));
 
   // The Heliopause label hangs just inside its ring, wherever there is room along it.
-  const w = 'heliopause'.length * LABEL.charWidth;
+  const ringText = context.targetId === HELIOPAUSE ? 'Heliopause · target' : 'Heliopause';
+  const w = ringText.length * LABEL.charWidth;
   const ringOptions: LabelOption[] = [];
-  for (const dy of [0, -14, 14, -28, 28, -42, 42, -56, 56, -70, 70, -84, 84]) {
+  for (const dy of RING_LABEL_STEPS) {
     const ringX = layout.star.x + Math.sqrt(layout.heliopauseRadius ** 2 - dy * dy);
     const box = {
       x: Math.round(ringX - 4 - w),
@@ -842,13 +971,14 @@ export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedL
       w,
       h: LABEL.height,
     };
-    ringOptions.push({ lines: ['Heliopause'], box, d: Math.abs(dy) / 100 });
+    ringOptions.push({ lines: [ringText], box, d: Math.abs(dy) / 100 });
   }
-  const ring = nearestFit(ringOptions, undefined, () => true);
+  // The goal is always named: when its ring has no room, the label sits beside its mark instead.
+  const ring = nearestFit(ringOptions, undefined, () => true) ?? besideMark(ringText);
   if (ring) {
     placed.push({
-      id: 'heliopause',
-      text: 'Heliopause',
+      id: HELIOPAUSE,
+      text: ringText,
       kind: 'heliopause',
       lines: ring.lines,
       box: ring.box,
@@ -922,21 +1052,32 @@ export function placeTooltip(
   height: number,
   labels: readonly PlacedLabel[],
 ): Rect {
-  const node = layout.nodes.find((n) => n.body.id === context.focusedId);
+  const focusedNode = layout.nodes.find((n) => n.body.id === context.focusedId);
+  const onEdge = context.focusedId === HELIOPAUSE;
+  const node = onEdge ? layout.heliopause : focusedNode;
   if (!node) throw new Error(`Nav Chart has no Body ${context.focusedId}`);
   const [w, h] = [TOOLTIP_SIZE.w, height];
 
-  const kept = new Set([context.focusedId, context.hereId, context.targetId]);
+  const kept = new Set<HopTarget | undefined>([
+    context.focusedId,
+    context.hereId,
+    context.targetId,
+  ]);
   const keepOff: Footprint[] = [
     { circle: layout.star, boxes: [] },
     ...layout.nodes
       .filter((n) => n !== node && kept.has(n.body.id))
       .map((n) => footprint(n, context)),
+    // The Heliopause stays in view once it is the target, and its mark is never covered anyway.
+    ...(onEdge ? [] : [heliopauseFootprint(layout, context)]),
   ];
-  const ownMarks = footprint(node, context);
-  const keepOffLabels = labels.filter((l) => l.kind === 'here' || l.kind === 'target');
+  const ownMarks = focusedNode
+    ? footprint(focusedNode, context)
+    : heliopauseFootprint(layout, context);
+  const keptLabel = (l: PlacedLabel): boolean => l.kind === 'here' || l.kind === 'target';
+  const keepOffLabels = labels.filter(keptLabel);
   const others = layout.nodes.filter((n) => !kept.has(n.body.id));
-  const otherLabels = labels.filter((l) => l.kind !== 'here' && l.kind !== 'target');
+  const otherLabels = labels.filter((l) => !keptLabel(l));
 
   /** On the chart and off everything kept in view; `overBrackets` lets it cover the Body's own marks. */
   const clear = (box: Rect, overBrackets = false): boolean =>
@@ -948,6 +1089,9 @@ export function placeTooltip(
   const cost = (box: Rect): number =>
     others.filter((n) => circleTouchesBox(n, box, 1)).length * TOOLTIP_HIDES_BODY +
     otherLabels.filter((l) => boxesTouch(l.box, box, 0)).length * TOOLTIP_HIDES_LABEL +
+    // The Heliopause's name is the goal: hiding it costs as much as hiding a Body.
+    otherLabels.filter((l) => l.kind === 'heliopause' && boxesTouch(l.box, box, 0)).length *
+      (TOOLTIP_HIDES_BODY - TOOLTIP_HIDES_LABEL) +
     edgeDistance(box, node);
 
   const best = (spots: readonly Rect[], overBrackets = false): Rect | undefined => {
@@ -1008,7 +1152,7 @@ export function placeTooltip(
     if (!least || c < least.cost) least = { box, cost: c };
   }
   if (least) return least.box;
-  throw new Error(`Nav Chart has no room for a tooltip beside ${node.body.name}`);
+  throw new Error(`Nav Chart has no room for a tooltip beside ${context.focusedId}`);
 }
 
 /** Gaps tried between the tooltip and the focused Body, nearest first; its brackets rule out the nearest. */

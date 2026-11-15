@@ -7,6 +7,7 @@ import {
   launchHop,
   listBodies,
   homePlanet,
+  HELIOPAUSE,
   startRun,
   type ChassisId,
   type HopFlight,
@@ -31,7 +32,47 @@ function hopThatEnds(
   throw new Error(`Seed ${String(seed)} has no ${kind} Hop for the ${chassis}`);
 }
 
+/** A Hop to the Heliopause that ends `kind`, flown by a lancer carrying a Jump Drive. */
+function heliopauseHopThatEnds(
+  kind: HopOutcome['kind'],
+  fuelShare: number,
+): { run: Run; flight: HopFlight } {
+  for (let seed = 1; seed < 200; seed++) {
+    const start = startRun(seed, 'lancer');
+    const built = install({ ...start, materials: materials(100) }, 2, 'jump-drive');
+    if (built.kind !== 'installed') throw new Error('Expected an install');
+    const { spacecraft } = built.run;
+    const run = {
+      ...built.run,
+      spacecraft: { ...spacecraft, fuelMass: kilograms(spacecraft.fuelMass * fuelShare) },
+    };
+    const launched = launchHop(run, HELIOPAUSE);
+    if (launched.kind === 'flown' && launched.flight.outcome.kind === kind) {
+      return { run, flight: launched.flight };
+    }
+  }
+  throw new Error(`No seed has a ${kind} Hop to the Heliopause`);
+}
+
 describe('the Hop report', () => {
+  it('says the Heliopause was reached, with no Landing row: a placeholder until the Jump', () => {
+    const { run, flight } = heliopauseHopThatEnds('reached-heliopause', 1);
+    const view = describeReport(run, flight);
+    expect(view.title).toBe('Reached the Heliopause');
+    expect(view.headline).toMatch(/edge of the Star System/);
+    expect(view.rows.map((row) => row.label)).toEqual(['Takeoff', 'Transfer']);
+    expect(view.margin).toMatch(/^Margin left: /);
+    expect(view.collected).toBeUndefined();
+    expect(view.why).toBe(flight.why);
+  });
+
+  it('reports a Hop to the Heliopause that ran out of Fuel as Fell Short', () => {
+    const { run, flight } = heliopauseHopThatEnds('fell-short', 0.3);
+    const view = describeReport(run, flight);
+    expect(view.title).toBe('Fell Short');
+    expect(view.rows.map((row) => row.label)).toEqual(['Takeoff', 'Transfer']);
+  });
+
   it('names an Arrived Hop in words, lists each Burn estimate against actual, and the Margin left', () => {
     const { run, flight } = hopThatEnds('arrived', 123, 'scout');
     const view = describeReport(run, flight);

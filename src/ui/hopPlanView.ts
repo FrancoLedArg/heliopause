@@ -2,14 +2,15 @@
 // this file only formats it and decides how loudly to flag a low Success Chance.
 import {
   astronomicalUnits,
-  BURNS,
   findBody,
   isDepleted,
   marginShare,
   metersPerSecond,
+  BURNS,
   type Body,
   type Burn,
   type HopPlan,
+  type MetersPerSecond,
   type Run,
 } from '../game/sim/index.ts';
 import {
@@ -35,10 +36,10 @@ const BURN_LABEL: Record<Burn, string> = {
 export const DELTA_V_EXPLANATION =
   'Δv is how much your speed can change: every Burn spends some, and a heavier craft gets less from the same Fuel.';
 
-/** The Transfer between two Bodies of one planet is a short climb within that planet's pull. */
 /** Warning when the Fuel cannot cover even the estimated Δv. */
 const NOT_ENOUGH = 'Not enough Δv for this Hop';
 
+/** The Transfer between two Bodies of one planet is a short climb within that planet's pull. */
 const SAME_PLANET = "stay in one planet's pull";
 
 export interface HopPlanView {
@@ -78,19 +79,53 @@ function burnReasons(from: Body, to: Body): Record<Burn, string> {
           to.distanceFromStar > from.distanceFromStar ? 'outward' : 'inward'
         }`;
   return {
-    takeoff: `leave ${formatGravity(from.surfaceGravity)} gravity`,
+    takeoff: leaveReason(from),
     transfer,
     landing: `land in ${formatGravity(to.surfaceGravity)} gravity`,
   };
 }
 
+const leaveReason = (from: Body): string => `leave ${formatGravity(from.surfaceGravity)} gravity`;
+
+/** The Burns of a Hop to the Heliopause: leave the Body, then climb out to the edge of the Star System. */
+function heliopauseReasons(run: Run, from: Body): Record<'takeoff' | 'transfer', string> {
+  const gap = astronomicalUnits(run.starSystem.heliopauseRadius - from.distanceFromStar);
+  return { takeoff: leaveReason(from), transfer: `climb ${formatDistanceAu(gap)} to the edge` };
+}
+
+/** One row of the plan: a Burn of the Hop, its estimate and its reason, both keyed by the same Burns. */
+function burnRow<B extends Burn>(
+  burn: B,
+  estimates: Readonly<Record<B, MetersPerSecond>>,
+  reasons: Readonly<Record<B, string>>,
+): HopPlanView['burns'][number] {
+  return {
+    label: BURN_LABEL[burn],
+    estimate: formatPlanDeltaV(estimates[burn]),
+    reason: reasons[burn],
+  };
+}
+
+/** The plan's Burn rows in the order they are flown: a Hop to the Heliopause has no Landing. */
+function burnRows(run: Run, plan: HopPlan, from: Body, to: Body | undefined): HopPlanView['burns'] {
+  if (plan.destination === 'heliopause') {
+    const reasons = heliopauseReasons(run, from);
+    return (['takeoff', 'transfer'] as const).map((burn) => burnRow(burn, plan.estimates, reasons));
+  }
+  if (!to) throw new Error(`Hop plan names unknown Body ${plan.toId}`);
+  const reasons = burnReasons(from, to);
+  return BURNS.map((burn) => burnRow(burn, plan.estimates, reasons));
+}
+
 export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
   const from = findBody(run.starSystem, plan.fromId);
-  const to = findBody(run.starSystem, plan.toId);
-  if (!from || !to) throw new Error(`Hop plan names unknown Body ${plan.fromId} or ${plan.toId}`);
-  const reasons = burnReasons(from, to);
+  if (!from) throw new Error(`Hop plan names unknown Body ${plan.fromId}`);
+  const to = plan.destination === 'body' ? findBody(run.starSystem, plan.toId) : undefined;
+  if (plan.destination === 'body' && !to)
+    throw new Error(`Hop plan names unknown Body ${plan.toId}`);
+  const targetName = to?.name ?? 'the Heliopause';
   const short = plan.margin < 0;
-  const depleted = isDepleted(run, to.id);
+  const depleted = to !== undefined && isDepleted(run, to.id);
   const share = formatMarginShare(marginShare(plan));
   const marginDeltaV = formatPlanDeltaV(metersPerSecond(Math.abs(plan.margin)));
   const low = short || plan.successChance < LOW_SUCCESS_BELOW;
@@ -98,11 +133,7 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
   const available = formatPlanDeltaV(plan.availableDeltaV);
   const successChance = formatPercent(plan.successChance);
   return {
-    burns: BURNS.map((burn) => ({
-      label: BURN_LABEL[burn],
-      estimate: formatPlanDeltaV(plan.estimates[burn]),
-      reason: reasons[burn],
-    })),
+    burns: burnRows(run, plan, from, to),
     needed,
     available,
     availableBasis: `${formatMass(run.spacecraft.dryMass)} craft + ${formatFuel(run.spacecraft.fuelMass)} Fuel`,
@@ -113,6 +144,6 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
     low,
     warning: short ? NOT_ENOUGH : low ? 'Low chance: may run dry' : undefined,
     yieldNote: depleted ? 'Depleted: this Hop will yield nothing.' : undefined,
-    summary: `Hop plan for ${to.name}: needs ${needed}, you have ${available}, success chance ${successChance}.${depleted ? ' It is Depleted and will yield nothing.' : ''}`,
+    summary: `Hop plan for ${targetName}: needs ${needed}, you have ${available}, success chance ${successChance}.${depleted ? ' It is Depleted and will yield nothing.' : ''}`,
   };
 }

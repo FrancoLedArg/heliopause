@@ -142,6 +142,11 @@ export function drillMultiplier(spacecraft: Spacecraft): number {
   return best;
 }
 
+/** Whether a Jump Drive is installed: the only way to target the Heliopause and make the Jump. */
+export function carriesJumpDrive(spacecraft: Pick<Spacecraft, 'slots'>): boolean {
+  return spacecraft.slots.some((slot) => slot !== null && COMPONENTS[slot].kind === 'jump-drive');
+}
+
 /**
  * The boundary where a list of Slots becomes a Spacecraft's Loadout, the only cast: callers are
  * `newSpacecraft` and `refit`, which derive the figures that go with it.

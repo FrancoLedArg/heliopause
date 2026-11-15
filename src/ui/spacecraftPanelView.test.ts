@@ -156,14 +156,17 @@ describe('the Mass bar', () => {
     expect(massBar(heavier.run.spacecraft).fraction).toBeGreaterThan(bar.fraction);
   });
 
-  it('is full when every Slot holds the heaviest Component', () => {
+  it('never overflows, with the heaviest Components that fit in every free Slot', () => {
     const run = startRun(7, 'scout');
-    const heaviest = Object.values(COMPONENTS).reduce((a, b) => (a.mass >= b.mass ? a : b)).id;
+    // Heaviest first; a second Jump Drive is refused, so the next heaviest goes in after it.
+    const byMass = Object.values(COMPONENTS).sort((a, b) => b.mass - a.mass);
     let rich = { ...run, materials: materials(1_000) };
     for (const slot of [2, 3]) {
-      const result = install(rich, slot, heaviest);
-      if (result.kind !== 'installed') throw new Error('expected an install');
-      rich = result.run;
+      const fits = byMass
+        .map((component) => install(rich, slot, component.id))
+        .find((result) => result.kind === 'installed');
+      if (!fits) throw new Error('expected an install');
+      rich = fits.run;
     }
     expect(massBar(rich.spacecraft).fraction).toBeLessThanOrEqual(1);
   });
@@ -294,5 +297,18 @@ describe('the Jump Drive in the panel', () => {
         short: materials(20),
       }),
     ).toBe('Not enough Materials: it costs 45 and you have 25, 20 short.');
+  });
+  it('greys out a second Jump Drive and says why, whatever the Materials', () => {
+    const rich = { ...run, materials: materials(500) };
+    expect(panelRows(rich).find((r) => r.id === 'jump-drive')?.unavailable).toBeUndefined();
+    const result = install(rich, 2, 'jump-drive');
+    if (result.kind !== 'installed') throw new Error('Expected an install');
+    const row = panelRows(result.run).find((r) => r.id === 'jump-drive');
+    expect(row?.unavailable).toBe('You already carry a Jump Drive.');
+    expect(describeRefusal({ kind: 'jump-drive-installed' })).toBe(
+      'You already carry a Jump Drive.',
+    );
+    // Every other Component stays on offer.
+    expect(panelRows(result.run).filter((r) => r.unavailable !== undefined)).toHaveLength(1);
   });
 });
