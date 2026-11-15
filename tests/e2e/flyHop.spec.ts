@@ -210,7 +210,10 @@ test('a Hop that Crashes stops on the Landing and says why, and the title is the
   await expect(outcome).toContainText('not enough Δv left to finish the Landing');
   await expect(outcome.getByRole('row', { name: /Landing/ })).toContainText('ran out');
   await expect(outcome.getByRole('row', { name: /Transfer/ })).toContainText(/[+−±]\d+%/);
-  await expectWhy(outcome, crashFlight.why);
+  await expect(outcome.locator('.hop-report__why')).toHaveText(
+    /^Fuel ran out in the Landing: Δv short by [\d.]+ km\/s\.$/,
+  );
+  await expect(outcome).toContainText(crashFlight.why);
   await testInfo.attach('crashed-report', {
     body: await page.screenshot(),
     contentType: 'image/png',
@@ -338,7 +341,10 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   await expect(outcome).toContainText('Fuel ran out during the Transfer');
   await expect(outcome.getByRole('row', { name: /Transfer/ })).toContainText('ran out');
   await expect(outcome.getByRole('row', { name: /Landing/ })).toContainText('not flown');
-  await expectWhy(outcome, shortFlight.why);
+  await expect(outcome.locator('.hop-report__why')).toHaveText(
+    /^Fuel ran out in the Transfer: Δv short by [\d.]+ km\/s\.$/,
+  );
+  await expect(outcome).toContainText(shortFlight.why);
   await testInfo.attach('fell-short', { body: await page.screenshot(), contentType: 'image/png' });
 
   await outcome.getByRole('button', { name: 'Continue' }).click();

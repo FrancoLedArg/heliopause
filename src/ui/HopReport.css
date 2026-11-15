@@ -99,6 +99,9 @@
   flex: 0 1 auto;
   min-height: 0;
   overflow-y: auto;
+  /* A thin scrollbar shows when there is more to read. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--cy3) transparent;
 }
 
 .hop-report__outcome {

@@ -71,7 +71,7 @@ export function describeReport(before: Run, flight: HopFlight): ReportView {
   const { plan } = flight;
   const rows = flight.burns.map(row);
   const bar = deltaVBar(flown(flight.burns), plan.availableDeltaV, { verb: 'Used' });
-  const { why, outcomeLine } = splitWhy(flight.why);
+  const { why, outcomeLine } = splitWhy(flight);
   const { margin } = flight.plan;
   // The same minus sign the Hop plan uses.
   const share = formatMarginShare(marginShare(flight.plan));
@@ -138,12 +138,21 @@ function flown(burns: readonly BurnResult[]): DeltaVBarBurn[] {
 }
 
 /**
- * The simulation's explanation split into the report's one line and the rest. Its first sentence
- * says the outcome again ("Arrived on X.", "Fuel ran out during the Transfer."), which the title and
- * the bar already show, so it waits behind "Tell me more"; the rest is the why.
+ * The report's one why line, and what waits behind "Tell me more". An Arrived or Heliopause Hop drops
+ * the simulation's first sentence (it repeats the title and bar) and keeps the rest. A failed Hop
+ * names the Burn that ran out and by how much, from the flight's own figures, and keeps the whole
+ * explanation behind the toggle.
  */
-function splitWhy(text: string): { why: string; outcomeLine?: string } {
-  const [first = text, ...rest] = text.split(/(?<=[.!?])\s+/);
+function splitWhy(flight: HopFlight): { why: string; outcomeLine?: string } {
+  const { outcome } = flight;
+  if (outcome.kind === 'fell-short' || outcome.kind === 'crashed') {
+    const burn = outcome.kind === 'crashed' ? 'landing' : outcome.burn;
+    return {
+      why: `Fuel ran out in the ${BURN_LABEL[burn]}: Δv short by ${formatDeltaV(outcome.shortfall)}.`,
+      outcomeLine: flight.why,
+    };
+  }
+  const [first = flight.why, ...rest] = flight.why.split(/(?<=[.!?])\s+/);
   return rest.length > 0 ? { why: rest.join(' '), outcomeLine: first } : { why: first };
 }
 

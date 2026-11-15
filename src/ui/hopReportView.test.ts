@@ -65,9 +65,11 @@ function heliopauseHopThatEnds(
   throw new Error(`No seed has a ${kind} Hop to the Heliopause`);
 }
 
-/** The report's outcome line and why line, back as the simulation wrote them. */
+/** The simulation's explanation as written: a failure keeps it whole in `outcomeLine`. */
 const whole = (view: ReportView): string =>
-  [view.outcomeLine, view.why].filter((part) => part !== undefined).join(' ');
+  view.title === 'Fell Short' || view.title === 'Crashed'
+    ? (view.outcomeLine ?? '')
+    : [view.outcomeLine, view.why].filter((part) => part !== undefined).join(' ');
 
 describe('the Hop report', () => {
   it('says the Heliopause was reached, with no Landing row: a placeholder until the Jump', () => {
@@ -130,6 +132,18 @@ describe('the Hop report', () => {
     }
   });
 
+  it('names the Burn that ran out and the shortfall in the why line of each failure', () => {
+    const fell = hopThatEnds('fell-short', 123, 'hauler', 0.5);
+    const fellView = describeReport(fell.run, fell.flight);
+    expect(fellView.why).toMatch(/^Fuel ran out in the Transfer: Δv short by [\d.]+ km\/s\.$/);
+    expect(fellView.outcomeLine).toBe(fell.flight.why);
+
+    const crashed = hopThatEnds('crashed', 123, 'scout', 0.5);
+    const crashedView = describeReport(crashed.run, crashed.flight);
+    expect(crashedView.why).toMatch(/^Fuel ran out in the Landing: Δv short by [\d.]+ km\/s\.$/);
+    expect(crashedView.outcomeLine).toBe(crashed.flight.why);
+  });
+
   it('says during which Burn the Fuel ran out when a Hop Fell Short, and that the later Burns never flew', () => {
     // Re-pinned for #188: no first Hop of a full hauler falls short now, so it sets off half-fuelled.
     const { run, flight } = hopThatEnds('fell-short', 123, 'hauler', 0.5);
@@ -153,7 +167,7 @@ describe('the Hop report', () => {
     if (launched.kind !== 'flown') throw new Error('expected a flight');
     const view = describeReport(run, launched.flight);
     expect(view.margin).toBe('Margin: none left (planned −1.8 km/s, 11%)');
-    expect(view.why).toMatch(/The Fuel gives 11% less Δv/);
+    expect(view.outcomeLine).toMatch(/The Fuel gives 11% less Δv/);
   });
 
   it('says a Crashed Hop completed the Transfer but ran out of Δv in the Landing', () => {
