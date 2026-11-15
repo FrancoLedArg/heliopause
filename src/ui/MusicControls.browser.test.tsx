@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, expect, it } from 'vitest';
+import { MusicSettingsStore, SFX_STORAGE_KEY } from '../game/audio/musicSettings.ts';
+import { sfx } from '../game/audio/sfx.ts';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/main.ts';
 import { kilograms, materials, metersPerSecond } from '../game/sim/index.ts';
 import { cleanUp, renderUi } from './browserTestKit.tsx';
@@ -93,6 +95,25 @@ it('mute lives in the popover, changes the icon and is remembered', async () => 
   // The speaker's shape changes with the mute state (the kit's sound-off icon is a different picture).
   expect(drawn()).not.toBe(unmutedShape);
   mute.click();
+});
+
+it('the effects slider has its own accessible names, and its volume is remembered across a reload', async () => {
+  const host = await renderUi(bar);
+  part(host, 'button[aria-label="Music"]').click();
+  await settle();
+  part(host, 'button[aria-label="Mute effects"]');
+  const volume = part(host, 'input[aria-label="Effects volume"]') as HTMLInputElement;
+  // React tracks the input's value, so set it through the prototype's setter to make the event count.
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- called with `volume` as `this` below
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+  setValue?.call(volume, '0.25');
+  volume.dispatchEvent(new Event('input', { bubbles: true }));
+  await settle();
+  expect(window.localStorage.getItem(SFX_STORAGE_KEY)).toContain('"volume":0.25');
+  // A fresh store, as after a reload, reads the saved volume back; the music setting is untouched.
+  expect(new MusicSettingsStore(undefined, SFX_STORAGE_KEY).get().volume).toBe(0.25);
+  expect(new MusicSettingsStore().get().volume).toBe(0.6);
+  sfx.settings.set({ volume: 0.6 });
 });
 
 it('the title screen has the speaker icon inside the frame and clear of the menu', async () => {
