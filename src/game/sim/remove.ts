@@ -1,4 +1,4 @@
-import { COMPONENTS, componentCost } from './catalogue.ts';
+import { COMPONENTS, componentCost, type ComponentId } from './catalogue.ts';
 import { starSystemNumber, type Run } from './run.ts';
 import { refit, SLOT_COUNT } from './spacecraft.ts';
 import { deepFreeze } from './starSystem.ts';
@@ -51,11 +51,16 @@ export function remove(run: Run, slotIndex: number): RemoveResult {
     run.spacecraft,
     slots.map((slot, index) => (index === slotIndex ? null : slot)),
   );
-  const refund = materials(Math.floor(componentCost(held, starSystemNumber(run)) / 2));
+  const refund = removalRefund(held, starSystemNumber(run));
   return {
     kind: 'removed',
     run: deepFreeze({ ...run, spacecraft, materials: materials(run.materials + refund) }),
     refund,
     fuelLost: kilograms(run.spacecraft.fuelMass - spacecraft.fuelMass),
   };
+}
+
+/** What removing `id` gives back in Star System `starSystemNumber`: half its cost, rounded down. */
+export function removalRefund(id: ComponentId, starSystemNumber: number): Materials {
+  return materials(Math.floor(componentCost(id, starSystemNumber) / 2));
 }

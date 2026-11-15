@@ -180,8 +180,17 @@ function odds(run: Run, estimates: readonly MetersPerSecond[]): Omit<HopPlanBase
     totalEstimate,
     availableDeltaV: available,
     margin: metersPerSecond(available - totalEstimate),
-    successChance: successChance(estimates, available),
+    successChance: successChance(estimates, available, leastDeltaV({ totalEstimate })),
   };
+}
+
+/**
+ * The least Δv that gives a plan any Success Chance: every Burn at the best case of the dispersion.
+ * A plan's Success Chance is above 0% exactly when the Fuel gives more than this. It depends on the
+ * Burns alone, so it holds for any Spacecraft flying the same Hop.
+ */
+export function leastDeltaV(plan: Pick<HopPlan, 'totalEstimate'>): MetersPerSecond {
+  return metersPerSecond(plan.totalEstimate * DISPERSION.min);
 }
 
 /** What happened to one Burn of a flown Hop. */
@@ -424,7 +433,7 @@ export function marginShare(plan: Pick<HopPlan, 'margin' | 'totalEstimate'>): nu
 }
 
 /** Δv rounded for the player: m/s below 1 km/s, km/s to one decimal above. */
-function formatDeltaV(deltaV: MetersPerSecond): string {
+export function formatDeltaV(deltaV: MetersPerSecond): string {
   return deltaV < 1_000 ? `${Math.round(deltaV)} m/s` : `${(deltaV / 1_000).toFixed(1)} km/s`;
 }
 
@@ -437,11 +446,15 @@ function percent(share: number): number {
  * The probability that `available` covers the sum of the actual Burns, each its estimate times a
  * factor drawn uniformly from the dispersion range. In closed form: the slack above the best case
  * must exceed a sum of independent uniforms on [0, wᵢ] (wᵢ the spread of Burn i), whose CDF is
- * Σ over subsets S of (−1)^|S| · max(0, x − Σ_S wⱼ)ⁿ / (n! · Π wᵢ).
+ * Σ over subsets S of (−1)^|S| · max(0, x − Σ_S wⱼ)ⁿ / (n! · Π wᵢ). `bestCase` is the plan's
+ * `leastDeltaV`, so the two agree on when a Hop has no chance at all.
  */
-function successChance(estimates: readonly number[], available: number): number {
+function successChance(
+  estimates: readonly number[],
+  available: number,
+  bestCase: MetersPerSecond,
+): number {
   const spread = DISPERSION.max - DISPERSION.min;
-  const bestCase = estimates.reduce((sum, estimate) => sum + estimate * DISPERSION.min, 0);
   const widths = estimates.map((estimate) => estimate * spread).filter((width) => width > 0);
   const slack = available - bestCase;
   if (slack >= widths.reduce((sum, width) => sum + width, 0)) return 1;

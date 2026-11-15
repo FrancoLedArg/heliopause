@@ -18,6 +18,8 @@ export type { Preview, ProposedChange } from './preview.ts';
 export { remove } from './remove.ts';
 export type { RemoveRefusal, RemoveResult } from './remove.ts';
 export type { Run, RunEnd, RunStatus } from './run.ts';
+export { assessStranding, endIfStranded } from './stranded.ts';
+export type { Stranding } from './stranded.ts';
 export { isBetterScore, runEnd, score } from './score.ts';
 export type { Score } from './score.ts';
 export { BURNS, flyHop, HELIOPAUSE, launchHop, marginShare, plannedBurns, planHop } from './hop.ts';
