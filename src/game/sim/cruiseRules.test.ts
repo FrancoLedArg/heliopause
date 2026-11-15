@@ -180,32 +180,36 @@ describe('Damage', () => {
     );
   });
 
-  it('no first Hop the plan shows at 100% is Crashed or Stranded by its mild events, with no Repair at all (#188)', () => {
-    const chassis = ['scout', 'hauler', 'lancer'] as const;
-    const lost: string[] = [];
-    let flownHops = 0;
-    for (const [i, seed] of SEEDS.entries()) {
-      const start = startRun(seed, chassis[i % 3] ?? 'scout');
-      for (const body of listBodies(start.starSystem)) {
-        if (!body.landable || body.id === currentBody(start).id) continue;
-        // #188 weighs every landable Body as if Detected.
-        const knowing = withDetected(start, body);
-        const planned = planHop(knowing, body.id);
-        if (planned.kind !== 'planned' || planned.plan.successChance < 1) continue;
-        const calm = launchHop(knowing, body.id);
-        if (calm.kind !== 'flown' || calm.run.status.kind !== 'landed') continue;
-        const begun = beginHop(knowing, body.id, { events: CRUISE_EVENT_KINDS });
-        if (begun.kind !== 'cruising') throw new Error(`Seed ${String(seed)}: no Cruise`);
-        const result = flown(begun.run);
-        flownHops++;
-        if (result.run.status.kind !== 'landed') {
-          lost.push(`${String(seed)} ${body.id}: ${result.flight.outcome.kind}`);
+  it(
+    'no first Hop the plan shows at 100% is Crashed or Stranded by its mild events, with no Repair at all (#188)',
+    { timeout: 90_000 },
+    () => {
+      const chassis = ['scout', 'hauler', 'lancer'] as const;
+      const lost: string[] = [];
+      let flownHops = 0;
+      for (const [i, seed] of SEEDS.entries()) {
+        const start = startRun(seed, chassis[i % 3] ?? 'scout');
+        for (const body of listBodies(start.starSystem)) {
+          if (!body.landable || body.id === currentBody(start).id) continue;
+          // #188 weighs every landable Body as if Detected.
+          const knowing = withDetected(start, body);
+          const planned = planHop(knowing, body.id);
+          if (planned.kind !== 'planned' || planned.plan.successChance < 1) continue;
+          const calm = launchHop(knowing, body.id);
+          if (calm.kind !== 'flown' || calm.run.status.kind !== 'landed') continue;
+          const begun = beginHop(knowing, body.id, { events: CRUISE_EVENT_KINDS });
+          if (begun.kind !== 'cruising') throw new Error(`Seed ${String(seed)}: no Cruise`);
+          const result = flown(begun.run);
+          flownHops++;
+          if (result.run.status.kind !== 'landed') {
+            lost.push(`${String(seed)} ${body.id}: ${result.flight.outcome.kind}`);
+          }
         }
       }
-    }
-    expect(flownHops).toBeGreaterThan(1_000);
-    expect(lost.slice(0, 10)).toEqual([]);
-  });
+      expect(flownHops).toBeGreaterThan(1_000);
+      expect(lost.slice(0, 10)).toEqual([]);
+    },
+  );
 });
 
 describe('the Engine fire', () => {

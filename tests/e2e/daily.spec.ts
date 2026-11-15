@@ -64,7 +64,8 @@ function endingHops(): {
     }
     return undefined;
   };
-  for (const depth of [2, 3, 4]) {
+  // Up to six Hops: since #247's Isp rise the day's first ending takes five (four Arrive, one Crashes).
+  for (const depth of [2, 3, 4, 5, 6]) {
     const found = search(run, [], depth);
     if (found) return found;
   }
@@ -101,7 +102,8 @@ async function target(page: Page, name: string): Promise<void> {
 test('the Daily Star System: the same Star System for the day, a Daily Best kept, and a new one after 00:00 UTC', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(120_000);
+  // Five Hops of playback on a loaded machine.
+  test.setTimeout(180_000);
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
 

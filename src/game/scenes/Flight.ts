@@ -1,6 +1,7 @@
 import { BlendModes, Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber, type PaletteColor } from '../../ui/kit/palette.ts';
 import { hasAsset } from '../assets/manifest.ts';
+import { music } from '../audio/music.ts';
 import { EventBus } from '../EventBus.ts';
 import { prefersReducedMotion } from '../lib/motion.ts';
 import { chooseCruiseSpeed } from '../lib/cruiseSpeed.ts';
@@ -243,7 +244,33 @@ const DEPARTURE = {
   /** After receding, how fast it drifts off the left edge (px per ms). */
   drift: 0.0006,
 } as const;
-/** How long the fade at a cut between the ground and space lasts (ms). */
+/**
+ * The Approach (presentation tuning, px of the 640x360 frame): the target Body big at lower right,
+ * its centre at `body.at`, growing from `body.from` to `body.to` px across. The small Spacecraft
+ * coasts in from the left (`ship.from`) toward the Body's limb (`ship.to`), shrinking from
+ * `scale.from` to `scale.to`, about a third, as it closes in. A faint far starfield drifts behind it
+ * (`stars`: how bright, and how fast in px per s).
+ */
+const APPROACH = {
+  body: { at: { x: 502, y: 246 }, from: 220, to: 300 },
+  ship: { from: { x: 44, y: 86 }, to: { x: 340, y: 152 } },
+  scale: { from: 1.1, to: 0.38 },
+  stars: { alpha: 0.55, drift: { x: -7, y: -2 } },
+  bob: { degrees: 0.8, px: 1.5, ms: 900 },
+} as const;
+/**
+ * The Approach's Spacecraft points its nose where it is going. The flight frame's nose is turned
+ * `FLIGHT_ANGLE` clockwise from straight up; this turns it on toward the Body.
+ */
+const APPROACH_ANGLE =
+  (Math.atan2(
+    APPROACH.ship.to.y - APPROACH.ship.from.y,
+    APPROACH.ship.to.x - APPROACH.ship.from.x,
+  ) *
+    180) /
+    Math.PI -
+  (FLIGHT_ANGLE - 90);
+/** How long the fade at a cut between shots lasts (ms). */
 const STAGE_FADE_MS = 180;
 /**
  * The engine's lights (presentation tuning): the ground glow's size on the strip (px), the glow at
@@ -289,9 +316,11 @@ const MAX_FRAME_MS = 250;
  * and fires, the screen goes dark behind the flavour text, and the Landed view of the next Home
  * Planet comes up out of the black). Takeoff rises straight up off the departure Body, upright on
  * its engines, and climbs out through the top edge (see `verticalShots`); the Cruise (the
- * Transfer, see `SHOT_MS`) flies the Spacecraft big at a 3/4 view through drifting stars, the departure
- * Body falling behind and the target small far ahead; Landing comes straight down onto the target,
- * upright, ending on exactly the Landed view's composition. One clock drives everything from the
+ * Transfer, see `SHOT_MS`) flies the Spacecraft big at a 3/4 view through drifting stars, the
+ * departure Body falling behind and the target small far ahead; the Approach (the end of the
+ * Transfer) cuts to the target Body big at lower right, the small Spacecraft coasting toward it and
+ * shrinking; Landing comes straight down onto the target, upright, ending on exactly the Landed
+ * view's composition. One clock drives everything from the
  * simulation's flight (see `flightPlayback`), so playback can only show the outcome, never change it.
  * The scene's `update` steps it with real frame time, at the fast-forward and test-only Cruise speeds.
  */
@@ -352,9 +381,7 @@ export class Flight extends Scene {
    */
   layers!: { readonly departure: LandscapeLayers; readonly arrival: LandscapeLayers | undefined };
   private fxScroll: number = FX_SCROLL_FACTOR.departure;
-  private stages!: Readonly<
-    Record<'departure' | 'arrival' | 'space', readonly GameObjects.Container[]>
-  >;
+  private stages!: Readonly<Record<Stage, readonly Shown[]>>;
   /** The Spacecraft with its plumes; tests read where it rests. */
   ship!: GameObjects.Container;
   private shipArt!: (frame: ShipFrame) => void;
@@ -383,7 +410,13 @@ export class Flight extends Scene {
   private passer: { readonly index: number; readonly size: number; readonly y: number } | undefined;
   /** The attitude thruster's puff, on the Spacecraft; `undefined` under reduced motion. */
   private vent: GameObjects.Image | undefined;
-  private stage: 'departure' | 'arrival' | 'space' | undefined;
+  private stage: Stage | undefined;
+  /** The Approach's target Body, big at lower right; tests check its size. */
+  approachBody!: GameObjects.Image;
+  /** The Approach's faint far starfield. */
+  private approachStars!: GameObjects.TileSprite;
+  /** Whether this scene holds the Approach music on (see `holdApproachMusic`). */
+  private approachMusic = false;
   private streaks: {
     readonly line: GameObjects.Rectangle;
     readonly x0: number;
@@ -422,6 +455,7 @@ export class Flight extends Scene {
     this.playbackMs = 0;
     this.jumpStage = undefined;
     this.darkness = 0;
+    this.approachMusic = false;
   }
 
   create(): void {
@@ -444,6 +478,7 @@ export class Flight extends Scene {
     this.puffColors = { departure: departurePuff, arrival: atTarget?.puffColor };
     const space = this.buildSpace();
     this.eventLayer = this.add.container(0, 0).setScrollFactor(0);
+    const approach = this.buildApproach();
     this.shadow = this.add.ellipse(
       SHIP_PLACEMENT.x,
       SHIP_PLACEMENT.baseY + SHIP_SHADOW.dy,
@@ -462,6 +497,7 @@ export class Flight extends Scene {
       departure: [...Object.values(departure)],
       arrival: arrival ? [...Object.values(arrival)] : [],
       space: [space, this.eventLayer],
+      approach,
     };
     this.fx = this.pace === 'full' ? createFlightEffects(this) : undefined;
     this.jumpFx = this.buildJumpFx();
@@ -509,6 +545,7 @@ export class Flight extends Scene {
       offRepair();
       offRush();
       this.game.canvas.parentElement?.removeAttribute(DAMAGE_ATTRIBUTE);
+      this.holdApproachMusic(false);
       this.events.off(Scenes.Events.SHUTDOWN, stop);
       this.events.off(Scenes.Events.DESTROY, stop);
     };
@@ -638,14 +675,16 @@ export class Flight extends Scene {
     const aftermath = Math.max(0, ms - this.playback.stopsAt);
     this.flicker(ms);
     this.showStage(moment.shot);
+    this.holdApproachMusic(moment.shot === 'approach');
     switch (moment.shot) {
       case 'takeoff':
         this.takeoff(pose.shotProgress, this.firing(ms, moment.thrusting), aftermath, ms);
         break;
-      // Until #205 draws the Approach, it holds the Cruise's view (it has no length yet).
       case 'cruise':
-      case 'approach':
         this.cruise(ms, this.firing(ms, moment.thrusting));
+        break;
+      case 'approach':
+        this.approach(moment.shotProgress, ms);
         break;
       case 'landing':
         this.landing(pose.shotProgress, this.firing(ms, moment.thrusting), aftermath, ms);
@@ -835,6 +874,47 @@ export class Flight extends Scene {
     this.toBody
       .setScale((ahead.from + (ahead.to - ahead.from) * closing) / this.toBody.width)
       .setPosition(TARGET_AHEAD.at.x, TARGET_AHEAD.at.y);
+  }
+
+  /**
+   * The Approach, `progress` through its shot: the target Body big at lower right, slowly growing,
+   * while the small Spacecraft coasts in from the left with its engine off, heading for the Body's limb
+   * and shrinking to about a third as it closes in. A faint far starfield drifts behind. It plays the
+   * same whatever comes next: the Landing (or the Crash) is the playback clock's to tell.
+   */
+  private approach(progress: number, ms: number): void {
+    this.cameras.main.setScroll(0, 0);
+    this.rumble = 0;
+    const { body, ship, scale, stars, bob } = APPROACH;
+    const size = Math.round(body.from + (body.to - body.from) * progress);
+    this.approachBody.setDisplaySize(size, size);
+    // It slows as it goes: farther away, the same speed crosses fewer pixels.
+    const along = 1 - (1 - progress) ** 2;
+    const wave = Math.sin((ms / bob.ms) * 2 * Math.PI);
+    this.shipArt('flight');
+    this.ship
+      .setScale(scale.from * (scale.to / scale.from) ** along)
+      .setPosition(
+        Math.round(ship.from.x + (ship.to.x - ship.from.x) * along),
+        Math.round(ship.from.y + (ship.to.y - ship.from.y) * along + bob.px * wave),
+      )
+      .setAngle(APPROACH_ANGLE + bob.degrees * wave);
+    // Coasting: no plume, no puffs.
+    this.thrust(0, false);
+    this.fx?.exhaust(false, this.flightNozzles(this.ship.x, this.ship.y, this.ship.angle));
+    this.vent?.setVisible(false);
+    const seconds = ms / 1000;
+    this.approachStars.setTilePosition(stars.drift.x * seconds, stars.drift.y * seconds);
+  }
+
+  /**
+   * Holds the Approach music on while the Approach plays, and lets it go at the Landing or when the
+   * scene shuts down (the hand-off, or leaving the Run).
+   */
+  private holdApproachMusic(on: boolean): void {
+    if (on === this.approachMusic) return;
+    this.approachMusic = on;
+    music.setApproach(on);
   }
 
   /** The attitude thrusters puff now and then (`live` ms into the Cruise), from alternating spots on the hull. */
@@ -1034,13 +1114,13 @@ export class Flight extends Scene {
   }
 
   private showStage(shot: Shot): void {
-    const stage = shot === 'takeoff' ? 'departure' : shot === 'landing' ? 'arrival' : 'space';
-    // A brief fade softens each cut between the ground and space.
-    // Reduced motion takes the cut as it is.
+    const stage = STAGE_OF[shot];
+    const ground = stage === 'departure' || stage === 'arrival';
+    // A brief fade softens each cut between shots. Reduced motion takes the cut as it is.
     if (this.pace === 'full' && this.stage !== undefined && this.stage !== stage) {
       this.cameras.main.fadeIn(STAGE_FADE_MS);
     }
-    if (this.stage !== stage && stage !== 'space') {
+    if (this.stage !== stage && ground) {
       const puff = this.puffColors[stage];
       if (puff !== undefined) this.fx?.setSurface(puff);
       this.fxScroll = FX_SCROLL_FACTOR[stage];
@@ -1050,9 +1130,9 @@ export class Flight extends Scene {
     for (const [name, objects] of Object.entries(this.stages)) {
       for (const object of objects) object.setVisible(name === stage);
     }
-    this.shadow.setVisible(stage !== 'space');
+    this.shadow.setVisible(ground);
     this.groundGlow.setVisible(false);
-    this.fx?.setStage(stage === 'space');
+    this.fx?.setStage(!ground);
   }
 
   /**
@@ -1217,7 +1297,18 @@ export class Flight extends Scene {
     space.add(this.add.rectangle(0, 0, SCREEN_WIDTH, 360, paletteNumber('void')).setOrigin(0));
     this.starLayers = STAR_LAYERS.map((layer, i) =>
       this.add
-        .tileSprite(0, 0, SCREEN_WIDTH, 360, starLayerTexture(this, this.before.seed, i, layer))
+        .tileSprite(
+          0,
+          0,
+          SCREEN_WIDTH,
+          360,
+          starLayerTexture(
+            this,
+            `cruise_stars_${String(i)}`,
+            this.before.seed ^ (0x5fa7 + i),
+            layer,
+          ),
+        )
         .setOrigin(0),
     );
     space.add(this.starLayers);
@@ -1268,6 +1359,42 @@ export class Flight extends Scene {
       }
     }
     return space;
+  }
+
+  /**
+   * The Approach's backdrop, fixed on screen: deep space, a faint far starfield and the target Body,
+   * drawn from its own large Approach art (`<sprite>_approach`) when the manifest has it, else its small
+   * sprite scaled up (the game draws pixel art nearest-neighbour). A Hop to the Heliopause never shows it.
+   */
+  private buildApproach(): Shown[] {
+    const backdrop = this.add
+      .rectangle(0, 0, SCREEN_WIDTH, 360, paletteNumber('void'))
+      .setOrigin(0)
+      .setScrollFactor(0);
+    this.approachStars = this.add
+      .tileSprite(
+        0,
+        0,
+        SCREEN_WIDTH,
+        360,
+        starLayerTexture(this, 'approach_stars', this.before.seed ^ 0xa995, {
+          count: 70,
+          size: 1,
+        }),
+      )
+      .setOrigin(0)
+      .setScrollFactor(0)
+      .setAlpha(APPROACH.stars.alpha);
+    const { plan } = this.flight;
+    const target =
+      plan.destination === 'body' ? findBody(this.before.starSystem, plan.toId) : undefined;
+    const sprite = target ? bodySprite(this.before, target) : this.toBody.texture.key;
+    const large = `${sprite}_approach`;
+    this.approachBody = this.add
+      .image(APPROACH.body.at.x, APPROACH.body.at.y, hasAsset(large) ? large : sprite)
+      .setScrollFactor(0)
+      .setDisplaySize(APPROACH.body.from, APPROACH.body.from);
+    return [backdrop, this.approachStars, this.approachBody];
   }
 
   /** The Jump's effects, hidden until it plays. */
@@ -1381,20 +1508,33 @@ export class Flight extends Scene {
   }
 }
 
+/** What a stage of the playback can be: its objects are shown only while it is on screen. */
+interface Shown {
+  setVisible(visible: boolean): unknown;
+}
+
+/** The scenery each shot is played on: the two grounds, the Cruise's space, and the Approach's. */
+type Stage = 'departure' | 'arrival' | 'space' | 'approach';
+const STAGE_OF: Readonly<Record<Shot, Stage>> = {
+  takeoff: 'departure',
+  cruise: 'space',
+  approach: 'approach',
+  landing: 'arrival',
+};
+
 /**
- * One star layer of the Cruise drawn once into a screen-sized texture that tiles seamlessly, so the
- * layer drifts forever by moving its tile position.
+ * One star layer (of the Cruise, or the Approach's far starfield) drawn once, as `key`, into a
+ * screen-sized texture that tiles seamlessly, so the layer drifts forever by moving its tile position.
  */
 function starLayerTexture(
   scene: Scene,
+  key: string,
   seed: number,
-  index: number,
   layer: { readonly count: number; readonly size: number },
 ): string {
-  const key = `cruise_stars_${String(index)}`;
   if (scene.textures.exists(key)) scene.textures.remove(key);
   const graphics = scene.make.graphics({}, false);
-  for (const star of generateStars(seed ^ (0x5fa7 + index), layer.count, {
+  for (const star of generateStars(seed, layer.count, {
     width: SCREEN_WIDTH,
     height: 360,
   })) {

@@ -61,23 +61,24 @@ function fittedWith(from: Run, slots: readonly Slot[]): Run {
 }
 
 /**
- * Seed 12's Scout after Hopping to Laquun, Prahen and back to Laquun, `extra` Materials added at the
- * start: a Run that only swapping in the level-2 Engine (60 Materials) could save. Re-pinned for #189
- * (was seed 57's Hop to Vekyr): Runs open on a Starting Moon and Hop only to Bodies Comms Detected.
- * The last Hop's plan is sure, but its Burns run long, so it Arrives with less than the estimate left.
+ * Seed 27's Scout after Hopping to Dryli, Siolmel, Teskae and back to Dryli, `extra` Materials added
+ * at the start: a Run that only swapping in the level-2 Engine (60 Materials) could save. Re-pinned for
+ * #189 (was seed 57's Hop to Vekyr): Runs open on a Starting Moon and Hop only to Bodies Comms
+ * Detected. Re-pinned for #247 (was seed 12's Laquun, Prahen and Laquun): the Chassis Isp rose 30%,
+ * so that Run is no longer Stranded. The last Hop's plan is sure, yet it Arrives Stranded as built.
  * Flown with no Cruise events (#250 turned the Fuel leak on): this pins Stranded on the Burns alone.
  */
 const NO_EVENTS = { events: [] } as const;
 
-function backOnLaquun(extra: number): Run {
-  let run = startRun(12, 'scout');
+function backOnDryli(extra: number): Run {
+  let run = startRun(27, 'scout');
   run = { ...run, materials: materials(run.materials + extra) };
-  for (const name of ['Laquun', 'Prahen', 'Laquun']) {
+  for (const name of ['Dryli', 'Siolmel', 'Teskae', 'Dryli']) {
     const body = listBodies(run.starSystem).find((b) => b.name === name);
-    if (!body) throw new Error(`Seed 12 has no ${name}`);
+    if (!body) throw new Error(`Seed 27 has no ${name}`);
     const landed = launchHop(run, body.id, NO_EVENTS);
     if (landed.kind !== 'flown' || landed.flight.outcome.kind !== 'arrived') {
-      throw new Error(`Seed 12: the Hop to ${name} should Arrive`);
+      throw new Error(`Seed 27: the Hop to ${name} should Arrive`);
     }
     run = landed.run;
   }
@@ -229,25 +230,26 @@ describe('what could still save a Run', () => {
   });
 
   it('a rescue the Materials cannot pay for in the order the changes must be made does not count', () => {
-    // Seed 12: back on Laquun the Run has 44 Materials. Swapping the level-1 Engine for the level-2
+    // Seed 27: back on Dryli the Run has 59 Materials. Swapping the level-1 Engine for the level-2
     // one would save it, but the new Engine (60) must be installed before the old one can be
     // removed for its refund, so the swap can never be paid for.
-    const landed = backOnLaquun(0);
-    expect(landed.materials).toBe(44);
+    const landed = backOnDryli(0);
+    expect(landed.materials).toBe(59);
     expect(landed.status).toMatchObject({ kind: 'ended', end: { kind: 'stranded' } });
-    // With 16 more Materials, 60 on Landing, the same Run can still be saved.
-    const richer = backOnLaquun(16);
+    // With 1 more Material, 60 on Landing, the same Run can still be saved.
+    const richer = backOnDryli(1);
     expect(richer.materials).toBe(60);
     expect(assessStranding(richer).kind).toBe('warning');
   });
 
   it('a second full Fuel Tank can save a Run that the lightest configuration cannot', () => {
-    // Bodies four times as hard to leave; two level-1 Tanks and a Drill, the Tanks 60% full.
+    // Bodies 5.5 times as hard to leave; two level-1 Tanks and a Drill, the Tanks 60% full. Was 4
+    // times until #247: the Chassis Isp rose 30%, so the Bodies must be heavier to strand it.
     const start = onSmallPlanet(startRun(1, 'hauler'));
     const heavy = Object.fromEntries(
       listBodies(start.starSystem).map((body) => [
         body.id,
-        { escapeVelocity: metersPerSecond(body.escapeVelocity * 4) },
+        { escapeVelocity: metersPerSecond(body.escapeVelocity * 5.5) },
       ]),
     );
     const design = fittedWith(withBodies(start, heavy), [
@@ -309,12 +311,13 @@ describe('the simulation settles Stranded itself', () => {
   const stranded = { kind: 'ended', end: { kind: 'stranded' } };
 
   it('a Hop that Arrives where no change could ever help ends the Run as Stranded', () => {
-    // Seed 305: a 99% Hop to Lyquin leaves too little Fuel for any Hop, whatever is changed.
+    // Seed 199: a sure Hop to Mionzox Nova leaves too little Fuel for any Hop, whatever is changed.
     // Re-pinned for #188 (was seed 2's sure Hop to Quydril): no sure Hop from the start strands now.
+    // Re-pinned for #247 (was seed 305's 99% Hop to Lyquin): the Chassis Isp rose 30%, so it leaves enough.
+    const start = onSmallPlanet(startRun(199, 'scout'));
+    const body = listBodies(start.starSystem).find(({ name }) => name === 'Mionzox Nova');
+    if (!body) throw new Error('Seed 199 has no Mionzox Nova');
     // Flown with no Cruise events (#250 turned the Fuel leak on): Stranded here is the Burns' doing.
-    const start = onSmallPlanet(startRun(305, 'scout'));
-    const body = listBodies(start.starSystem).find(({ name }) => name === 'Lyquin');
-    if (!body) throw new Error('Seed 305 has no Lyquin');
     const flown = launchHop(start, body.id, NO_EVENTS);
     if (flown.kind !== 'flown') throw new Error('expected a Hop');
     expect(flown.flight.outcome).toEqual({ kind: 'arrived' });
@@ -324,15 +327,15 @@ describe('the simulation settles Stranded itself', () => {
         kind: 'stranded',
         bodyId: body.id,
         reason:
-          'However you change its Components, your Spacecraft has at most 807 m/s of Δv, and ' +
-          'the cheapest Hop needs 3.0 km/s.',
+          'However you change its Components, your Spacecraft has at most 7.6 km/s of Δv, and ' +
+          'the cheapest Hop needs 8.6 km/s.',
       },
     });
     expect(flown.run.hopsFlown).toBe(1);
   });
 
   it('installing a Component that spends the Materials a rescue needed ends the Run as Stranded', () => {
-    const saveable = backOnLaquun(16);
+    const saveable = backOnDryli(1);
     const spent = install(saveable, 2, 'drill-1');
     if (spent.kind !== 'installed') throw new Error('expected an install');
     expect(spent.run.status).toMatchObject(stranded);
@@ -343,7 +346,7 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('a Stranded Run takes no more choices', () => {
-    const ended = backOnLaquun(0);
+    const ended = backOnDryli(0);
     expect(() => install(ended, 2, 'drill-1')).toThrow(/ended/);
     expect(() => remove(ended, 1)).toThrow(/ended/);
     const someBody = listBodies(ended.starSystem).find((body) => body.landable);
@@ -352,21 +355,21 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('a replayed Run ends Stranded where the game did, and takes no choice after it', () => {
-    const saveable = backOnLaquun(0);
+    const saveable = backOnDryli(0);
     expect(saveable.status).toMatchObject(stranded);
-    // Seed 12's own log: the three Hops, the last of which strands it.
-    const replayed = replay(12, 'scout', saveable.choices, NO_EVENTS);
+    // Seed 27's own log: the four Hops, the last of which strands it.
+    const replayed = replay(27, 'scout', saveable.choices, NO_EVENTS);
     expect(replayed).toMatchObject({ kind: 'replayed', end: { kind: 'stranded' } });
     if (replayed.kind !== 'replayed') return;
     expect(replayed.run.status).toEqual(saveable.status);
     // A choice made after the end is refused.
     const after = replay(
-      12,
+      27,
       'scout',
       [...saveable.choices, { kind: 'install', slot: 2, componentId: 'drill-1' }],
       NO_EVENTS,
     );
-    expect(after).toMatchObject({ kind: 'rejected', at: 3 });
+    expect(after).toMatchObject({ kind: 'rejected', at: 4 });
   });
 
   it('a New Run is never Stranded', () => {

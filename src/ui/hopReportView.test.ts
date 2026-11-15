@@ -177,14 +177,15 @@ describe('the Hop report', () => {
 
   it('gives the same Margin share in the report as in the why text: a hauler on seed 123', () => {
     // Re-pinned for #189: a half-fuelled hauler's Hop to Rexsio is short (was Sircer's).
+    // #247's Isp leaves it less short.
     const run = withFuelShare(123, 'hauler', 0.5);
     const rexsio = listBodies(run.starSystem).find((body) => body.name === 'Rexsio');
     if (!rexsio) throw new Error('seed 123 has no Rexsio');
     const launched = launchHop(run, rexsio.id);
     if (launched.kind !== 'flown') throw new Error('expected a flight');
     const view = describeReport(run, launched.flight);
-    expect(view.margin).toBe('Margin: none left (planned −7.0 km/s, 34%)');
-    expect(view.outcomeLine).toMatch(/The Fuel gives 34% less Δv/);
+    expect(view.margin).toBe('Margin: none left (planned −2.9 km/s, 14%)');
+    expect(view.outcomeLine).toMatch(/The Fuel gives 14% less Δv/);
   });
 
   it('says a Crashed Hop completed the Transfer but ran out of Δv in the Landing', () => {

@@ -1,21 +1,23 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { FAST_CRUISE, NO_CRUISE_EVENTS } from './cruise.ts';
 import { waitForOpening } from './opening.ts';
-import { FAST_CRUISE } from './cruise.ts';
+import { recordShots, shotsSeen } from './shots.ts';
 import { formatFuel } from '../../src/ui/format.ts';
 import {
-  findBody,
   firstDetectedBody,
   generateStarSystem,
   launchHop,
+  listBodies,
   startingMoon,
   startRun,
   type Run,
 } from '../../src/game/sim/index.ts';
 
 // Re-pinned for #189: Runs open on a Starting Moon knowing one Body, which is always In reach.
-// Seed 786 opens on a Rocky Starting Moon with an Icy first target, so landing there collects the
-// Run's first Fuel (was seed 305's Home Moon).
-const SEED = 786;
+// Seed 40 opens on a Rocky Starting Moon with an Icy first target, so landing there collects the
+// Run's first Fuel. Re-pinned for #247 (was seed 786): the Chassis Isp rose 30%, so generation
+// settles seed 786 on another Star System, whose Starting Moon is Icy.
+const SEED = 40;
 const run = startRun(SEED, 'scout');
 const home = startingMoon(run.starSystem);
 const homeMoon = firstDetectedBody(run.starSystem);
@@ -26,28 +28,40 @@ if (moonHop.kind !== 'flown' || moonHop.flight.outcome.kind !== 'arrived') {
   throw new Error(`Seed ${SEED}: the Hop to ${homeMoon.name} should Arrive`);
 }
 
-// No first Hop fails, so a failure takes two: on seed 1336, Thoha (the first target) then Sordryx,
-// the Body Comms Detects from there. The scout Crashes on Sordryx and the hauler Falls Short in the
-// Transfer (found by a scan over seeds and short paths; re-pinned for #250, whose Fuel leaks moved 1442).
-const FAIL_SEED = 1336;
-const FIRST = 'Thoha';
-const FAR = 'Sordryx';
+// A failure needs a long way out: on seed 46, the first target Voprin, then Quioxevex and
+// Rioquunlaen, then back to the Starting Moon, Maethu. The scout Crashes on Maethu at a 23% chance
+// and the hauler Falls Short in the Transfer (found by a scan over seeds and paths). Re-pinned for
+// #247 (was seed 1442's Thosny then Korxel): the Chassis Isp rose 30%, so no second Hop fails.
+// Flown with no Cruise events (#250): a Fuel leak on the way would move where it fails.
+const FAIL_SEED = 46;
+const CALM = { schedule: [] } as const;
+/** The Hops that Arrive on the way, every Chassis alike; the first is the first target. */
+const PATH = ['Voprin', 'Quioxevex', 'Rioquunlaen'] as const;
+const FAR = 'Maethu';
 
-/** The second Hop of `chassis` on the failure seed, as the simulation settles it. */
-function secondHop(chassis: 'scout' | 'hauler'): { before: Run; why: string } {
-  const start = startRun(FAIL_SEED, chassis);
-  const first = launchHop(start, firstDetectedBody(start.starSystem).id);
-  if (first.kind !== 'flown') throw new Error('unreachable');
-  const far = first.run.knowledge.detected.find(
-    (id) => findBody(start.starSystem, id)?.name === FAR,
-  );
-  if (!far) throw new Error(`Seed ${String(FAIL_SEED)}: Comms should Detect ${FAR}`);
-  const second = launchHop(first.run, far);
-  if (second.kind !== 'flown') throw new Error('unreachable');
-  return { before: first.run, why: second.flight.why };
+/** The last Hop of `chassis` on the failure seed, to FAR, as the simulation settles it. */
+function lastHop(chassis: 'scout' | 'hauler'): { before: Run; why: string } {
+  let before = startRun(FAIL_SEED, chassis);
+  const id = (name: string) => {
+    const body = listBodies(before.starSystem).find((b) => b.name === name);
+    if (!body || !before.knowledge.detected.includes(body.id)) {
+      throw new Error(`Seed ${String(FAIL_SEED)}: Comms should Detect ${name}`);
+    }
+    return body.id;
+  };
+  for (const name of PATH) {
+    const hop = launchHop(before, id(name), CALM);
+    if (hop.kind !== 'flown' || hop.flight.outcome.kind !== 'arrived') {
+      throw new Error(`Seed ${String(FAIL_SEED)}: the ${chassis}'s Hop to ${name} should Arrive`);
+    }
+    before = hop.run;
+  }
+  const last = launchHop(before, id(FAR), CALM);
+  if (last.kind !== 'flown') throw new Error('unreachable');
+  return { before, why: last.flight.why };
 }
-const crashFlight = secondHop('scout');
-const shortFlight = secondHop('hauler');
+const crashFlight = lastHop('scout');
+const shortFlight = lastHop('hauler');
 
 async function openNavChart(page: Page, seed = SEED): Promise<void> {
   await page.goto(`/?seed=${String(seed)}&chassis=scout&${FAST_CRUISE}`);
@@ -78,12 +92,12 @@ async function hopAndLand(page: Page, name: string): Promise<void> {
   await expect(report).toBeHidden();
 }
 
-/** The failure seed's scout, Landed on its first target, with the Nav Chart open on Sordryx's Hop. */
+/** The failure seed's scout, Landed at the end of PATH, with the Nav Chart open on FAR's Hop. */
 async function onTheWayToFail(page: Page): Promise<void> {
-  await page.goto(`/?seed=${String(FAIL_SEED)}&chassis=scout&${FAST_CRUISE}`);
+  await page.goto(`/?seed=${String(FAIL_SEED)}&chassis=scout&${FAST_CRUISE}&${NO_CRUISE_EVENTS}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await waitForOpening(page);
-  await hopAndLand(page, FIRST);
+  for (const name of PATH) await hopAndLand(page, name);
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await target(page, FAR);
 }
@@ -97,27 +111,6 @@ async function expectWhy(report: Locator, why: string): Promise<void> {
 
 const currentBurn = (page: Page) =>
   page.getByTestId('phase-strip').locator('[aria-current="step"]');
-
-/**
- * Starts recording, every frame, each shot the HUD names (its `data-shot`), in order and once each;
- * `shotsSeen` reads the record back. The playback runs on its own clock, so polling from the test
- * could miss a short shot.
- */
-async function recordShots(page: Page): Promise<void> {
-  // A script in the page (the e2e project has no DOM types).
-  await page.evaluate(`(() => {
-    const seen = [];
-    window.shotsSeen = seen;
-    const look = () => {
-      const shot = document.querySelector('[data-shot]')?.getAttribute('data-shot');
-      if (shot && seen.at(-1) !== shot) seen.push(shot);
-      requestAnimationFrame(look);
-    };
-    look();
-  })()`);
-}
-
-const shotsSeen = (page: Page): Promise<unknown> => page.evaluate('window.shotsSeen');
 
 test('a Hop to the first target plays Takeoff, Transfer and Landing, then lands there and collects its Fuel', async ({
   page,
@@ -165,7 +158,7 @@ test('a Hop to the first target plays Takeoff, Transfer and Landing, then lands 
   const report = page.getByRole('dialog', { name: 'Arrived' });
   await expect(report).toBeVisible();
   // The film's shots, in order, from the HUD (the Cruise played fast: see FAST_CRUISE).
-  expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise', 'landing']);
+  expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise', 'approach', 'landing']);
   // Show, don't tell: the Δv bar and the gathered icon first, the Burn table behind "Tell me more".
   await expect(report.getByRole('img', { name: /^Δv: .*Used / })).toBeVisible();
   await expect(report.getByRole('button', { name: 'Continue' })).toBeFocused();
@@ -241,6 +234,7 @@ test('under reduced motion the playback is shorter and still steps through the t
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openNavChart(page);
   await target(page, homeMoon.name);
+  await recordShots(page);
   await page.getByRole('button', { name: 'Launch' }).click();
   await expect(currentBurn(page)).toContainText('Takeoff');
   await expect(currentBurn(page)).toContainText('Transfer');
@@ -250,12 +244,15 @@ test('under reduced motion the playback is shorter and still steps through the t
   await expect(page.getByRole('heading', { name: homeMoon.name, level: 1 })).toBeVisible({
     timeout: 30_000,
   });
+  // The same four shots, with hard cuts between them.
+  expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise', 'approach', 'landing']);
 });
 
 test('a Hop that Crashes stops on the Landing and says why, and the title is the way out', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(60_000);
+  // Four Hops of playback on a loaded machine.
+  test.setTimeout(120_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await onTheWayToFail(page);
   await page.getByRole('button', { name: 'Launch' }).click();
@@ -279,14 +276,14 @@ test('a Hop that Crashes stops on the Landing and says why, and the title is the
   // Continue moves on from the Hop report to the End-of-Run screen.
   await outcome.getByRole('button', { name: 'Continue' }).focus();
   await page.keyboard.press('Enter');
-  // The End-of-Run screen: the Score (two Hops flown, no Star System escaped) and the Best Score it set.
+  // The End-of-Run screen: the Score (four Hops flown, no Star System escaped) and the Best Score it set.
   await expect(outcome.getByTestId('end-of-run-score')).toHaveAttribute(
     'aria-label',
-    'Score: 0 Star Systems escaped, 2 Hops flown',
+    'Score: 0 Star Systems escaped, 4 Hops flown',
   );
   await expect(outcome.getByTestId('end-of-run-best')).toHaveAttribute(
     'aria-label',
-    'Best Score: 0 Star Systems escaped, 2 Hops flown (new Best Score)',
+    'Best Score: 0 Star Systems escaped, 4 Hops flown (new Best Score)',
   );
   await testInfo.attach('crashed', { body: await page.screenshot(), contentType: 'image/png' });
 
@@ -296,14 +293,15 @@ test('a Hop that Crashes stops on the Landing and says why, and the title is the
   await expect(page.getByRole('button', { name: 'New Run' })).toBeVisible();
   // The title remembers the Best Score.
   await expect(page.getByTestId('title-best-score')).toHaveText(
-    'Best Score: 0 Star Systems escaped, 2 Hops flown',
+    'Best Score: 0 Star Systems escaped, 4 Hops flown',
   );
 });
 
 test('the End-of-Run screen keeps focus inside it, and New Run from the keyboard starts fresh', async ({
   page,
 }) => {
-  test.setTimeout(60_000);
+  // Four Hops of playback on a loaded machine.
+  test.setTimeout(120_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await onTheWayToFail(page);
   await page.getByRole('button', { name: 'Launch' }).click();
@@ -336,6 +334,7 @@ test('fast-forward (F) turns on, keeps the flight log filling in, and lands with
   test.setTimeout(60_000);
   await openNavChart(page);
   await target(page, homeMoon.name);
+  await recordShots(page);
   await page.getByRole('button', { name: 'Launch' }).click();
   await expect(currentBurn(page)).toContainText('Takeoff');
   await page.keyboard.press('f');
@@ -354,12 +353,14 @@ test('fast-forward (F) turns on, keeps the flight log filling in, and lands with
   // How much faster it plays is checked on the playback clock (Flight.browser.test.tsx); wall time
   // here would only measure how busy the machine is.
   await expect(page.getByTestId('fuel')).toHaveText(formatFuel(moonHop.run.spacecraft.fuelMass));
+  expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise', 'approach', 'landing']);
 });
 
 test('after a failed Hop, New Run starts a different Star System on its Starting Moon', async ({
   page,
 }) => {
-  test.setTimeout(60_000);
+  // Four Hops of playback on a loaded machine.
+  test.setTimeout(120_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await onTheWayToFail(page);
   await page.getByRole('button', { name: 'Launch' }).click();
@@ -370,7 +371,7 @@ test('after a failed Hop, New Run starts a different Star System on its Starting
 
   // The address bar follows the Run being played.
   await expect(page).toHaveURL(new RegExp(`seed=${String(FAIL_SEED + 1)}`));
-  // `?seed=1336` moves on to 1337 for the next Run, so the Starting Moon is a different one.
+  // `?seed=46` moves on to 47 for the next Run, so the Starting Moon is a different one.
   const nextHome = startingMoon(generateStarSystem(FAIL_SEED + 1));
   expect(nextHome.name).not.toBe(startingMoon(generateStarSystem(FAIL_SEED)).name);
   await expect(page.getByRole('heading', { name: nextHome.name, level: 1 })).toBeVisible();
@@ -381,16 +382,17 @@ test('after a failed Hop, New Run starts a different Star System on its Starting
 test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run offers the Chassis picker', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(60_000);
+  // Four Hops of playback on a loaded machine.
+  test.setTimeout(120_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   // No Chassis in the URL: the picker is part of the New Run path.
-  await page.goto(`/?seed=${String(FAIL_SEED)}&${FAST_CRUISE}`);
+  await page.goto(`/?seed=${String(FAIL_SEED)}&${FAST_CRUISE}&${NO_CRUISE_EVENTS}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await expect(page.getByRole('radio', { name: /Scout/ })).toBeFocused();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('radio', { name: /Hauler/ })).toBeChecked();
   await page.getByRole('button', { name: 'Launch' }).click();
-  await hopAndLand(page, FIRST);
+  for (const name of PATH) await hopAndLand(page, name);
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await target(page, FAR);
   await page.getByRole('button', { name: 'Launch' }).click();
@@ -411,7 +413,7 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   await outcome.getByRole('button', { name: 'Continue' }).click();
   await expect(outcome.getByTestId('end-of-run-score')).toHaveAttribute(
     'aria-label',
-    'Score: 0 Star Systems escaped, 2 Hops flown',
+    'Score: 0 Star Systems escaped, 4 Hops flown',
   );
   await expect(outcome.getByTestId('end-of-run-best')).toHaveAttribute(
     'aria-label',

@@ -3,14 +3,16 @@ import { createRng } from '../lib/rng.ts';
 import {
   CHASSIS_IDS,
   flyHop,
+  generateSystem,
   knownBodies,
+  launchHop,
   planHop,
   startRun,
   type ChassisId,
   type HopPlan,
   type Run,
 } from './index.ts';
-import { firstTarget, plan } from './testing.ts';
+import { firstTarget, plan, startingRun } from './testing.ts';
 
 /** Many Star Systems, so the tuning is checked across the generator's spread, not one lucky seed. */
 const SEEDS = Array.from({ length: 2_000 }, (_, i) => i * 7_919 + 13);
@@ -21,11 +23,30 @@ function expectComfortable(hop: HopPlan) {
   expect(hop.margin / hop.totalEstimate).toBeGreaterThanOrEqual(0.2);
 }
 
+/** Star Systems 1 to 3, where a Run's opening plays out. */
+const LEVELS = [1, 2, 3] as const;
+
+/** Fewer seeds per level for the first-Hop sweeps, which generate every level: 500 Star Systems each. */
+const FIRST_HOP_SEEDS = SEEDS.slice(0, 500);
+
+/**
+ * The share of the tank the first Hop leaves, as the Fuel gauge then reads before any yield: the
+ * new Spacecraft launched, the way the game flies it, to the one Body Comms has Detected. With no
+ * Cruise events (#250): this weighs the Burns, and an attentive player Repairs the Fuel leak.
+ */
+function firstHopFuelShare(seed: number, chassisId: ChassisId, level: number): number {
+  const start = startingRun(generateSystem(seed, level), chassisId, level, seed);
+  const launched = launchHop(start, firstTarget(start).id, { schedule: [] });
+  if (launched.kind !== 'flown') throw new Error(`Seed ${String(seed)}: ${launched.why}`);
+  return launched.flight.fuelRemaining / start.spacecraft.fuelCapacity;
+}
+
 /**
  * How many Hops a cautious player gets from starter Fuel: always launching the cheapest known Body
- * not yet visited, as long as its Success Chance is at least 50%.
+ * not yet visited, as long as its Success Chance is at least 50%. Without `gather`, the Fuel an
+ * Icy Body yields is left behind, so only the starting Fuel counts.
  */
-function cautiousHops(start: Run, seed: number): number {
+function cautiousHops(start: Run, seed: number, { gather = true } = {}): number {
   const rng = createRng(seed);
   const visited = new Set<string>([start.starSystem.startingMoonId]);
   let run = start;
@@ -43,13 +64,24 @@ function cautiousHops(start: Run, seed: number): number {
     // Arrived, but Stranded there: that Hop counts, and no other follows.
     if (after.status.kind !== 'landed') return hops + 1;
     visited.add(next.toId);
-    run = after;
+    run = gather
+      ? after
+      : { ...after, spacecraft: { ...after.spacecraft, fuelMass: flight.fuelRemaining } };
   }
+}
+
+function quantile(values: readonly number[], share: number): number {
+  const sorted = [...values].sort((a, b) => a - b);
+  return sorted[Math.floor(share * (sorted.length - 1))] ?? NaN;
 }
 
 function median(values: readonly number[]): number {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.floor(sorted.length / 2)] ?? NaN;
+}
+
+function mean(values: readonly number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 // Each sweep generates up to 2,000 Star Systems: about 3 s, longer on a loaded machine (#188).
@@ -63,6 +95,32 @@ describe.each(CHASSIS_IDS)(
         expectComfortable(plan(run, firstTarget(run).id));
       }
     });
+
+    // #247: a new Run felt out of Fuel after its first Hop. Measured over 500 seeds the Hop left
+    // 54% to 61% of the tank on average, as a gauge reading "half gone"; the Landing on the
+    // Starting Moon's planet is most of the cost.
+    it.each(LEVELS)(
+      'the first Hop leaves a healthy Fuel gauge in Star System %i',
+      { timeout: 60_000 },
+      (level) => {
+        const left = FIRST_HOP_SEEDS.map((seed) => firstHopFuelShare(seed, chassisId, level));
+        expect(mean(left)).toBeGreaterThanOrEqual(0.6);
+        // Nine Runs in ten keep more than half the tank.
+        expect(quantile(left, 0.1)).toBeGreaterThanOrEqual(0.5);
+      },
+    );
+
+    it.each(LEVELS)(
+      'the starting Fuel alone carries a cautious player 3 nearby Hops in Star System %i',
+      { timeout: 60_000 },
+      (level) => {
+        const hops = FIRST_HOP_SEEDS.map((seed) => {
+          const start = startingRun(generateSystem(seed, level), chassisId, level, seed);
+          return cautiousHops(start, seed, { gather: false });
+        });
+        expect(median(hops)).toBeGreaterThanOrEqual(3);
+      },
+    );
 
     it('starter Fuel covers roughly 3 to 6 nearby Hops for a cautious player', () => {
       const hops = SEEDS.slice(0, 400).map((seed) => cautiousHops(startRun(seed, chassisId), seed));

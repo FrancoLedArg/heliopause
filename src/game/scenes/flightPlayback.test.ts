@@ -292,13 +292,54 @@ describe('the playback of a Hop to the Heliopause', () => {
 });
 
 describe('the shots of a Hop’s playback', () => {
-  it('plays the shots in order: Takeoff, Cruise, then Landing (the Approach comes with #205)', () => {
+  it('plays the shots in order: Takeoff, Cruise, Approach, then Landing', () => {
     for (const pace of ['full', 'reduced'] as const) {
       expect(shotsOf(flightPlayback(run.spacecraft, arrived, pace))).toEqual([
         'takeoff',
         'cruise',
+        'approach',
         'landing',
       ]);
+    }
+  });
+
+  it('the Approach lasts 2.2 s, 0.7 s under reduced motion, and comes straight after the Cruise', () => {
+    for (const [pace, length] of [
+      ['full', 2200],
+      ['reduced', 700],
+    ] as const) {
+      const playback = flightPlayback(run.spacecraft, arrived, pace);
+      const cruise = playback.shots.find((s) => s.shot === 'cruise');
+      const approach = playback.shots.find((s) => s.shot === 'approach');
+      expect(approach && approach.end - approach.start).toBe(length);
+      expect(approach?.start).toBe(cruise?.end);
+    }
+  });
+
+  it('the Approach is the end of the Transfer: the engine coasts through it and the Fuel holds', () => {
+    const playback = flightPlayback(run.spacecraft, arrived, 'full');
+    const approach = samples(playback).filter((m) => m.shot === 'approach');
+    expect(approach.length).toBeGreaterThan(0);
+    for (const moment of approach) {
+      expect(moment.burn).toBe('transfer');
+      expect(moment.thrusting).toBe(false);
+      expect(moment.cruise).toBeUndefined();
+    }
+    expect(new Set(approach.map((m) => m.fuel)).size).toBe(1);
+  });
+
+  it('a Crashed Hop plays the whole Approach before its Landing', () => {
+    const from = shortRun(transferShare());
+    const flight = flightEnding('crashed', from);
+    for (const pace of ['full', 'reduced'] as const) {
+      const playback = flightPlayback(from.spacecraft, flight, pace);
+      expect(shotsOf(playback)).toEqual(['takeoff', 'cruise', 'approach', 'landing']);
+      const approach = playback.shots.find((s) => s.shot === 'approach');
+      expect(approach && approach.end - approach.start).toBe(SHOT_MS[pace].approach);
+      // It runs to its end: the engine dies only later, in the Landing.
+      if (!approach) throw new Error('no Approach');
+      expect(playback.at(approach.end - 1).shotProgress).toBeGreaterThan(0.99);
+      expect(playback.stopsAt).toBeGreaterThan(approach.end);
     }
   });
 
@@ -379,6 +420,7 @@ describe('the shots of a Hop’s playback', () => {
   });
 
   it('a Hop to the Heliopause has no Approach and no Landing: Takeoff, then the Cruise', () => {
+    expect(SHOT_MS.full.approach).toBeGreaterThan(0);
     const built = install({ ...startRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
     if (built.kind !== 'installed') throw new Error('Expected an install');
     const launched = launchHop(built.run, HELIOPAUSE);

@@ -79,11 +79,12 @@ it('a New Run request from any scene, not only the Title, starts a fresh Run on 
   // From the Flight scene (a failed Hop leaves the player there).
   const flying = nextSceneReady();
   game.scene.stop(SceneKey.Landed);
-  // Re-pinned for #189: seed 1's scout, a tenth of its Fuel left, crashes on its first target.
+  // Re-pinned for #189: seed 1's scout, low on Fuel, crashes on its first target. A sixteenth of its
+  // Fuel since #247 (was a tenth): with the Isp 30% higher, a tenth now Arrives.
   const full = startRun(1, 'scout');
   const run = {
     ...full,
-    spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 10) },
+    spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 16) },
   };
   const target = listBodies(run.starSystem).find((body) => {
     const launched = launchHop(run, body.id);
