@@ -17,6 +17,7 @@ import {
 } from './landedView.ts';
 import { groundTexture, SKY_X } from './landscape.ts';
 import { homePlanet, startRun, type ChassisId, type Run } from '../sim/index.ts';
+import { manifest, type AssetEntry } from '../assets/manifest.ts';
 import { SceneKey } from './keys.ts';
 import type { Landed } from './Landed.ts';
 import '../../style.css';
@@ -265,4 +266,32 @@ it('paints the stand-in strip for every surface kind: Moon, Rocky and Icy', asyn
     expect(context.getImageData(0, GROUND_HEIGHT - 1, SURFACE_WIDTH, 1).data[3]).toBe(255);
   }
   expect(new Set(topLeft).size).toBe(3);
+});
+
+it('falls back to the stand-in strip when a listed surface PNG fails to load', async () => {
+  // The manifest lists every surface, but no such file is served: each load fails (404).
+  const kinds = ['moon', 'rocky', 'icy'] as const;
+  const listed = kinds.map((kind) => ({ key: `surface_${kind}`, file: `missing/${kind}.png` }));
+  const images = manifest.images as AssetEntry[];
+  const before = images.length;
+  images.push(...listed);
+  const errors = vi.spyOn(console, 'error');
+  try {
+    const scene = await landOn(landedRun());
+    for (const { key } of listed) expect(scene.textures.exists(key)).toBe(false);
+    expect(groundTexture(scene, 'rocky')).toBe('surface_rocky_standin');
+    // The ground draws the stand-in strip, filling the screen from the ground line down.
+    const { ground } = scene.layers;
+    const strip = ground.list.find((o): o is GameObjects.Image => o instanceof GameObjects.Image);
+    expect(strip?.texture.key).toMatch(/_standin$/);
+    expect(ground.y).toBe(GROUND_TOP);
+    expect(ground.y + (strip?.height ?? 0)).toBe(GAME_HEIGHT);
+    // Only the failed loads complain (the browser's 404 and Phaser's report of it); the fallback is silent.
+    const loud = errors.mock.calls
+      .map((call) => String(call[0]))
+      .filter((m) => !m.startsWith('Failed to process file') && !m.includes('support act('));
+    expect(loud).toEqual([]);
+  } finally {
+    images.splice(before, listed.length);
+  }
 });
