@@ -15,7 +15,15 @@ import {
   type HopFlight,
   type Run,
 } from '../sim/index.ts';
-import { flightPlayback, PHASE_MS, type FlightPlayback } from './flightPlayback.ts';
+import {
+  advancePlayback,
+  FAST_FORWARD,
+  flightPlayback,
+  SHOT_MS,
+  systemsLit,
+  type FlightPlayback,
+  type Shot,
+} from './flightPlayback.ts';
 
 const run = startRun(123, 'scout');
 /** The first Body Comms Detected: every Hop in these tests goes there. */
@@ -46,6 +54,25 @@ const samples = (playback: FlightPlayback) =>
   Array.from({ length: Math.floor(playback.duration / 10) + 1 }, (_, i) => playback.at(i * 10));
 
 const arrived = flightEnding('arrived', run);
+
+/** The shots a playback shows, in order, each once. */
+const shotsOf = (playback: FlightPlayback): Shot[] => {
+  const order = samples(playback).map((moment) => moment.shot);
+  return order.filter((shot, i) => shot !== order[i - 1]);
+};
+
+/** The real time (ms) the playback takes to cross `shot` at `rate(shot)` playback ms per real ms. */
+function realTimeThrough(playback: FlightPlayback, shot: Shot, rate: (s: Shot) => number): number {
+  const span = playback.shots.find((s) => s.shot === shot);
+  if (!span) throw new Error(`no ${shot}`);
+  let real = 0;
+  let ms = span.start;
+  while (ms < span.end) {
+    ms = advancePlayback(playback, ms, 16, rate);
+    real += 16;
+  }
+  return real;
+}
 
 /** The Run with just enough Fuel for `fraction` of the Hop's estimated Δv. */
 /**
@@ -198,7 +225,7 @@ describe('Hop playback', () => {
     expect(playback.at(0).fuel).toBeCloseTo(from.spacecraft.fuelMass, 6);
     // The engine cuts out partway through the Takeoff, not at its end.
     expect(playback.stopsAt).toBeGreaterThan(0);
-    expect(playback.stopsAt).toBeLessThan(PHASE_MS.full.takeoff);
+    expect(playback.stopsAt).toBeLessThan(SHOT_MS.full.takeoff);
     expect(playback.at(playback.stopsAt - 20).thrusting).toBe(true);
     expect(playback.at(playback.stopsAt).thrusting).toBe(false);
     expect(playback.at(playback.stopsAt).fuel).toBeCloseTo(0, 6);
@@ -221,10 +248,11 @@ describe('Hop playback', () => {
     expect(playback.stopsAt).toBe(playback.duration);
   });
 
-  it('under reduced motion the playback is shorter but still plays all three Burns', () => {
+  it('under reduced motion the Takeoff and Landing are shorter, the Cruise keeps its length, and all three Burns play', () => {
     const full = flightPlayback(run.spacecraft, arrived, 'full');
     const reduced = flightPlayback(run.spacecraft, arrived, 'reduced');
-    expect(reduced.duration).toBeLessThan(full.duration / 2);
+    expect(reduced.duration).toBeLessThan(full.duration - 3000);
+    expect(reduced.cruise?.length).toBe(full.cruise?.length);
     const order = samples(reduced).map((moment) => moment.burn);
     expect(order.filter((burn, i) => burn !== order[i - 1])).toEqual([
       'takeoff',
@@ -244,7 +272,7 @@ describe('the playback of a Hop to the Heliopause', () => {
   it('plays Takeoff then Transfer, never a Landing, and reaches the end of the route', () => {
     const playback = flightPlayback(built.run.spacecraft, flight, 'full');
     expect(flight.outcome.kind).toBe('reached-heliopause');
-    expect(playback.duration).toBe(PHASE_MS.full.takeoff + PHASE_MS.full.transfer);
+    expect(playback.duration).toBe(SHOT_MS.full.takeoff + SHOT_MS.full.cruise);
     const shown = [...new Set(samples(playback).map((moment) => moment.burn))];
     expect(shown).toEqual(['takeoff', 'transfer']);
     const end = playback.at(playback.duration);
@@ -254,7 +282,146 @@ describe('the playback of a Hop to the Heliopause', () => {
 
   it('is shorter under reduced motion, and still has no Landing', () => {
     const playback = flightPlayback(built.run.spacecraft, flight, 'reduced');
-    expect(playback.duration).toBe(PHASE_MS.reduced.takeoff + PHASE_MS.reduced.transfer);
+    expect(playback.duration).toBe(SHOT_MS.reduced.takeoff + SHOT_MS.reduced.cruise);
     expect(samples(playback).some((moment) => moment.burn === 'landing')).toBe(false);
+  });
+});
+
+describe('the shots of a Hop’s playback', () => {
+  it('plays the shots in order: Takeoff, Cruise, then Landing (the Approach comes with #205)', () => {
+    for (const pace of ['full', 'reduced'] as const) {
+      expect(shotsOf(flightPlayback(run.spacecraft, arrived, pace))).toEqual([
+        'takeoff',
+        'cruise',
+        'landing',
+      ]);
+    }
+  });
+
+  it('the Takeoff Burn is the Takeoff shot, the Transfer is the Cruise, and the Landing Burn is the Landing shot', () => {
+    const burnOf: Record<Shot, string> = {
+      takeoff: 'takeoff',
+      cruise: 'transfer',
+      approach: 'transfer',
+      landing: 'landing',
+    };
+    for (const moment of samples(flightPlayback(run.spacecraft, arrived, 'full'))) {
+      expect(moment.burn).toBe(burnOf[moment.shot]);
+    }
+  });
+
+  it('the Takeoff and Landing are short: 2.8 s each, 1 s under reduced motion', () => {
+    for (const [pace, length] of [
+      ['full', 2800],
+      ['reduced', 1000],
+    ] as const) {
+      const playback = flightPlayback(run.spacecraft, arrived, pace);
+      for (const shot of ['takeoff', 'landing'] as const) {
+        const span = playback.shots.find((s) => s.shot === shot);
+        expect(span && span.end - span.start).toBe(length);
+      }
+    }
+  });
+
+  it('the Cruise lasts about 50 s at normal speed, at either pace, and about 12.5 s on fast-forward', () => {
+    for (const pace of ['full', 'reduced'] as const) {
+      const playback = flightPlayback(run.spacecraft, arrived, pace);
+      const normal = realTimeThrough(playback, 'cruise', () => 1);
+      expect(normal).toBeGreaterThanOrEqual(45_000);
+      expect(normal).toBeLessThanOrEqual(55_000);
+      const fast = realTimeThrough(playback, 'cruise', () => FAST_FORWARD);
+      expect(fast).toBeGreaterThanOrEqual(11_000);
+      expect(fast).toBeLessThanOrEqual(14_000);
+    }
+  });
+
+  it('a speed for the Cruise alone (the test override) hurries the Cruise and leaves the Landing its length', () => {
+    const playback = flightPlayback(run.spacecraft, arrived, 'full');
+    const rate = (shot: Shot): number => (shot === 'cruise' ? 40 : 1);
+    expect(realTimeThrough(playback, 'cruise', rate)).toBeLessThan(3200);
+    expect(realTimeThrough(playback, 'landing', rate)).toBeGreaterThanOrEqual(SHOT_MS.full.landing);
+    // Crossing from the Cruise into the Landing, the speed changes exactly where the shot does.
+    const cruise = playback.shots.find((s) => s.shot === 'cruise');
+    if (!cruise) throw new Error('no Cruise');
+    expect(advancePlayback(playback, cruise.end - 40, 2, rate)).toBe(cruise.end + 1);
+  });
+
+  it('the Cruise window lies inside the Transfer, and the Transfer’s boost sits wholly inside the Cruise', () => {
+    const playback = flightPlayback(run.spacecraft, arrived, 'full');
+    const window = playback.cruise;
+    if (!window) throw new Error('no Cruise');
+    const moments = samples(playback);
+    const transfer = moments.filter((m) => m.burn === 'transfer');
+    const first = moments.findIndex((m) => m.burn === 'transfer') * 10;
+    const last = first + (transfer.length - 1) * 10;
+    expect(window.start).toBeGreaterThanOrEqual(first);
+    expect(window.start + window.length).toBeLessThanOrEqual(last + 10);
+    expect(transfer.some((m) => m.thrusting)).toBe(true);
+    for (const moment of transfer.filter((m) => m.thrusting)) expect(moment.shot).toBe('cruise');
+  });
+
+  it('the Cruise clock reports the Cruise time elapsed and the Cruise’s total, in ms', () => {
+    const playback = flightPlayback(run.spacecraft, arrived, 'full');
+    const window = playback.cruise;
+    if (!window) throw new Error('no Cruise');
+    expect(window.length).toBe(SHOT_MS.full.cruise);
+    expect(playback.at(window.start + 30_000).cruise).toEqual({
+      elapsed: 30_000,
+      total: window.length,
+    });
+    // Only the Cruise has a Cruise clock.
+    expect(playback.at(window.start - 1).cruise).toBeUndefined();
+    expect(playback.at(window.start + window.length + 1).cruise).toBeUndefined();
+  });
+
+  it('a Hop to the Heliopause has no Approach and no Landing: Takeoff, then the Cruise', () => {
+    const built = install({ ...startRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+    if (built.kind !== 'installed') throw new Error('Expected an install');
+    const launched = launchHop(built.run, HELIOPAUSE);
+    if (launched.kind !== 'flown') throw new Error('Expected a flight');
+    expect(shotsOf(flightPlayback(built.run.spacecraft, launched.flight, 'full'))).toEqual([
+      'takeoff',
+      'cruise',
+    ]);
+  });
+
+  it('a Spacecraft that Fell Short in the Transfer dies in the Cruise, never reaches the Approach, and the Cruise ends early', () => {
+    const from = shortRun(transferShare());
+    const flight = flightEnding('fell-short', from, 'transfer');
+    const playback = flightPlayback(from.spacecraft, flight, 'full');
+    expect(playback.at(playback.stopsAt).shot).toBe('cruise');
+    expect(shotsOf(playback)).toEqual(['takeoff', 'cruise']);
+    // Nobody waits two minutes behind a dead engine: the aftermath ends the playback soon after.
+    expect(playback.duration).toBeLessThan(SHOT_MS.full.takeoff + 20_000);
+    expect(playback.cruise?.start).toBe(SHOT_MS.full.takeoff);
+    expect(playback.cruise && playback.cruise.start + playback.cruise.length).toBe(
+      playback.duration,
+    );
+  });
+
+  it('a Spacecraft that Fell Short in the Takeoff never reaches the Cruise', () => {
+    // Fuel for most of the Takeoff alone: from the Starting Moon the Takeoff is a small share of the
+    // Hop (#189), so a fixed 0.2 of the estimate would get past it.
+    const planned = planHop(run, moonId);
+    if (planned.kind !== 'planned') throw new Error('no plan');
+    const from = shortRun((0.8 * planned.plan.estimates.takeoff) / planned.plan.totalEstimate);
+    const flight = flightEnding('fell-short', from, 'takeoff');
+    const playback = flightPlayback(from.spacecraft, flight, 'full');
+    expect(shotsOf(playback)).toEqual(['takeoff']);
+    expect(playback.cruise).toBeUndefined();
+  });
+
+  it('the systems lights come on one after another early in the Cruise, then all hold steady', () => {
+    expect(systemsLit(undefined, 3)).toBe(0);
+    const lit = (elapsed: number): number => systemsLit({ elapsed, total: 50_000 }, 3);
+    expect(lit(0)).toBe(0);
+    const steps = Array.from({ length: 100 }, (_, i) => lit(i * 100));
+    // Each light comes on by itself, in turn, and none goes out again.
+    expect(new Set(steps)).toEqual(new Set([0, 1, 2, 3]));
+    steps.forEach((n, i) => {
+      expect(n).toBeGreaterThanOrEqual(steps[i - 1] ?? 0);
+    });
+    expect(lit(10_000)).toBe(3);
+    expect(lit(49_000)).toBe(3);
   });
 });

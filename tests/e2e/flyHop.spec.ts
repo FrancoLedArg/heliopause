@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { FAST_CRUISE } from './cruise.ts';
 import { waitForOpening } from './opening.ts';
 import { formatFuel } from '../../src/ui/format.ts';
 import {
@@ -60,7 +61,7 @@ const crashFlight = lastHop('scout');
 const shortFlight = lastHop('hauler');
 
 async function openNavChart(page: Page, seed = SEED): Promise<void> {
-  await page.goto(`/?seed=${String(seed)}&chassis=scout`);
+  await page.goto(`/?seed=${String(seed)}&chassis=scout&${FAST_CRUISE}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await waitForOpening(page);
   await page.getByRole('button', { name: /Nav Chart/ }).click();
@@ -90,7 +91,7 @@ async function hopAndLand(page: Page, name: string): Promise<void> {
 
 /** The failure seed's scout, Landed at the end of PATH, with the Nav Chart open on FAR's Hop. */
 async function onTheWayToFail(page: Page): Promise<void> {
-  await page.goto(`/?seed=${String(FAIL_SEED)}&chassis=scout`);
+  await page.goto(`/?seed=${String(FAIL_SEED)}&chassis=scout&${FAST_CRUISE}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await waitForOpening(page);
   for (const name of PATH) await hopAndLand(page, name);
@@ -108,6 +109,27 @@ async function expectWhy(report: Locator, why: string): Promise<void> {
 const currentBurn = (page: Page) =>
   page.getByTestId('phase-strip').locator('[aria-current="step"]');
 
+/**
+ * Starts recording, every frame, each shot the HUD names (its `data-shot`), in order and once each;
+ * `shotsSeen` reads the record back. The playback runs on its own clock, so polling from the test
+ * could miss a short shot.
+ */
+async function recordShots(page: Page): Promise<void> {
+  // A script in the page (the e2e project has no DOM types).
+  await page.evaluate(`(() => {
+    const seen = [];
+    window.shotsSeen = seen;
+    const look = () => {
+      const shot = document.querySelector('[data-shot]')?.getAttribute('data-shot');
+      if (shot && seen.at(-1) !== shot) seen.push(shot);
+      requestAnimationFrame(look);
+    };
+    look();
+  })()`);
+}
+
+const shotsSeen = (page: Page): Promise<unknown> => page.evaluate('window.shotsSeen');
+
 test('a Hop to the first target plays Takeoff, Transfer and Landing, then lands there and collects its Fuel', async ({
   page,
 }, testInfo) => {
@@ -118,6 +140,7 @@ test('a Hop to the first target plays Takeoff, Transfer and Landing, then lands 
   const fuelAtLaunch = await page.getByTestId('fuel').textContent();
   expect(fuelAtLaunch).toBe(formatFuel(run.spacecraft.fuelMass));
   await target(page, homeMoon.name);
+  await recordShots(page);
   await page.getByRole('button', { name: 'Launch' }).click();
 
   // Launch closes the panels; the playback runs with its own HUD.
@@ -132,6 +155,8 @@ test('a Hop to the first target plays Takeoff, Transfer and Landing, then lands 
   await expect(page.getByRole('button', { name: 'Menu' })).toHaveCount(0);
 
   await expect(currentBurn(page)).toContainText('Transfer', { timeout: 10_000 });
+  // The Transfer is the Cruise: the Spacecraft big in space, the systems lights coming on.
+  await expect(page.getByTestId('systems-lights')).toBeVisible();
   // Takeoff is done: logged with its actual Δv against the estimate.
   await expect(page.getByTestId('flight-log').getByRole('row', { name: /Takeoff/ })).toContainText(
     /m\/s.*%/,
@@ -147,6 +172,8 @@ test('a Hop to the first target plays Takeoff, Transfer and Landing, then lands 
   });
   const report = page.getByRole('dialog', { name: 'Arrived' });
   await expect(report).toBeVisible();
+  // The film's shots, in order, from the HUD (the Cruise played fast: see FAST_CRUISE).
+  expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise', 'landing']);
   // Show, don't tell: the Δv bar and the gathered icon first, the Burn table behind "Tell me more".
   await expect(report.getByRole('img', { name: /^Δv: .*Used / })).toBeVisible();
   await expect(report.getByRole('button', { name: 'Continue' })).toBeFocused();
@@ -366,7 +393,7 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   test.setTimeout(120_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   // No Chassis in the URL: the picker is part of the New Run path.
-  await page.goto(`/?seed=${String(FAIL_SEED)}`);
+  await page.goto(`/?seed=${String(FAIL_SEED)}&${FAST_CRUISE}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await expect(page.getByRole('radio', { name: /Scout/ })).toBeFocused();
   await page.keyboard.press('ArrowRight');
