@@ -3,7 +3,7 @@ import { KIT_ATLAS_KEY } from '../ui/kit/kit.ts';
 import { EventBus } from './EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from './main.ts';
 import { SceneKey } from './scenes/keys.ts';
-import { launchHop, listBodies, startRun, type Run } from './sim/index.ts';
+import { kilograms, launchHop, listBodies, startRun, type Run } from './sim/index.ts';
 
 let game: Phaser.Game | undefined;
 
@@ -79,7 +79,12 @@ it('a New Run request from any scene, not only the Title, starts a fresh Run on 
   // From the Flight scene (a failed Hop leaves the player there).
   const flying = nextSceneReady();
   game.scene.stop(SceneKey.Landed);
-  const run = startRun(123, 'scout');
+  // Re-pinned for #188: no first Hop of a full scout on seed 123 crashes now; half its Fuel.
+  const full = startRun(123, 'scout');
+  const run = {
+    ...full,
+    spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 2) },
+  };
   const target = listBodies(run.starSystem).find((body) => {
     const launched = launchHop(run, body.id);
     return launched.kind === 'flown' && launched.flight.outcome.kind === 'crashed';

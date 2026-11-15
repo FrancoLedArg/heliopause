@@ -37,16 +37,18 @@ function fittedWith(from: Run, slots: readonly Slot[]): Run {
 }
 
 /**
- * Seed 7's Scout after its Hop to Quiolxaexis, `extra` Materials added before Launch: a Run that
- * only swapping in the level-2 Engine (60 Materials) could save.
+ * Seed 57's Scout after its Hop to Vekyr, `extra` Materials added before Launch: a Run that only
+ * swapping in the level-2 Engine (60 Materials) could save. Re-pinned for #188 (was seed 7's
+ * Quiolxaexis): the Hop's plan is sure, but its Burns run long, so it Arrives with less than the
+ * estimate left.
  */
-function quiolxaexis(extra: number): Run {
-  const start = startRun(7, 'scout');
-  const body = listBodies(start.starSystem).find(({ name }) => name === 'Quiolxaexis');
-  if (!body) throw new Error('Seed 7 has no Quiolxaexis');
+function vekyr(extra: number): Run {
+  const start = startRun(57, 'scout');
+  const body = listBodies(start.starSystem).find(({ name }) => name === 'Vekyr');
+  if (!body) throw new Error('Seed 57 has no Vekyr');
   const landed = launchHop({ ...start, materials: materials(start.materials + extra) }, body.id);
   if (landed.kind !== 'flown' || landed.flight.outcome.kind !== 'arrived') {
-    throw new Error('Seed 7: the Hop to Quiolxaexis should Arrive');
+    throw new Error('Seed 57: the Hop to Vekyr should Arrive');
   }
   return landed.run;
 }
@@ -196,14 +198,14 @@ describe('what could still save a Run', () => {
   });
 
   it('a rescue the Materials cannot pay for in the order the changes must be made does not count', () => {
-    // Seed 7: after Landing on Quiolxaexis the Run has 53 Materials. Swapping the level-1 Engine for
-    // the level-2 one would save it, but the new Engine (60) must be installed before the old one
-    // can be removed for its refund, so the swap can never be paid for.
-    const landed = quiolxaexis(0);
-    expect(landed.materials).toBe(53);
+    // Seed 57: after Landing on Vekyr the Run has 45 Materials. Swapping the level-1 Engine for the
+    // level-2 one would save it, but the new Engine (60) must be installed before the old one can be
+    // removed for its refund, so the swap can never be paid for.
+    const landed = vekyr(0);
+    expect(landed.materials).toBe(45);
     expect(landed.status).toMatchObject({ kind: 'ended', end: { kind: 'stranded' } });
-    // With 7 more Materials, 60 on Landing, the same Run can still be saved.
-    const richer = quiolxaexis(7);
+    // With 15 more Materials, 60 on Landing, the same Run can still be saved.
+    const richer = vekyr(15);
     expect(richer.materials).toBe(60);
     expect(assessStranding(richer).kind).toBe('warning');
   });
@@ -276,10 +278,11 @@ describe('the simulation settles Stranded itself', () => {
   const stranded = { kind: 'ended', end: { kind: 'stranded' } };
 
   it('a Hop that Arrives where no change could ever help ends the Run as Stranded', () => {
-    // Seed 2: a sure Hop to Quydril leaves too little Fuel for any Hop, whatever is changed.
-    const start = startRun(2, 'scout');
-    const body = listBodies(start.starSystem).find(({ name }) => name === 'Quydril');
-    if (!body) throw new Error('Seed 2 has no Quydril');
+    // Seed 305: a 99% Hop to Lyquin leaves too little Fuel for any Hop, whatever is changed.
+    // Re-pinned for #188 (was seed 2's sure Hop to Quydril): no sure Hop from the start strands now.
+    const start = startRun(305, 'scout');
+    const body = listBodies(start.starSystem).find(({ name }) => name === 'Lyquin');
+    if (!body) throw new Error('Seed 305 has no Lyquin');
     const flown = launchHop(start, body.id);
     if (flown.kind !== 'flown') throw new Error('expected a Hop');
     expect(flown.flight.outcome).toEqual({ kind: 'arrived' });
@@ -289,15 +292,15 @@ describe('the simulation settles Stranded itself', () => {
         kind: 'stranded',
         bodyId: body.id,
         reason:
-          'However you change its Components, your Spacecraft has at most 3.4 km/s of Δv, and ' +
-          'the cheapest Hop needs 4.0 km/s.',
+          'However you change its Components, your Spacecraft has at most 807 m/s of Δv, and ' +
+          'the cheapest Hop needs 3.0 km/s.',
       },
     });
     expect(flown.run.hopsFlown).toBe(1);
   });
 
   it('installing a Component that spends the Materials a rescue needed ends the Run as Stranded', () => {
-    const saveable = quiolxaexis(7);
+    const saveable = vekyr(15);
     const spent = install(saveable, 2, 'drill-1');
     if (spent.kind !== 'installed') throw new Error('expected an install');
     expect(spent.run.status).toMatchObject(stranded);
@@ -308,7 +311,7 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('a Stranded Run takes no more choices', () => {
-    const ended = quiolxaexis(0);
+    const ended = vekyr(0);
     expect(() => install(ended, 2, 'drill-1')).toThrow(/ended/);
     expect(() => remove(ended, 1)).toThrow(/ended/);
     const someBody = listBodies(ended.starSystem).find((body) => body.landable);
@@ -317,15 +320,15 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('a replayed Run ends Stranded where the game did, and takes no choice after it', () => {
-    const saveable = quiolxaexis(0);
+    const saveable = vekyr(0);
     expect(saveable.status).toMatchObject(stranded);
-    // Seed 7's own log: the one Hop to Quiolxaexis, which strands it.
-    const replayed = replay(7, 'scout', saveable.choices);
+    // Seed 57's own log: the one Hop to Vekyr, which strands it.
+    const replayed = replay(57, 'scout', saveable.choices);
     expect(replayed).toMatchObject({ kind: 'replayed', end: { kind: 'stranded' } });
     if (replayed.kind !== 'replayed') return;
     expect(replayed.run.status).toEqual(saveable.status);
     // A choice made after the end is refused.
-    const after = replay(7, 'scout', [
+    const after = replay(57, 'scout', [
       ...saveable.choices,
       { kind: 'install', slot: 2, componentId: 'drill-1' },
     ]);

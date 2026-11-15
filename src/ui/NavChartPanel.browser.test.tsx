@@ -24,12 +24,14 @@ async function showFocused(seed: number, focusedId: string): Promise<HTMLElement
   return byTestId(host, 'inspect');
 }
 
-// Seed 2024's Milos is the one the review saw overflow; seed 533's has the longest reason in 3000 seeds.
+// Seed 2024's Gas Giants were the ones the review saw overflow; seed 1008's Quaessaxthaex Prime has
+// the longest reason in 3000 seeds. Re-pinned for #188: the same seeds' Gas Giants under the new
+// generation, and seed 1008 for seed 533's Priosprysmur Minor.
 it.each([
-  [2024, 'planet-4', 'Milos'],
-  [12, 'planet-5', 'Xiolvonzae Minor'],
-  [533, 'planet-5', 'Priosprysmur Minor'],
-  [2024, 'planet-3', 'Zymir'],
+  [2024, 'planet-4', 'Cele'],
+  [12, 'planet-5', 'Dryxquur-9'],
+  [1008, 'planet-3', 'Quaessaxthaex Prime'],
+  [2024, 'planet-5', 'Hicyn'],
 ])('fits the reason inside the tooltip frame (seed %i, %s)', async (seed, id, name) => {
   const tooltip = await showFocused(seed, id);
   const verdict = tooltip.querySelector<HTMLElement>('[data-testid="verdict"]');
@@ -46,12 +48,16 @@ it.each([
 // The Hop plan is the densest block on the panel. Its longest states (a low chance, and a Margin below
 // zero with its stronger warning) must keep every line, reason and note inside the plan area, above
 // the buttons, and the explanation under the chart must fit its box and the frame.
+// Re-pinned for #188: a full Spacecraft is no longer short of any Body on seed 123, so it sets off
+// half-fuelled for Sircer (was a full one for Thakyxy).
 it.each(['scout', 'hauler'] as const)(
-  'keeps the whole Hop plan above Cancel and Launch, and the Δv explanation inside the frame (%s, seed 123 Thakyxy)',
+  'keeps the whole Hop plan above Cancel and Launch, and the Δv explanation inside the frame (%s, seed 123 Sircer, half the Fuel)',
   async (chassis) => {
-    const run = startRun(123, chassis);
-    const far = listBodies(run.starSystem).find((b) => b.name === 'Thakyxy');
-    if (!far) throw new Error('seed 123 has no Thakyxy');
+    const full = startRun(123, chassis);
+    const fuelMass = kilograms(full.spacecraft.fuelMass / 2);
+    const run = { ...full, spacecraft: { ...full.spacecraft, fuelMass } };
+    const far = listBodies(run.starSystem).find((b) => b.name === 'Sircer');
+    if (!far) throw new Error('seed 123 has no Sircer');
     const host = await renderUi(
       <NavChartPanel run={run} state={{ focusedId: far.id, selectedId: far.id }} />,
     );
@@ -170,12 +176,12 @@ it('keeps the tallest plan, with a 21-character target and a Margin warning, cle
   );
 });
 
-// Seed 4171 has the longest names in 20,000 seeds: Thirthiothux Minor (18 characters), a Moon of
-// Praespraethaen Prime (20).
+// Seed 10540 has the longest Moon name in 20,000 seeds: Drioldrionlael Minor (20 characters), a Moon
+// of Tioraevel Rho. Re-pinned for #188 (was seed 4171's Thirthiothux Minor).
 // Every line a name or subtitle appears on must show it whole, inside its frame, with slack for the
 // fonts CI draws, which are a little wider than the ones on a dev machine.
 const SLACK = 6;
-const [LONG_SEED, LONG_NAME, LONG_PARENT] = [4171, 'Thirthiothux Minor', 'Praespraethaen Prime'];
+const [LONG_SEED, LONG_NAME, LONG_PARENT] = [10540, 'Drioldrionlael Minor', 'Tioraevel Rho'];
 
 /** Where the drawn text of a block ends, not the block's own box (which fills its container). */
 function textRight(el: HTMLElement): number {

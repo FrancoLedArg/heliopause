@@ -58,48 +58,54 @@ function median(values: readonly number[]): number {
   return sorted[Math.floor(sorted.length / 2)] ?? NaN;
 }
 
-describe.each(CHASSIS_IDS)('starter tuning for the %s', (chassisId: ChassisId) => {
-  it("reaches every one of the Home Planet's Moons with comfortable Margin, in every Star System", () => {
-    for (const seed of SEEDS) {
-      const run = startRun(seed, chassisId);
-      for (const moon of homePlanet(run.starSystem).moons) expectComfortable(plan(run, moon.id));
-    }
-  });
-
-  it('reaches the Moon comfortably even from the heaviest Home Planet the generator allows', () => {
-    // The generator's extremes, from docs/research/nasa-data-for-generation.md §1: an Earth-sized
-    // Home Planet (9.8 m/s², 11.2 km/s), and a Ganymede-sized Moon (2.7 km/s) on the farthest orbit.
-    const run = startRun(2026, chassisId);
-    const moon = homeMoon(run);
-    const extreme = withBodies(run, {
-      [run.starSystem.homePlanetId]: {
-        surfaceGravity: metersPerSecondSquared(9.8),
-        escapeVelocity: metersPerSecond(11_200),
-      },
-      [moon.id]: {
-        escapeVelocity: metersPerSecond(2_700),
-        distanceFromPlanet: kilometers(1_900_000),
-      },
-    });
-    expectComfortable(plan(extreme, moon.id));
-  });
-
-  it('is never trivial: the Moon Hop always takes at least a fifth of the starting Δv', () => {
-    const startingDeltaV = availableDeltaV(newSpacecraft(chassisId));
-    for (const seed of SEEDS) {
-      const run = startRun(seed, chassisId);
-      for (const moon of homePlanet(run.starSystem).moons) {
-        expect(plan(run, moon.id).totalEstimate / startingDeltaV).toBeGreaterThanOrEqual(0.2);
+// Each sweep generates up to 2,000 Star Systems: about 3 s, longer on a loaded machine (#188).
+describe.each(CHASSIS_IDS)(
+  'starter tuning for the %s',
+  { timeout: 60_000 },
+  (chassisId: ChassisId) => {
+    it("reaches every one of the Home Planet's Moons with comfortable Margin, in every Star System", () => {
+      for (const seed of SEEDS) {
+        const run = startRun(seed, chassisId);
+        for (const moon of homePlanet(run.starSystem).moons) expectComfortable(plan(run, moon.id));
       }
-    }
-  });
+    });
 
-  it('starter Fuel covers roughly 2 to 4 nearby Hops for a cautious player', () => {
-    const hops = SEEDS.slice(0, 400).map((seed) => cautiousHops(startRun(seed, chassisId), seed));
-    expect(median(hops)).toBeGreaterThanOrEqual(2);
-    expect(median(hops)).toBeLessThanOrEqual(4);
-    expect(Math.min(...hops)).toBeGreaterThanOrEqual(1);
-    // Few Star Systems leave a cautious player with only the Moon.
-    expect(hops.filter((count) => count === 1).length / hops.length).toBeLessThan(0.1);
-  });
-});
+    it('reaches the Moon comfortably even from the heaviest Home Planet the generator allows', () => {
+      // The generator's extremes, from docs/research/nasa-data-for-generation.md §1: an Earth-sized
+      // Home Planet (9.8 m/s², 11.2 km/s), and a Ganymede-sized Moon (2.7 km/s) on the farthest orbit.
+      const run = startRun(2026, chassisId);
+      const moon = homeMoon(run);
+      const extreme = withBodies(run, {
+        [run.starSystem.homePlanetId]: {
+          surfaceGravity: metersPerSecondSquared(9.8),
+          escapeVelocity: metersPerSecond(11_200),
+        },
+        [moon.id]: {
+          escapeVelocity: metersPerSecond(2_700),
+          distanceFromPlanet: kilometers(1_900_000),
+        },
+      });
+      expectComfortable(plan(extreme, moon.id));
+    });
+
+    it('is never trivial: the Moon Hop always takes at least a fifth of the starting Δv', () => {
+      const startingDeltaV = availableDeltaV(newSpacecraft(chassisId));
+      for (const seed of SEEDS) {
+        const run = startRun(seed, chassisId);
+        for (const moon of homePlanet(run.starSystem).moons) {
+          expect(plan(run, moon.id).totalEstimate / startingDeltaV).toBeGreaterThanOrEqual(0.2);
+        }
+      }
+    });
+
+    it('starter Fuel covers roughly 3 to 6 nearby Hops for a cautious player', () => {
+      const hops = SEEDS.slice(0, 400).map((seed) => cautiousHops(startRun(seed, chassisId), seed));
+      // Was 2 to 4 until #188 gave every rocky planet two Moons: short Hops between them, some Icy.
+      expect(median(hops)).toBeGreaterThanOrEqual(3);
+      expect(median(hops)).toBeLessThanOrEqual(6);
+      expect(Math.min(...hops)).toBeGreaterThanOrEqual(1);
+      // Few Star Systems leave a cautious player with only the Moon.
+      expect(hops.filter((count) => count === 1).length / hops.length).toBeLessThan(0.1);
+    });
+  },
+);
