@@ -135,7 +135,9 @@ test('a Hop to the first target plays Takeoff, Transfer and Landing, then lands 
   // Launch closes the panels; the playback runs with its own HUD.
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeHidden();
   await expect(currentBurn(page)).toContainText('Takeoff');
-  await expect(page.getByTestId('flight-log')).toContainText('burning…');
+  await expect(page.getByTestId('flight-log').getByTestId('dv-bar')).toHaveAttribute(
+    'data-drained',
+  );
   await testInfo.attach('takeoff', { body: await page.screenshot(), contentType: 'image/png' });
 
   // The in-Run Menu is not offered while the Hop plays.
@@ -147,8 +149,9 @@ test('a Hop to the first target plays Takeoff, Transfer and Landing, then lands 
   // The Transfer is the Cruise: the Spacecraft big in space, the systems lights coming on.
   await expect(page.getByTestId('systems-lights')).toBeVisible();
   // Takeoff is done: logged with its actual Δv against the estimate.
+  await page.getByTestId('flight-log').getByRole('button', { name: 'Tell me more' }).click();
   await expect(page.getByTestId('flight-log').getByRole('row', { name: /Takeoff/ })).toContainText(
-    /m\/s.*%/,
+    /km\/s.*%/,
   );
   await testInfo.attach('transfer', { body: await page.screenshot(), contentType: 'image/png' });
 
@@ -341,8 +344,9 @@ test('fast-forward (F) turns on, keeps the flight log filling in, and lands with
     'true',
   );
   // The flight log still fills in, Burn by Burn.
+  await page.getByTestId('flight-log').getByRole('button', { name: 'Tell me more' }).click();
   await expect(page.getByTestId('flight-log').getByRole('row', { name: /Takeoff/ })).toContainText(
-    /m\/s.*%/,
+    /km\/s.*%/,
   );
   await expect(page.getByRole('heading', { name: homeMoon.name, level: 1 })).toBeVisible({
     timeout: 30_000,
