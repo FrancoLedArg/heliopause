@@ -127,12 +127,13 @@ async function showFocused(seed: number, focusedId: string): Promise<HTMLElement
 // Seed 2024's Gas Giants were the ones the review saw overflow; seed 1008's Quaessaxthaex Prime has
 // the longest reason in 3000 seeds. Re-pinned for #188: the same seeds' Gas Giants under the new
 // generation, and seed 1008 for seed 533's Priosprysmur Minor. Re-pinned for #280/#298: seed 2024
-// keeps another draw, so its Gas Giants are Tioxnaeno and Quaesdri (were Cele and Hicyn).
+// keeps another draw, so its Gas Giants are Tioxnaeno and Quaesdri (were Cele and Hicyn). Re-pinned for
+// #311: its middle outer orbit holds a landable planet, so the second is Thorko.
 it.each([
   [2024, 'planet-4', 'Tioxnaeno'],
   [12, 'planet-5', 'Dryxquur-9'],
   [1008, 'planet-3', 'Quaessaxthaex Prime'],
-  [2024, 'planet-5', 'Quaesdri'],
+  [2024, 'planet-6', 'Thorko'],
 ])('fits the reason inside the tooltip frame (seed %i, %s)', async (seed, id, name) => {
   const tooltip = await showFocused(seed, id);
   const verdict = tooltip.querySelector<HTMLElement>('[data-testid="verdict"]');
@@ -241,6 +242,9 @@ it('shows the whole target subtitle for a Moon of the longest-named planet, insi
   }
 });
 
+/** Since #311 seed 123 no longer opens round a Gas Giant; seed 114 does (re-pinned for these tests). */
+const OPENS_ON_GAS_GIANT = 114;
+
 /**
  * A Run's opening as the chart shows it: the first Body Comms Detected and the planet it orbits (on
  * seed 123 a sibling Moon of the Starting Moon, round a Gas Giant).
@@ -263,7 +267,7 @@ function besideMoon(run: Run, home: Planet, moon: Body): Run {
 // the strongest warning (a Margin below zero, here from almost no Fuel). Baselines differ by platform,
 // so the last line keeps real room inside the plan and the plan stays clear of the buttons.
 it('keeps the tallest plan, with a 21-character target and a Margin warning, clear of its box and the buttons', async () => {
-  const base = newRun(123, 'scout');
+  const base = newRun(OPENS_ON_GAS_GIANT, 'scout');
   const { home, moon } = opening(base);
   const name = 'Quaexquaexquaex Minor';
   const planets = base.starSystem.planets.map((planet) =>
@@ -453,7 +457,7 @@ it('shows Depleted in the tooltip of the longest-named Body, inside its frame', 
 });
 
 it('keeps the tallest plan, 21-character target, Margin warning and Depleted, clear of its box and the buttons', async () => {
-  const base = newRun(123, 'scout');
+  const base = newRun(OPENS_ON_GAS_GIANT, 'scout');
   const { home, moon } = opening(base);
   const name = 'Quaexquaexquaex Minor';
   const planets = base.starSystem.planets.map((planet) =>
@@ -503,7 +507,7 @@ it('keeps the tallest plan, 21-character target, Margin warning and Depleted, cl
 });
 
 it('names Depleted in the screen-reader entry for the Body', async () => {
-  const run = newRun(123, 'scout');
+  const run = newRun(OPENS_ON_GAS_GIANT, 'scout');
   const { home, moon } = opening(run);
   const host = await renderUi(
     <Panel run={{ ...run, depleted: [moon.id] }} focusedId={moon.id} selectedId={undefined} />,
@@ -830,6 +834,32 @@ it('fits the badge and the verdict inside the plan at 640x360 (#190)', async () 
   const card = byTestId(host, 'target').getBoundingClientRect();
   expect(reach.right).toBeLessThanOrEqual(card.right);
   expect(reach.left).toBeGreaterThanOrEqual(card.left);
+});
+
+it('shows the arrival time as a sun or moon chip named for the time, for a day and a night arrival (#334)', async () => {
+  const { run, target } = surveyedRun(true);
+  const names = new Set<string>();
+  for (const gameHours of [0, 4, 8, 12, 16, 20, 24, 30, 40, 55]) {
+    const host = await renderUi(
+      <Panel run={{ ...run, gameHours }} focusedId={target.id} selectedId={target.id} />,
+    );
+    const chip = byTestId(host, 'plan-arrival');
+    const name = chip.getAttribute('aria-label');
+    expect(name).toMatch(/^Arrives at (morning|midday|evening|night)$/);
+    names.add(name === 'Arrives at night' ? 'night' : 'day');
+    const plan = byTestId(host, 'hop-plan').getBoundingClientRect();
+    const box = chip.getBoundingClientRect();
+    expect(box.right).toBeLessThanOrEqual(plan.right);
+    expect(box.left).toBeGreaterThanOrEqual(plan.left);
+    cleanUp();
+  }
+  expect(names.size).toBe(2);
+});
+
+it('hides the arrival chip with no target (#334)', async () => {
+  const { run, target } = surveyedRun(true);
+  const host = await renderUi(<Panel run={run} focusedId={target.id} selectedId={undefined} />);
+  expect(host.querySelector('[data-testid="plan-arrival"]')).toBeNull();
 });
 
 // ---- #193: the full-screen chart, a card only on demand, then the plan ----

@@ -88,3 +88,13 @@ export function timeOfDayWords(fraction: number): string {
 export function flightHours(distanceAu: number): number {
   return FLIGHT_HOURS.base + FLIGHT_HOURS.perAu * Math.max(0, distanceAu);
 }
+
+/** The fraction of the target day when a Hop of `distanceAu` launched `gameHours` into the Run arrives (#334). */
+export function arrivalDayFraction(
+  system: StarSystem,
+  target: Body,
+  gameHours: number,
+  distanceAu: number,
+): number {
+  return localDayFraction(system, target, gameHours + flightHours(distanceAu));
+}
