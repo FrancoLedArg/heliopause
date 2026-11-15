@@ -492,33 +492,58 @@ body {
   background-position: center;
 }
 
-.chassis-card__stats {
+/* Three bars, each one measure against the other Chassis: label, bar, then the number small at its end. */
+.chassis-card__bars {
   position: absolute;
   left: 12px;
   right: 12px;
   margin: 0;
+  padding: 0;
+  list-style: none;
   display: grid;
-  grid-template-columns: 1fr auto;
   row-gap: 4px;
   font: 14px/14px var(--font-pixel-body);
 }
 
-.chassis-card__stats dt {
+.chassis-bar {
+  display: grid;
+  grid-template-columns: 52px 1fr 54px;
+  column-gap: 4px;
+  align-items: center;
+  height: 14px;
+  --bar: var(--wh3);
+}
+
+.chassis-bar--fuel {
+  --bar: var(--am3);
+}
+
+.chassis-bar--dv {
+  --bar: var(--cy3);
+}
+
+.chassis-bar__label {
+  overflow: hidden;
+  white-space: nowrap;
   color: var(--gm5);
 }
 
-.chassis-card__stats dd {
-  margin: 0;
+.chassis-bar__track {
+  display: block;
+  height: 8px;
+  outline: 1px solid var(--gm5);
+}
+
+.chassis-bar__fill {
+  display: block;
+  height: 100%;
+  background: var(--bar);
+}
+
+.chassis-bar__value {
   text-align: right;
-  color: var(--wh3);
-}
-
-.chassis-card__fuel {
-  color: var(--am3);
-}
-
-.chassis-card__dv {
-  color: var(--cy3);
+  white-space: nowrap;
+  color: var(--bar);
 }
 
 .chassis-picker__note {
@@ -528,6 +553,15 @@ body {
   text-align: center;
   font: 14px/14px var(--font-pixel-body);
   color: var(--gm6);
+}
+
+.chassis-picker__note p {
+  display: inline;
+  margin: 0;
+}
+
+.chassis-picker__more p {
+  display: block;
 }
 
 .chassis-picker__actions {
@@ -700,10 +734,73 @@ body {
   left: 476px;
 }
 
+/* ---- Fuel gauge (shared): an amber fill in a gunmetal trough ---- */
+
+.fuel-meter {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid var(--gm4);
+  background: var(--gm0);
+  overflow: hidden;
+}
+
+.fuel-meter__fill {
+  position: absolute;
+  background: var(--am3);
+  box-shadow: inset 0 0 0 1px var(--am4);
+}
+
+.fuel-meter--bar .fuel-meter__fill {
+  left: 0;
+  top: 0;
+  bottom: 0;
+}
+
+.fuel-meter--tank .fuel-meter__fill {
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+/* Under the Fuel value, between its icon column and the Δv icon at 330; the right end of the bar stays free. */
+.top-bar__fuel-bar {
+  top: 33px;
+  left: 246px;
+  width: 76px;
+  height: 5px;
+}
+
+/* The tank by the Spacecraft: Fuel icon on top, a gunmetal tank with quarter ticks below (shape, not colour, says "tank"). */
+.landed-fuel-tank {
+  position: absolute;
+}
+
+.landed-fuel-tank__icon {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
 /* The drawn Spacecraft's text alternative: read, never seen; kept in the corner, off the Spacecraft. */
 .landed-spacecraft-alt {
   top: 0;
   left: 0;
+}
+
+.landed-fuel-meter {
+  left: 2px;
+  right: 2px;
+  bottom: 0;
+  height: 72px;
+  border-radius: 3px;
+  border-width: 2px;
+}
+
+.landed-fuel-meter::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(to bottom, transparent 0 16px, var(--gm2) 16px 17px);
 }
 
 /* Left of the Nav Chart button, in the same row: right of the location plate (ends x 296), below the sweep. */

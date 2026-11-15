@@ -102,15 +102,17 @@ test('the picker shows each Chassis and its numbers, and picking by keyboard sta
   await expect(picker.getByText('15.0 t', { exact: true })).toBeVisible();
   await expect(picker.getByText('66.0 t', { exact: true })).toBeVisible();
   await expect(picker.getByText('Selected')).toHaveCount(1);
-  await expect(picker.getByText(/heavier craft gets less/)).toBeVisible();
+  await expect(picker.getByText(/More mass, less/)).toBeVisible();
   await testInfo.attach('picker', { body: await page.screenshot(), contentType: 'image/png' });
 
-  // The first Chassis is focused and chosen; the arrow keys move the choice, Tab reaches Back then Launch.
+  // The first Chassis is focused and chosen; the arrow keys move the choice, Tab reaches Tell me more, Back, then Launch.
   await expect(page.getByRole('radio', { name: /Scout/ })).toBeFocused();
   await expect(page.getByRole('radio', { name: /Scout/ })).toBeChecked();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('radio', { name: /Hauler/ })).toBeChecked();
   await expect(page.getByRole('radio', { name: /Hauler/ })).toHaveCount(1);
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Tell me more' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'Back' })).toBeFocused();
   await page.keyboard.press('Tab');
