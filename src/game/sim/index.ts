@@ -3,8 +3,11 @@
 export { findBody, listBodies, startingMoon } from './starSystem.ts';
 export { generateStarSystem } from './generation.ts';
 export { currentBody, generateSystem, starSystemNumber, starSystemSeed, startRun } from './run.ts';
+export type { TemperatureBand } from './clock.ts';
 export {
   arrivalDayFraction,
+  isHarshArrival,
+  temperatureBand,
   landedDayFraction,
   localDayFraction,
   rotationPeriodHours,
@@ -132,6 +135,7 @@ export type {
 export {
   BODY_TUNING,
   ICE_LINE,
+  TEMPERATURE_BANDS,
   CHASSIS_IDS,
   OPENING_TUNING,
   REACH_VERDICT,
