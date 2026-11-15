@@ -4,7 +4,14 @@ import { hasAsset } from '../assets/manifest.ts';
 import { EventBus } from '../EventBus.ts';
 import { prefersReducedMotion } from '../lib/motion.ts';
 import { createRng } from '../lib/rng.ts';
-import { findBody, type BodyId, type Burn, type HopFlight, type Run } from '../sim/index.ts';
+import {
+  CHASSIS_IDS,
+  findBody,
+  type BodyId,
+  type Burn,
+  type HopFlight,
+  type Run,
+} from '../sim/index.ts';
 import {
   FAST_FORWARD,
   flightPlayback,
@@ -16,10 +23,17 @@ import { anchorFx } from './groundAnchor.ts';
 import { createFlightEffects, type FlightEffects } from './flightEffects.ts';
 import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
-import { bodySprite, SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
+import { bodySprite, SCREEN_WIDTH, SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
 import { buildLandscape, type LandscapeLayers } from './landscape.ts';
 import { onLeaveRun } from './leaveRun.ts';
-import { FLIGHT_ANGLE, turn, type NozzleKind, type Point, type ShipPose } from './chassisArt.ts';
+import {
+  FLIGHT_ANGLE,
+  frameGeometry,
+  turn,
+  type NozzleKind,
+  type Point,
+  type ShipPose,
+} from './chassisArt.ts';
 import {
   addSpacecraftArt,
   shadowWidth,
@@ -73,11 +87,28 @@ const LIFT = { at: 0.1, height: 220 } as const;
 const TILT = { from: 0.58, to: 0.7 } as const;
 /** How far (px) the boost carries the Spacecraft right and up by the end of the Takeoff. */
 const BOOST = { x: 300, y: 210 } as const;
-/** Where the boost leaves the Spacecraft on screen: the camera trails it by `1 - FOLLOW`. */
+/** Layout tuning: the open sky kept between the flying Spacecraft's nose and the right edge (px). */
+const NOSE_MARGIN = 8;
+/** How far the flight frame reaches right of the centre of the base: the longest Chassis' nose (px). */
+const FLIGHT_REACH = Math.max(
+  ...CHASSIS_IDS.map((id) => {
+    const { width, pivot } = frameGeometry(id, 'flight');
+    return width - pivot.x;
+  }),
+);
+/**
+ * Where the boost leaves the Spacecraft on screen: high, as the camera trails it by `1 - FOLLOW`, and
+ * far enough left that the whole flight frame, nose first, stays on screen.
+ */
 const BOOST_EXIT = {
-  x: SHIP_PLACEMENT.x + BOOST.x * (1 - FOLLOW),
+  x: SCREEN_WIDTH - NOSE_MARGIN - FLIGHT_REACH,
   y: SHIP_PLACEMENT.baseY - (LIFT.height + BOOST.y) * (1 - FOLLOW),
 } as const;
+/**
+ * From the tilt on, the camera runs ahead of its trailing follow by up to this much (px), so the
+ * Spacecraft ends the boost at `BOOST_EXIT` rather than off the right edge.
+ */
+const BOOST_LEAD = SHIP_PLACEMENT.x + BOOST.x * (1 - FOLLOW) - BOOST_EXIT.x;
 /**
  * The share of the Transfer over which the camera catches up with the Spacecraft. Long, and onto a
  * line that starts near where the boost left it, so the catch-up reads as a calm drift, not a pan.
@@ -286,7 +317,8 @@ export class Flight extends Scene {
   private takeoff(progress: number, thrusting: boolean, aftermath: number): void {
     const base = SHIP_PLACEMENT.baseY;
     const rise = smooth((progress - LIFT.at) / (TILT.from - LIFT.at));
-    const tilt = clamp01((progress - TILT.from) / (TILT.to - TILT.from));
+    // The tilt eases in and out, so the turn starts and settles gently.
+    const tilt = smooth((progress - TILT.from) / (TILT.to - TILT.from));
     const boost = clamp01((progress - TILT.to) / (1 - TILT.to)) ** 2;
     let x = SHIP_PLACEMENT.x + BOOST.x * boost;
     let y = base - LIFT.height * rise - BOOST.y * boost;
@@ -302,7 +334,10 @@ export class Flight extends Scene {
     const angle = flying ? -FLIGHT_ANGLE * (1 - tilt) : FLIGHT_ANGLE * tilt;
     this.ship.setPosition(x, y).setAngle(angle);
     this.thrust(thrusting && !flying, thrusting && flying, 1 + 0.4 * (rise > 0 ? 1 : 0));
-    this.follow(x, y);
+    // As it turns toward its heading the camera starts to run ahead (quickly at first, then
+    // settling), framing the long flight pose: it is still high above the ground, out of view.
+    const ahead = clamp01((progress - TILT.from) / (1 - TILT.from));
+    this.follow(x, y, BOOST_LEAD * (1 - (1 - ahead) ** 2));
     this.shadow.setAlpha(0.45 * (1 - clamp01((base - y) / 80)));
     this.groundFx(thrusting && !flying, x, y);
     this.fx?.exhaust(thrusting && flying, this.flightNozzles(x, y, angle));
@@ -389,10 +424,10 @@ export class Flight extends Scene {
     });
   }
 
-  /** The camera rides with the Spacecraft, a step behind, so the ground falls away below it. */
-  private follow(x: number, y: number): void {
+  /** The camera rides with the Spacecraft, a step behind (or `lead` px ahead of that), so the ground falls away below it. */
+  private follow(x: number, y: number, lead = 0): void {
     this.cameras.main.setScroll(
-      Math.round((x - SHIP_PLACEMENT.x) * FOLLOW),
+      Math.round((x - SHIP_PLACEMENT.x) * FOLLOW + lead),
       Math.round((y - SHIP_PLACEMENT.baseY) * FOLLOW),
     );
   }

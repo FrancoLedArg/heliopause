@@ -438,3 +438,36 @@ it.each(CHASSIS_IDS)(
     }
   },
 );
+
+/** The Chassis art on screen (its whole frame, plumes left out), in 640x360 stage pixels. */
+function hullOnScreen(scene: Flight): Box {
+  const hull = scene.ship.list.find(
+    (child): child is GameObjects.Image =>
+      child instanceof GameObjects.Image && child.texture.key.startsWith('chassis_'),
+  );
+  if (!hull) throw new Error('no Chassis art on the ship');
+  const b = hull.getBounds();
+  const { scrollX, scrollY } = scene.cameras.main;
+  return {
+    left: b.left - scrollX,
+    top: b.top - scrollY,
+    right: b.right - scrollX,
+    bottom: b.bottom - scrollY,
+  };
+}
+
+it.each(CHASSIS_IDS)(
+  'the %s stays wholly on screen through the whole Hop, the boost and the Transfer included',
+  async (chassis) => {
+    const { scene } = await fly(chassis);
+    for (let t = 0; t < scene.playback.duration; t += 25) {
+      scene.seek(t);
+      const hull = hullOnScreen(scene);
+      const where = `${scene.playback.at(t).burn} at ${String(t)} ms`;
+      expect(hull.left, where).toBeGreaterThanOrEqual(0);
+      expect(hull.top, where).toBeGreaterThanOrEqual(0);
+      expect(hull.right, where).toBeLessThanOrEqual(GAME_WIDTH);
+      expect(hull.bottom, where).toBeLessThanOrEqual(GAME_HEIGHT);
+    }
+  },
+);
