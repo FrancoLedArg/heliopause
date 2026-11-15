@@ -10,6 +10,7 @@ export {
   STARTING_MATERIALS,
 } from './run.ts';
 export { collectYield, isDepleted } from './gather.ts';
+export { jump } from './jump.ts';
 export type { Collection, Landing } from './gather.ts';
 export { install, standingRefusal } from './install.ts';
 export type { InstallRefusal, InstallResult, StandingRefusal } from './install.ts';
