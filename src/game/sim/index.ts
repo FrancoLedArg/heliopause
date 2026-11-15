@@ -3,6 +3,13 @@
 export { findBody, listBodies, startingMoon } from './starSystem.ts';
 export { generateStarSystem } from './generation.ts';
 export { currentBody, generateSystem, starSystemNumber, starSystemSeed, startRun } from './run.ts';
+export {
+  landedDayFraction,
+  localDayFraction,
+  rotationPeriodHours,
+  skyDay,
+  timeOfDayWords,
+} from './clock.ts';
 export { firstDetectedBody, STARTING_MATERIALS } from './opening.ts';
 export { bodyKnowledge, distanceBetween, knownBodies } from './knowledge.ts';
 export type { BodyKnowledge, Knowledge, Reveal } from './knowledge.ts';

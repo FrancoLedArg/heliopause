@@ -28,6 +28,7 @@ export function jump(run: Run): Run {
       starSystemNumber,
       spacecraft: refit(run.spacecraft, slots),
       hopsFlown: run.hopsFlown,
+      gameHours: run.gameHours,
       materials: run.materials,
       choices: run.choices,
     },
