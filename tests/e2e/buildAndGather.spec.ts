@@ -69,8 +69,10 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
 
   // 2. Open the Spacecraft panel by keyboard.
   const spacecraft = page.getByRole('button', { name: 'Spacecraft' });
+  const focused = page.locator(':focus');
   for (let i = 0; i < 8; i += 1) {
-    if (((await page.locator(':focus').textContent()) ?? '').includes('Spacecraft')) break;
+    if ((await focused.count()) > 0 && ((await focused.textContent()) ?? '').includes('Spacecraft'))
+      break;
     await page.keyboard.press('Tab');
   }
   await expect(spacecraft).toBeFocused();
