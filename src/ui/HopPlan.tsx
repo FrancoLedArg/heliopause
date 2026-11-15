@@ -11,15 +11,28 @@ const percent = (share: number): string => `${String(share * 100)}%`;
  * Burns against the available Δv, the Margin as the gap), then the Fuel left after the Hop. The one
  * visible line is the warning, when there is one; each Burn's reason and the mass behind the Δv wait
  * behind "Tell me more". With no target, a reticle asks for one.
- *
- * #190 adds its Unsurveyed badge and reach verdict here: the badge beside Success Chance, the verdict
- * as the plan's one warning line.
+ * An Unsurveyed target gets a "?" badge beside Success Chance (#190), and the reach verdict is the
+ * plan's one warning line: an icon whose shape says it, and a short word.
  */
 export function HopPlan({ view }: { view: HopPlanView | undefined }) {
   return (
     <div className="nav-chart__plan hop-plan" data-testid="hop-plan">
       {view ? <Plan view={view} /> : <PickATarget />}
     </div>
+  );
+}
+
+/** A "?" icon, named the target's Body has not been Surveyed, so the Landing estimate is cautious. */
+function UnsurveyedBadge() {
+  return (
+    <span
+      className="hop-plan__unsurveyed"
+      role="img"
+      aria-label="Unsurveyed"
+      data-testid="plan-unsurveyed"
+    >
+      <KitFrame frame="icon_help" />
+    </span>
   );
 }
 
@@ -40,6 +53,7 @@ function Plan({ view }: { view: HopPlanView }) {
         data-testid="plan-success"
       >
         <span className="hop-plan__label">Success</span>
+        {view.unsurveyed && <UnsurveyedBadge />}
         <KitFrame frame={view.low ? 'badge_warning' : 'badge_ok'} />
         <span className="hop-plan__chance">{view.successChance}</span>
       </p>
@@ -64,11 +78,15 @@ function Plan({ view }: { view: HopPlanView }) {
         </span>
       </p>
       <FuelGauge fuel={view.fuel} />
-      {view.warning && (
-        <p className="hop-plan__warning" data-testid="plan-warning">
-          {view.warning}
-        </p>
-      )}
+      <p
+        className={`hop-plan__warning hop-plan__warning--${view.reach.kind}`}
+        role="img"
+        aria-label={view.reach.label}
+        data-testid="plan-warning"
+      >
+        <KitFrame frame={view.reach.frame} />
+        <span aria-hidden="true">{view.reach.word}</span>
+      </p>
       <Disclosure>
         <TellMeMoreToggle className="hop-plan__more" />
         <DisclosurePanel className="nav-chart__details hop-plan__details">
