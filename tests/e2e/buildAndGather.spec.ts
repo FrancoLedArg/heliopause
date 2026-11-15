@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { FAST_CRUISE } from './cruise.ts';
-import { formatDeltaV, formatDeltaVKmS, formatFuel } from '../../src/ui/format.ts';
+import { formatDeltaVKmS, formatFuel } from '../../src/ui/format.ts';
 import {
   availableDeltaV,
   firstDetectedBody,
@@ -101,8 +101,9 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   await tabTo(page, /^Install Drill, level 1/);
   const preview = page.getByTestId('install-preview');
   await expect(preview).toContainText('Install Drill 1');
+  // #224: the Δv bar shows before → after, in km/s as the top bar does.
   await expect(preview.getByTestId('preview-line').filter({ hasText: 'Δv' })).toContainText(
-    formatDeltaV(afterDeltaV),
+    `→ ${formatDeltaVKmS(afterDeltaV)}`,
   );
   await expect(page.getByTestId('materials')).toHaveText(String(run.materials));
   await page.keyboard.press('Enter');
