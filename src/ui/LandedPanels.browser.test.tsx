@@ -248,3 +248,36 @@ it.each(CHASSIS_IDS)(
     }
   },
 );
+
+it('shows the local time as a dial on the plate, named in words, clear of the plate text at 640x360 (#192)', async () => {
+  const run = startRun(10540, 'scout');
+  const body = listBodies(run.starSystem).find((b) => b.name === 'Drioldrionlael Minor');
+  if (!body) throw new Error('seed 10540 has no Drioldrionlael Minor');
+  const host = await renderUi(
+    <LandedPanels
+      run={{ ...run, status: { kind: 'landed', bodyId: body.id }, depleted: [body.id] }}
+      chartOpen={false}
+      spacecraftOpen={false}
+      onOpenSpacecraft={() => undefined}
+    />,
+  );
+  const dial = byTestId(host, 'local-time-dial');
+  expect(dial.getAttribute('aria-label')).toMatch(/^Local time: (night|morning|midday|evening)$/);
+  const frame = host.querySelector('.landed-plate')?.getBoundingClientRect();
+  const title = host.querySelector('.landed-plate__title')?.getBoundingClientRect();
+  const detail = host.querySelector('.landed-plate__detail');
+  if (!frame || !title || !detail) throw new Error('no plate');
+  const box = dial.getBoundingClientRect();
+  // Inside the plate, and clear of the name and of both lines under it, longest name and detail.
+  expect(box.left).toBeGreaterThanOrEqual(frame.left);
+  expect(box.right).toBeLessThanOrEqual(frame.right);
+  expect(box.top).toBeGreaterThanOrEqual(frame.top);
+  expect(box.bottom).toBeLessThanOrEqual(frame.bottom);
+  expect(title.right).toBeLessThanOrEqual(box.left);
+  const text = document.createRange();
+  text.selectNodeContents(byTestId(host, 'landed-kind'));
+  expect(text.getBoundingClientRect().right).toBeLessThanOrEqual(box.left);
+  const lines = document.createRange();
+  lines.selectNodeContents(detail);
+  expect(box.bottom).toBeLessThanOrEqual(lines.getBoundingClientRect().top + 1);
+});

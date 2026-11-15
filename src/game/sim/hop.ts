@@ -1,10 +1,11 @@
 import { createRng, type Rng } from '../lib/rng.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
+import { flightHours } from './clock.ts';
 import { recordChoice } from './choiceLog.ts';
 import { DISPERSION, SOURCED_CONSTANTS } from './data.ts';
 import { collectYield, type Collection } from './gather.ts';
 import { jump } from './jump.ts';
-import { revealOnLanding, type Reveal } from './knowledge.ts';
+import { distanceBetween, revealOnLanding, type Reveal } from './knowledge.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
 import { endIfStranded } from './stranded.ts';
 import { availableDeltaV, carriesJumpDrive, fuelAfterBurning } from './spacecraft.ts';
@@ -338,6 +339,7 @@ export function flyHop(
     spacecraft: { ...run.spacecraft, fuelMass: fuelRemaining },
     status,
     hopsFlown: run.hopsFlown + 1,
+    gameHours: run.gameHours + flightHours(hopDistance(run, from, target)),
   });
   switch (outcome.kind) {
     case 'fell-short':
@@ -616,4 +618,10 @@ function gravitationalParameter(planet: Planet): number {
 /** In metres: a Moon's orbit, or the planet's own low orbit. */
 function orbitAroundPlanet(planet: Planet, body: Body): number {
   return body.kind === 'moon' ? body.distanceFromPlanet * 1_000 : planetRadius(planet);
+}
+
+/** How far a Hop flies, in AU: to the Body it lands on, or out to the Heliopause. */
+function hopDistance(run: Run, from: Body, target: Body | undefined): number {
+  if (target) return distanceBetween(run.starSystem, from, target);
+  return Math.max(0, run.starSystem.heliopauseRadius - from.distanceFromStar);
 }

@@ -104,6 +104,7 @@ export function startingRun(
       starSystemNumber: level,
       spacecraft: { ...spacecraft, fuelMass: kilograms(spacecraft.fuelMass - fuelShort) },
       hopsFlown: 0,
+      gameHours: 0,
       materials: materials(STARTING_MATERIALS - materialsShort),
       choices: [],
     },
