@@ -447,6 +447,8 @@ it('after a landing, Comms pings from the Spacecraft and says what it Detected i
   expect(scene.commsPing.length).toBeGreaterThan(0);
   for (const ring of scene.commsPing) expect(ring.parentContainer).toBe(scene.layers.ship);
   const status = document.querySelector('[data-testid="comms-announcement"]');
+  // React says it a render after the event, so wait on the text itself, not on a moment.
+  await until(() => (status?.textContent ?? '') !== '');
   expect(status?.getAttribute('role')).toBe('status');
   expect(status?.textContent).toMatch(/Comms Detected a new Body, [\d.,]+ (AU|km) away\.$/);
   // And it is gone once played.

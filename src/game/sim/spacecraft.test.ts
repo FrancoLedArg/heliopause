@@ -25,6 +25,7 @@ describe('Δv from Fuel', () => {
     const spacecraft: Spacecraft = {
       chassisId: 'scout',
       slots: newSpacecraft('scout').slots,
+      damage: newSpacecraft('scout').damage,
       dryMass: kilograms(2_000),
       fuelMass: kilograms(8_000),
       fuelCapacity: kilograms(8_000),

@@ -5,7 +5,7 @@ A roguelike in which the player escapes randomly generated star systems one Hop 
 ## The run
 
 **Run**:
-One attempt from a fresh start until the Spacecraft is lost or stranded. A Run spans as many Star Systems as the player escapes.
+One attempt from a fresh start until the Spacecraft is lost, Destroyed or Stranded. A Run spans as many Star Systems as the player escapes.
 _Avoid_: Game, playthrough, session
 
 **New Run**:
@@ -25,7 +25,7 @@ The randomly chosen Moon where the Spacecraft is marooned at the start of each S
 _Avoid_: Start, spawn, Earth
 
 **Stranded**:
-A Run's end when no Hop could have any Success Chance, whatever Components the Spacecraft could still install or remove. Generation keeps it out of the opening: no Hop the plan shows at 100% from the start leads straight into it.
+A Run's end when no Hop could have any Success Chance, whatever Components the Spacecraft could still install, remove or Repair. Generation keeps it out of the opening: no Hop the plan shows at 100% from the start leads straight into it.
 _Avoid_: Stuck, softlock
 
 **Score**:
@@ -124,6 +124,18 @@ _Avoid_: Sensor, scanner, telescope
 The Spacecraft's built-in communications system, not a Component: after every landing it Detects the nearest landable Body not yet Detected.
 _Avoid_: Radio, antenna, beacon
 
+**Damaged**:
+A Component hit by a Cruise event. It works worse until Repaired.
+_Avoid_: broken, destroyed, hurt
+
+**Repair**:
+Clearing a Component's Damage. It takes Cruise time and costs nothing, or can be Rushed.
+_Avoid_: fix, heal, mend
+
+**Rush**:
+Paying Materials (later Scrap) to finish a Repair at once.
+_Avoid_: speed up, skip, boost
+
 ## Resources
 
 **Fuel**:
@@ -149,7 +161,7 @@ Delta-v, the change in speed a Burn needs or the Spacecraft's Fuel can provide; 
 _Avoid_: Delta-V, dv, thrust, range
 
 **Success Chance**:
-The probability, shown before launch, that the Spacecraft's Fuel covers the actual Δv of every Burn in a Hop.
+The probability, shown before launch, that the Spacecraft's Fuel covers the actual Δv of every Burn in a Hop, for the Spacecraft as it stands at launch; Cruise events are not included.
 _Avoid_: Odds, risk, probability
 
 **Margin**:
@@ -166,4 +178,32 @@ _Avoid_: Out of gas, drifted
 
 **Crashed**:
 A Hop outcome where the Spacecraft completes the Transfer but lacks the Δv to finish Landing.
-_Avoid_: Destroyed, died
+_Avoid_: died
+
+**Destroyed**:
+A Run's end when an Engine fire left without a Repair blows up the Spacecraft.
+_Avoid_: exploded, died, killed
+
+**Cruise**:
+The coast through space after the Transfer's engine firing, about 2 minutes on every Hop, during which Cruise events happen and the player can Repair.
+_Avoid_: travel, flight, transit
+
+**Cruise event**:
+Something that happens to the Spacecraft during the Cruise, settled by the seed: an Engine fire, a Fuel leak, a Debris field or a solar flare.
+_Avoid_: incident, hazard, random event
+
+**Engine fire**:
+A Cruise event that sets an Engine burning; left without a Repair, it Destroys the Spacecraft.
+_Avoid_: engine failure, explosion (for the event)
+
+**Fuel leak**:
+A Cruise event that makes a Fuel Tank lose Fuel until it is Repaired.
+_Avoid_: vent, spill
+
+**Debris field**:
+Junk the Spacecraft can fly through during the Cruise, which may Damage one Component.
+_Avoid_: asteroid field, junk, hazard
+
+**Solar flare**:
+A Cruise event in which the star knocks out the Spacecraft's electronics, such as the Radar.
+_Avoid_: storm, radiation burst

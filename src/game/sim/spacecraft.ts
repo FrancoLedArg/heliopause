@@ -2,6 +2,7 @@ import { COMPONENTS, type ComponentId } from './catalogue.ts';
 import {
   CHASSIS_LAYOUT,
   CHASSIS_TUNING,
+  CRUISE_TUNING,
   SOURCED_CONSTANTS,
   type ChassisId,
   type ChassisTuning,
@@ -50,6 +51,24 @@ export function startingSlots(chassisId: ChassisId): readonly Slot[] {
 }
 
 /**
+ * A Component hit by a Cruise event (#210): it works worse until Repaired. `repair` is the Repair's
+ * progress in Cruise ticks, `null` until one is started. `burning` counts the ticks an Engine fire
+ * has burned with no Repair started (only an Engine fire sets it, and starting a Repair puts it out).
+ */
+export interface Damage {
+  readonly repair: number | null;
+  readonly burning: number | null;
+}
+
+/** Each Slot's Damage, `null` while the Slot's Component is sound (or the Slot is empty). */
+export type SlotDamage = Damage | null;
+
+/** Nothing Damaged, in each of these Slots. */
+function sound(slots: readonly Slot[]): readonly SlotDamage[] {
+  return slots.map(() => null);
+}
+
+/**
  * The player's one vehicle: a Chassis with Components in its Slots, and the Fuel it carries.
  *
  * `dryMass`, `fuelCapacity` and `engineIsp` are derived from the Chassis and the Slots whenever the
@@ -59,22 +78,29 @@ export function startingSlots(chassisId: ChassisId): readonly Slot[] {
 export interface Spacecraft {
   readonly chassisId: ChassisId;
   readonly slots: Loadout;
+  /**
+   * Each Slot's Damage, as long as its Slots. The figures below already count it (a Damaged Engine's
+   * Isp), so the plan, the Δv preview, Stranded and the Landing all see it.
+   */
+  readonly damage: readonly SlotDamage[];
   /** Everything but Fuel: the Chassis's own mass plus every installed Component's. */
   readonly dryMass: Kilograms;
   readonly fuelMass: Kilograms;
   /** The sum of the Fuel Tanks' effects on this Chassis (`componentEffect`). */
   readonly fuelCapacity: Kilograms;
-  /** The best installed Engine's effect on this Chassis (`componentEffect`); 0 with no Engine. */
+  /** The best installed Engine's effect on this Chassis (`componentEffect`), Damage counted; 0 with no Engine. */
   readonly engineIsp: Seconds;
 }
 
 /** The Spacecraft a New Run starts with on this Chassis: its starting Components, Fuel full. */
 export function newSpacecraft(chassisId: ChassisId): Spacecraft {
   const slots = startingSlots(chassisId);
-  const derived = figures(chassisId, slots);
+  const damage = sound(slots);
+  const derived = figures(chassisId, slots, damage);
   return {
     chassisId,
     slots: asLoadout(slots),
+    damage,
     ...derived,
     fuelMass: derived.fuelCapacity,
   };
@@ -82,7 +108,9 @@ export function newSpacecraft(chassisId: ChassisId): Spacecraft {
 
 /**
  * The same Spacecraft with its Slots holding `slots`: dry mass, Fuel capacity and Isp derived anew
- * from the Chassis and the Components, and its Fuel kept up to the new capacity. Any rule about
+ * from the Chassis and the Components, and its Fuel kept up to the new capacity. A Slot that keeps
+ * its Component keeps its Damage; a Component removed takes its Damage with it, and one installed
+ * arrives sound (#197). Any rule about
  * which changes the player may make (Materials, the last Engine) belongs to the caller.
  */
 export function refit(spacecraft: Spacecraft, slots: readonly Slot[]): Spacecraft {
@@ -92,12 +120,33 @@ export function refit(spacecraft: Spacecraft, slots: readonly Slot[]): Spacecraf
       `A ${spacecraft.chassisId} has ${String(count)} Slots, not ${String(slots.length)}`,
     );
   }
-  const derived = figures(spacecraft.chassisId, slots);
+  const damage = slots.map((slot, i) =>
+    slot !== null && slot === spacecraft.slots[i] ? (spacecraft.damage[i] ?? null) : null,
+  );
+  const derived = figures(spacecraft.chassisId, slots, damage);
   return {
     chassisId: spacecraft.chassisId,
     slots: asLoadout(slots),
+    damage,
     ...derived,
     fuelMass: kilograms(Math.min(spacecraft.fuelMass, derived.fuelCapacity)),
+  };
+}
+
+/**
+ * The same Spacecraft with each Slot's Damage set to `damage`, its figures derived anew (a Damaged
+ * Engine's Isp). Its Fuel is kept: what a leak loses is the Cruise's to take.
+ */
+export function withDamage(spacecraft: Spacecraft, damage: readonly SlotDamage[]): Spacecraft {
+  if (damage.length !== spacecraft.slots.length) {
+    throw new Error(
+      `A ${spacecraft.chassisId} has ${String(spacecraft.slots.length)} Slots, not ${String(damage.length)}`,
+    );
+  }
+  return {
+    ...spacecraft,
+    damage: [...damage],
+    ...figures(spacecraft.chassisId, spacecraft.slots, damage),
   };
 }
 
@@ -170,8 +219,9 @@ export function componentEffect(chassisId: ChassisId, id: ComponentId): Componen
  */
 export function drillMultiplier(spacecraft: Spacecraft): number {
   let best = 1;
-  for (const slot of spacecraft.slots) {
-    if (slot === null) continue;
+  for (const [i, slot] of spacecraft.slots.entries()) {
+    // A Damaged Drill gives no yield bonus until it is Repaired (#197).
+    if (slot === null || spacecraft.damage[i]) continue;
     const effect = componentEffect(spacecraft.chassisId, slot);
     if (effect.kind === 'drill') best = Math.max(best, effect.yieldMultiplier);
   }
@@ -205,18 +255,24 @@ interface Chassis {
   readonly fuelCapacityFactor: number;
 }
 
-function figures(chassisId: ChassisId, slots: readonly Slot[]): Figures {
+function figures(
+  chassisId: ChassisId,
+  slots: readonly Slot[],
+  damage: readonly SlotDamage[],
+): Figures {
   let dryMass: number = CHASSIS[chassisId].mass;
   let fuelCapacity = 0;
   let engineIsp = 0;
-  for (const slot of slots) {
+  for (const [i, slot] of slots.entries()) {
     if (slot === null) continue;
     dryMass += COMPONENTS[slot].mass;
     const effect = componentEffect(chassisId, slot);
     switch (effect.kind) {
-      case 'engine':
-        engineIsp = Math.max(engineIsp, effect.isp);
+      case 'engine': {
+        const factor = damage[i] ? CRUISE_TUNING.damagedEngineIsp : 1;
+        engineIsp = Math.max(engineIsp, effect.isp * factor);
         break;
+      }
       case 'fuel-tank':
         fuelCapacity += effect.fuelCapacity;
         break;

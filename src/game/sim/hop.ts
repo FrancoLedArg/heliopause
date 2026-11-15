@@ -1,13 +1,28 @@
 import { createRng, type Rng } from '../lib/rng.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
 import { recordChoice } from './choiceLog.ts';
-import { DISPERSION, SOURCED_CONSTANTS } from './data.ts';
+import {
+  cruiseSchedule,
+  isMildHop,
+  startCruise,
+  stepCruise,
+  type Cruise,
+  type ScheduledEvent,
+  type StruckEvent,
+} from './cruise.ts';
+import { CRUISE_TUNING, DISPERSION, SOURCED_CONSTANTS, type CruiseEventKind } from './data.ts';
 import { collectYield, type Collection } from './gather.ts';
 import { jump } from './jump.ts';
 import { revealOnLanding, type Reveal } from './knowledge.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
 import { endIfStranded } from './stranded.ts';
-import { availableDeltaV, carriesJumpDrive, fuelAfterBurning } from './spacecraft.ts';
+import {
+  availableDeltaV,
+  carriesJumpDrive,
+  fuelAfterBurning,
+  fuelForDeltaV,
+  type Spacecraft,
+} from './spacecraft.ts';
 import {
   deepFreeze,
   findBody,
@@ -269,21 +284,63 @@ export interface HopFlight {
   /** What landing on the target taught the player; `null` when the Hop did not land on a Body. */
   readonly reveal: Reveal | null;
   readonly deltaVRemaining: MetersPerSecond;
+  /** The Cruise events that struck, in order; empty when the Hop Fell Short before the Cruise. */
+  readonly cruiseEvents: readonly StruckEvent[];
+  /** The Fuel leaks lost in the Cruise. */
+  readonly fuelLost: Kilograms;
   /** Plain language: what the Burns cost against their estimates, and why the Hop ended as it did. */
   readonly why: string;
 }
 
 /**
- * Flies a planned Hop: resolves the Burns in order, each costing its estimate times a factor drawn
- * from `rng` within the dispersion range. Arrived lands the Spacecraft on the target with the Fuel
- * left (or Stranded there, when no change could give any Hop a chance); a Hop to the Heliopause
- * that the Fuel covers leaves it there; Fell Short or Crashed ends the Run. Throws for a plan made for another Run state.
+ * What a Hop flew before its Cruise, kept on the cruising Run for the arrival: the plan, the
+ * Takeoff and Transfer as flown, the Landing factor drawn at launch, and the Spacecraft at launch.
  */
-export function flyHop(
+export interface Departure {
+  readonly plan: HopPlan;
+  readonly burns: readonly BurnResult[];
+  /** The Landing Burn's factor, drawn at launch with the others; `null` for a Hop to the Heliopause. */
+  readonly landingFactor: number | null;
+  /** The Δv left after the Transfer, by the Spacecraft at launch. */
+  readonly deltaVRemaining: MetersPerSecond;
+  readonly launchSpacecraft: Spacecraft;
+  /** The Fuel left after the Transfer, before anything the Cruise did. */
+  readonly fuelAfterTransfer: Kilograms;
+}
+
+/** A Hop settled: flown to its end, with the Run it left. */
+export interface FlownHop {
+  readonly flight: HopFlight;
+  readonly run: Run;
+}
+
+/**
+ * Flies a planned Hop with no Cruise events and no choices in its Cruise: resolves the Burns in
+ * order, each costing its estimate times a factor drawn from `rng` within the dispersion range.
+ * Arrived lands the Spacecraft on the target with the Fuel left (or Stranded there, when no change
+ * could give any Hop a chance); a Hop to the Heliopause that the Fuel covers Jumps; Fell Short or
+ * Crashed ends the Run. Throws for a plan made for another Run state.
+ */
+export function flyHop(run: Run, plan: HopPlan, rng: Rng): FlownHop {
+  const departed = depart(run, plan, rng, []);
+  if (departed.kind === 'flown') return departed;
+  const cruised = advanceCruise(departed.run, CRUISE_TUNING.ticks);
+  // With no events, nothing burns: only a Cruise with an Engine fire can end Destroyed.
+  if (cruised.kind !== 'flown') throw new Error('A Cruise with no events ended before its arrival');
+  return cruised;
+}
+
+/**
+ * Launch: flies the Takeoff and the Transfer, every Burn factor drawn from `rng` in order (the
+ * Landing's too, so a Hop always consumes the Rng the same way). A Fell Short ends the Run there, with
+ * no Cruise. Otherwise the Run is cruising, with `schedule` as its Cruise events.
+ */
+function depart(
   run: Run,
   plan: HopPlan,
   rng: Rng,
-): { readonly flight: HopFlight; readonly run: Run } {
+  schedule: readonly ScheduledEvent[],
+): BeginResult {
   const from = currentBody(run);
   const available = availableDeltaV(run.spacecraft);
   if (plan.fromId !== from.id || plan.availableDeltaV !== available) {
@@ -293,68 +350,233 @@ export function flyHop(
   if (plan.destination === 'body' && !target?.landable) {
     throw new Error(`${plan.toId} is not a Hop target`);
   }
+  const planned = plannedBurns(plan);
+  const factors = planned.map(
+    () => DISPERSION.min + (DISPERSION.max - DISPERSION.min) * rng.next(),
+  );
   let remaining = available;
-  /** Set when the Fuel runs out: the Burns after it are not flown. */
-  let failure: Extract<HopOutcome, { kind: 'fell-short' | 'crashed' }> | undefined;
+  let failure: Extract<HopOutcome, { kind: 'fell-short' }> | undefined;
   const burns: BurnResult[] = [];
-  for (const { burn, estimate: estimated } of plannedBurns(plan)) {
-    // Every Burn draws its factor, flown or not, so a Hop always consumes the Rng the same way.
-    const factor = DISPERSION.min + (DISPERSION.max - DISPERSION.min) * rng.next();
+  for (const [i, { burn, estimate: estimated }] of planned.entries()) {
+    if (burn === 'landing') break;
     if (failure) {
       burns.push({ status: 'not-flown', burn, estimated });
       continue;
     }
-    const actual = metersPerSecond(estimated * factor);
+    const actual = metersPerSecond(estimated * (factors[i] ?? 1));
     if (actual <= remaining) {
       remaining = metersPerSecond(remaining - actual);
       const fuelAfter = fuelAfterBurning(run.spacecraft, metersPerSecond(available - remaining));
       burns.push({ status: 'completed', burn, estimated, actual, fuelAfter });
       continue;
     }
-    const shortfall = metersPerSecond(actual - remaining);
-    failure =
-      burn === 'landing' ? { kind: 'crashed', shortfall } : { kind: 'fell-short', burn, shortfall };
+    failure = { kind: 'fell-short', burn, shortfall: metersPerSecond(actual - remaining) };
     burns.push({ status: 'ran-out', burn, estimated, actual, delivered: remaining });
     remaining = metersPerSecond(0);
   }
+  const hopsFlown = run.hopsFlown + 1;
 
-  const outcome: HopOutcome = failure ?? { kind: target ? 'arrived' : 'reached-heliopause' };
-  const fuelRemaining = failure
-    ? kilograms(0)
-    : fuelAfterBurning(run.spacecraft, metersPerSecond(available - remaining));
+  if (failure) {
+    const landing = planned.find((burn) => burn.burn === 'landing');
+    if (landing) burns.push({ status: 'not-flown', burn: 'landing', estimated: landing.estimate });
+    const flight: HopFlight = {
+      plan,
+      outcome: failure,
+      burns,
+      fuelAtLaunch: run.spacecraft.fuelMass,
+      fuelRemaining: kilograms(0),
+      collection: null,
+      reveal: null,
+      deltaVRemaining: remaining,
+      cruiseEvents: [],
+      fuelLost: kilograms(0),
+      why: explain(plan, failure, burns, target?.name ?? 'the Heliopause'),
+    };
+    const end = { kind: 'fell-short', reason: flight.why } as const;
+    return deepFreeze({
+      kind: 'flown',
+      flight,
+      run: {
+        ...run,
+        spacecraft: { ...run.spacecraft, fuelMass: kilograms(0) },
+        status: { kind: 'ended', end },
+        hopsFlown,
+      },
+    });
+  }
+
+  const fuelAfterTransfer = fuelAfterBurning(
+    run.spacecraft,
+    metersPerSecond(available - remaining),
+  );
+  const landingAt = planned.findIndex((burn) => burn.burn === 'landing');
+  const departure: Departure = {
+    plan,
+    burns,
+    landingFactor: landingAt < 0 ? null : (factors[landingAt] ?? null),
+    deltaVRemaining: remaining,
+    launchSpacecraft: run.spacecraft,
+    fuelAfterTransfer,
+  };
+  const mild = isMildHop(hopsFlown);
+  const cruise = startCruise(
+    schedule,
+    mild,
+    mild ? mildFuelFloor(run.spacecraft, plan) : kilograms(0),
+  );
+  return deepFreeze({
+    kind: 'cruising',
+    run: {
+      ...run,
+      spacecraft: { ...run.spacecraft, fuelMass: fuelAfterTransfer },
+      status: { kind: 'cruising', cruise, departure },
+      hopsFlown,
+    },
+  });
+}
+
+/**
+ * The Fuel a mild Cruise's leaks stop at: enough for the Landing at the worst of the dispersion to
+ * leave the Fuel a Hop flown at its estimates would. So a mild event never Crashes a Hop the plan
+ * shows at 100%, nor leaves it worse off than #188's at-estimate arrival, which generation keeps
+ * out of Stranded. A Hop to the Heliopause has no Landing: its floor is the at-estimate Fuel.
+ */
+function mildFuelFloor(launch: Spacecraft, plan: HopPlan): Kilograms {
+  const atEstimate = fuelAfterBurning(launch, plan.totalEstimate);
+  if (plan.destination === 'heliopause') return atEstimate;
+  const worstLanding = metersPerSecond(plan.estimates.landing * DISPERSION.max);
+  const landed = { ...launch, dryMass: kilograms(launch.dryMass + atEstimate) };
+  return kilograms(atEstimate + fuelForDeltaV(landed, worstLanding));
+}
+
+/** What a step of the Cruise left: still cruising, settled at the arrival, or Destroyed. */
+export type CruiseResult =
+  | { readonly kind: 'cruising'; readonly run: Run }
+  | ({ readonly kind: 'flown' } & FlownHop)
+  | {
+      readonly kind: 'destroyed';
+      readonly run: Run;
+      /** The Cruise as it stood when the Spacecraft exploded. */
+      readonly cruise: Cruise;
+      /** The Takeoff and Transfer the Hop flew before its Cruise, for the playback. */
+      readonly departure: Departure;
+    };
+
+/** The reason a Destroyed Run ends with: one plain line (#210's "Show, don't tell" amendment). */
+export const DESTROYED_REASON = 'The Engine fire reached the Fuel.';
+
+/**
+ * Advances a cruising Run's Cruise to `tick` (see `stepCruise` for what each tick does). An Engine
+ * fire left burning ends the Run as Destroyed on its tick; reaching the Cruise's last tick flies the
+ * arrival. The Flight scene turns real time into ticks and calls this; replay calls it before each
+ * Cruise choice. Throws for a Run that is not cruising, or a tick behind the Cruise's.
+ */
+export function advanceCruise(run: Run, tick: number): CruiseResult {
+  if (run.status.kind !== 'cruising') throw new Error(`Run ${String(run.seed)} is not cruising`);
+  const { cruise, departure } = run.status;
+  if (!Number.isInteger(tick) || tick < cruise.tick) {
+    throw new RangeError(
+      `The Cruise is at tick ${String(cruise.tick)}, not before ${String(tick)}`,
+    );
+  }
+  const stepped = stepCruise(cruise, run.spacecraft, Math.min(tick, CRUISE_TUNING.ticks));
+  if (stepped.kind === 'destroyed') {
+    const end = { kind: 'destroyed', reason: DESTROYED_REASON } as const;
+    return deepFreeze({
+      kind: 'destroyed',
+      cruise: stepped.cruise,
+      departure,
+      run: { ...run, spacecraft: stepped.spacecraft, status: { kind: 'ended', end } },
+    });
+  }
+  const cruising: Run = {
+    ...run,
+    spacecraft: stepped.spacecraft,
+    status: { kind: 'cruising', cruise: stepped.cruise, departure },
+  };
+  if (stepped.cruise.tick < CRUISE_TUNING.ticks) {
+    return deepFreeze({ kind: 'cruising', run: cruising });
+  }
+  return { kind: 'flown', ...arrive(cruising, departure, stepped.cruise) };
+}
+
+/**
+ * Arrival: the Landing Burn flown with the factor drawn at launch, against the Spacecraft the Cruise
+ * left (its Fuel, and its Engine with any Damage). A Hop to the Heliopause Jumps. When the Cruise
+ * changed nothing, the arithmetic is launch's own, so every existing seed flies exactly as before.
+ */
+function arrive(run: Run, departure: Departure, cruise: Cruise): FlownHop {
+  const { plan, launchSpacecraft } = departure;
+  const spacecraft = run.spacecraft;
+  const unchanged =
+    spacecraft.fuelMass === departure.fuelAfterTransfer &&
+    spacecraft.engineIsp === launchSpacecraft.engineIsp;
+  const target = plan.destination === 'body' ? findBody(run.starSystem, plan.toId) : undefined;
+  let remaining = unchanged ? departure.deltaVRemaining : availableDeltaV(spacecraft);
+  const fuelLeft = (spent: MetersPerSecond): Kilograms =>
+    unchanged
+      ? fuelAfterBurning(launchSpacecraft, metersPerSecond(plan.availableDeltaV - spent))
+      : fuelAfterBurning(spacecraft, spent);
+  const burns = [...departure.burns];
+  let outcome: HopOutcome = { kind: target ? 'arrived' : 'reached-heliopause' };
+  let fuelRemaining = unchanged ? fuelLeft(remaining) : spacecraft.fuelMass;
+
+  if (plan.destination === 'body' && departure.landingFactor !== null) {
+    const estimated = plan.estimates.landing;
+    const actual = metersPerSecond(estimated * departure.landingFactor);
+    if (actual <= remaining) {
+      remaining = metersPerSecond(remaining - actual);
+      fuelRemaining = unchanged ? fuelLeft(remaining) : fuelLeft(actual);
+      burns.push({
+        status: 'completed',
+        burn: 'landing',
+        estimated,
+        actual,
+        fuelAfter: fuelRemaining,
+      });
+    } else {
+      outcome = { kind: 'crashed', shortfall: metersPerSecond(actual - remaining) };
+      burns.push({ status: 'ran-out', burn: 'landing', estimated, actual, delivered: remaining });
+      remaining = metersPerSecond(0);
+      fuelRemaining = kilograms(0);
+    }
+  }
+  const why = explain(plan, outcome, burns, target?.name ?? 'the Heliopause');
   const flight: HopFlight = {
     plan,
     outcome,
     burns,
-    fuelAtLaunch: run.spacecraft.fuelMass,
+    fuelAtLaunch: launchSpacecraft.fuelMass,
     fuelRemaining,
     collection: null,
     reveal: null,
     deltaVRemaining: remaining,
-    why: explain(plan, outcome, burns, target?.name ?? 'the Heliopause'),
+    cruiseEvents: cruise.struck,
+    fuelLost: cruise.fuelLost,
+    why: outcome.kind === 'crashed' && !unchanged ? `${why} ${CRUISE_COST}` : why,
   };
-  const flown = (status: RunStatus): Run => ({
+  const settled = (status: RunStatus): Run => ({
     ...run,
-    spacecraft: { ...run.spacecraft, fuelMass: fuelRemaining },
+    spacecraft: { ...spacecraft, fuelMass: fuelRemaining },
     status,
-    hopsFlown: run.hopsFlown + 1,
   });
   switch (outcome.kind) {
     case 'fell-short':
+      throw new Error('A Hop that reached its Cruise cannot Fall Short');
     case 'crashed':
       return deepFreeze({
         flight,
-        run: flown({ kind: 'ended', end: { kind: outcome.kind, reason: flight.why } }),
+        run: settled({ kind: 'ended', end: { kind: 'crashed', reason: flight.why } }),
       });
     case 'reached-heliopause':
-      // The Jump always succeeds: the Run goes on in the next Star System.
-      return deepFreeze({ flight, run: jump(flown(run.status)) });
+      // The Jump always succeeds: the Run goes on in the next Star System, its Damage with it.
+      return deepFreeze({ flight, run: jump(settled({ kind: 'landed', bodyId: plan.fromId })) });
     case 'arrived': {
       if (!target) throw new Error('Arrived on no Body');
-      const landed = collectYield(flown({ kind: 'landed', bodyId: target.id }), target.id);
+      const landed = collectYield(settled({ kind: 'landed', bodyId: target.id }), target.id);
       // The landing Surveys the target, then Comms Detects one more Body.
       const learned = revealOnLanding(landed.run, target.id);
-      // Landed where no change could give any Hop a chance: the Run ends there, as Stranded.
+      // Stranded is judged after the Cruise, on the Spacecraft as it landed.
       return deepFreeze({
         flight: { ...flight, collection: landed.collection, reveal: learned.reveal },
         run: endIfStranded(learned.run),
@@ -363,26 +585,80 @@ export function flyHop(
   }
 }
 
+/** Added to a Crash's why when the Cruise's Damage or leaks took Δv from the Landing. */
+const CRUISE_COST = 'Damage in the Cruise left less Δv for the Landing.';
+
+/**
+ * A started Hop: the Run in its Cruise, or settled at once when it Fell Short before reaching one.
+ * (`beginHop` also returns `invalid-target` for a target that cannot be chosen.)
+ */
+export type BeginResult =
+  { readonly kind: 'cruising'; readonly run: Run } | ({ readonly kind: 'flown' } & FlownHop);
+
+/** Options for starting a Hop. */
+export interface HopOptions {
+  /**
+   * Test only (#210): a fixed Cruise schedule in place of the seed's. Production Runs never pass it,
+   * so a Daily or replayed Run cannot be forged with it.
+   */
+  readonly schedule?: readonly ScheduledEvent[];
+  /**
+   * Test only: the kinds the seed schedules, in place of `CRUISE_TUNING.enabledKinds`, so the rules of
+   * kinds not yet switched on in real Runs can be played and replayed.
+   */
+  readonly events?: readonly CruiseEventKind[];
+}
+
+/**
+ * Launches a Hop to `target` and stops at its Cruise: plans it exactly as the player saw it, flies
+ * the Takeoff and the Transfer with Burns drawn from the Run's seed and how many Hops it has flown,
+ * and draws the Cruise's events from a stream of the seed of their own (`cruiseSchedule`, only the
+ * kinds `CRUISE_TUNING.enabledKinds` switches on). Records the `hop` choice. The Cruise then runs
+ * through `advanceCruise`, with `startRepair` and `rushRepair` as the player's inputs.
+ */
+export function beginHop(
+  run: Run,
+  target: HopTarget,
+  options: HopOptions = {},
+): BeginResult | Extract<HopPlanResult, { kind: 'invalid-target' }> {
+  const planned = planHop(run, target);
+  if (planned.kind !== 'planned') return planned;
+  const rng = createRng(run.seed ^ stringSeed(`hop:${String(run.hopsFlown)}`));
+  const schedule =
+    options.schedule ??
+    cruiseSchedule(
+      run.seed,
+      run.hopsFlown + 1,
+      run.starSystemNumber,
+      run.spacecraft,
+      options.events ?? CRUISE_TUNING.enabledKinds,
+    );
+  const begun = depart(run, planned.plan, rng, schedule);
+  const recorded = recordChoice(begun.run, { kind: 'hop', target });
+  return begun.kind === 'flown'
+    ? { kind: 'flown', flight: begun.flight, run: recorded }
+    : { kind: 'cruising', run: recorded };
+}
+
 /** Launching either flies the Hop, or explains why the target cannot be chosen. */
 export type LaunchResult =
   | { readonly kind: 'flown'; readonly flight: HopFlight; readonly run: Run }
   | Extract<HopPlanResult, { kind: 'invalid-target' }>;
 
 /**
- * Launches a Hop to `target`: plans it exactly as the player saw it, then flies it with Burns drawn
- * from the Run's seed and how many Hops it has flown, so the same Run always flies the same Hop and
- * a seed replays a whole Run. The outcome is settled here, before any playback.
+ * Launches a Hop to `target` and flies it to its end with no choices in its Cruise (`beginHop`, then
+ * `advanceCruise` to the last tick), so the same Run always flies the same Hop and a seed replays a
+ * whole Run. The outcome is settled here, before any playback. Only for a Cruise no Engine fire
+ * strikes: one left to burn ends Destroyed, which only `beginHop` and `advanceCruise` report (throws).
  */
-export function launchHop(run: Run, target: HopTarget): LaunchResult {
-  const planned = planHop(run, target);
-  if (planned.kind !== 'planned') return planned;
-  const rng = createRng(run.seed ^ stringSeed(`hop:${String(run.hopsFlown)}`));
-  const flown = flyHop(run, planned.plan, rng);
-  return {
-    kind: 'flown',
-    flight: flown.flight,
-    run: recordChoice(flown.run, { kind: 'hop', target }),
-  };
+export function launchHop(run: Run, target: HopTarget, options: HopOptions = {}): LaunchResult {
+  const begun = beginHop(run, target, options);
+  if (begun.kind !== 'cruising') return begun;
+  const cruised = advanceCruise(begun.run, CRUISE_TUNING.ticks);
+  if (cruised.kind !== 'flown') {
+    throw new Error('An Engine fire Destroyed the Spacecraft: fly this Cruise with advanceCruise');
+  }
+  return cruised;
 }
 
 const BURN_NAMES: Readonly<Record<Burn, string>> = {
