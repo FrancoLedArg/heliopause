@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import { imageUrl } from '../game/assets/manifest.ts';
-import { COMPONENTS, install, remove, type Run } from '../game/sim/index.ts';
+import { COMPONENTS, install, remove, type ComponentId, type Run } from '../game/sim/index.ts';
 import { ComponentIcon } from './componentIcons/ComponentIcon.tsx';
 import { Disclosure, DisclosurePanel, TellMeMoreToggle } from './Disclosure.tsx';
 import { chassisName } from './format.ts';
@@ -392,6 +392,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                 {/* What stops it, whatever the Materials, takes the place of what it does. */}
                 {row.unavailable ?? row.effect}
               </p>
+              <RadarRing id={row.id} />
               <KitButton
                 width={INSTALL_WIDTH}
                 className="spacecraft-panel__install"
@@ -428,6 +429,32 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
         </div>
       </div>
     </section>
+  );
+}
+
+/** The Radar's ring at its largest level, in pixels: a level's ring is scaled to its range. */
+const RADAR_RING_MAX = 9;
+
+/**
+ * A Radar's reach at a glance (#191): a ring scaled to its range, beside the entry's icon, so the
+ * levels compare without reading. Nothing for any other Component; the effect line says it in words.
+ */
+function RadarRing({ id }: { id: ComponentId }) {
+  const component = COMPONENTS[id];
+  if (component.kind !== 'radar') return null;
+  const radius = Math.round((component.range / COMPONENTS['radar-2'].range) * RADAR_RING_MAX);
+  return (
+    <svg
+      className="spacecraft-panel__row-ring"
+      width={20}
+      height={20}
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      data-testid="radar-ring"
+    >
+      <circle cx={10} cy={10} r={radius} fill="none" stroke="var(--cy3)" strokeDasharray="2 1" />
+      <circle cx={10} cy={10} r={1} fill="var(--cy3)" />
+    </svg>
   );
 }
 
