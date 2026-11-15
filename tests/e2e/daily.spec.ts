@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { FAST_CRUISE } from './cruise.ts';
 import { dailySeed } from '../../src/game/lib/dailyStarSystem.ts';
 import {
   homePlanet,
@@ -64,7 +65,7 @@ async function hopTo(page: Page, name: string): Promise<void> {
   await page.getByRole('button', { name: 'Launch' }).click();
 }
 
-async function openTitle(page: Page, time: string, url = '/'): Promise<void> {
+async function openTitle(page: Page, time: string, url = `/?${FAST_CRUISE}`): Promise<void> {
   await page.setViewportSize({ width: 640, height: 360 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.clock.install({ time: new Date(time) });
@@ -161,7 +162,7 @@ test('the Daily Star System: the same Star System for the day, a Daily Best kept
 test('the Daily Star System ignores a ?seed in the page URL, and New Run has no Daily tag', async ({
   page,
 }) => {
-  await openTitle(page, NOON, '/?seed=123&chassis=scout');
+  await openTitle(page, NOON, `/?seed=123&chassis=scout&${FAST_CRUISE}`);
   await page.getByRole('button', { name: 'Daily Star System' }).click();
   await expect(page.getByRole('heading', { name: home.name })).toBeVisible();
   await expect(page.getByTestId('game-ui')).toHaveAttribute(
