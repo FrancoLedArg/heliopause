@@ -132,3 +132,48 @@ describe.each(CHASSIS_IDS)(
     });
   },
 );
+
+/**
+ * The Hop on which a cautious player's Run ends Stranded, within the first `hops`; undefined if it
+ * does not. The same cautious player as #218's: always launching (as the game does) the cheapest
+ * known Body not yet visited at a Success Chance of at least 50%, gathering every yield.
+ */
+function strandedOnHop(start: Run, hops: number): number | undefined {
+  const visited = new Set<string>([start.starSystem.startingMoonId]);
+  let run = start;
+  for (let hop = 1; hop <= hops; hop++) {
+    const [next] = knownBodies(run)
+      .filter((body) => !visited.has(body.id))
+      .flatMap((body) => {
+        const result = planHop(run, body.id);
+        return result.kind === 'planned' && result.plan.successChance >= 0.5 ? [result.plan] : [];
+      })
+      .sort((a, b) => a.totalEstimate - b.totalEstimate);
+    if (!next) return undefined;
+    const launched = launchHop(run, next.toId);
+    if (launched.kind !== 'flown') throw new Error(launched.why);
+    run = launched.run;
+    if (run.status.kind === 'ended') {
+      return run.status.end.kind === 'stranded' ? hop : undefined;
+    }
+    visited.add(next.toId);
+  }
+  return undefined;
+}
+
+describe('Chassis balance (#231)', () => {
+  // 500 Star Systems per Chassis, five Hops each: about 10 s in all.
+  it(
+    'a cautious Hauler is Stranded by Hop 5 about as often as a Scout or a Lancer',
+    { timeout: 120_000 },
+    () => {
+      const strandedBy = (chassisId: ChassisId, hop: number): number => {
+        const ends = FIRST_HOP_SEEDS.map((seed) => strandedOnHop(startRun(seed, chassisId), 5));
+        return ends.filter((end) => end !== undefined && end <= hop).length / ends.length;
+      };
+      const worse = Math.max(strandedBy('scout', 5), strandedBy('lancer', 5));
+      expect(strandedBy('hauler', 5)).toBeLessThanOrEqual(worse + 0.03);
+      expect(strandedBy('hauler', 3)).toBeLessThanOrEqual(0.02);
+    },
+  );
+});
