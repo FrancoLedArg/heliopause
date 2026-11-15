@@ -31,7 +31,19 @@ export function landing(
   extraMaterials = 0,
 ): Landing {
   const start = startRun(seed, 'scout');
-  let run: Run = { ...start, materials: materials(start.materials + extraMaterials) };
+  // Stranded follows the plans the player sees (#190): every Body off the path is pre-Surveyed, so
+  // its plan is the real one and the fixtures strand (or warn) as they did before Unsurveyed plans.
+  const surveyed = [
+    ...start.knowledge.surveyed,
+    ...listBodies(start.starSystem)
+      .filter(({ name }) => !path.includes(name))
+      .map(({ id }) => id),
+  ];
+  let run: Run = {
+    ...start,
+    materials: materials(start.materials + extraMaterials),
+    knowledge: { ...start.knowledge, surveyed },
+  };
   if (fit) {
     const fitted = install(run, 2, fit);
     if (fitted.kind !== 'installed') throw new Error(`Seed ${String(seed)}: cannot fit ${fit}`);
