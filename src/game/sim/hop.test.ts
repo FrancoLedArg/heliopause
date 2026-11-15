@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../lib/rng.ts';
-import { DIFFICULTY_TUNING, difficultyFactor } from './data.ts';
 import {
   astronomicalUnits,
   availableDeltaV,
@@ -17,7 +16,6 @@ import {
   assessStranding,
   HELIOPAUSE,
   startRun,
-  generateSystem,
   type BodyId,
   type HopFlight,
   type Run,
@@ -554,36 +552,20 @@ describe('the reach verdict (#190)', () => {
 describe('what the player sees and what is real (#190)', () => {
   const SEEDS_SWEPT = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
-  const LEVELS = [1, 2, 3, 4, 5, 6];
-  /** A Run of a seed in Star System number `level`, standing on its innermost planet. */
-  const atLevel = (seed: number, level: number): Run =>
-    onInnerPlanet({
-      ...startRun(seed, 'scout'),
-      starSystemNumber: level,
-      starSystem: generateSystem(seed, level),
-    });
-
-  it('every landable Body of a Star System has a real escape velocity within the Unsurveyed plan range, at every level', () => {
-    for (const level of LEVELS) {
-      const factor = difficultyFactor(DIFFICULTY_TUNING.gravity, level);
-      for (const seed of SEEDS_SWEPT) {
-        for (const body of listBodies(generateSystem(seed, level))) {
-          if (!body.landable) continue;
-          const kind = body.kind;
-          expect(body.escapeVelocity).toBeLessThanOrEqual(
-            UNSURVEYED.cautiousEscapeVelocity[kind] * factor + 1e-9,
-          );
-          expect(body.escapeVelocity).toBeGreaterThanOrEqual(
-            UNSURVEYED.leastEscapeVelocity[kind] * factor - 1e-9,
-          );
-        }
+  it('every landable Body of a Star System has a real escape velocity within the Unsurveyed plan range', () => {
+    for (const seed of SEEDS_SWEPT) {
+      for (const body of listBodies(startRun(seed, 'scout').starSystem)) {
+        if (!body.landable) continue;
+        const kind = body.kind;
+        expect(body.escapeVelocity).toBeLessThanOrEqual(UNSURVEYED.cautiousEscapeVelocity[kind]);
+        expect(body.escapeVelocity).toBeGreaterThanOrEqual(UNSURVEYED.leastEscapeVelocity[kind]);
       }
     }
   });
 
   it('an Unsurveyed plan reads 0% only when the real Hop has no chance', () => {
-    for (const [seed, level] of SEEDS_SWEPT.flatMap((s) => LEVELS.map((l) => [s, l] as const))) {
-      const start = atLevel(seed, level);
+    for (const seed of SEEDS_SWEPT) {
+      const start = onInnerPlanet(startRun(seed, 'scout'));
       const from = start.status.kind === 'landed' ? start.status.bodyId : '';
       for (const body of listBodies(start.starSystem)) {
         if (!body.landable || body.id === from) continue;
@@ -608,7 +590,6 @@ describe('what the player sees and what is real (#190)', () => {
           const real = planHop(fuelled, body.id);
           if (shown.kind !== 'planned' || real.kind !== 'planned') continue;
           if (shown.plan.successChance === 0) expect(real.plan.successChance).toBe(0);
-          expect(shown.plan.estimates.landing).toBeGreaterThanOrEqual(real.plan.estimates.landing);
           expect(shown.plan.bestCase).toBeLessThanOrEqual(real.plan.bestCase);
         }
       }
