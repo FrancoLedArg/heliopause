@@ -72,3 +72,10 @@ export function atlasImageUrl(key: string, source: AssetManifest = manifest): st
   if (!entry) throw new Error(`No atlas with key "${key}" in the asset manifest`);
   return `${ASSET_ROOT}/${entry.image}`;
 }
+
+/** Page-relative URL of an atlas's frame data, for DOM drawing outside Phaser. Throws if the key is not listed. */
+export function atlasDataUrl(key: string, source: AssetManifest = manifest): string {
+  const entry = source.atlases.find((atlas) => atlas.key === key);
+  if (!entry) throw new Error(`No atlas with key "${key}" in the asset manifest`);
+  return `${ASSET_ROOT}/${entry.data}`;
+}

@@ -1,73 +1,913 @@
 {
   "frames": {
-    "landed": {
-      "frame": {
-        "x": 0,
-        "y": 0,
-        "w": 104,
-        "h": 126
-      },
+    "chassis.landed": {
+      "frame": { "x": 0, "y": 0, "w": 80, "h": 123 },
       "rotated": false,
       "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 104,
-        "h": 126
-      },
-      "sourceSize": {
-        "w": 104,
-        "h": 126
-      }
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 80, "h": 123 },
+      "sourceSize": { "w": 80, "h": 123 }
     },
-    "landed_lit": {
-      "frame": {
-        "x": 104,
-        "y": 0,
-        "w": 104,
-        "h": 126
-      },
+    "chassis.landed_lit": {
+      "frame": { "x": 81, "y": 0, "w": 80, "h": 123 },
       "rotated": false,
       "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 104,
-        "h": 126
-      },
-      "sourceSize": {
-        "w": 104,
-        "h": 126
-      }
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 80, "h": 123 },
+      "sourceSize": { "w": 80, "h": 123 }
     },
-    "flight": {
-      "frame": {
-        "x": 208,
-        "y": 0,
-        "w": 129,
-        "h": 87
-      },
+    "chassis.flight": {
+      "frame": { "x": 162, "y": 0, "w": 129, "h": 87 },
       "rotated": false,
       "trimmed": false,
-      "spriteSourceSize": {
-        "x": 0,
-        "y": 0,
-        "w": 129,
-        "h": 87
-      },
-      "sourceSize": {
-        "w": 129,
-        "h": 87
-      }
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 129, "h": 87 },
+      "sourceSize": { "w": 129, "h": 87 }
+    },
+    "engine-1.0.front.landed": {
+      "frame": { "x": 411, "y": 202, "w": 22, "h": 7 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 22, "h": 7 },
+      "sourceSize": { "w": 22, "h": 7 }
+    },
+    "engine-1.0.front.landed_lit": {
+      "frame": { "x": 434, "y": 202, "w": 22, "h": 7 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 22, "h": 7 },
+      "sourceSize": { "w": 22, "h": 7 }
+    },
+    "engine-1.0.front.flight": {
+      "frame": { "x": 35, "y": 160, "w": 13, "h": 22 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 13, "h": 22 },
+      "sourceSize": { "w": 13, "h": 22 }
+    },
+    "engine-1.1.front.landed": {
+      "frame": { "x": 463, "y": 160, "w": 6, "h": 17 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 6, "h": 17 },
+      "sourceSize": { "w": 6, "h": 17 }
+    },
+    "engine-1.1.front.landed_lit": {
+      "frame": { "x": 470, "y": 160, "w": 6, "h": 17 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 6, "h": 17 },
+      "sourceSize": { "w": 6, "h": 17 }
+    },
+    "engine-1.1.front.flight": {
+      "frame": { "x": 235, "y": 202, "w": 17, "h": 10 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 17, "h": 10 },
+      "sourceSize": { "w": 17, "h": 10 }
+    },
+    "engine-1.2.front.landed": {
+      "frame": { "x": 477, "y": 160, "w": 7, "h": 17 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 7, "h": 17 },
+      "sourceSize": { "w": 7, "h": 17 }
+    },
+    "engine-1.2.front.landed_lit": {
+      "frame": { "x": 485, "y": 160, "w": 7, "h": 17 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 7, "h": 17 },
+      "sourceSize": { "w": 7, "h": 17 }
+    },
+    "engine-1.2.front.flight": {
+      "frame": { "x": 182, "y": 202, "w": 16, "h": 11 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 11 },
+      "sourceSize": { "w": 16, "h": 11 }
+    },
+    "engine-1.3.front.landed": {
+      "frame": { "x": 493, "y": 160, "w": 7, "h": 17 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 7, "h": 17 },
+      "sourceSize": { "w": 7, "h": 17 }
+    },
+    "engine-1.3.front.landed_lit": {
+      "frame": { "x": 501, "y": 160, "w": 7, "h": 17 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 7, "h": 17 },
+      "sourceSize": { "w": 7, "h": 17 }
+    },
+    "engine-1.3.front.flight": {
+      "frame": { "x": 199, "y": 202, "w": 16, "h": 11 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 11 },
+      "sourceSize": { "w": 16, "h": 11 }
+    },
+    "engine-1.4.front.landed": {
+      "frame": { "x": 0, "y": 184, "w": 8, "h": 17 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 8, "h": 17 },
+      "sourceSize": { "w": 8, "h": 17 }
+    },
+    "engine-1.4.front.landed_lit": {
+      "frame": { "x": 9, "y": 184, "w": 8, "h": 17 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 8, "h": 17 },
+      "sourceSize": { "w": 8, "h": 17 }
+    },
+    "engine-1.4.front.flight": {
+      "frame": { "x": 0, "y": 202, "w": 16, "h": 12 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 12 },
+      "sourceSize": { "w": 16, "h": 12 }
+    },
+    "engine-2.0.front.landed": {
+      "frame": { "x": 369, "y": 202, "w": 20, "h": 9 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 20, "h": 9 },
+      "sourceSize": { "w": 20, "h": 9 }
+    },
+    "engine-2.0.front.landed_lit": {
+      "frame": { "x": 390, "y": 202, "w": 20, "h": 9 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 20, "h": 9 },
+      "sourceSize": { "w": 20, "h": 9 }
+    },
+    "engine-2.0.front.flight": {
+      "frame": { "x": 80, "y": 160, "w": 13, "h": 20 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 13, "h": 20 },
+      "sourceSize": { "w": 13, "h": 20 }
+    },
+    "engine-2.1.front.landed": {
+      "frame": { "x": 130, "y": 160, "w": 8, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 8, "h": 18 },
+      "sourceSize": { "w": 8, "h": 18 }
+    },
+    "engine-2.1.front.landed_lit": {
+      "frame": { "x": 139, "y": 160, "w": 8, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 8, "h": 18 },
+      "sourceSize": { "w": 8, "h": 18 }
+    },
+    "engine-2.1.front.flight": {
+      "frame": { "x": 470, "y": 184, "w": 18, "h": 13 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 18, "h": 13 },
+      "sourceSize": { "w": 18, "h": 13 }
+    },
+    "engine-2.2.front.landed": {
+      "frame": { "x": 148, "y": 160, "w": 9, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 9, "h": 18 },
+      "sourceSize": { "w": 9, "h": 18 }
+    },
+    "engine-2.2.front.landed_lit": {
+      "frame": { "x": 158, "y": 160, "w": 9, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 9, "h": 18 },
+      "sourceSize": { "w": 9, "h": 18 }
+    },
+    "engine-2.2.front.flight": {
+      "frame": { "x": 489, "y": 184, "w": 19, "h": 13 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 19, "h": 13 },
+      "sourceSize": { "w": 19, "h": 13 }
+    },
+    "engine-2.3.front.landed": {
+      "frame": { "x": 168, "y": 160, "w": 9, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 9, "h": 18 },
+      "sourceSize": { "w": 9, "h": 18 }
+    },
+    "engine-2.3.front.landed_lit": {
+      "frame": { "x": 178, "y": 160, "w": 9, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 9, "h": 18 },
+      "sourceSize": { "w": 9, "h": 18 }
+    },
+    "engine-2.3.front.flight": {
+      "frame": { "x": 432, "y": 184, "w": 18, "h": 14 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 18, "h": 14 },
+      "sourceSize": { "w": 18, "h": 14 }
+    },
+    "engine-2.4.front.landed": {
+      "frame": { "x": 188, "y": 160, "w": 10, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 10, "h": 18 },
+      "sourceSize": { "w": 10, "h": 18 }
+    },
+    "engine-2.4.front.landed_lit": {
+      "frame": { "x": 199, "y": 160, "w": 10, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 10, "h": 18 },
+      "sourceSize": { "w": 10, "h": 18 }
+    },
+    "engine-2.4.front.flight": {
+      "frame": { "x": 145, "y": 184, "w": 18, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 18, "h": 15 },
+      "sourceSize": { "w": 18, "h": 15 }
+    },
+    "fuel-tank-1.0.front.landed": {
+      "frame": { "x": 210, "y": 160, "w": 12, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 18 },
+      "sourceSize": { "w": 12, "h": 18 }
+    },
+    "fuel-tank-1.0.front.landed_lit": {
+      "frame": { "x": 223, "y": 160, "w": 12, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 18 },
+      "sourceSize": { "w": 12, "h": 18 }
+    },
+    "fuel-tank-1.0.front.flight": {
+      "frame": { "x": 164, "y": 184, "w": 17, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 17, "h": 15 },
+      "sourceSize": { "w": 17, "h": 15 }
+    },
+    "fuel-tank-1.1.front.landed": {
+      "frame": { "x": 236, "y": 160, "w": 12, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 18 },
+      "sourceSize": { "w": 12, "h": 18 }
+    },
+    "fuel-tank-1.1.front.landed_lit": {
+      "frame": { "x": 249, "y": 160, "w": 12, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 18 },
+      "sourceSize": { "w": 12, "h": 18 }
+    },
+    "fuel-tank-1.1.front.flight": {
+      "frame": { "x": 182, "y": 184, "w": 18, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 18, "h": 15 },
+      "sourceSize": { "w": 18, "h": 15 }
+    },
+    "fuel-tank-1.2.front.landed": {
+      "frame": { "x": 262, "y": 160, "w": 12, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 18 },
+      "sourceSize": { "w": 12, "h": 18 }
+    },
+    "fuel-tank-1.2.front.landed_lit": {
+      "frame": { "x": 275, "y": 160, "w": 12, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 18 },
+      "sourceSize": { "w": 12, "h": 18 }
+    },
+    "fuel-tank-1.2.front.flight": {
+      "frame": { "x": 201, "y": 184, "w": 18, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 18, "h": 15 },
+      "sourceSize": { "w": 18, "h": 15 }
+    },
+    "fuel-tank-1.3.front.landed": {
+      "frame": { "x": 288, "y": 160, "w": 12, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 18 },
+      "sourceSize": { "w": 12, "h": 18 }
+    },
+    "fuel-tank-1.3.front.landed_lit": {
+      "frame": { "x": 301, "y": 160, "w": 12, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 18 },
+      "sourceSize": { "w": 12, "h": 18 }
+    },
+    "fuel-tank-1.3.front.flight": {
+      "frame": { "x": 451, "y": 184, "w": 18, "h": 14 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 18, "h": 14 },
+      "sourceSize": { "w": 18, "h": 14 }
+    },
+    "fuel-tank-1.4.front.landed": {
+      "frame": { "x": 314, "y": 160, "w": 23, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 23, "h": 18 },
+      "sourceSize": { "w": 23, "h": 18 }
+    },
+    "fuel-tank-1.4.front.landed_lit": {
+      "frame": { "x": 338, "y": 160, "w": 23, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 23, "h": 18 },
+      "sourceSize": { "w": 23, "h": 18 }
+    },
+    "fuel-tank-1.4.front.flight": {
+      "frame": { "x": 322, "y": 124, "w": 21, "h": 25 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 21, "h": 25 },
+      "sourceSize": { "w": 21, "h": 25 }
+    },
+    "fuel-tank-2.0.front.landed": {
+      "frame": { "x": 344, "y": 124, "w": 12, "h": 24 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 24 },
+      "sourceSize": { "w": 12, "h": 24 }
+    },
+    "fuel-tank-2.0.front.landed_lit": {
+      "frame": { "x": 357, "y": 124, "w": 12, "h": 24 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 24 },
+      "sourceSize": { "w": 12, "h": 24 }
+    },
+    "fuel-tank-2.0.front.flight": {
+      "frame": { "x": 362, "y": 160, "w": 23, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 23, "h": 18 },
+      "sourceSize": { "w": 23, "h": 18 }
+    },
+    "fuel-tank-2.1.front.landed": {
+      "frame": { "x": 370, "y": 124, "w": 12, "h": 24 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 24 },
+      "sourceSize": { "w": 12, "h": 24 }
+    },
+    "fuel-tank-2.1.front.landed_lit": {
+      "frame": { "x": 383, "y": 124, "w": 12, "h": 24 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 24 },
+      "sourceSize": { "w": 12, "h": 24 }
+    },
+    "fuel-tank-2.1.front.flight": {
+      "frame": { "x": 18, "y": 184, "w": 24, "h": 17 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 24, "h": 17 },
+      "sourceSize": { "w": 24, "h": 17 }
+    },
+    "fuel-tank-2.2.front.landed": {
+      "frame": { "x": 396, "y": 124, "w": 12, "h": 24 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 24 },
+      "sourceSize": { "w": 12, "h": 24 }
+    },
+    "fuel-tank-2.2.front.landed_lit": {
+      "frame": { "x": 409, "y": 124, "w": 12, "h": 24 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 24 },
+      "sourceSize": { "w": 12, "h": 24 }
+    },
+    "fuel-tank-2.2.front.flight": {
+      "frame": { "x": 43, "y": 184, "w": 23, "h": 17 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 23, "h": 17 },
+      "sourceSize": { "w": 23, "h": 17 }
+    },
+    "fuel-tank-2.3.front.landed": {
+      "frame": { "x": 422, "y": 124, "w": 12, "h": 24 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 24 },
+      "sourceSize": { "w": 12, "h": 24 }
+    },
+    "fuel-tank-2.3.front.landed_lit": {
+      "frame": { "x": 435, "y": 124, "w": 12, "h": 24 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 24 },
+      "sourceSize": { "w": 12, "h": 24 }
+    },
+    "fuel-tank-2.3.front.flight": {
+      "frame": { "x": 67, "y": 184, "w": 23, "h": 17 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 23, "h": 17 },
+      "sourceSize": { "w": 23, "h": 17 }
+    },
+    "fuel-tank-2.4.front.landed": {
+      "frame": { "x": 448, "y": 124, "w": 23, "h": 24 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 23, "h": 24 },
+      "sourceSize": { "w": 23, "h": 24 }
+    },
+    "fuel-tank-2.4.front.landed_lit": {
+      "frame": { "x": 472, "y": 124, "w": 23, "h": 24 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 23, "h": 24 },
+      "sourceSize": { "w": 23, "h": 24 }
+    },
+    "fuel-tank-2.4.front.flight": {
+      "frame": { "x": 228, "y": 124, "w": 27, "h": 28 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 27, "h": 28 },
+      "sourceSize": { "w": 27, "h": 28 }
+    },
+    "drill-1.0.front.landed": {
+      "frame": { "x": 61, "y": 124, "w": 12, "h": 34 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 34 },
+      "sourceSize": { "w": 12, "h": 34 }
+    },
+    "drill-1.0.front.landed_lit": {
+      "frame": { "x": 74, "y": 124, "w": 12, "h": 34 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 34 },
+      "sourceSize": { "w": 12, "h": 34 }
+    },
+    "drill-1.0.front.flight": {
+      "frame": { "x": 49, "y": 160, "w": 30, "h": 22 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 30, "h": 22 },
+      "sourceSize": { "w": 30, "h": 22 }
+    },
+    "drill-1.1.front.landed": {
+      "frame": { "x": 87, "y": 124, "w": 9, "h": 34 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 9, "h": 34 },
+      "sourceSize": { "w": 9, "h": 34 }
+    },
+    "drill-1.1.front.landed_lit": {
+      "frame": { "x": 97, "y": 124, "w": 9, "h": 34 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 9, "h": 34 },
+      "sourceSize": { "w": 9, "h": 34 }
+    },
+    "drill-1.1.front.flight": {
+      "frame": { "x": 91, "y": 184, "w": 33, "h": 16 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 33, "h": 16 },
+      "sourceSize": { "w": 33, "h": 16 }
+    },
+    "drill-1.2.front.landed": {
+      "frame": { "x": 107, "y": 124, "w": 17, "h": 34 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 17, "h": 34 },
+      "sourceSize": { "w": 17, "h": 34 }
+    },
+    "drill-1.2.front.landed_lit": {
+      "frame": { "x": 125, "y": 124, "w": 17, "h": 34 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 17, "h": 34 },
+      "sourceSize": { "w": 17, "h": 34 }
+    },
+    "drill-1.2.front.flight": {
+      "frame": { "x": 291, "y": 124, "w": 30, "h": 26 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 30, "h": 26 },
+      "sourceSize": { "w": 30, "h": 26 }
+    },
+    "drill-1.3.front.landed": {
+      "frame": { "x": 143, "y": 124, "w": 16, "h": 34 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 34 },
+      "sourceSize": { "w": 16, "h": 34 }
+    },
+    "drill-1.3.front.landed_lit": {
+      "frame": { "x": 160, "y": 124, "w": 16, "h": 34 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 34 },
+      "sourceSize": { "w": 16, "h": 34 }
+    },
+    "drill-1.3.front.flight": {
+      "frame": { "x": 220, "y": 184, "w": 35, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 35, "h": 15 },
+      "sourceSize": { "w": 35, "h": 15 }
+    },
+    "drill-1.4.front.landed": {
+      "frame": { "x": 483, "y": 0, "w": 24, "h": 35 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 24, "h": 35 },
+      "sourceSize": { "w": 24, "h": 35 }
+    },
+    "drill-1.4.front.landed_lit": {
+      "frame": { "x": 0, "y": 124, "w": 24, "h": 35 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 24, "h": 35 },
+      "sourceSize": { "w": 24, "h": 35 }
+    },
+    "drill-1.4.front.flight": {
+      "frame": { "x": 177, "y": 124, "w": 31, "h": 33 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 31, "h": 33 },
+      "sourceSize": { "w": 31, "h": 33 }
+    },
+    "drill-2.0.front.landed": {
+      "frame": { "x": 292, "y": 0, "w": 12, "h": 38 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 38 },
+      "sourceSize": { "w": 12, "h": 38 }
+    },
+    "drill-2.0.front.landed_lit": {
+      "frame": { "x": 305, "y": 0, "w": 12, "h": 38 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 12, "h": 38 },
+      "sourceSize": { "w": 12, "h": 38 }
+    },
+    "drill-2.0.front.flight": {
+      "frame": { "x": 0, "y": 160, "w": 34, "h": 23 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 34, "h": 23 },
+      "sourceSize": { "w": 34, "h": 23 }
+    },
+    "drill-2.1.front.landed": {
+      "frame": { "x": 318, "y": 0, "w": 10, "h": 38 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 10, "h": 38 },
+      "sourceSize": { "w": 10, "h": 38 }
+    },
+    "drill-2.1.front.landed_lit": {
+      "frame": { "x": 329, "y": 0, "w": 10, "h": 38 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 10, "h": 38 },
+      "sourceSize": { "w": 10, "h": 38 }
+    },
+    "drill-2.1.front.flight": {
+      "frame": { "x": 386, "y": 160, "w": 37, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 37, "h": 18 },
+      "sourceSize": { "w": 37, "h": 18 }
+    },
+    "drill-2.2.front.landed": {
+      "frame": { "x": 340, "y": 0, "w": 17, "h": 38 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 17, "h": 38 },
+      "sourceSize": { "w": 17, "h": 38 }
+    },
+    "drill-2.2.front.landed_lit": {
+      "frame": { "x": 358, "y": 0, "w": 17, "h": 38 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 17, "h": 38 },
+      "sourceSize": { "w": 17, "h": 38 }
+    },
+    "drill-2.2.front.flight": {
+      "frame": { "x": 256, "y": 124, "w": 34, "h": 28 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 34, "h": 28 },
+      "sourceSize": { "w": 34, "h": 28 }
+    },
+    "drill-2.3.front.landed": {
+      "frame": { "x": 376, "y": 0, "w": 16, "h": 38 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 38 },
+      "sourceSize": { "w": 16, "h": 38 }
+    },
+    "drill-2.3.front.landed_lit": {
+      "frame": { "x": 393, "y": 0, "w": 16, "h": 38 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 38 },
+      "sourceSize": { "w": 16, "h": 38 }
+    },
+    "drill-2.3.front.flight": {
+      "frame": { "x": 424, "y": 160, "w": 38, "h": 18 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 38, "h": 18 },
+      "sourceSize": { "w": 38, "h": 18 }
+    },
+    "drill-2.4.front.landed": {
+      "frame": { "x": 410, "y": 0, "w": 24, "h": 38 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 24, "h": 38 },
+      "sourceSize": { "w": 24, "h": 38 }
+    },
+    "drill-2.4.front.landed_lit": {
+      "frame": { "x": 435, "y": 0, "w": 24, "h": 38 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 24, "h": 38 },
+      "sourceSize": { "w": 24, "h": 38 }
+    },
+    "drill-2.4.front.flight": {
+      "frame": { "x": 25, "y": 124, "w": 35, "h": 35 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 35, "h": 35 },
+      "sourceSize": { "w": 35, "h": 35 }
+    },
+    "radar-1.0.front.landed": {
+      "frame": { "x": 17, "y": 202, "w": 14, "h": 12 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 14, "h": 12 },
+      "sourceSize": { "w": 14, "h": 12 }
+    },
+    "radar-1.0.front.landed_lit": {
+      "frame": { "x": 32, "y": 202, "w": 14, "h": 12 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 14, "h": 12 },
+      "sourceSize": { "w": 14, "h": 12 }
+    },
+    "radar-1.0.front.flight": {
+      "frame": { "x": 256, "y": 184, "w": 9, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 9, "h": 15 },
+      "sourceSize": { "w": 9, "h": 15 }
+    },
+    "radar-1.1.front.landed": {
+      "frame": { "x": 47, "y": 202, "w": 13, "h": 12 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 13, "h": 12 },
+      "sourceSize": { "w": 13, "h": 12 }
+    },
+    "radar-1.1.front.landed_lit": {
+      "frame": { "x": 61, "y": 202, "w": 13, "h": 12 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 13, "h": 12 },
+      "sourceSize": { "w": 13, "h": 12 }
+    },
+    "radar-1.1.front.flight": {
+      "frame": { "x": 253, "y": 202, "w": 15, "h": 10 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 15, "h": 10 },
+      "sourceSize": { "w": 15, "h": 10 }
+    },
+    "radar-1.2.front.landed": {
+      "frame": { "x": 75, "y": 202, "w": 14, "h": 12 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 14, "h": 12 },
+      "sourceSize": { "w": 14, "h": 12 }
+    },
+    "radar-1.2.front.landed_lit": {
+      "frame": { "x": 90, "y": 202, "w": 14, "h": 12 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 14, "h": 12 },
+      "sourceSize": { "w": 14, "h": 12 }
+    },
+    "radar-1.2.front.flight": {
+      "frame": { "x": 125, "y": 184, "w": 9, "h": 16 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 9, "h": 16 },
+      "sourceSize": { "w": 9, "h": 16 }
+    },
+    "radar-1.3.front.landed": {
+      "frame": { "x": 105, "y": 202, "w": 13, "h": 12 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 13, "h": 12 },
+      "sourceSize": { "w": 13, "h": 12 }
+    },
+    "radar-1.3.front.landed_lit": {
+      "frame": { "x": 119, "y": 202, "w": 13, "h": 12 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 13, "h": 12 },
+      "sourceSize": { "w": 13, "h": 12 }
+    },
+    "radar-1.3.front.flight": {
+      "frame": { "x": 269, "y": 202, "w": 15, "h": 10 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 15, "h": 10 },
+      "sourceSize": { "w": 15, "h": 10 }
+    },
+    "radar-1.4.front.landed": {
+      "frame": { "x": 133, "y": 202, "w": 14, "h": 12 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 14, "h": 12 },
+      "sourceSize": { "w": 14, "h": 12 }
+    },
+    "radar-1.4.front.landed_lit": {
+      "frame": { "x": 148, "y": 202, "w": 14, "h": 12 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 14, "h": 12 },
+      "sourceSize": { "w": 14, "h": 12 }
+    },
+    "radar-1.4.front.flight": {
+      "frame": { "x": 135, "y": 184, "w": 9, "h": 16 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 9, "h": 16 },
+      "sourceSize": { "w": 9, "h": 16 }
+    },
+    "radar-2.0.front.landed": {
+      "frame": { "x": 266, "y": 184, "w": 16, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 15 },
+      "sourceSize": { "w": 16, "h": 15 }
+    },
+    "radar-2.0.front.landed_lit": {
+      "frame": { "x": 283, "y": 184, "w": 16, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 15 },
+      "sourceSize": { "w": 16, "h": 15 }
+    },
+    "radar-2.0.front.flight": {
+      "frame": { "x": 94, "y": 160, "w": 11, "h": 19 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 11, "h": 19 },
+      "sourceSize": { "w": 11, "h": 19 }
+    },
+    "radar-2.1.front.landed": {
+      "frame": { "x": 300, "y": 184, "w": 15, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 15, "h": 15 },
+      "sourceSize": { "w": 15, "h": 15 }
+    },
+    "radar-2.1.front.landed_lit": {
+      "frame": { "x": 316, "y": 184, "w": 15, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 15, "h": 15 },
+      "sourceSize": { "w": 15, "h": 15 }
+    },
+    "radar-2.1.front.flight": {
+      "frame": { "x": 216, "y": 202, "w": 18, "h": 11 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 18, "h": 11 },
+      "sourceSize": { "w": 18, "h": 11 }
+    },
+    "radar-2.2.front.landed": {
+      "frame": { "x": 332, "y": 184, "w": 16, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 15 },
+      "sourceSize": { "w": 16, "h": 15 }
+    },
+    "radar-2.2.front.landed_lit": {
+      "frame": { "x": 349, "y": 184, "w": 16, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 15 },
+      "sourceSize": { "w": 16, "h": 15 }
+    },
+    "radar-2.2.front.flight": {
+      "frame": { "x": 106, "y": 160, "w": 11, "h": 19 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 11, "h": 19 },
+      "sourceSize": { "w": 11, "h": 19 }
+    },
+    "radar-2.3.front.landed": {
+      "frame": { "x": 366, "y": 184, "w": 15, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 15, "h": 15 },
+      "sourceSize": { "w": 15, "h": 15 }
+    },
+    "radar-2.3.front.landed_lit": {
+      "frame": { "x": 382, "y": 184, "w": 15, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 15, "h": 15 },
+      "sourceSize": { "w": 15, "h": 15 }
+    },
+    "radar-2.3.front.flight": {
+      "frame": { "x": 163, "y": 202, "w": 18, "h": 12 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 18, "h": 12 },
+      "sourceSize": { "w": 18, "h": 12 }
+    },
+    "radar-2.4.front.landed": {
+      "frame": { "x": 398, "y": 184, "w": 16, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 15 },
+      "sourceSize": { "w": 16, "h": 15 }
+    },
+    "radar-2.4.front.landed_lit": {
+      "frame": { "x": 415, "y": 184, "w": 16, "h": 15 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 16, "h": 15 },
+      "sourceSize": { "w": 16, "h": 15 }
+    },
+    "radar-2.4.front.flight": {
+      "frame": { "x": 118, "y": 160, "w": 11, "h": 19 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 11, "h": 19 },
+      "sourceSize": { "w": 11, "h": 19 }
+    },
+    "jump-drive.0.back.landed": {
+      "frame": { "x": 457, "y": 202, "w": 35, "h": 7 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 35, "h": 7 },
+      "sourceSize": { "w": 35, "h": 7 }
+    },
+    "jump-drive.0.back.landed_lit": {
+      "frame": { "x": 0, "y": 215, "w": 35, "h": 7 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 35, "h": 7 },
+      "sourceSize": { "w": 35, "h": 7 }
+    },
+    "jump-drive.0.back.flight": {
+      "frame": { "x": 209, "y": 124, "w": 18, "h": 33 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 18, "h": 33 },
+      "sourceSize": { "w": 18, "h": 33 }
+    },
+    "jump-drive.0.front.landed": {
+      "frame": { "x": 285, "y": 202, "w": 41, "h": 10 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 41, "h": 10 },
+      "sourceSize": { "w": 41, "h": 10 }
+    },
+    "jump-drive.0.front.landed_lit": {
+      "frame": { "x": 327, "y": 202, "w": 41, "h": 10 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 41, "h": 10 },
+      "sourceSize": { "w": 41, "h": 10 }
+    },
+    "jump-drive.0.front.flight": {
+      "frame": { "x": 460, "y": 0, "w": 22, "h": 37 },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": { "x": 0, "y": 0, "w": 22, "h": 37 },
+      "sourceSize": { "w": 22, "h": 37 }
     }
   },
   "meta": {
     "app": "docs/design/sprites/gen_sprites.py",
     "image": "chassis_hauler.png",
-    "size": {
-      "w": 337,
-      "h": 126
-    },
+    "size": { "w": 512, "h": 222 },
     "scale": "1"
   }
 }
