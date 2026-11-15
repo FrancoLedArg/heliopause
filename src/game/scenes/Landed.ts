@@ -80,6 +80,8 @@ export const RADAR_SWEEP = {
 export class Landed extends Scene {
   private run!: Run;
   private report: LandedData['report'];
+  /** The Nav Chart has opened since this landing, and pinged what Comms Detected. */
+  private blipsPinged = false;
   private afterJump = false;
   private gathering: Gathering | undefined;
   /** The layers, back to front: ambient motion (parallax drift) moves these. */
@@ -110,6 +112,7 @@ export class Landed extends Scene {
   init(data: LandedData): void {
     this.run = data.run;
     this.report = data.report;
+    this.blipsPinged = false;
     this.afterJump = data.afterJump ?? false;
     this.gathering =
       data.gathering ??
@@ -130,7 +133,10 @@ export class Landed extends Scene {
     // The Nav Chart runs as its own scene over this one, which keeps running (dimmed) beneath it.
     const offOpen = EventBus.on('nav-chart-open-requested', () => {
       if (this.scene.isActive(SceneKey.NavChart) || this.run.status.kind !== 'landed') return;
-      const data: NavChartData = { run: this.run };
+      // The chart pings a newly Detected Body only the first time it opens after that landing.
+      const newBlips = this.blipsPinged ? [] : (this.report?.flight.reveal?.detected ?? []);
+      this.blipsPinged = true;
+      const data: NavChartData = { run: this.run, newBlips };
       this.scene.launch(SceneKey.NavChart, data);
     });
     // Launch settles the Hop in the simulation, then hands it to the Flight to play back. Starting

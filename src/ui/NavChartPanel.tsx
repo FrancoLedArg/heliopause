@@ -15,6 +15,7 @@ import {
   TOOLTIP_SIZE,
   tooltipHeight,
   tooltipKindExtra,
+  unsurveyedMarkAt,
   type ChartCommand,
   type ChartState,
   type Direction,
@@ -249,7 +250,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
       at.y <= area.y + area.h &&
       at.x >= area.x &&
       at.x + 12 <= area.x + area.w;
-    return onScreen ? [{ id: node.body.id, at }] : [];
+    return onScreen ? [{ id: node.body.id, at, node }] : [];
   });
 
   return (
@@ -315,18 +316,21 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         </p>
       ))}
 
-      {unsurveyed.map(({ id, at }) => (
-        <span
-          key={id}
-          className="nav-chart__unsurveyed"
-          role="img"
-          aria-label={`${nameOf(id)}: Unsurveyed`}
-          data-testid="unsurveyed-mark"
-          style={{ left: Math.round(at.x + 4), top: Math.round(at.y - 13) }}
-        >
-          ?
-        </span>
-      ))}
+      {unsurveyed.map(({ id, at, node }) => {
+        const { dx, dy } = unsurveyedMarkAt(state.view.zoom, node);
+        return (
+          <span
+            key={id}
+            className="nav-chart__unsurveyed"
+            role="img"
+            aria-label={`${nameOf(id)}: Unsurveyed`}
+            data-testid="unsurveyed-mark"
+            style={{ left: Math.round(at.x + dx), top: Math.round(at.y + dy) }}
+          >
+            ?
+          </span>
+        );
+      })}
 
       {edgeMarkers(state.view, layout, area).map((marker) => (
         <button
