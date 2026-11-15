@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { imageUrl } from '../game/assets/manifest.ts';
+import { hasAsset, imageUrl } from '../game/assets/manifest.ts';
 import { EventBus } from '../game/EventBus.ts';
 import { FAST_FORWARD, type FlightMoment } from '../game/scenes/flightPlayback.ts';
 import {
@@ -29,18 +29,31 @@ const FAST_FORWARD_KEY = 'f';
 const FAST_FORWARD_WIDTH = 32;
 const FAST_FORWARD_WIDTH_ON = 52;
 
+/**
+ * What follows the playback once it is over: a failed Hop ended the Run (its report, then the
+ * End-of-Run screen), or the Spacecraft reached the Heliopause (a placeholder report until the Jump,
+ * #157, takes over; no Score is recorded).
+ */
+export type FlightAfter =
+  | {
+      readonly kind: 'ended';
+      /** The Run the failed Hop ended. */
+      readonly run: Run;
+      /** The Best Score after this Run's Score was recorded. */
+      readonly recorded: RecordedScore;
+      /** The failed Hop's report first, then the End-of-Run screen. */
+      readonly step: 'report' | 'end';
+    }
+  | { readonly kind: 'reached-heliopause' };
+
 interface FlightHudProps {
   /** The Run at Launch. */
   before: Run;
   flight: HopFlight;
   /** Where the playback is; undefined until its first moment. */
   moment: FlightMoment | undefined;
-  /** The Run the failed Hop ended, once its playback is over: the End-of-Run screen shows it. */
-  ended: Run | undefined;
-  /** The player has read the failed Hop's report and moved on to the End-of-Run screen. */
-  reportDone: boolean;
-  /** The Best Score after the ended Run's Score was recorded; present with `ended`. */
-  recorded: RecordedScore | undefined;
+  /** How the playback handed over once it was over; undefined while it plays. */
+  after: FlightAfter | undefined;
   /** Continue from the failed Hop's report to the End-of-Run screen. */
   onContinue: () => void;
   /** New Run after a failure: asks for a Chassis, then a new Star System. */
@@ -57,9 +70,7 @@ export function FlightHud({
   before,
   flight,
   moment,
-  ended,
-  reportDone,
-  recorded,
+  after,
   onContinue,
   onNewRun,
   onLeave,
@@ -69,7 +80,7 @@ export function FlightHud({
   const deltaV = availableDeltaV({ ...before.spacecraft, fuelMass: kilograms(fuel) });
   const current = view.phases.find((phase) => phase.state === 'current');
   const [fast, setFast] = useState(false);
-  const over = ended !== undefined || moment?.ended === true;
+  const over = after !== undefined || moment?.ended === true;
   const setSpeed = (next: boolean): void => {
     setFast(next);
     EventBus.emit('hop-fast-forward-requested', next);
@@ -92,7 +103,7 @@ export function FlightHud({
       ? Math.max(FILL_MIN_WIDTH, Math.round((FUEL_BAR.width - 2 * FUEL_BAR.inset) * view.fuelShare))
       : 0;
 
-  if (ended && recorded) {
+  if (after?.kind === 'ended') {
     // The Run is over: the End-of-Run screen takes the place of the playback's panels.
     return (
       <>
@@ -103,8 +114,13 @@ export function FlightHud({
           deltaV={deltaV}
           materials={before.materials}
         />
-        {reportDone ? (
-          <EndOfRun run={ended} recorded={recorded} onNewRun={onNewRun} onLeave={onLeave} />
+        {after.step === 'end' ? (
+          <EndOfRun
+            run={after.run}
+            recorded={after.recorded}
+            onNewRun={onNewRun}
+            onLeave={onLeave}
+          />
         ) : (
           <HopReport
             before={before}
@@ -113,6 +129,26 @@ export function FlightHud({
             onEscape={onContinue}
           />
         )}
+      </>
+    );
+  }
+
+  if (after?.kind === 'reached-heliopause') {
+    // The Spacecraft holds at the edge of the Star System; the Jump (#157) will take over here.
+    return (
+      <>
+        <TopBar
+          systemNumber={starSystemNumber(before)}
+          systemName={before.starSystem.name}
+          fuel={fuel}
+          deltaV={deltaV}
+          materials={before.materials}
+        />
+        <HopReport
+          before={before}
+          flight={flight}
+          actions={[{ label: 'Back to title', onClick: onLeave, primary: true }]}
+        />
       </>
     );
   }
@@ -159,11 +195,15 @@ export function FlightHud({
           src={imageUrl(view.route.fromSprite)}
           alt=""
         />
-        <img
-          className="route-inset__body route-inset__body--to"
-          src={imageUrl(view.route.toSprite)}
-          alt=""
-        />
+        {hasAsset(view.route.toSprite) ? (
+          <img
+            className="route-inset__body route-inset__body--to"
+            src={imageUrl(view.route.toSprite)}
+            alt=""
+          />
+        ) : (
+          <span className="route-inset__body route-inset__body--to route-inset__edge" />
+        )}
         <div
           className="route-inset__track"
           role="progressbar"

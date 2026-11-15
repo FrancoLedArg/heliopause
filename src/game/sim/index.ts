@@ -11,8 +11,8 @@ export {
 } from './run.ts';
 export { collectYield, isDepleted } from './gather.ts';
 export type { Collection, Landing } from './gather.ts';
-export { install } from './install.ts';
-export type { InstallRefusal, InstallResult } from './install.ts';
+export { install, standingRefusal } from './install.ts';
+export type { InstallRefusal, InstallResult, StandingRefusal } from './install.ts';
 export { preview } from './preview.ts';
 export type { Preview, ProposedChange } from './preview.ts';
 export { remove } from './remove.ts';
@@ -20,19 +20,24 @@ export type { RemoveRefusal, RemoveResult } from './remove.ts';
 export type { Run, RunEnd, RunStatus } from './run.ts';
 export { isBetterScore, runEnd, score } from './score.ts';
 export type { Score } from './score.ts';
-export { BURNS, flyHop, launchHop, marginShare, planHop } from './hop.ts';
+export { BURNS, flyHop, HELIOPAUSE, launchHop, marginShare, plannedBurns, planHop } from './hop.ts';
 export type {
+  BodyHopPlan,
   Burn,
   BurnResult,
+  HeliopauseHopPlan,
   HopFlight,
   HopOutcome,
   HopPlan,
   HopPlanResult,
+  HopTarget,
   InvalidTargetReason,
   LaunchResult,
+  PlannedBurn,
 } from './hop.ts';
 export {
   availableDeltaV,
+  carriesJumpDrive,
   componentEffect,
   drillMultiplier,
   fuelAfterBurning,

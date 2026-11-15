@@ -2,7 +2,6 @@
 // scene (which draws it) and the React HUD (which reads it) agree, and the rules run in Node.
 // The simulation has already settled the outcome; this only paces it.
 import {
-  BURNS,
   fuelAfterBurning,
   metersPerSecond,
   type Burn,
@@ -47,7 +46,7 @@ export interface FlightMoment {
   readonly fuel: Kilograms;
   /** How many Burns are done and in the flight log, in order. */
   readonly logged: number;
-  /** How far along the whole route, 0 to 1 (each Burn a third); holds where the engine cut out. */
+  /** How far along the whole route, 0 to 1 (each Burn an equal share); holds where the engine cut out. */
   readonly route: number;
   /** The playback is over: hand off to the Landed view or the report. */
   readonly ended: boolean;
@@ -152,7 +151,7 @@ export function flightPlayback(
       thrusting: t >= span.thrustStart && !done,
       fuel: fuelAfter(span.spentBefore + thrustShare * (span.spentAfter - span.spentBefore)),
       logged: index + (done ? 1 : 0),
-      route: (BURNS.indexOf(span.burn) + share) / BURNS.length,
+      route: (index + share) / flight.burns.length,
       ended: t >= duration,
     };
   };

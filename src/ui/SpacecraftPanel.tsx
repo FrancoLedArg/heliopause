@@ -203,8 +203,12 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   // An open remove question keeps its preview: focusing the catalogue does not switch it.
   const previewingRemoval =
     (previewing === 'slot' || confirming !== undefined) && removal !== undefined;
+  // A catalogue entry that cannot be installed whatever the Materials previews only why not.
+  const blocked = previewingRemoval
+    ? undefined
+    : rows.find((row) => row.id === focusedId)?.unavailable;
   const forecast =
-    previewingRemoval && removal.kind === 'refused'
+    (previewingRemoval && removal.kind === 'refused') || blocked !== undefined
       ? undefined
       : describePreview(
           spacecraft,
@@ -219,7 +223,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   const noForecast =
     previewingRemoval && removal.kind === 'refused'
       ? describeRemoveRefusal(removal.reason)
-      : 'Every Slot is full: remove a Component first.';
+      : (blocked ?? 'Every Slot is full: remove a Component first.');
 
   return (
     <section
@@ -399,9 +403,11 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
             <li
               key={row.id}
               className={
-                row.affordable
-                  ? 'spacecraft-panel__row'
-                  : 'spacecraft-panel__row spacecraft-panel__row--costly'
+                row.unavailable !== undefined
+                  ? 'spacecraft-panel__row spacecraft-panel__row--unavailable'
+                  : row.affordable
+                    ? 'spacecraft-panel__row'
+                    : 'spacecraft-panel__row spacecraft-panel__row--costly'
               }
               data-testid="component-row"
               onMouseEnter={() => {
@@ -414,7 +420,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                 <span className="spacecraft-panel__row-stats">
                   {row.mass} · {row.cost}
                 </span>
-                {!row.affordable && (
+                {!row.affordable && row.unavailable === undefined && (
                   <span className="spacecraft-panel__row-tag">
                     {`Need ${String(row.short)} more`}
                   </span>
@@ -425,7 +431,8 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                 className="spacecraft-panel__row-effect"
                 data-testid="component-effect"
               >
-                {row.effect}
+                {/* What stops it, whatever the Materials, takes the place of what it does. */}
+                {row.unavailable ?? row.effect}
               </p>
               <KitButton
                 width={64}

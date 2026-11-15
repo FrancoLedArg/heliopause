@@ -156,6 +156,12 @@ export interface SkyBody {
   readonly distanceAu: AstronomicalUnits;
 }
 
+/**
+ * The Heliopause's texture key: the edge of the Star System as seen on the way out, a ring of faint
+ * violet light. Not in the manifest yet (asset request), so scenes and the HUD draw a stand-in.
+ */
+export const HELIOPAUSE_SPRITE = 'body_heliopause';
+
 /** The `body_*` sprite for a Body: one look per Body, wherever it is seen from (the Nav Chart can reuse it). */
 export function bodySprite(run: Run, body: Body): string {
   const variant = createRng(run.seed ^ stringSeed(`${body.id}:sprite`)).int(

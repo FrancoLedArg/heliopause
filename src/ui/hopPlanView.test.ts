@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest';
 import {
   astronomicalUnits,
   currentBody,
+  HELIOPAUSE,
+  install,
   kilograms,
   listBodies,
+  materials,
   metersPerSecond,
   planHop,
   startRun,
@@ -38,6 +41,33 @@ describe('a Hop plan to a Depleted Body', () => {
     const view = describeHopPlan(used, planFor(moon.id, used));
     expect(view.yieldNote).toBe('Depleted: this Hop will yield nothing.');
     expect(view.summary).toContain('will yield nothing');
+  });
+});
+
+describe('a Hop plan to the Heliopause', () => {
+  const withDrive = install({ ...run, materials: materials(100) }, 2, 'jump-drive');
+  if (withDrive.kind !== 'installed') throw new Error('Expected an install');
+  const ready = withDrive.run;
+  const planned = planHop(ready, HELIOPAUSE);
+  if (planned.kind !== 'planned') throw new Error('expected a plan');
+  const view = describeHopPlan(ready, planned.plan);
+
+  it('lists Takeoff and Transfer, and no Landing', () => {
+    expect(view.burns.map((b) => b.label)).toEqual(['Takeoff', 'Transfer']);
+    expect(view.burns.map((b) => b.estimate)).toEqual([
+      formatPlanDeltaV(planned.plan.estimates.takeoff),
+      formatPlanDeltaV(planned.plan.estimates.transfer),
+    ]);
+    expect(view.needed).toBe(formatPlanDeltaV(planned.plan.totalEstimate));
+  });
+
+  it('says the Transfer climbs out to the edge of the Star System, from where the Spacecraft is', () => {
+    const distance = ready.starSystem.heliopauseRadius - currentBody(ready).distanceFromStar;
+    expect(view.burns[1]?.reason).toBe(
+      `climb ${formatDistanceAu(astronomicalUnits(distance))} to the edge`,
+    );
+    expect(view.summary).toMatch(/^Hop plan for the Heliopause: needs /);
+    expect(view.yieldNote).toBeUndefined();
   });
 });
 

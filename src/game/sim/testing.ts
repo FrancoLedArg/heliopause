@@ -3,19 +3,27 @@
 import {
   availableDeltaV,
   homePlanet,
+  install,
   kilograms,
   listBodies,
+  materials,
   planHop,
   type Body,
+  type BodyHopPlan,
   type BodyId,
+  type HELIOPAUSE,
+  type HeliopauseHopPlan,
   type HopPlan,
+  type HopTarget,
   type Moon,
   type Run,
 } from './index.ts';
 
 /** The plan for a Hop that must be valid. */
-export function plan(from: Run, targetId: BodyId): HopPlan {
-  const result = planHop(from, targetId);
+export function plan(from: Run, target: BodyId): BodyHopPlan;
+export function plan(from: Run, target: typeof HELIOPAUSE): HeliopauseHopPlan;
+export function plan(from: Run, target: HopTarget): HopPlan {
+  const result = planHop(from, target);
   if (result.kind !== 'planned') throw new Error(`Expected a plan, got ${result.reason}`);
   return result.plan;
 }
@@ -65,4 +73,12 @@ export function farLandables(from: Run): Body[] {
   return listBodies(from.starSystem).filter(
     (body) => body.landable && body.id !== home.id && !home.moons.some((m) => m.id === body.id),
   );
+}
+
+/** The same Run with a Jump Drive in its first empty Slot, its Materials as they were. */
+export function withJumpDrive(from: Run): Run {
+  const slot = from.spacecraft.slots.indexOf(null);
+  const result = install({ ...from, materials: materials(1_000) }, slot, 'jump-drive');
+  if (result.kind !== 'installed') throw new Error(`Expected an install: ${result.reason.kind}`);
+  return { ...result.run, materials: from.materials };
 }

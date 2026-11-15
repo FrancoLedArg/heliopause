@@ -9,8 +9,12 @@ import {
   metersPerSecond,
   planHop,
   startRun,
+  HELIOPAUSE,
+  install,
+  launchHop,
+  materials,
+  type BodyHopPlan,
   type HopFlight,
-  type HopPlan,
 } from '../game/sim/index.ts';
 import { describeFlight } from './flightHudView.ts';
 
@@ -18,7 +22,7 @@ const run = startRun(123, 'scout');
 const moonId = homePlanet(run.starSystem).moons[0]?.id ?? run.starSystem.homePlanetId;
 const planned = planHop(run, moonId);
 if (planned.kind !== 'planned') throw new Error('no plan');
-const plan: HopPlan = planned.plan;
+const plan: BodyHopPlan = planned.plan;
 const { flight } = flyHop(run, plan, createRng(1));
 
 const moment = (over: Partial<FlightMoment>): FlightMoment => ({
@@ -164,5 +168,16 @@ describe('the flight HUD', () => {
     expect(view.route.toSprite).toMatch(/^body_/);
     // Before the first moment the Spacecraft is still at the departure Body.
     expect(describeFlight(run, flight, undefined).route.share).toBe(0);
+  });
+
+  it('shows a Hop to the Heliopause as Takeoff and Transfer, with the Heliopause at the end of the route', () => {
+    const built = install({ ...startRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+    if (built.kind !== 'installed') throw new Error('Expected an install');
+    const launched = launchHop(built.run, HELIOPAUSE);
+    if (launched.kind !== 'flown') throw new Error('Expected a flight');
+    const view = describeFlight(built.run, launched.flight, moment({ burn: 'transfer', route: 1 }));
+    expect(view.phases.map((phase) => phase.label)).toEqual(['Takeoff', 'Transfer']);
+    expect(view.log.map((row) => row.label)).toEqual(['Takeoff', 'Transfer']);
+    expect(view.route).toMatchObject({ to: 'Heliopause', toSprite: 'body_heliopause', share: 1 });
   });
 });
