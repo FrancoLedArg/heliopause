@@ -125,9 +125,15 @@ test('the Daily Star System: the same Star System for the day, a Daily Best kept
   await expect(page.getByTestId('daily-tag')).toHaveText(`Daily ${DAY} UTC`);
   await outcome.getByRole('button', { name: 'Continue' }).click();
   const score = formatScore(ending.score);
-  await expect(outcome.getByTestId('end-of-run-score')).toHaveText(score);
+  await expect(outcome.getByTestId('end-of-run-score')).toHaveAttribute(
+    'aria-label',
+    `Score: ${score}`,
+  );
   await expect(outcome).toContainText('Today’s Daily Best');
-  await expect(outcome.getByTestId('end-of-run-best')).toHaveText(`${score} (new Daily Best)`);
+  await expect(outcome.getByTestId('end-of-run-best')).toHaveAttribute(
+    'aria-label',
+    `Today’s Daily Best: ${score} (new Daily Best)`,
+  );
   await testInfo.attach('daily-end', { body: await page.screenshot(), contentType: 'image/png' });
 
   // 4. Back to the title: the Daily line shows the Score.

@@ -1,9 +1,11 @@
 import { afterEach, expect, it } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { createRng } from '../game/lib/rng.ts';
 import { flightPlayback, type FlightPlayback } from '../game/scenes/flightPlayback.ts';
 import { flyHop, homePlanet, planHop, startRun } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { FlightHud } from './FlightHud.tsx';
+import { expectTextBudget } from './textBudget.ts';
 
 afterEach(cleanUp);
 
@@ -74,7 +76,7 @@ it('shows the systems check in the Cruise: one light per installed Component, li
   const box = byTestId(steady, 'systems-lights').getBoundingClientRect();
   const inset = byTestId(steady, 'route-inset').getBoundingClientRect();
   expect(Math.abs(box.top - inset.top)).toBeLessThan(inset.height);
-  for (const id of ['route-inset', 'flight-log', 'fuel-gauge', 'phase-strip']) {
+  for (const id of ['route-inset', 'flight-log', 'phase-strip']) {
     const other = byTestId(steady, id).getBoundingClientRect();
     const apart =
       box.right <= other.left ||
@@ -150,4 +152,85 @@ it('shows a Fuel tank in the Cruise that drains through the boost, and none in t
   const later = await hudAt((playback) => cruiseStart(playback) + 30_000);
   expect(share(later)).toBeLessThan(full);
   expect(share(later)).toBeGreaterThan(0);
+});
+
+const drainedAt = (host: HTMLElement): number =>
+  Number(byTestId(host, 'dv-bar').getAttribute('data-drained') ?? 0);
+
+it('drains the Δv bar in step with the Burns, and ticks each Burn once it is flown', async () => {
+  const takeoff = await hudAt(() => 100);
+  const atLaunch = drainedAt(takeoff);
+  expect(takeoff.querySelectorAll('.dv-bar__tick')).toHaveLength(0);
+  cleanUp();
+  const cruise = await hudAt((playback) => cruiseStart(playback) + 1);
+  // Takeoff is flown: its estimate tick is on the bar, and the bar has drained by its cost.
+  expect(cruise.querySelectorAll('.dv-bar__tick')).toHaveLength(1);
+  const afterTakeoff = drainedAt(cruise);
+  expect(afterTakeoff).toBeGreaterThan(atLaunch);
+  cleanUp();
+  const deep = await hudAt((playback) => cruiseStart(playback) + 30_000);
+  const midway = drainedAt(deep);
+  expect(midway).toBeGreaterThan(afterTakeoff);
+  cleanUp();
+  const last = await hudAt((playback) => playback.duration);
+  expect(last.querySelectorAll('.dv-bar__tick')).toHaveLength(3);
+  expect(drainedAt(last)).toBeGreaterThan(midway);
+  expect(byTestId(last, 'dv-bar').getAttribute('aria-label')).toContain('km/s');
+});
+
+it('keeps the exact table behind "Tell me more"', async () => {
+  const host = await hudAt((playback) => cruiseStart(playback) + 1);
+  const log = byTestId(host, 'flight-log');
+  const toggle = [...log.querySelectorAll('button')].find((b) => b.textContent === 'Tell me more');
+  if (!toggle) throw new Error('no Tell me more');
+  const table = log.querySelector('table');
+  expect(table?.checkVisibility()).toBe(false);
+  toggle.focus();
+  await userEvent.keyboard('{Enter}');
+  expect(table?.checkVisibility()).toBe(true);
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  const takeoff = [...log.querySelectorAll('tbody tr')].find((r) =>
+    r.textContent.startsWith('Takeoff'),
+  );
+  expect(takeoff?.textContent).toMatch(/km\/s.*%/);
+});
+
+it('holds the text budget in every panel, with the table closed', async () => {
+  const host = await hudAt((playback) => cruiseStart(playback) + 1300);
+  for (const id of ['flight-log', 'phase-strip', 'route-inset', 'systems-lights']) {
+    expectTextBudget(byTestId(host, id));
+  }
+});
+
+it('fits the 640x360 stage with no panel over another, the table open or not', async () => {
+  const host = await hudAt((playback) => cruiseStart(playback) + 1300);
+  const log = byTestId(host, 'flight-log');
+  const toggle = [...log.querySelectorAll('button')].find((b) => b.textContent === 'Tell me more');
+  const ids = ['flight-log', 'phase-strip', 'route-inset', 'systems-lights'];
+  const check = (): void => {
+    const boxes = ids.map((id) => [id, byTestId(host, id).getBoundingClientRect()] as const);
+    const extra = host.querySelector('.cruise-fuel')?.getBoundingClientRect();
+    const all = extra ? [...boxes, ['cruise-fuel', extra] as const] : boxes;
+    const origin = host.getBoundingClientRect();
+    for (const [id, box] of all) {
+      expect(box.left, id).toBeGreaterThanOrEqual(origin.left);
+      expect(box.top, id).toBeGreaterThanOrEqual(origin.top);
+      expect(box.right, id).toBeLessThanOrEqual(origin.left + 640);
+      expect(box.bottom, id).toBeLessThanOrEqual(origin.top + 360);
+    }
+    for (const [i, [idA, a]] of all.entries()) {
+      for (const [idB, b] of all.slice(i + 1)) {
+        const apart =
+          a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+        expect(apart, `${idA} / ${idB}`).toBe(true);
+      }
+    }
+  };
+  check();
+  toggle?.focus();
+  await userEvent.keyboard('{Enter}');
+  const table = log.querySelector('.flight-log__details')?.getBoundingClientRect();
+  expect(table?.top).toBeGreaterThanOrEqual(host.getBoundingClientRect().top);
+  // The open table rises from the panel, clear of the phase strip at the top.
+  expect(table?.bottom).toBeLessThanOrEqual(log.getBoundingClientRect().top);
 });
