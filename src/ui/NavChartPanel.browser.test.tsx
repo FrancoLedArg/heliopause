@@ -535,16 +535,16 @@ it('leads the Hop plan with Success Chance, then the Δv bar, then the Fuel gaug
   const top = (id: string): number => byTestId(host, id).getBoundingClientRect().top;
   expect(top('plan-success')).toBeLessThan(top('dv-bar'));
   expect(top('dv-bar')).toBeLessThan(top('plan-fuel'));
-  // Seed 123's innermost planet to its Moon: 5.4 of 22.1 km/s, and the bar's segments, gap and words
+  // Seed 123's innermost planet to its Moon: 5.4 of 28.8 km/s, and the bar's segments, gap and words
   // agree (re-pinned for #189; was the Home Planet's Moon).
   const bar = byTestId(host, 'dv-bar');
   expect(bar.getAttribute('role')).toBe('img');
   expect(bar.getAttribute('aria-label')).toBe(
-    'Δv: Takeoff 3.8 km/s, Transfer 1.3 km/s, Landing 0.24 km/s. Needs 5.4 of 22.1 km/s, Margin +16.7 km/s.',
+    'Δv: Takeoff 3.8 km/s, Transfer 1.3 km/s, Landing 0.24 km/s. Needs 5.4 of 28.8 km/s, Margin +23.4 km/s.',
   );
   expect(byTestId(host, 'plan-needed').textContent).toBe('5.4');
-  expect(byTestId(host, 'plan-available').textContent).toBe('22.1 km/s');
-  expect(byTestId(host, 'plan-margin').textContent).toBe('+16.7 km/s');
+  expect(byTestId(host, 'plan-available').textContent).toBe('28.8 km/s');
+  expect(byTestId(host, 'plan-margin').textContent).toBe('+23.4 km/s');
   const fuel = byTestId(host, 'plan-fuel');
   expect(fuel.getAttribute('role')).toBe('img');
   expect(fuel.getAttribute('aria-label')).toMatch(/^Fuel: 21\.0 t now, \d+\.\d t after the Hop\.$/);

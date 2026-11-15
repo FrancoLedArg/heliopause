@@ -418,13 +418,13 @@ it('previews a Fuel Tank dropping Δv, in words, when its Install button is focu
   await tabTo(/Install Fuel Tank, level 1/);
   const text = previewText(host);
   expect(text).toContain('Install Fuel Tank 1');
-  expect(text).toContain('22.1 km/s → 19.0 km/s');
-  expect(text).toContain('Drops 3.1 km/s');
+  expect(text).toContain('28.8 km/s → 24.7 km/s');
+  expect(text).toContain('Drops 4.1 km/s');
   expect(text).toContain('Starts empty, so Δv drops.');
-  expect(text).toContain(`Filled up: 26.0${NBSP}km/s, up from 22.1${NBSP}km/s.`);
+  expect(text).toContain(`Filled up: 33.8${NBSP}km/s, up from 28.8${NBSP}km/s.`);
   // Nothing was paid: the Materials and the Δv in the figures are as they were.
   expect(byTestId(host, 'install-target').textContent).toContain('25 Materials in stock');
-  expect(byTestId(host, 'panel-delta-v').textContent).toBe('22.1 km/s');
+  expect(byTestId(host, 'panel-delta-v').textContent).toBe('28.8 km/s');
 });
 
 it('previews the removal of the Component in the chosen Slot, and says why when it cannot be removed', async () => {

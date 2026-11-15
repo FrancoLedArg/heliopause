@@ -75,11 +75,12 @@ it('a Run Stranded on Landing goes straight to the End-of-Run screen with the St
   const screen = find(ui, 'end-of-run');
   expect(screen?.querySelector('h2')?.textContent).toBe('Stranded');
   expect(find(ui, 'end-of-run-why')?.textContent).toBe(
-    // Re-pinned for #189: seed 12, back on Laquun (was seed 305's Lyquin).
-    'However you change its Components, your Spacecraft has at most 5.3 km/s of Δv, and the ' +
-      'cheapest Hop needs 5.8 km/s.',
+    // Re-pinned for #189: seed 12, back on Laquun (was seed 305's Lyquin); for #247: seed 27, back on
+    // Dryli (seed 12's Run no longer strands once the Isp rose 30%).
+    'However you change its Components, your Spacecraft has at most 5.7 km/s of Δv, and the ' +
+      'cheapest Hop needs 6.0 km/s.',
   );
-  expect(find(ui, 'end-of-run-score')?.textContent).toBe('0 Star Systems escaped, 3 Hops flown');
+  expect(find(ui, 'end-of-run-score')?.textContent).toBe('0 Star Systems escaped, 4 Hops flown');
   // No Hop report, and nothing left to plan with: the Run is over.
   expect(find(ui, 'hop-report')).toBeNull();
   expect(ui.querySelector('.landed-plate')).toBeNull();

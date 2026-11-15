@@ -34,10 +34,10 @@ describe('a Component’s effect is shown as the Chassis scales it', () => {
   });
 
   it('says an Engine’s Isp for this Chassis, not the base Isp', () => {
-    expect(describeEffect('scout', 'engine-1')).toContain('1,230 s');
-    expect(describeEffect('lancer', 'engine-1')).toContain('1,280 s');
+    expect(describeEffect('scout', 'engine-1')).toContain('1,600 s');
+    expect(describeEffect('lancer', 'engine-1')).toContain('1,665 s');
     expect(describeEffect('scout', 'engine-1')).not.toContain('900');
-    expect(describeEffect('scout', 'engine-2')).toContain('1,538 s');
+    expect(describeEffect('scout', 'engine-2')).toContain('2,000 s');
   });
 
   it('says how much more a Drill yields', () => {
@@ -222,13 +222,13 @@ describe('the preview before you pay', () => {
     expect(dv).toEqual({
       label: 'Δv',
       kind: 'delta-v',
-      before: '22.1 km/s',
-      after: '19.0 km/s',
-      change: 'Drops 3.1 km/s',
+      before: '28.8 km/s',
+      after: '24.7 km/s',
+      change: 'Drops 4.1 km/s',
       trend: 'down',
     });
     expect(preview?.note).toBe(
-      'Starts empty, so Δv drops. Filled up: 26.0\u00a0km/s, up from 22.1\u00a0km/s.',
+      'Starts empty, so Δv drops. Filled up: 33.8\u00a0km/s, up from 28.8\u00a0km/s.',
     );
   });
 

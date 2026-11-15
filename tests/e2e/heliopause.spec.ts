@@ -18,9 +18,10 @@ import { JUMP_FLAVOUR_TEXT } from '../../src/ui/jumpFlavour.ts';
 // Spec #15's way out, on one seed, by keyboard alone: the Heliopause says it needs a Jump Drive;
 // gather Materials on the first target, build the Jump Drive, target the Heliopause, Launch, reach
 // it, Jump to Star System 2 and Hop on from its Starting Moon. Re-pinned for #189 (was seed 35's
-// Tisquul): seed 1033's first target, Hytol Minor, pays for the Jump Drive (was seed 62's Sekus
-// before a Rocky opening stopped adding Materials over a New Run's).
-const SEED = 1033;
+// Tisquul). Re-pinned for #247 (was seed 62's Sekus): the Chassis Isp rose 30%, so seed 62's Run no
+// longer Crashes in System 2. Seed 28 opens on an Icy Moon, and its first target, Princol Nova,
+// yields 24 Materials: with the starting 25, enough for the Jump Drive (45).
+const SEED = 28;
 const run = startRun(SEED, 'scout');
 const rocky = firstDetectedBody(run.starSystem);
 const gathered = launchHop(run, rocky.id);

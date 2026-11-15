@@ -10,8 +10,9 @@ import {
 } from '../sim/index.ts';
 import { describeGathering } from './gathering.ts';
 
-const run = startRun(2026, 'scout');
-// The innermost planet's first Moon (seed 2026's is Icy), as the Home Planet's was before #189.
+const run = startRun(2046, 'scout');
+// The innermost planet's first Moon (seed 2046's is Icy), as the Home Planet's was before #189.
+// Re-pinned for #247 (was seed 2026): the Isp rise settles seed 2026 on another Star System.
 const moon = run.starSystem.planets[0]?.moons[0];
 if (!moon) throw new Error('The innermost planet has a Moon');
 const onMoon: Run = { ...run, status: { kind: 'landed', bodyId: moon.id } };
@@ -74,7 +75,7 @@ describe('the gathering moment', () => {
     };
     const launched = launchHop(onPlanet, moon.id);
     if (launched.kind !== 'flown' || launched.flight.collection?.kind !== 'fuel') {
-      throw new Error('seed 2026: the Hop to the first Moon should Arrive with Fuel');
+      throw new Error('seed 2046: the Hop to the first Moon should Arrive with Fuel');
     }
     const gathering = describeGathering(launched.run, launched.flight.collection);
     expect(gathering?.from).toBeCloseTo(launched.flight.fuelRemaining, 6);
