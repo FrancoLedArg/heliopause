@@ -8,6 +8,7 @@ import { repairState } from '../../ui/repairView.ts';
 import { hasAsset } from '../assets/manifest.ts';
 import { COMPONENTS, SLOT_COUNT, type Run } from '../sim/index.ts';
 import { glowTexture } from './flightEffects.ts';
+import { radarFlicker } from './flareWash.ts';
 import type { Rect } from './spacecraftComposition.ts';
 
 /** Presentation tuning (px and ms). */
@@ -151,7 +152,17 @@ export function createDamageMarks(scene: Scene, calm: boolean): DamageMarks {
         }
         const { cx, cy, radius, price } = ringGeometry(rect);
         const size = Math.max(rect.width, rect.height);
-        const breathe = calm ? 0.55 : 0.45 + 0.25 * Math.sin((ms / MARK.glowMs) * Math.PI);
+        const kind = (() => {
+          const id = run.spacecraft.slots[index];
+          return id === null || id === undefined ? undefined : COMPONENTS[id].kind;
+        })();
+        // A Radar a flare knocked out flickers dead (#253); every other Damage breathes.
+        const breathe =
+          kind === 'radar'
+            ? radarFlicker(ms, calm)
+            : calm
+              ? 0.55
+              : 0.45 + 0.25 * Math.sin((ms / MARK.glowMs) * Math.PI);
         slot.glow
           .setPosition(cx, cy)
           .setDisplaySize(size * MARK.glowScale, size * MARK.glowScale)
@@ -160,8 +171,7 @@ export function createDamageMarks(scene: Scene, calm: boolean): DamageMarks {
         slot.badge?.setPosition(rect.x + rect.width, rect.y).setVisible(true);
 
         // A leaking Tank vents Fuel off its top until the Repair is done (not under reduced motion).
-        const id = run.spacecraft.slots[index];
-        const leaking = id !== null && id !== undefined && COMPONENTS[id].kind === 'fuel-tank';
+        const leaking = kind === 'fuel-tank';
         slot.vent.setVisible(leaking && !calm);
         if (leaking && !calm) {
           slot.vent.setPosition(cx, rect.y + 2).setScale(MARK.ventScale);
