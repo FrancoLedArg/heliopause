@@ -77,11 +77,6 @@ export function kmPerSecondFigure(deltaV: MetersPerSecond): string {
   return (deltaV / 1000).toFixed(Math.abs(deltaV) < TWO_DECIMALS_BELOW ? 2 : 1);
 }
 
-/** Δv in whole m/s, so the Flight log's and the Hop report's Burns add up by eye. */
-export function formatPlanDeltaV(deltaV: MetersPerSecond): string {
-  return `${WHOLE.format(deltaV)} m/s`;
-}
-
 /** A probability (0 to 1) as a whole percent; never 100% unless certain, never 0% unless impossible. */
 export function formatPercent(probability: number): string {
   const percent = Math.round(probability * 100);

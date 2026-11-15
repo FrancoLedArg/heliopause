@@ -65,8 +65,9 @@ test('a Run Stranded on Landing goes straight to the End-of-Run screen, which sa
   await expect(end).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('end-of-run-why')).toHaveText(strandedVerdict.reason);
   // Every Hop of the fixture's path is flown, the last one Stranded on Landing.
-  await expect(page.getByTestId('end-of-run-score')).toHaveText(
-    `0 Star Systems escaped, ${String(STRANDED_ON_LANDING.path.length)} Hops flown`,
+  await expect(page.getByTestId('end-of-run-score')).toHaveAttribute(
+    'aria-label',
+    `Score: 0 Star Systems escaped, ${String(STRANDED_ON_LANDING.path.length)} Hops flown`,
   );
   // There was no failed Hop to report: no Hop report, and nothing to plan with.
   await expect(page.getByTestId('hop-report')).toHaveCount(0);
