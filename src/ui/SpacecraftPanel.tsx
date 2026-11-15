@@ -1,16 +1,13 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { EventBus } from '../game/EventBus.ts';
-import {
-  availableDeltaV,
-  COMPONENTS,
-  install,
-  remove,
-  type Run,
-  type Slot,
-} from '../game/sim/index.ts';
-import { chassisName, formatDeltaV, formatFuel, formatIsp } from './format.ts';
+import { imageUrl } from '../game/assets/manifest.ts';
+import { COMPONENTS, install, remove, type Run } from '../game/sim/index.ts';
+import { ComponentIcon } from './componentIcons/ComponentIcon.tsx';
+import { Disclosure, DisclosurePanel, TellMeMoreToggle } from './Disclosure.tsx';
+import { chassisName } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { SpacecraftPicture } from './SpacecraftPicture.tsx';
 import {
   componentLabel,
   describePreview,
@@ -18,30 +15,22 @@ import {
   describeRemoval,
   describeRemoveRefusal,
   installTarget,
-  massBar,
   panelRows,
+  statBars,
   type PanelRow,
+  type StatBar,
 } from './spacecraftPanelView.ts';
 import './SpacecraftPanel.css';
 
 const PANEL = { x: 8, y: 52, width: 624, height: 292 } as const;
 const TITLEBAR_HEIGHT = 14;
-const SLOT_SIZE = 36;
-
-/**
- * The gap between Slots (px): up to five sit 8 px apart, the Hauler's six 2 px apart, so every
- * Chassis's Slots fit the column at 640×360 (the kit's Slot frames have one size).
- */
-function slotGap(count: number): number {
-  return count > 5 ? 2 : 8;
-}
-const MASS_BAR_WIDTH = 220;
 const REMOVE_WIDTH = 56;
-const SLOT_CODES = {
-  engine: 'ENG',
-  'fuel-tank': 'TANK',
-  drill: 'DRL',
-  'jump-drive': 'JUMP',
+const INSTALL_WIDTH = 56;
+/** Each stat's figure carries a test id the panel's tests and the e2e specs read. */
+const STAT_TEST_IDS = {
+  mass: 'dry-mass',
+  fuel: 'fuel-capacity',
+  'delta-v': 'panel-delta-v',
 } as const;
 
 /** What the last install or removal attempt said; `undefined` before the first one. */
@@ -57,11 +46,11 @@ interface SpacecraftPanelProps {
 }
 
 /**
- * The Spacecraft panel: its Chassis's Slots (the Scout 4, the Lancer 5, the Hauler 6), the Mass bar and figures, and the catalogue, where each
- * Component can be installed by paying its Materials and the one in the chosen Slot removed for
- * half its cost back (after a yes or no). Before the player pays or confirms, a preview shows the
- * dry mass, Fuel capacity and Δv the change would give, for the catalogue entry they focus or hover
- * and for the installed Component they choose. Modal: it covers the Landed view, takes Tab, and
+ * The Spacecraft panel: a picture of the Spacecraft with a callout per Slot, bars for its dry mass,
+ * Fuel capacity and Δv, and the catalogue, where each Component can be installed by paying its
+ * Materials and the one in the chosen Slot removed for half its cost back (after a yes or no). Before
+ * the player pays or confirms, the bars show before and after: what the change would give, for the
+ * catalogue entry they focus or hover and for the installed Component they choose. Modal: it covers the Landed view, takes Tab, and
  * closes on Escape (which first answers an open remove question with no). Installing and removing
  * send the request to the Landed scene, which owns the Run and answers with the changed Run, so the
  * Hop plan and the top bar follow at once.
@@ -84,6 +73,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   const removeRef = useRef<HTMLButtonElement>(null);
   const keepRef = useRef<HTMLButtonElement>(null);
   const slotRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const slotCount = spacecraft.slots.length;
   const panelRef = useRef<HTMLElement>(null);
 
   // The panel opens with focus on the selected Slot.
@@ -143,8 +133,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
     if (step === undefined) return;
     event.preventDefault();
-    const count = spacecraft.slots.length;
-    selectSlot((selected + step + count) % count);
+    selectSlot((selected + step + slotCount) % slotCount);
   };
 
   const tryInstall = (row: PanelRow): void => {
@@ -205,7 +194,6 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   const target = installTarget(spacecraft.slots, selected);
   const removal = held === null ? undefined : remove(run, selected);
   const pending = confirming === selected ? removal : undefined;
-  const bar = massBar(spacecraft);
   // The chosen Slot's Component is previewed as removed (or why it cannot be); otherwise the
   // catalogue entry as installed.
   // An open remove question keeps its preview: focusing the catalogue does not switch it.
@@ -215,19 +203,18 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   const blocked = previewingRemoval
     ? undefined
     : rows.find((row) => row.id === focusedId)?.unavailable;
-  const forecast =
+  const change =
     (previewingRemoval && removal.kind === 'refused') || blocked !== undefined
       ? undefined
-      : describePreview(
-          spacecraft,
-          previewingRemoval
-            ? { kind: 'remove', slot: selected }
-            : {
-                kind: 'install',
-                component: focusedId,
-                ...(target === undefined ? {} : { slot: target }),
-              },
-        );
+      : previewingRemoval
+        ? ({ kind: 'remove', slot: selected } as const)
+        : ({
+            kind: 'install',
+            component: focusedId,
+            ...(target === undefined ? {} : { slot: target }),
+          } as const);
+  const forecast = change && describePreview(spacecraft, change);
+  const bars = statBars(spacecraft, forecast ? change : undefined);
   const noForecast =
     previewingRemoval && removal.kind === 'refused'
       ? describeRemoveRefusal(removal.reason)
@@ -253,30 +240,17 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
       </div>
 
       <div className="spacecraft-panel__left">
-        <h2 className="spacecraft-panel__label">Slots</h2>
-        <div
-          className="spacecraft-panel__slots"
-          style={{ gap: slotGap(spacecraft.slots.length) }}
-          role="radiogroup"
-          aria-label="Slots"
-          aria-describedby={keysId}
+        <SpacecraftPicture
+          chassisId={spacecraft.chassisId}
+          slots={spacecraft.slots}
+          selected={selected}
+          onSelect={choose}
+          slotRef={(index, el) => {
+            slotRefs.current[index] = el;
+          }}
           onKeyDown={onSlotKey}
-        >
-          {spacecraft.slots.map((slot, index) => (
-            <SlotButton
-              key={index}
-              index={index}
-              slot={slot}
-              selected={index === selected}
-              buttonRef={(el) => {
-                slotRefs.current[index] = el;
-              }}
-              onSelect={() => {
-                choose(index);
-              }}
-            />
-          ))}
-        </div>
+          describedBy={keysId}
+        />
         <KitButton
           ref={removeRef}
           width={REMOVE_WIDTH}
@@ -287,10 +261,10 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
           Remove
         </KitButton>
         <p id={keysId} className="sr-only">
-          Left and Right arrow keys choose a Slot. Tab moves on to Remove, then the Components.
-          Escape closes.
+          Left and Right arrow keys choose a Slot. Tab moves on to Remove and the Components. Escape
+          closes.
         </p>
-        <p id={captionId} className="spacecraft-panel__slot-caption" data-testid="slot-caption">
+        <p id={captionId} className="sr-only" data-testid="slot-caption">
           {held === null
             ? `Slot ${String(selected + 1)} is empty.`
             : `Slot ${String(selected + 1)}: ${componentLabel(held)}.`}
@@ -327,73 +301,35 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
           </div>
         )}
 
-        <div
-          className="spacecraft-panel__mass"
-          role="meter"
-          aria-label="Dry mass"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={Math.round(bar.fraction * 100)}
-          aria-valuetext={bar.label}
-        >
-          <p className="spacecraft-panel__mass-label" data-testid="mass-label">
-            {bar.label}
-          </p>
-          <div className="spacecraft-panel__bar" style={{ width: MASS_BAR_WIDTH }}>
-            <KitFrame frame="bar_frame" width={MASS_BAR_WIDTH} height={10} />
-            <KitFrame
-              frame="bar_fill_cy"
-              width={Math.max(4, Math.round((MASS_BAR_WIDTH - 4) * bar.fraction))}
-              height={6}
-              className="spacecraft-panel__bar-fill"
-            />
-          </div>
-        </div>
-
-        <dl className="spacecraft-panel__figures">
-          <dt>Fuel capacity</dt>
-          <dd data-testid="fuel-capacity">{formatFuel(spacecraft.fuelCapacity)}</dd>
-          <dt>Isp</dt>
-          <dd data-testid="isp">
-            {spacecraft.engineIsp > 0 ? formatIsp(spacecraft.engineIsp) : 'No Engine'}
-          </dd>
-          <dt>Δv available</dt>
-          <dd data-testid="panel-delta-v">{formatDeltaV(availableDeltaV(spacecraft))}</dd>
-        </dl>
-
         <div className="spacecraft-panel__preview" data-testid="install-preview">
-          {forecast ? (
-            <>
-              <h2 className="spacecraft-panel__label">{forecast.heading}</h2>
-              <dl className="spacecraft-panel__forecast">
-                {forecast.lines.map((line) => (
-                  <div
-                    key={line.label}
-                    className={`spacecraft-panel__forecast-line spacecraft-panel__forecast-line--${line.trend}`}
-                    data-testid="preview-line"
-                  >
-                    <dt>{line.label}</dt>
-                    <dd>
-                      <span>
-                        {line.before} → {line.after}
-                      </span>
-                      <span
-                        className={
-                          line.kind === 'delta-v'
-                            ? `spacecraft-panel__change spacecraft-panel__change--${line.trend}`
-                            : 'spacecraft-panel__change'
-                        }
-                      >
-                        {line.kind === 'delta-v' ? line.change : `(${line.change})`}
-                      </span>
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-              <p className="spacecraft-panel__note">{forecast.note}</p>
-            </>
-          ) : (
-            <p className="spacecraft-panel__note spacecraft-panel__note--first">{noForecast}</p>
+          {forecast && <h2 className="spacecraft-panel__label">{forecast.heading}</h2>}
+          <div className="spacecraft-panel__stats">
+            {bars.map((bar) => (
+              <StatRow key={bar.kind} bar={bar} />
+            ))}
+          </div>
+          <p
+            className={
+              forecast
+                ? 'spacecraft-panel__note'
+                : 'spacecraft-panel__note spacecraft-panel__note--long'
+            }
+            data-testid="preview-note"
+          >
+            {forecast ? forecast.note : noForecast}
+          </p>
+          {forecast && forecast.more.length > 0 && (
+            // Keyed by the change, so each new preview starts with its lesson closed.
+            <Disclosure key={forecast.heading}>
+              <TellMeMoreToggle className="spacecraft-panel__more" />
+              <DisclosurePanel className="spacecraft-panel__details">
+                <div data-testid="preview-more">
+                  {forecast.more.map((line) => (
+                    <p key={line}>{line}</p>
+                  ))}
+                </div>
+              </DisclosurePanel>
+            </Disclosure>
           )}
         </div>
       </div>
@@ -424,10 +360,23 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                 setPreviewing('catalogue');
               }}
             >
+              <ComponentIcon
+                kind={COMPONENTS[row.id].kind}
+                className="spacecraft-panel__row-icon"
+              />
               <p className="spacecraft-panel__row-head">
                 <span className="spacecraft-panel__row-name">{row.title}</span>
-                <span className="spacecraft-panel__row-stats">
-                  {row.mass} · {row.cost}
+                <span className="spacecraft-panel__row-stats">{row.mass}</span>
+                <span className="spacecraft-panel__row-cost">
+                  <img
+                    src={imageUrl('res_materials')}
+                    alt=""
+                    width={8}
+                    height={8}
+                    className="spacecraft-panel__row-cost-icon"
+                  />
+                  {row.costAmount}
+                  <span className="sr-only"> Materials</span>
                 </span>
                 {!row.affordable && row.unavailable === undefined && (
                   <span className="spacecraft-panel__row-tag">
@@ -444,7 +393,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                 {row.unavailable ?? row.effect}
               </p>
               <KitButton
-                width={64}
+                width={INSTALL_WIDTH}
                 className="spacecraft-panel__install"
                 aria-label={`Install ${componentLabel(row.id)}, ${row.mass}, ${row.cost}`}
                 aria-describedby={`${titleId}-effect-${row.id}`}
@@ -488,38 +437,55 @@ function firstAffordable(rows: readonly PanelRow[]): PanelRow['id'] {
   return first.id;
 }
 
-interface SlotButtonProps {
-  index: number;
-  slot: Slot;
-  selected: boolean;
-  buttonRef: (el: HTMLButtonElement | null) => void;
-  onSelect: () => void;
-}
-
-/** One Slot in the kit's frames: empty, hover and selected. Its text says what it holds. */
-function SlotButton({ index, slot, selected, buttonRef, onSelect }: SlotButtonProps) {
-  const held = slot ?? undefined;
-  const code =
-    held === undefined
-      ? '—'
-      : `${SLOT_CODES[COMPONENTS[held].kind]}${COMPONENTS[held].kind === 'jump-drive' ? '' : String(COMPONENTS[held].level)}`;
+/**
+ * One stat as a bar with its figure. While a change is previewed, the bar shows before and after: the
+ * figure now above, the figure after it below, the stretch between them marked as a gain or a loss,
+ * and the change as a signed number. Its name says all of that in words.
+ */
+function StatRow({ bar }: { bar: StatBar }) {
+  const { after } = bar;
+  const percent = (share: number): string => `${String(Math.round(share * 1000) / 10)}%`;
+  const classes = ['stat-bar', `stat-bar--${bar.kind}`, after ? 'stat-bar--preview' : '']
+    .filter(Boolean)
+    .join(' ');
   return (
-    <button
-      ref={buttonRef}
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      aria-label={`Slot ${String(index + 1)}, ${held === undefined ? 'empty' : componentLabel(held)}`}
-      tabIndex={selected ? 0 : -1}
-      className={selected ? 'slot-button slot-button--selected' : 'slot-button'}
-      style={{ width: SLOT_SIZE, height: SLOT_SIZE }}
-      onClick={onSelect}
+    <div
+      className={classes}
+      data-testid={after ? 'preview-line' : 'stat-line'}
+      data-stat={bar.kind}
     >
-      <KitFrame frame="slot_empty" className="slot-button__face slot-button__face--empty" />
-      <KitFrame frame="slot_hover" className="slot-button__face slot-button__face--hover" />
-      <KitFrame frame="slot_selected" className="slot-button__face slot-button__face--selected" />
-      <span className="slot-button__code">{code}</span>
-      <span className="slot-button__number">{index + 1}</span>
-    </button>
+      <span className="stat-bar__label" aria-hidden="true">
+        {bar.label}
+      </span>
+      <span className="stat-bar__figures" aria-hidden="true">
+        <span data-testid={STAT_TEST_IDS[bar.kind]}>{bar.value}</span>
+        {after && <span className="stat-bar__then">{` → ${after.value}`}</span>}
+      </span>
+      <span className="stat-bar__track" role="img" aria-label={bar.name}>
+        <span className="stat-bar__now" style={{ width: percent(bar.share) }} />
+        {after && (
+          <>
+            <span className="stat-bar__after" style={{ width: percent(after.share) }} />
+            {after.trend !== 'same' && (
+              <span
+                className={`stat-bar__delta stat-bar__delta--${after.good ? 'good' : 'bad'}`}
+                style={{
+                  left: percent(Math.min(bar.share, after.share)),
+                  width: percent(Math.abs(after.share - bar.share)),
+                }}
+              />
+            )}
+          </>
+        )}
+      </span>
+      {after && (
+        <span
+          className={`stat-bar__change stat-bar__change--${after.trend === 'same' ? 'same' : after.good ? 'good' : 'bad'}`}
+          aria-hidden="true"
+        >
+          {after.change}
+        </span>
+      )}
+    </div>
   );
 }
