@@ -4,7 +4,14 @@ import { hasAsset } from '../assets/manifest.ts';
 import { EventBus } from '../EventBus.ts';
 import { prefersReducedMotion } from '../lib/motion.ts';
 import { createRng } from '../lib/rng.ts';
-import { findBody, type BodyId, type Burn, type HopFlight, type Run } from '../sim/index.ts';
+import {
+  CHASSIS_IDS,
+  findBody,
+  type BodyId,
+  type Burn,
+  type HopFlight,
+  type Run,
+} from '../sim/index.ts';
 import {
   FAST_FORWARD,
   flightPlayback,
@@ -16,11 +23,23 @@ import { anchorFx } from './groundAnchor.ts';
 import { createFlightEffects, type FlightEffects } from './flightEffects.ts';
 import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
-import { bodySprite, SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
+import { bodySprite, SCREEN_WIDTH, SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
 import { buildLandscape, type LandscapeLayers } from './landscape.ts';
 import { onLeaveRun } from './leaveRun.ts';
-import { FLIGHT_ANGLE, mainExit, turn, type Point } from './chassisArt.ts';
-import { addSpacecraftArt, shadowWidth, type ShipFrame } from './spacecraftArt.ts';
+import {
+  FLIGHT_ANGLE,
+  frameGeometry,
+  turn,
+  type NozzleKind,
+  type Point,
+  type ShipPose,
+} from './chassisArt.ts';
+import {
+  addSpacecraftArt,
+  shadowWidth,
+  spacecraftNozzles,
+  type ShipFrame,
+} from './spacecraftArt.ts';
 import { addStarfield } from './starfield.ts';
 
 export interface FlightData {
@@ -33,18 +52,30 @@ export interface FlightData {
 }
 
 /**
- * Where the plumes leave the hull, from the centre of the Spacecraft's base. Each is one plume at the
- * main engine for now; the nozzle data lists every nozzle (side propulsors too) for per-nozzle plumes.
+ * Which way each pose's plumes point, clockwise from straight down: the standing ship fires down for
+ * Takeoff and Landing; the `flight` frame is turned by the flight angle, so the boost and the
+ * Transfer fire back along the heading.
  */
-interface Nozzles {
-  /** The hover thrust of Takeoff and Landing, firing down from the standing ship. */
-  readonly hover: Point;
-  /** The boost and the Transfer, firing back from the `flight` frame along the flight heading. */
-  readonly rear: Point;
+const PLUME_ANGLE: Readonly<Record<ShipPose, number>> = { standing: 0, flight: FLIGHT_ANGLE };
+/**
+ * How big each nozzle's plume is, as a share of the plume art (16x24): as wide as a nozzle bell, so
+ * the main engine's cluster shows one flame per nozzle; the side propulsors' flames are shorter
+ * (presentation tuning).
+ */
+const PLUME_SCALE: Readonly<
+  Record<NozzleKind, { readonly width: number; readonly length: number }>
+> = {
+  main: { width: 0.5, length: 1 },
+  side: { width: 0.5, length: 0.8 },
+};
+/** The stand-in flame (until `fx_thruster` is in the manifest) is drawn at this scale. */
+const STAND_IN_FLAME_SCALE = 2;
+
+/** One nozzle's flame, in the ship's container at its exit. */
+interface Plume {
+  readonly image: GameObjects.Image;
+  readonly kind: NozzleKind;
 }
-const STAND_IN_NOZZLES: Nozzles = { hover: { x: 0, y: -2 }, rear: { x: -18, y: -12 } };
-/** The `flight` frame is turned by the flight angle, so its rearward plume points that far clockwise from straight down. */
-const REAR_PLUME_ANGLE = FLIGHT_ANGLE;
 
 /** How the landscape moves as the camera climbs: the sky barely, the ground fully. */
 const SCROLL_FACTOR = { sky: 0.12, ground: 1 } as const;
@@ -56,11 +87,28 @@ const LIFT = { at: 0.1, height: 220 } as const;
 const TILT = { from: 0.58, to: 0.7 } as const;
 /** How far (px) the boost carries the Spacecraft right and up by the end of the Takeoff. */
 const BOOST = { x: 300, y: 210 } as const;
-/** Where the boost leaves the Spacecraft on screen: the camera trails it by `1 - FOLLOW`. */
+/** Layout tuning: the open sky kept between the flying Spacecraft's nose and the right edge (px). */
+const NOSE_MARGIN = 8;
+/** How far the flight frame reaches right of the centre of the base: the longest Chassis' nose (px). */
+const FLIGHT_REACH = Math.max(
+  ...CHASSIS_IDS.map((id) => {
+    const { width, pivot } = frameGeometry(id, 'flight');
+    return width - pivot.x;
+  }),
+);
+/**
+ * Where the boost leaves the Spacecraft on screen: high, as the camera trails it by `1 - FOLLOW`, and
+ * far enough left that the whole flight frame, nose first, stays on screen.
+ */
 const BOOST_EXIT = {
-  x: SHIP_PLACEMENT.x + BOOST.x * (1 - FOLLOW),
+  x: SCREEN_WIDTH - NOSE_MARGIN - FLIGHT_REACH,
   y: SHIP_PLACEMENT.baseY - (LIFT.height + BOOST.y) * (1 - FOLLOW),
 } as const;
+/**
+ * From the tilt on, the camera runs ahead of its trailing follow by up to this much (px), so the
+ * Spacecraft ends the boost at `BOOST_EXIT` rather than off the right edge.
+ */
+const BOOST_LEAD = SHIP_PLACEMENT.x + BOOST.x * (1 - FOLLOW) - BOOST_EXIT.x;
 /**
  * The share of the Transfer over which the camera catches up with the Spacecraft. Long, and onto a
  * line that starts near where the boost left it, so the catch-up reads as a calm drift, not a pan.
@@ -122,12 +170,11 @@ export class Flight extends Scene {
   private finished = false;
   /** The pooled particles; none under reduced motion. */
   private fx: FlightEffects | undefined;
-  private nozzles!: Nozzles;
   /** Where the playback is (ms from Launch). */
   playbackMs = 0;
 
-  /** The dust colour of the departure and arrival grounds. */
-  private dustColors!: Readonly<Record<'departure' | 'arrival', PaletteColor>>;
+  /** The colour of the dust and smoke puffs on the departure and arrival grounds. */
+  private puffColors!: Readonly<Record<'departure' | 'arrival', PaletteColor>>;
   /** The departure and arrival landscapes; tests read where the arrival ground sits. */
   layers!: Readonly<Record<'departure' | 'arrival', LandscapeLayers>>;
   private fxScroll: number = FX_SCROLL_FACTOR.departure;
@@ -137,8 +184,8 @@ export class Flight extends Scene {
   /** The Spacecraft with its plumes; tests read where it rests. */
   ship!: GameObjects.Container;
   private shipArt!: (frame: ShipFrame) => void;
-  private hoverPlume!: GameObjects.Image;
-  private rearPlume!: GameObjects.Image;
+  /** One plume per nozzle in each pose: down from the standing ship, back along the heading in flight. */
+  private plumes!: Readonly<Record<ShipPose, readonly Plume[]>>;
   private shadow!: GameObjects.Ellipse;
   /** The Transfer's departure and target Bodies; tests check the HUD never hides them. */
   fromBody!: GameObjects.Image;
@@ -173,15 +220,15 @@ export class Flight extends Scene {
     this.pace = prefersReducedMotion() ? 'reduced' : 'full';
     this.playback = flightPlayback(this.before.spacecraft, this.flight, this.pace);
 
-    const { layers: departure, puffColor: departureDust } = this.buildGround(this.before);
+    const { layers: departure, puffColor: departurePuff } = this.buildGround(this.before);
     // The target's sky as seen from its own surface: where the Spacecraft is about to stand.
     const atTarget: Run = {
       ...this.before,
       status: { kind: 'landed', bodyId: this.flight.plan.toId },
     };
-    const { layers: arrival, puffColor: arrivalDust } = this.buildGround(atTarget);
+    const { layers: arrival, puffColor: arrivalPuff } = this.buildGround(atTarget);
     this.layers = { departure, arrival };
-    this.dustColors = { departure: departureDust, arrival: arrivalDust };
+    this.puffColors = { departure: departurePuff, arrival: arrivalPuff };
     const space = this.buildSpace();
     this.shadow = this.add.ellipse(
       SHIP_PLACEMENT.x,
@@ -270,7 +317,8 @@ export class Flight extends Scene {
   private takeoff(progress: number, thrusting: boolean, aftermath: number): void {
     const base = SHIP_PLACEMENT.baseY;
     const rise = smooth((progress - LIFT.at) / (TILT.from - LIFT.at));
-    const tilt = clamp01((progress - TILT.from) / (TILT.to - TILT.from));
+    // The tilt eases in and out, so the turn starts and settles gently.
+    const tilt = smooth((progress - TILT.from) / (TILT.to - TILT.from));
     const boost = clamp01((progress - TILT.to) / (1 - TILT.to)) ** 2;
     let x = SHIP_PLACEMENT.x + BOOST.x * boost;
     let y = base - LIFT.height * rise - BOOST.y * boost;
@@ -286,10 +334,13 @@ export class Flight extends Scene {
     const angle = flying ? -FLIGHT_ANGLE * (1 - tilt) : FLIGHT_ANGLE * tilt;
     this.ship.setPosition(x, y).setAngle(angle);
     this.thrust(thrusting && !flying, thrusting && flying, 1 + 0.4 * (rise > 0 ? 1 : 0));
-    this.follow(x, y);
+    // As it turns toward its heading the camera starts to run ahead (quickly at first, then
+    // settling), framing the long flight pose: it is still high above the ground, out of view.
+    const ahead = clamp01((progress - TILT.from) / (1 - TILT.from));
+    this.follow(x, y, BOOST_LEAD * (1 - (1 - ahead) ** 2));
     this.shadow.setAlpha(0.45 * (1 - clamp01((base - y) / 80)));
     this.groundFx(thrusting && !flying, x, y);
-    this.fx?.exhaust(thrusting && flying, this.rearNozzle(x, y, angle));
+    this.fx?.exhaust(thrusting && flying, this.flightNozzles(x, y, angle));
     if (progress > LIFT.at && thrusting) this.shake('liftoff', 380, 0.004);
   }
 
@@ -305,7 +356,7 @@ export class Flight extends Scene {
     this.shipArt('flight');
     this.ship.setPosition(x, y).setAngle(0);
     this.thrust(false, thrusting, 1);
-    this.fx?.exhaust(thrusting, this.rearNozzle(x, y, 0));
+    this.fx?.exhaust(thrusting, this.flightNozzles(x, y, 0));
     // Behind, the departure Body shrinks away toward the left edge; ahead, the target grows. Both
     // stay in the open sky, clear of the HUD (phase strip above, flight log and Fuel below left).
     const recede = smooth(progress);
@@ -350,8 +401,9 @@ export class Flight extends Scene {
     this.shipArt('landed');
     this.ship.setPosition(x, y).setAngle(angle);
     this.thrust(thrusting, false, 1.4);
-    this.groundFx(thrusting, x, y);
     this.follow(SHIP_PLACEMENT.x, y);
+    // After the camera has moved: the puffs are anchored from its scroll.
+    this.groundFx(thrusting, x, y);
     this.shadow.setAlpha(0.45 * (1 - clamp01((base - y) / 80)));
   }
 
@@ -364,31 +416,44 @@ export class Flight extends Scene {
     );
   }
 
-  /** The rear nozzle in the world, for a Spacecraft whose base is at (`x`, `y`) and turned `angle` degrees. */
-  private rearNozzle(x: number, y: number, angle: number): Point {
-    const at = turn(this.nozzles.rear, angle);
-    return { x: x + at.x, y: y + at.y };
+  /** The flight frame's nozzle exits in the world, for a Spacecraft whose base is at (`x`, `y`) and turned `angle` degrees. */
+  private flightNozzles(x: number, y: number, angle: number): Point[] {
+    return this.plumes.flight.map(({ image }) => {
+      const at = turn({ x: image.x, y: image.y }, angle);
+      return { x: x + at.x, y: y + at.y };
+    });
   }
 
-  /** The camera rides with the Spacecraft, a step behind, so the ground falls away below it. */
-  private follow(x: number, y: number): void {
+  /** The camera rides with the Spacecraft, a step behind (or `lead` px ahead of that), so the ground falls away below it. */
+  private follow(x: number, y: number, lead = 0): void {
     this.cameras.main.setScroll(
-      Math.round((x - SHIP_PLACEMENT.x) * FOLLOW),
+      Math.round((x - SHIP_PLACEMENT.x) * FOLLOW + lead),
       Math.round((y - SHIP_PLACEMENT.baseY) * FOLLOW),
     );
   }
 
+  /** Fires every nozzle of the standing pose (down) or of the flight pose (rearward); `hoverScale` lengthens the downward flames. */
   private thrust(hover: boolean, rear: boolean, hoverScale: number): void {
-    this.hoverPlume.setVisible(hover).setScale(hoverScale);
-    this.rearPlume.setVisible(rear);
+    for (const plume of this.plumes.standing) this.firePlume(plume, hover, hoverScale);
+    for (const plume of this.plumes.flight) this.firePlume(plume, rear, 1);
+  }
+
+  private firePlume({ image, kind }: Plume, on: boolean, stretch: number): void {
+    const { width, length } = PLUME_SCALE[kind];
+    image.setVisible(on);
+    if (hasAsset('fx_thruster')) image.setScale(width, length * stretch);
+    // The stand-in flame points left: its length runs along x.
+    else image.setScale(STAND_IN_FLAME_SCALE * length * stretch, STAND_IN_FLAME_SCALE);
   }
 
   /** The plume flickers through its frames; stepped from the clock so a seek shows a fixed frame. */
   private flicker(ms: number): void {
     if (!hasAsset('fx_thruster')) return;
-    const frame = `flicker_${String(Math.floor(ms / 70) % 3)}`;
-    this.hoverPlume.setFrame(frame);
-    this.rearPlume.setFrame(frame);
+    const tick = Math.floor(ms / 70);
+    // Neighbouring nozzles flicker out of step, so the cluster does not pulse as one flame.
+    for (const plumes of [this.plumes.standing, this.plumes.flight]) {
+      plumes.forEach(({ image }, i) => image.setFrame(`flicker_${String((tick + i) % 3)}`));
+    }
   }
 
   private shake(key: string, duration: number, intensity: number): void {
@@ -405,7 +470,7 @@ export class Flight extends Scene {
       this.cameras.main.fadeIn(STAGE_FADE_MS);
     }
     if (this.stage !== stage && stage !== 'space') {
-      this.fx?.setSurface(this.dustColors[stage]);
+      this.fx?.setSurface(this.puffColors[stage]);
       this.fxScroll = FX_SCROLL_FACTOR[stage];
       this.fx?.setScrollFactor(this.fxScroll);
     }
@@ -568,27 +633,26 @@ export class Flight extends Scene {
 
   private buildShip(): void {
     const { chassisId } = this.before.spacecraft;
-    const art = hasAsset(`chassis_${chassisId}`);
-    const nozzles: Nozzles = art
-      ? { hover: mainExit(chassisId, 'standing'), rear: mainExit(chassisId, 'flight') }
-      : STAND_IN_NOZZLES;
-    this.nozzles = nozzles;
-    const plume = (at: Point, angle: number): GameObjects.Image =>
-      hasAsset('fx_thruster')
-        ? this.add.image(at.x, at.y, 'fx_thruster', 'flicker_0').setOrigin(0.5, 0).setAngle(angle)
-        : this.add
-            .image(at.x, at.y, 'spacecraft_flame')
-            .setOrigin(1, 0.5)
-            .setScale(2)
-            // The stand-in flame points left, the plume art points down.
-            .setAngle(angle - 90);
-    this.hoverPlume = plume(nozzles.hover, 0);
-    this.rearPlume = plume(nozzles.rear, REAR_PLUME_ANGLE);
+    const plumes = (pose: ShipPose): Plume[] =>
+      spacecraftNozzles(chassisId, pose).map(({ kind, exit }) => ({
+        kind,
+        image: hasAsset('fx_thruster')
+          ? this.add
+              .image(exit.x, exit.y, 'fx_thruster', 'flicker_0')
+              .setOrigin(0.5, 0)
+              .setAngle(PLUME_ANGLE[pose])
+          : this.add
+              .image(exit.x, exit.y, 'spacecraft_flame')
+              .setOrigin(1, 0.5)
+              // The stand-in flame points left, the plume art points down.
+              .setAngle(PLUME_ANGLE[pose] - 90),
+      }));
+    this.plumes = { standing: plumes('standing'), flight: plumes('flight') };
     const ship = addSpacecraftArt(this, chassisId);
     this.shipArt = ship.show;
     this.ship = this.add.container(SHIP_PLACEMENT.x, SHIP_PLACEMENT.baseY, [
-      this.hoverPlume,
-      this.rearPlume,
+      ...this.plumes.standing.map((plume) => plume.image),
+      ...this.plumes.flight.map((plume) => plume.image),
       ...ship.objects,
     ]);
   }

@@ -9,7 +9,7 @@ import type { NavChartData } from './NavChart.ts';
 import { createLandedAmbient, type LandedAmbient } from './landedAmbient.ts';
 import { buildLandscape, LAYER_X, SKY_X } from './landscape.ts';
 import { onLeaveRun } from './leaveRun.ts';
-import { addSpacecraftArt, shadowWidth } from './spacecraftArt.ts';
+import { addSpacecraftArt, shadowWidth, spacecraftNozzles } from './spacecraftArt.ts';
 
 export interface LandedData {
   /** The Run to show: the Spacecraft landed on its current Body. */
@@ -100,6 +100,9 @@ export class Landed extends Scene {
       rest: { sky: SKY_X, layer: LAYER_X, ship: SHIP_PLACEMENT.x },
       starfield: landscape.starfield,
       setShipLights: ship.setLights,
+      nozzles: spacecraftNozzles(this.run.spacecraft.chassisId, 'standing').map(
+        (nozzle) => nozzle.exit,
+      ),
       dustColor: landscape.dustColor,
       seed: this.run.seed,
     });
