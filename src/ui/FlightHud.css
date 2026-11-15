@@ -2,7 +2,6 @@
 
 .phase-strip,
 .flight-log,
-.fuel-gauge,
 .route-inset,
 .fast-forward {
   position: absolute;
@@ -10,7 +9,6 @@
 
 .phase-strip > .kit-frame:first-child,
 .flight-log > .kit-frame:first-child,
-.fuel-gauge > .kit-frame:first-child,
 .route-inset > .kit-frame:first-child {
   position: absolute;
   inset: 0;
@@ -74,10 +72,10 @@
 }
 
 .flight-log {
-  top: 212px;
+  top: 282px;
   left: 8px;
-  width: 300px;
-  height: 78px;
+  width: 256px;
+  height: 56px;
 }
 
 .game-ui .flight-log__title {
@@ -90,11 +88,46 @@
   color: var(--gm5);
 }
 
-.flight-log__table {
+.flight-log__value {
   position: absolute;
-  top: 20px;
+  top: 5px;
+  right: 12px;
+  margin: 0;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--cy3);
+}
+
+.flight-log__bar {
+  position: absolute;
+  top: 22px;
   left: 12px;
-  width: 276px;
+  width: 232px;
+}
+
+.flight-log__more {
+  position: absolute;
+  top: 36px;
+  left: 10px;
+}
+
+/* The exact table opens upward from the panel, over the empty left of the stage. */
+.flight-log__details {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 0;
+  width: 256px;
+  box-sizing: border-box;
+  padding: 6px 12px;
+  background: color-mix(in srgb, var(--gm0) 92%, transparent);
+  border: 1px solid var(--gm3);
+}
+
+.flight-log__details[hidden] {
+  display: none;
+}
+
+.flight-log__table {
+  width: 100%;
   border-collapse: collapse;
   font: 14px/12px var(--font-pixel-body);
   color: var(--gm6);
@@ -135,55 +168,6 @@
 
 .flight-log__row--waiting {
   color: var(--gm5);
-}
-
-.fuel-gauge {
-  top: 294px;
-  left: 8px;
-  width: 256px;
-  height: 44px;
-}
-
-.fuel-gauge__icon {
-  position: absolute;
-  top: 7px;
-  left: 8px;
-}
-
-.fuel-gauge__label {
-  position: absolute;
-  top: 11px;
-  left: 46px;
-  font: 8px/8px var(--font-pixel);
-  text-transform: uppercase;
-  color: var(--gm5);
-}
-
-.fuel-gauge__value {
-  position: absolute;
-  top: 7px;
-  right: 20px;
-  font: 16px/14px var(--font-pixel-body);
-  color: var(--am3);
-}
-
-.fuel-gauge__bar {
-  position: absolute;
-  top: 24px;
-  left: 46px;
-  width: 190px;
-  height: 10px;
-}
-
-.fuel-gauge__bar > .kit-frame {
-  position: absolute;
-  top: 0;
-  left: 0;
-}
-
-.fuel-gauge__bar > .fuel-gauge__fill {
-  top: 2px;
-  left: 2px;
 }
 
 /* Route inset and fast-forward: bottom middle, clear of the Spacecraft at the right and the log and Fuel at the left. */

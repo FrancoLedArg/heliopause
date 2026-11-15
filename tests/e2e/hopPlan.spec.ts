@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { FAST_CRUISE } from './cruise.ts';
 import { waitForOpening } from './opening.ts';
 import { firstDetectedBody, startRun } from '../../src/game/sim/index.ts';
 
@@ -13,7 +14,8 @@ const FAR = 'Korxel';
 const NEAR = 'Xylxen';
 
 async function openNavChart(page: Page, chassis = 'scout'): Promise<void> {
-  await page.goto(`/?seed=${String(SEED)}&chassis=${chassis}`);
+  // The fast Cruise (#246): two tests fly the first Hop before the far Body is known (#189).
+  await page.goto(`/?seed=${String(SEED)}&chassis=${chassis}&${FAST_CRUISE}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await waitForOpening(page);
   await page.getByRole('button', { name: /Nav Chart/ }).click();

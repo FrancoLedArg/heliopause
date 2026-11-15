@@ -245,9 +245,13 @@ test('a Run that escaped a Star System ends in the next one with its Score, and 
   await expect(outcome).toBeVisible({ timeout: 30_000 });
   await expect(outcome.getByRole('button', { name: 'Continue' })).toBeFocused();
   await page.keyboard.press('Enter');
-  await expect(outcome.getByTestId('end-of-run-score')).toHaveText(formatScore(finalScore));
-  await expect(outcome.getByTestId('end-of-run-best')).toContainText(
-    `${formatScore(finalScore)} (new Best Score)`,
+  await expect(outcome.getByTestId('end-of-run-score')).toHaveAttribute(
+    'aria-label',
+    `Score: ${formatScore(finalScore)}`,
+  );
+  await expect(outcome.getByTestId('end-of-run-best')).toHaveAttribute(
+    'aria-label',
+    `Best Score: ${formatScore(finalScore)} (new Best Score)`,
   );
   await testInfo.attach('end-of-run', { body: await page.screenshot(), contentType: 'image/png' });
 

@@ -63,7 +63,8 @@ export async function loadTracks(
  * clock moves the crossfade, and the tracks load once the title is on screen. Undone when the game is destroyed.
  */
 export function bindMusic(game: Game, target: Music = music): void {
-  target.attach(phaserPlayer(game));
+  const player = phaserPlayer(game);
+  target.attach(player);
   let loading = false;
   const loadAbort = new AbortController();
   const offs = [
@@ -107,8 +108,10 @@ export function bindMusic(game: Game, target: Music = music): void {
     loadAbort.abort();
     for (const off of offs) off();
     game.events.off(Core.Events.PRE_STEP, onStep);
+    // Only this game's player: a newer game may already be attached (StrictMode double mount).
+    if (!target.isAttached(player)) return;
     // Detach first: clearing the overlays reconciles, and must not reach the dying sound manager.
-    target.detach();
+    target.detach(player);
     target.setApproach(false);
     target.setCruiseEvent(false);
   });
