@@ -108,11 +108,12 @@ export class NavChart extends Scene {
     }
   }
 
-  /** The orbit rings, and the Heliopause (dashed violet), clipped to the chart. */
+  /** The orbit rings of known planets, and the Heliopause (dashed violet), clipped to the chart. */
   private drawRings(): GameObjects.Graphics {
     const graphics = this.add.graphics();
     graphics.lineStyle(1, paletteNumber('cy0'));
-    for (const planet of this.run.starSystem.planets) {
+    for (const { body: planet } of this.layout.nodes) {
+      if (planet.kind === 'moon') continue;
       for (const { from, to } of ringSegments(
         this.layout.star,
         this.layout.orbitRadius(planet.id),

@@ -3,6 +3,7 @@ import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
 import { install, launchHop, remove, type HopFlight, type Run } from '../sim/index.ts';
 import { SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
+import { standingExtent } from './chassisArt.ts';
 import { SceneKey } from './keys.ts';
 import type { FlightData } from './Flight.ts';
 import type { NavChartData } from './NavChart.ts';
@@ -23,6 +24,21 @@ export interface LandedData {
 /** How long the Landed view takes to come up out of the black after the Jump (ms). Under reduced motion too: a fade is calm. */
 const AFTER_JUMP_FADE_MS = 700;
 
+/**
+ * The Comms ping (gameplay tuning, ms and px): rings that grow out of the top of the Spacecraft and
+ * fade, once the Landed view is up after a landing that Detected something. Under reduced motion one
+ * ring shows still for `stillMs`, then goes.
+ */
+export const COMMS_PING = {
+  delayMs: 500,
+  rings: 3,
+  staggerMs: 260,
+  durationMs: 1_200,
+  startRadius: 6,
+  endScale: 7,
+  stillMs: 1_400,
+} as const;
+
 /** Landed view: the whole Spacecraft on the ground of the Body it stands on, under that Body's sky. */
 export class Landed extends Scene {
   private run!: Run;
@@ -34,6 +50,8 @@ export class Landed extends Scene {
   reducedMotion = false;
   /** The ambient life: tests use it to seek the drift to a chosen moment. */
   ambient!: LandedAmbient;
+  /** The rings of the Comms ping while it plays, empty otherwise: tests read it. */
+  commsPing: GameObjects.Graphics[] = [];
 
   constructor() {
     super(SceneKey.Landed);
@@ -49,6 +67,7 @@ export class Landed extends Scene {
     const landscape = buildLandscape(this, standingOn(this.run));
     const ship = this.buildShip();
     this.layers = { ...landscape.layers, ship: ship.container };
+    this.commsPing = [];
 
     // The Nav Chart runs as its own scene over this one, which keeps running (dimmed) beneath it.
     const offOpen = EventBus.on('nav-chart-open-requested', () => {
@@ -139,10 +158,65 @@ export class Landed extends Scene {
       // Hop report, since that Hop is not what ended it.
       EventBus.emit('run-stranded', this.run);
     } else {
-      EventBus.emit('run-started', this.run);
-      if (this.report) EventBus.emit('hop-arrived', this.report.before, this.report.flight);
+      const { run, report } = this;
+      EventBus.emit('run-started', run);
+      if (report) {
+        EventBus.emit('hop-arrived', report.before, report.flight);
+        const { reveal } = report.flight;
+        // Comms Detected something on this landing: the ping shows it, React says it.
+        if (reveal && reveal.detected.length > 0) {
+          this.time.delayedCall(COMMS_PING.delayMs, () => {
+            this.playCommsPing(ship.container);
+            EventBus.emit('comms-revealed', run, reveal);
+          });
+        }
+      } else {
+        // No Hop led here: the view opens a Star System, on its Starting Moon with its yield in.
+        EventBus.emit('starting-yield-collected', run, run.startingYield);
+      }
     }
     EventBus.emit('scene-ready', SceneKey.Landed);
+  }
+
+  /**
+   * Comms reaching out: cyan rings growing from the top of the Spacecraft and fading, a shape that
+   * reads without its colour. They ride the ship's container, so they drift with it.
+   */
+  private playCommsPing(ship: GameObjects.Container): void {
+    const top = -standingExtent([this.run.spacecraft.chassisId]).height;
+    const ring = (): GameObjects.Graphics => {
+      const graphics = this.add.graphics({ x: 0, y: top });
+      graphics.lineStyle(1, paletteNumber('cy3'), 1);
+      graphics.strokeCircle(0, 0, COMMS_PING.startRadius);
+      ship.add(graphics);
+      this.commsPing.push(graphics);
+      return graphics;
+    };
+    const done = (graphics: GameObjects.Graphics): void => {
+      this.commsPing = this.commsPing.filter((g) => g !== graphics);
+      graphics.destroy();
+    };
+    if (this.reducedMotion) {
+      const still = ring().setScale(COMMS_PING.endScale / 2);
+      this.time.delayedCall(COMMS_PING.stillMs, () => {
+        done(still);
+      });
+      return;
+    }
+    for (let index = 0; index < COMMS_PING.rings; index++) {
+      const graphics = ring().setAlpha(0);
+      this.tweens.add({
+        targets: graphics,
+        delay: index * COMMS_PING.staggerMs,
+        scale: { from: 1, to: COMMS_PING.endScale },
+        alpha: { from: 1, to: 0 },
+        duration: COMMS_PING.durationMs,
+        ease: 'Sine.easeOut',
+        onComplete: () => {
+          done(graphics);
+        },
+      });
+    }
   }
 
   /** An install or a removal changed the Run: it may have left the Spacecraft Stranded. */

@@ -3,7 +3,16 @@ import type { SceneKey } from './scenes/keys.ts';
 import type { ChartCommand, ChartState } from './scenes/navChartView.ts';
 import type { FlightMoment, Pace } from './scenes/flightPlayback.ts';
 import type { JumpStage } from './scenes/jumpPlayback.ts';
-import type { ChassisId, ComponentId, HopFlight, HopTarget, Run, Seed } from './sim/index.ts';
+import type {
+  ChassisId,
+  Collection,
+  ComponentId,
+  HopFlight,
+  HopTarget,
+  Reveal,
+  Run,
+  Seed,
+} from './sim/index.ts';
 
 /** Events crossing the React <-> Phaser boundary. Add an entry here before emitting a new event. */
 export interface GameEvents {
@@ -11,6 +20,18 @@ export interface GameEvents {
   'scene-ready': [sceneKey: SceneKey];
   /** Phaser -> React: the Run the Landed view shows (sent just before its `scene-ready`). */
   'run-started': [run: Run];
+  /**
+   * Phaser -> React: the Landed view opened a Star System (a New Run, or the Jump's arrival) and the
+   * Starting Moon's yield is in: `collection` is what it gave, already in `run`'s Fuel or Materials
+   * (sent just after `run-started`). The gathering moment (#220) plays it.
+   */
+  'starting-yield-collected': [run: Run, collection: Collection];
+  /**
+   * Phaser -> React: the Comms ping is playing on the Landed view after a landing that taught the
+   * player something (`reveal`: the Body Surveyed, and what Comms Detected). React announces it in a
+   * polite live region; the ping itself is the visual.
+   */
+  'comms-revealed': [run: Run, reveal: Reveal];
   /**
    * Phaser -> React: the Run changed while the Landed view stays up (a Component was installed). Unlike
    * `run-started` it is not a new view: reports and focus stay as they are.
@@ -70,7 +91,7 @@ export interface GameEvents {
   /**
    * Phaser -> React: the playback of a Hop that reached the Heliopause is over and the Jump moment
    * plays, one stage at a time (sent once as each stage begins). Once `dark`, the HUD gives way to
-   * the flavour text; the Landed view of the next Home Planet follows with its own `run-started`.
+   * the flavour text; the Landed view of the next Starting Moon follows with its own `run-started`.
    */
   'jump-stage': [stage: JumpStage];
   /**

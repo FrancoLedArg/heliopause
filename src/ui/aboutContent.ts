@@ -295,14 +295,14 @@ export const HOW_TO_PLAY: { heading: string; steps: readonly HowToPlayStep[]; ba
       heading: 'Goal',
       body: [
         'Build a Jump Drive, Hop to the Heliopause and make the Jump.',
-        'The Jump burns the Drive out, so build a new one in every Star System; you always arrive with enough Fuel to reach the new Icy Moon.',
+        'The Jump burns the Drive out, so build a new one in every Star System; you always arrive with enough Fuel to reach the first Body Comms finds there.',
       ],
     },
     {
       heading: 'The opening',
       body: [
-        'You start on a Home Planet with an Engine and a Fuel Tank, some Fuel and some Materials.',
-        'Land on Bodies to gather more.',
+        'You start marooned on a Starting Moon, its Fuel or Materials already in your hold.',
+        'Comms has Detected one other Body. Land there to Survey it, and Comms finds one more after every landing.',
       ],
     },
     {

@@ -37,7 +37,10 @@ export interface ChartNode extends ChartSpot {
 
 export interface ChartLayout {
   readonly star: Point & { readonly radius: number };
-  /** Every Body, planets in order out from the star, each followed by its Moons. */
+  /**
+   * Every Body the player knows of (Detected or Surveyed), planets in order out from the star, each
+   * followed by its known Moons. Unknown Bodies are not on the chart (#96).
+   */
   readonly nodes: readonly ChartNode[];
   /** The orbit ring of a planet, in chart pixels from the star. */
   orbitRadius(planetId: BodyId): number;
@@ -100,7 +103,7 @@ const edgeDistance = (box: Rect, c: Point & { readonly radius: number }): number
 
 /** The star sits near the left edge so the system opens out to the right. */
 const STAR: ChartLayout['star'] = { x: 34, y: CHART.height / 2, radius: SPRITE_SIZE.star / 2 };
-/** Gameplay tuning: the first orbit ring, clear of the star and the Home Planet's Moons. */
+/** Gameplay tuning: the first orbit ring, clear of the star and the innermost planet's Moons. */
 const INNER_RING = 62;
 /** Gameplay tuning: the Heliopause ring when the planets leave room; it moves out to clear them. */
 const MIN_HELIOPAUSE = 328;
@@ -132,8 +135,9 @@ const MOON_TURNS = 8;
  * Lays the Star System out as a chart: the star at the left, each planet on its own orbit ring (farther
  * from the star means a larger ring), and Moons beside their planet. A planet's angle follows its
  * orbit angle, nudged round its ring (and its Moons turned round it) until every sprite clears the chart
- * edge and every other Body, and every Body keeps room for its label (see `placeCluster`). The same Star
- * System always gives the same chart.
+ * edge and every other Body, and every Body keeps room for its label (see `placeCluster`). The whole Star
+ * System is laid out, so a Body keeps its place as the player learns of more, but only known Bodies are
+ * on it. The same Star System always gives the same chart.
  */
 export function layoutChart(run: Run): ChartLayout {
   const system = run.starSystem;
@@ -154,7 +158,8 @@ export function layoutChart(run: Run): ChartLayout {
     placePlanets(planets, firstRing, true) ?? placePlanets(planets, firstRing, false);
   if (!placements) throw new Error(`Nav Chart has no room for ${system.name}`);
 
-  const nodes = placements.flatMap((p) => p.cluster);
+  const known = new Set<BodyId>(run.knowledge.detected);
+  const nodes = placements.flatMap((p) => p.cluster).filter((node) => known.has(node.body.id));
   const rings = new Map(placements.map((p) => [p.planet.id, p.ring]));
   const heliopauseRadius = Math.max(MIN_HELIOPAUSE, (placements.at(-1)?.ring ?? 0) + 30);
   return {

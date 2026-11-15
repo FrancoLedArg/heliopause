@@ -1,6 +1,8 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import {
   currentBody,
+  findBody,
+  firstDetectedBody,
   HELIOPAUSE,
   install,
   listBodies,
@@ -36,12 +38,30 @@ import {
   type Direction,
 } from './navChartView.ts';
 
-const newRun = (seed: number): Run => startRun(seed, 'scout');
+/** A New Run as the player starts it: on its Starting Moon, knowing only the opening. */
+const freshRun = (seed: number): Run => startRun(seed, 'scout');
+
+/**
+ * A New Run stood on its innermost planet (always rocky), knowing every Body: the layout, focus and
+ * label rules are tested on a full chart, from where Runs opened before the Starting Moon (#96).
+ */
+const newRun = (seed: number): Run => {
+  const run = freshRun(seed);
+  const ids = listBodies(run.starSystem).map((body) => body.id);
+  const [inner] = run.starSystem.planets;
+  if (!inner) throw new Error('A Star System has planets');
+  return {
+    ...run,
+    status: { kind: 'landed', bodyId: inner.id },
+    knowledge: { detected: ids, surveyed: ids, heliopauseFound: true },
+  };
+};
 const SEEDS = Array.from({ length: 150 }, (_, i) => i + 1);
 
+/** The innermost planet's nearest Moon. */
 function homeMoon(run: Run) {
-  const moon = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId)?.moons[0];
-  if (!moon) throw new Error('Home Planet has no Moon');
+  const moon = run.starSystem.planets[0]?.moons[0];
+  if (!moon) throw new Error('The innermost planet has a Moon');
   return moon;
 }
 
@@ -54,6 +74,32 @@ function layoutFor(seed: number): ChartLayout {
   layouts.set(seed, layout);
   return layout;
 }
+
+describe('what the Nav Chart shows (#96)', () => {
+  it('a new Run charts only its Starting Moon, a Gas Giant it orbits, and the one Body Comms Detected', () => {
+    for (const seed of SEEDS) {
+      const run = freshRun(seed);
+      const charted = layoutChart(run).nodes.map((node) => node.body.id);
+      const moon = findBody(run.starSystem, run.starSystem.startingMoonId);
+      if (moon?.kind !== 'moon') throw new Error('The Starting Moon is a Moon');
+      const planet = findBody(run.starSystem, moon.planetId);
+      const expected = [moon.id, firstDetectedBody(run.starSystem).id];
+      if (planet?.kind === 'gas-giant') expected.push(planet.id);
+      expect(charted.sort(), `seed ${seed}`).toEqual(expected.sort());
+    }
+  });
+
+  it('a Body keeps its place on the chart as the player learns of more', () => {
+    for (const seed of SEEDS.slice(0, 20)) {
+      const fresh = layoutChart(freshRun(seed)).nodes;
+      const full = layoutChart({ ...newRun(seed), status: freshRun(seed).status }).nodes;
+      for (const node of fresh) {
+        const same = full.find((n) => n.body.id === node.body.id);
+        expect(same && { x: same.x, y: same.y }).toEqual({ x: node.x, y: node.y });
+      }
+    }
+  });
+});
 
 describe('the Nav Chart layout', () => {
   it('places every Body of the Star System once, and the same way for the same seed', () => {
@@ -582,16 +628,16 @@ describe('Body labels on the Nav Chart', () => {
     expect(reviewCases().flatMap(labelClashes).join('\n')).toBe('');
   });
 
-  // Re-pinned for #188: generation changed. Seed 292 is the fullest 7-planet chart of the first 400
-  // (29 Bodies), with its far Moon Zarla-2 as the target.
-  it('keep off every Body even on a chart too full to label well (seed 292, Zarla-2 as the target)', () => {
-    const run = newRun(292);
-    const layout = layoutFor(292);
-    const target = layout.nodes.find((n) => n.body.id === 'planet-7-moon-1');
-    if (!target) throw new Error('seed 292 has no planet-7-moon-1');
+  // Re-pinned for #189 (was seed 292's Zarla-2): generation changed. Seed 155 is the fullest
+  // 7-planet chart of the first 400 (29 Bodies), with its far Moon Vutho as the target.
+  it('keep off every Body even on a chart too full to label well (seed 155, Vutho as the target)', () => {
+    const run = newRun(155);
+    const layout = layoutFor(155);
+    const target = layout.nodes.find((n) => n.body.id === 'planet-7-moon-3');
+    if (!target) throw new Error('seed 155 has no planet-7-moon-3');
     const problems = layout.nodes.flatMap((n) =>
       labelClashes(
-        chartCase(292, {
+        chartCase(155, {
           hereId: currentBody(run).id,
           targetId: target.body.id,
           focusedId: n.body.id,
