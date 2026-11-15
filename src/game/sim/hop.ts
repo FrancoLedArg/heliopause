@@ -1,5 +1,6 @@
 import { createRng, type Rng } from '../lib/rng.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
+import { flightHours } from './clock.ts';
 import { recordChoice } from './choiceLog.ts';
 import {
   cruiseSchedule,
@@ -23,7 +24,7 @@ import {
 import { collectYield, type Collection } from './gather.ts';
 import { isInHopRange } from './hopRange.ts';
 import { jump } from './jump.ts';
-import { bodyKnowledge, revealOnLanding, type Reveal } from './knowledge.ts';
+import { bodyKnowledge, distanceBetween, revealOnLanding, type Reveal } from './knowledge.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
 import { endIfStranded } from './stranded.ts';
 import {
@@ -595,6 +596,8 @@ function arrive(run: Run, departure: Departure, cruise: Cruise): FlownHop {
     spacecraft.fuelMass === departure.fuelAfterTransfer &&
     spacecraft.engineIsp === launchSpacecraft.engineIsp;
   const target = plan.destination === 'body' ? findBody(run.starSystem, plan.toId) : undefined;
+  const flownFrom = findBody(run.starSystem, plan.fromId);
+  if (!flownFrom) throw new Error(`Star System has no Body ${plan.fromId}`);
   let remaining = unchanged ? departure.deltaVRemaining : availableDeltaV(spacecraft);
   const fuelLeft = (spent: MetersPerSecond): Kilograms =>
     unchanged
@@ -644,6 +647,7 @@ function arrive(run: Run, departure: Departure, cruise: Cruise): FlownHop {
     ...run,
     spacecraft: { ...spacecraft, fuelMass: fuelRemaining },
     status,
+    gameHours: run.gameHours + flightHours(hopDistance(run, flownFrom, target)),
   });
   switch (outcome.kind) {
     case 'fell-short':
@@ -983,6 +987,12 @@ function gravitationalParameter(planet: Planet): number {
 /** In metres: a Moon's orbit, or the planet's own low orbit. */
 function orbitAroundPlanet(planet: Planet, body: Body): number {
   return body.kind === 'moon' ? body.distanceFromPlanet * 1_000 : planetRadius(planet);
+}
+
+/** How far a Hop flies, in AU: to the Body it lands on, or out to the Heliopause. */
+function hopDistance(run: Run, from: Body, target: Body | undefined): number {
+  if (target) return distanceBetween(run.starSystem, from, target);
+  return Math.max(0, run.starSystem.heliopauseRadius - from.distanceFromStar);
 }
 
 /** How far a Hop is within reach of the Fuel on board: from its Success Chance, thresholds in `REACH_VERDICT`. */

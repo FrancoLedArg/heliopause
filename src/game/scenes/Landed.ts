@@ -1,7 +1,16 @@
 import { Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
-import { install, launchHop, remove, type HopFlight, type Run } from '../sim/index.ts';
+import {
+  currentBody,
+  install,
+  landedDayFraction,
+  launchHop,
+  remove,
+  type HopFlight,
+  type Run,
+} from '../sim/index.ts';
+import { addSkyLight, localTimeAnnouncer, type SkyLight } from './skyLight.ts';
 import { standingExtent } from './chassisArt.ts';
 import { describeGathering, type Gathering } from './gathering.ts';
 import { playGatheringMoment } from './gatheringMoment.ts';
@@ -86,6 +95,11 @@ export class Landed extends Scene {
   /** The drawn Spacecraft, composed from its Chassis art and Component art. */
   spacecraft!: SpacecraftArt;
   private shadow!: GameObjects.Ellipse;
+  /** The light of the local day: tests read it. */
+  skyLight!: SkyLight;
+  /** Real seconds spent standing here: the slow game time while Landed (view-only, never the Run's). */
+  private landedSeconds = 0;
+  private announceTime = localTimeAnnouncer();
   /** The Spacecraft's layer, where the gathering moment flows in. */
   private shipLayer!: GameObjects.Container;
 
@@ -104,6 +118,10 @@ export class Landed extends Scene {
 
   create(): void {
     const landscape = buildLandscape(this, standingOn(this.run));
+    this.skyLight = addSkyLight(this, landscape.layers.sky, landscape.layers.ground);
+    this.landedSeconds = 0;
+    this.announceTime = localTimeAnnouncer();
+    this.applyLocalTime();
     const ship = this.buildShip();
     this.shipLayer = ship.container;
     this.layers = { ...landscape.layers, ship: ship.container };
@@ -224,6 +242,26 @@ export class Landed extends Scene {
       else if (ping) this.time.delayedCall(COMMS_PING.delayMs, ping);
     }
     EventBus.emit('scene-ready', SceneKey.Landed);
+  }
+
+  /** The fraction of the local day now: the Run's clock plus the slow drift of the time spent standing here. */
+  localDayFraction(): number {
+    const run = standingOn(this.run);
+    return landedDayFraction(run.starSystem, currentBody(run), run.gameHours, this.landedSeconds);
+  }
+
+  /** Lights the sky for the local time and tells React the dial. */
+  private applyLocalTime(): void {
+    const fraction = this.localDayFraction();
+    this.skyLight.set(fraction);
+    this.announceTime(fraction);
+  }
+
+  /** The sky is never still: game time drifts on while Landed, unless the player prefers reduced motion. */
+  override update(_time: number, delta: number): void {
+    if (this.reducedMotion) return;
+    this.landedSeconds += delta / 1000;
+    this.applyLocalTime();
   }
 
   /**
