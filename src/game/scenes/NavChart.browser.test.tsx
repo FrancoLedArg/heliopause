@@ -134,3 +134,27 @@ it('a drag over a Body pans the map and never selects it; a click then opens its
   expect(latest()).toMatchObject({ card: true, focusedId: blip.body.id, selectedId: undefined });
   expect(latest().view).toEqual(dragged.view);
 });
+
+interface Layered {
+  readonly name: string;
+  readonly depth: number;
+  readonly scrollFactorX: number;
+}
+
+it('the starfield sits below every Body, and nothing pings without a new Detection (#303)', async () => {
+  await openChart(startRun(123, 'scout'));
+  const chart = game?.scene.getScene(SceneKey.NavChart);
+  if (!chart) throw new Error('no chart');
+  const objects = chart.children.list as unknown as Layered[];
+  const layers = objects.filter((o) => o.name === 'starfield');
+  expect(layers.length).toBeGreaterThan(1);
+  const top = Math.max(...layers.map((o) => o.depth));
+  for (const o of objects.filter((o) => o.name !== 'starfield')) {
+    expect(o.depth).toBeGreaterThan(top);
+  }
+  // The far layer follows the camera less than the near one, and none is glued to the map.
+  const factors = layers.map((o) => o.scrollFactorX);
+  expect(Math.min(...factors)).toBeLessThan(Math.max(...factors));
+  expect(Math.max(...factors)).toBeLessThan(1);
+  expect(objects.filter((o) => o.name === 'new-blip-ping')).toHaveLength(0);
+});
