@@ -283,7 +283,10 @@ describe('flying a Hop', () => {
     expect(flight.burns.map((burn) => burn.status)).toEqual(['ran-out', 'not-flown', 'not-flown']);
     expect(flight.fuelRemaining).toBe(0);
     expect(flight.why).toMatch(/Fuel ran out during the Takeoff/);
-    expect(next.status).toEqual({ kind: 'ended', outcome: 'fell-short' });
+    expect(next.status).toEqual({
+      kind: 'ended',
+      end: { kind: 'fell-short', reason: flight.why },
+    });
   });
 
   it('running out of Fuel during the Transfer ends as Fell Short at Transfer', () => {
@@ -292,7 +295,10 @@ describe('flying a Hop', () => {
     expect(flight.outcome).toMatchObject({ kind: 'fell-short', burn: 'transfer' });
     expect(flight.burns.map((burn) => burn.status)).toEqual(['completed', 'ran-out', 'not-flown']);
     expect(flight.why).toMatch(/Fuel ran out during the Transfer/);
-    expect(next.status).toEqual({ kind: 'ended', outcome: 'fell-short' });
+    expect(next.status).toEqual({
+      kind: 'ended',
+      end: { kind: 'fell-short', reason: flight.why },
+    });
   });
 
   it('Landing that needs more Δv than remains ends as Crashed', () => {
@@ -302,7 +308,10 @@ describe('flying a Hop', () => {
     expect(flight.burns.map((burn) => burn.status)).toEqual(['completed', 'completed', 'ran-out']);
     expect(flight.fuelRemaining).toBe(0);
     expect(flight.why).toMatch(/Transfer was completed, but .* Landing/);
-    expect(next.status).toEqual({ kind: 'ended', outcome: 'crashed' });
+    expect(next.status).toEqual({
+      kind: 'ended',
+      end: { kind: 'crashed', reason: flight.why },
+    });
   });
 
   it('a failed Hop reports how much Δv it was short, and what the Fuel delivered first', () => {
