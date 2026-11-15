@@ -907,12 +907,12 @@ body {
   color: var(--wh3);
 }
 
-/* Over the plan while open, in the plan's own box, so nothing covers the map. */
+/* Asked for, over the bottom of the map left of the plan, clear of the plan's own controls. */
 .nav-chart__help {
-  left: 456px;
-  top: 144px;
-  width: 164px;
-  height: 154px;
+  left: 8px;
+  top: 288px;
+  width: 428px;
+  height: 34px;
   padding: 4px;
   box-sizing: border-box;
   overflow: hidden;

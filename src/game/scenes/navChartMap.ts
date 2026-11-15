@@ -14,7 +14,10 @@ interface Point {
 export const SCREEN = { width: 640, height: 360 } as const;
 
 /** The part of the screen the map shows through: under the top bar, above the chart's bottom bar. */
-export const MAP_AREA: Rect = { x: 0, y: 48, w: SCREEN.width, h: 284 };
+export const MAP_AREA: Rect = { x: 0, y: 48, w: SCREEN.width, h: 276 };
+
+/** The map left of the Hop plan's panel (x 444), where the plan's target and "you" must stay. */
+export const PLAN_MAP_AREA: Rect = { ...MAP_AREA, w: 436 };
 
 /** Gameplay tuning: how far the camera may zoom out (the whole map fits) and in, and one wheel notch. */
 export const ZOOM = { min: 0.5, max: 2, step: 1.2 } as const;
@@ -32,15 +35,24 @@ export interface WorldSize {
   readonly height: number;
 }
 
+/**
+ * Screen pixels the camera may look past the map's right edge: the Hop plan's panel covers that much,
+ * so a Body at the far right can still sit left of it.
+ */
+const PANEL_SLACK = 204;
+
 /** Keeps the zoom within its limits and the camera over the map; a map narrower than the screen is centred. */
 export function clampView(view: MapView, world: WorldSize): MapView {
   const zoom = Math.min(ZOOM.max, Math.max(ZOOM.min, view.zoom));
-  const axis = (at: number, size: number, screen: number): number => {
+  const axis = (at: number, size: number, screen: number, slack = 0): number => {
     const half = screen / 2 / zoom;
-    return 2 * half >= size ? size / 2 : Math.min(size - half, Math.max(half, at));
+    // A map narrower than the view is centred; the slack lets it slide left past that.
+    const low = Math.min(half, size / 2);
+    const high = Math.max(size - half, size / 2) + slack / zoom;
+    return Math.min(high, Math.max(low, at));
   };
   return {
-    x: axis(view.x, world.width, SCREEN.width),
+    x: axis(view.x, world.width, SCREEN.width, PANEL_SLACK),
     y: axis(view.y, world.height, SCREEN.height),
     zoom,
   };
@@ -95,13 +107,65 @@ export function centreOn(view: MapView, spot: Point, world: WorldSize): MapView 
 const IN_VIEW_MARGIN = 40;
 
 /** Pans the least that brings a spot well inside the map area; a spot already there leaves it be. */
-export function keepInView(view: MapView, spot: Point, world: WorldSize): MapView {
+export function keepInView(
+  view: MapView,
+  spot: Point,
+  world: WorldSize,
+  area: Rect = MAP_AREA,
+): MapView {
   const s = toScreen(view, spot);
-  const [left, right] = [MAP_AREA.x + IN_VIEW_MARGIN, MAP_AREA.x + MAP_AREA.w - IN_VIEW_MARGIN];
-  const [top, bottom] = [MAP_AREA.y + IN_VIEW_MARGIN, MAP_AREA.y + MAP_AREA.h - IN_VIEW_MARGIN];
+  const [left, right] = [area.x + IN_VIEW_MARGIN, area.x + area.w - IN_VIEW_MARGIN];
+  const [top, bottom] = [area.y + IN_VIEW_MARGIN, area.y + area.h - IN_VIEW_MARGIN];
   const dx = s.x < left ? left - s.x : s.x > right ? right - s.x : 0;
   const dy = s.y < top ? top - s.y : s.y > bottom ? bottom - s.y : 0;
   return dx === 0 && dy === 0 ? view : panView(view, dx, dy, world);
+}
+
+/**
+ * The camera with every spot well inside `area`: centred on them, zoomed out (to the limit) when they
+ * do not fit. Used when the Hop plan opens, so "you" and the target sit left of its panel.
+ */
+export function fitInView(
+  view: MapView,
+  spots: readonly Point[],
+  world: WorldSize,
+  area: Rect,
+): MapView {
+  if (spots.length === 0) return view;
+  const xs = spots.map((s) => s.x);
+  const ys = spots.map((s) => s.y);
+  const mid = {
+    x: (Math.min(...xs) + Math.max(...xs)) / 2,
+    y: (Math.min(...ys) + Math.max(...ys)) / 2,
+  };
+  const fits = (v: MapView): boolean =>
+    spots.every((spot) => {
+      const s = toScreen(v, spot);
+      return (
+        s.x >= area.x + IN_VIEW_MARGIN &&
+        s.x <= area.x + area.w - IN_VIEW_MARGIN &&
+        s.y >= area.y + IN_VIEW_MARGIN &&
+        s.y <= area.y + area.h - IN_VIEW_MARGIN
+      );
+    });
+  let zoom = view.zoom;
+  for (;;) {
+    // Put the spots' middle at the area's centre, as far as the map's edges allow.
+    const v = clampView(
+      {
+        zoom,
+        x: mid.x - (area.x + area.w / 2 - SCREEN.width / 2) / zoom,
+        y: mid.y - (area.y + area.h / 2 - SCREEN.height / 2) / zoom,
+      },
+      world,
+    );
+    if (fits(v)) return v;
+    // Too far apart even zoomed right out: the last spot (the target) stays in view; an edge marker
+    // points to the rest.
+    const last = spots.at(-1);
+    if (zoom <= ZOOM.min) return last ? keepInView(v, last, world, area) : v;
+    zoom = Math.max(ZOOM.min, zoom / ZOOM.step);
+  }
 }
 
 /** Where focus can rest on the map: every known Body, and the Heliopause's mark once found. */
@@ -148,14 +212,18 @@ export interface EdgeMarker {
 export const MARKER_INSET = 8;
 
 /** A marker on the edge for every known Body (and the found Heliopause) outside the map area. */
-export function edgeMarkers(view: MapView, layout: ChartLayout): EdgeMarker[] {
-  const centre = { x: MAP_AREA.x + MAP_AREA.w / 2, y: MAP_AREA.y + MAP_AREA.h / 2 };
-  const [halfW, halfH] = [MAP_AREA.w / 2 - MARKER_INSET, MAP_AREA.h / 2 - MARKER_INSET];
+export function edgeMarkers(
+  view: MapView,
+  layout: ChartLayout,
+  area: Rect = MAP_AREA,
+): EdgeMarker[] {
+  const centre = { x: area.x + area.w / 2, y: area.y + area.h / 2 };
+  const [halfW, halfH] = [area.w / 2 - MARKER_INSET, area.h / 2 - MARKER_INSET];
   const markers: EdgeMarker[] = [];
   for (const { id, spot } of mapSpots(layout)) {
     const s = toScreen(view, spot);
     const [dx, dy] = [s.x - centre.x, s.y - centre.y];
-    if (Math.abs(dx) <= MAP_AREA.w / 2 && Math.abs(dy) <= MAP_AREA.h / 2) continue;
+    if (Math.abs(dx) <= area.w / 2 && Math.abs(dy) <= area.h / 2) continue;
     const scale = Math.min(halfW / Math.abs(dx || 1e-9), halfH / Math.abs(dy || 1e-9));
     markers.push({
       id,

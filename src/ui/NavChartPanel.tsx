@@ -3,6 +3,7 @@ import { EventBus } from '../game/EventBus.ts';
 import {
   edgeMarkers,
   MAP_AREA,
+  PLAN_MAP_AREA,
   placeCard,
   placeMapLabels,
   toScreen,
@@ -122,6 +123,8 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
   const target = state.selectedId === undefined ? undefined : bodyOf(state.selectedId);
   const targetIsEdge = state.selectedId === HELIOPAUSE;
   const showPlan = state.selectedId !== undefined && !state.card;
+  // With the Hop plan open, its panel covers the right of the map: names and markers stay left of it.
+  const area = showPlan ? PLAN_MAP_AREA : MAP_AREA;
 
   const planned = state.selectedId === undefined ? undefined : planHop(run, state.selectedId);
   const view = planned?.kind === 'planned' ? describeHopPlan(run, planned.plan) : undefined;
@@ -214,19 +217,16 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
   )
     .filter(
       ({ box }) =>
-        box.y >= MAP_AREA.y &&
-        box.y + box.h <= MAP_AREA.y + MAP_AREA.h &&
-        box.x + box.w > MAP_AREA.x &&
-        box.x < MAP_AREA.x + MAP_AREA.w,
+        box.y >= area.y &&
+        box.y + box.h <= area.y + area.h &&
+        box.x + box.w > area.x &&
+        box.x < area.x + area.w,
     )
     .map((label) => ({
       ...label,
       box: {
         ...label.box,
-        x: Math.min(
-          Math.max(label.box.x, MAP_AREA.x + 2),
-          MAP_AREA.x + MAP_AREA.w - label.box.w - 2,
-        ),
+        x: Math.min(Math.max(label.box.x, area.x + 2), area.x + area.w - label.box.w - 2),
       },
     }));
   const labelKind = (id: HopTarget): string =>
@@ -245,10 +245,10 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
     const at = toScreen(state.view, node);
     // Off screen, its edge marker stands in for it.
     const onScreen =
-      at.y - 14 >= MAP_AREA.y &&
-      at.y <= MAP_AREA.y + MAP_AREA.h &&
-      at.x >= MAP_AREA.x &&
-      at.x + 12 <= MAP_AREA.x + MAP_AREA.w;
+      at.y - 14 >= area.y &&
+      at.y <= area.y + area.h &&
+      at.x >= area.x &&
+      at.x + 12 <= area.x + area.w;
     return onScreen ? [{ id: node.body.id, at }] : [];
   });
 
@@ -328,7 +328,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
         </span>
       ))}
 
-      {edgeMarkers(state.view, layout).map((marker) => (
+      {edgeMarkers(state.view, layout, area).map((marker) => (
         <button
           key={marker.id}
           type="button"

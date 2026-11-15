@@ -16,7 +16,9 @@ import {
 import { SPRITE_SIZE } from './landedView.ts';
 import {
   centreOn,
+  fitInView,
   keepInView,
+  PLAN_MAP_AREA,
   panView,
   spotOf,
   zoomView,
@@ -694,9 +696,9 @@ export function chartReducer(
     case 'click':
       return open(command.id);
     case 'select':
-      return state.card ? plan(run, state) : open(state.focusedId);
+      return state.card ? plan(run, layout, state) : open(state.focusedId);
     case 'plan':
-      return plan(run, state);
+      return plan(run, layout, state);
     case 'dismiss':
       return state.card ? { ...state, card: false } : state;
     case 'clear':
@@ -712,10 +714,19 @@ export function chartReducer(
   }
 }
 
-function plan(run: Run, state: ChartState): ChartState {
-  return targetStatus(run, state.focusedId).valid
-    ? { ...state, selectedId: state.focusedId, card: false }
-    : state;
+/** Chooses the target; the camera frames it and "you" left of the Hop plan's panel. */
+function plan(run: Run, layout: ChartLayout, state: ChartState): ChartState {
+  if (!targetStatus(run, state.focusedId).valid) return state;
+  const spots = [currentBody(run).id, state.focusedId].flatMap((id) => {
+    const spot = spotOf(layout, id);
+    return spot ? [spot] : [];
+  });
+  return {
+    ...state,
+    selectedId: state.focusedId,
+    card: false,
+    view: fitInView(state.view, spots, layout.world, PLAN_MAP_AREA),
+  };
 }
 
 /** Width of the Body tooltip, and its height without the lines saying why a Body is not a target. */

@@ -31,7 +31,7 @@ import {
   targetStatus,
   type Direction,
 } from './navChartView.ts';
-import { MAP_AREA, SCREEN, toScreen } from './navChartMap.ts';
+import { edgeMarkers, MAP_AREA, PLAN_MAP_AREA, SCREEN, toScreen } from './navChartMap.ts';
 
 /** A New Run as the player starts it: on its Starting Moon, knowing only the opening. */
 const freshRun = (seed: number): Run => startRun(seed, 'scout');
@@ -467,6 +467,27 @@ describe('the Nav Chart state (#193: no card by default, the card, then the plan
       for (const moved of [panned, zoomed]) {
         expect(moved.view).not.toEqual(state.view);
         expect({ ...moved, view: undefined }).toEqual({ ...state, view: undefined });
+      }
+    }
+  });
+
+  // Review of #292: the Hop plan's panel (x 444 on) hid the target and "you".
+  it('Plan Hop puts the target left of the Hop plan’s panel, and "you" too or an edge marker for it', () => {
+    const shown = (at: { x: number; y: number }): boolean =>
+      at.x > 0 && at.x < PLAN_MAP_AREA.w && at.y > MAP_AREA.y && at.y < MAP_AREA.y + MAP_AREA.h;
+    for (const seed of SEEDS.slice(0, 60)) {
+      const run = newRun(seed);
+      const layout = layoutChart(run);
+      const here = layout.nodes.find((n) => n.body.id === currentBody(run).id);
+      for (const node of layout.nodes) {
+        if (!targetStatus(run, node.body.id).valid || !here) continue;
+        const state = after(run, { kind: 'click', id: node.body.id }, { kind: 'plan' });
+        const where = `seed ${String(seed)} ${node.body.name}`;
+        expect(shown(toScreen(state.view, node)), where).toBe(true);
+        const markers = edgeMarkers(state.view, layout, PLAN_MAP_AREA).map((m) => m.id);
+        expect(shown(toScreen(state.view, here)) || markers.includes(here.body.id), where).toBe(
+          true,
+        );
       }
     }
   });

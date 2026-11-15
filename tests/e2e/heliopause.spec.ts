@@ -178,6 +178,9 @@ test('build a Radar to find the Heliopause, then a Jump Drive, reach it by keybo
     body: await page.screenshot(),
     contentType: 'image/png',
   });
+  // #193: the first Escape closes the Heliopause's card, the second the chart.
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('inspect')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(chart).toBeHidden();
 
