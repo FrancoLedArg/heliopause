@@ -211,6 +211,25 @@ export function kilometersToAu(distance: Kilometers): AstronomicalUnits {
  */
 export const DISPERSION = { min: 0.9, max: 1.1 } as const satisfies TuningRange;
 
+/**
+ * Gameplay tuning (#190): what a Hop's plan assumes of a Body the player has not Surveyed. The
+ * Landing Burn is costed for the high end of the escape velocity a landable Body of that kind can
+ * have, with a wider dispersion than a Surveyed Body's. The flight itself uses the Body's real values.
+ */
+export const UNSURVEYED = {
+  landingDispersion: { min: 0.8, max: 1.2 },
+  cautiousEscapeVelocity: {
+    moon: SOURCED_RANGES.moon.escapeVelocity.max,
+    'rocky-planet': ROCKY_PLANET_SIZE.largestEscapeVelocity,
+  },
+} as const;
+
+/**
+ * Gameplay tuning (#190): the Success Chance at or above which a Hop is In reach, and the one at or
+ * above which it is Marginal; below that it is Out of reach.
+ */
+export const REACH_VERDICT = { inReach: 0.7, marginal: 0.2 } as const;
+
 /** The three Chassis a New Run can pick from. */
 export const CHASSIS_IDS = ['scout', 'hauler', 'lancer'] as const;
 export type ChassisId = (typeof CHASSIS_IDS)[number];

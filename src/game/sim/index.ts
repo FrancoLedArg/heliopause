@@ -23,7 +23,16 @@ export { assessStranding, endIfStranded } from './stranded.ts';
 export type { Stranding } from './stranded.ts';
 export { isBetterScore, runEnd, score } from './score.ts';
 export type { Score } from './score.ts';
-export { BURNS, flyHop, HELIOPAUSE, launchHop, marginShare, plannedBurns, planHop } from './hop.ts';
+export {
+  BURNS,
+  flyHop,
+  HELIOPAUSE,
+  launchHop,
+  marginShare,
+  plannedBurns,
+  planHop,
+  reachVerdict,
+} from './hop.ts';
 export type {
   BodyHopPlan,
   Burn,
@@ -37,6 +46,7 @@ export type {
   InvalidTargetReason,
   LaunchResult,
   PlannedBurn,
+  ReachVerdict,
 } from './hop.ts';
 export {
   availableDeltaV,

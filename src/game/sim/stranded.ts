@@ -1,7 +1,13 @@
 // Stranded: the Run's end when no Hop could have any Success Chance, whatever Components the
 // Spacecraft could still install or remove, and the warning while a change could still save the Run.
 import type { ComponentId } from './catalogue.ts';
-import { formatDeltaV, HELIOPAUSE, leastDeltaV, planHop, type HopTarget } from './hop.ts';
+import {
+  formatDeltaV,
+  HELIOPAUSE,
+  leastDeltaV,
+  planHopAtRealValues,
+  type HopTarget,
+} from './hop.ts';
 import { installRefusal, withInstalled, type Outfit } from './install.ts';
 import { removalRefusal, withRemoved } from './remove.ts';
 import { currentBody, type Run } from './run.ts';
@@ -115,13 +121,13 @@ function assess(run: Run): Stranding {
 
 /** The Success Chance of a Hop to `target` as built, or 0 when the target cannot be chosen. */
 function chance(run: Run, target: HopTarget): number {
-  const result = planHop(run, target);
+  const result = planHopAtRealValues(run, target);
   return result.kind === 'planned' ? result.plan.successChance : 0;
 }
 
 /** The least Δv that gives a Hop to `target` any chance; only for a target `run` can plan. */
 function need(run: Run, target: HopTarget): number {
-  const result = planHop(run, target);
+  const result = planHopAtRealValues(run, target);
   if (result.kind !== 'planned') throw new Error(`No plan to ${target}: ${result.reason}`);
   return leastDeltaV(result.plan);
 }

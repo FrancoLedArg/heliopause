@@ -2,7 +2,7 @@
 import { stringSeed } from '../lib/stringSeed.ts';
 import type { Rng } from '../lib/rng.ts';
 import { CHASSIS_IDS, OPENING_TUNING } from './data.ts';
-import { flyHop, marginShare, planHop } from './hop.ts';
+import { flyHop, marginShare, planHopAtRealValues } from './hop.ts';
 import { firstDetectedBody, startingRun } from './opening.ts';
 import type { Run } from './run.ts';
 import {
@@ -50,7 +50,7 @@ function opensFairly(system: StarSystem, level: number): boolean {
   if (first.baseYield <= 0) return false;
   return CHASSIS_IDS.every((chassisId) => {
     const start = startingRun(system, chassisId, level);
-    const planned = planHop(start, first.id);
+    const planned = planHopAtRealValues(start, first.id);
     if (planned.kind !== 'planned') return false;
     const { plan } = planned;
     if (plan.successChance < OPENING_TUNING.firstHop.successChance) return false;
@@ -70,7 +70,7 @@ function isDeadEnd(start: Run, body: Body): boolean {
     return false;
   }
   const knowing = withDetected(start, body);
-  const planned = planHop(knowing, body.id);
+  const planned = planHopAtRealValues(knowing, body.id);
   if (planned.kind !== 'planned' || planned.plan.successChance < 1) return false;
   return flyHop(knowing, planned.plan, AT_ESTIMATE).run.status.kind === 'ended';
 }

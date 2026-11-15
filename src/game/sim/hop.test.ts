@@ -10,6 +10,7 @@ import {
   metersPerSecond,
   metersPerSecondSquared,
   planHop,
+  reachVerdict,
   startRun,
   type BodyId,
   type HopFlight,
@@ -502,5 +503,44 @@ describe('launching a Hop', () => {
       kind: 'invalid-target',
       reason: 'current-body',
     });
+  });
+});
+
+describe('an Unsurveyed Hop (#190)', () => {
+  const target = innerMoon(run);
+  const unsurveyedKnowledge = {
+    ...run.knowledge,
+    surveyed: run.knowledge.surveyed.filter((id) => id !== target.id),
+  };
+  // Fuel for a little over the Surveyed plan's estimate, so its odds sit in the middle.
+  const tight = withDeltaV(run, plan(run, target.id).totalEstimate * 1.05);
+  const tightUnsurveyed: Run = { ...tight, knowledge: unsurveyedKnowledge };
+
+  it('an Unsurveyed plan has a lower Success Chance than the same Hop Surveyed', () => {
+    const surveyed = plan(tight, target.id);
+    const unsurveyed = plan(tightUnsurveyed, target.id);
+    expect(surveyed.unsurveyed).toBe(false);
+    expect(unsurveyed.unsurveyed).toBe(true);
+    expect(unsurveyed.estimates.landing).toBeGreaterThan(surveyed.estimates.landing);
+    expect(unsurveyed.successChance).toBeLessThan(surveyed.successChance);
+  });
+
+  it('the flight uses the real values: the same Hop flies the same either way', () => {
+    const actuals = (r: Run) =>
+      flyHop(r, plan(r, target.id), createRng(7)).flight.burns.map((burn) =>
+        burn.status === 'completed' ? burn.actual : undefined,
+      );
+    expect(actuals(tightUnsurveyed)).toEqual(actuals(tight));
+  });
+});
+
+describe('the reach verdict (#190)', () => {
+  it('is In reach from 70%, Marginal from 20%, otherwise Out of reach', () => {
+    expect(reachVerdict({ successChance: 1 })).toBe('in-reach');
+    expect(reachVerdict({ successChance: 0.7 })).toBe('in-reach');
+    expect(reachVerdict({ successChance: 0.69 })).toBe('marginal');
+    expect(reachVerdict({ successChance: 0.2 })).toBe('marginal');
+    expect(reachVerdict({ successChance: 0.19 })).toBe('out-of-reach');
+    expect(reachVerdict({ successChance: 0 })).toBe('out-of-reach');
   });
 });

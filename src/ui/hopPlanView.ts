@@ -1,5 +1,6 @@
 // The Hop plan as words and numbers for the player. Every figure comes from the simulation's `HopPlan`;
 // this file only formats it and decides how loudly to flag a low Success Chance.
+import { REACH_VERDICT } from '../game/sim/data.ts';
 import {
   astronomicalUnits,
   findBody,
@@ -8,12 +9,14 @@ import {
   marginShare,
   metersPerSecond,
   plannedBurns,
+  reachVerdict,
   BURNS,
   type Body,
   type Burn,
   type HopPlan,
   type Kilograms,
   type MetersPerSecond,
+  type ReachVerdict,
   type Run,
 } from '../game/sim/index.ts';
 import {
@@ -29,14 +32,29 @@ import {
 import { BURN_LABEL, deltaVBar, type DeltaVBarView } from './deltaVBarView.ts';
 
 /** Below this Success Chance the plan is flagged as risky (presentation, not a game rule). */
-export const LOW_SUCCESS_BELOW = 0.7;
+export const LOW_SUCCESS_BELOW = REACH_VERDICT.inReach;
 
 /** What Δv is, and why the plan's Available line shows the mass and Fuel behind it. Shown under the chart. */
 export const DELTA_V_EXPLANATION =
   'Δv is how much your speed can change: every Burn spends some, and a heavier craft gets less from the same Fuel.';
 
-/** Warning when the Fuel cannot cover even the estimated Δv. */
-const NOT_ENOUGH = 'Not enough Δv for this Hop';
+/** The reach verdict as a short word and the kit badge whose shape says it (never colour alone). */
+const VERDICTS: Readonly<
+  Record<ReachVerdict, { word: string; frame: 'badge_ok' | 'badge_warning' | 'badge_alert' }>
+> = {
+  'in-reach': { word: 'In reach', frame: 'badge_ok' },
+  marginal: { word: 'Marginal', frame: 'badge_warning' },
+  'out-of-reach': { word: 'Out of reach', frame: 'badge_alert' },
+};
+
+/** Whether the Fuel on board reaches the target: the plan's one warning line (#190). */
+export interface ReachView {
+  readonly kind: ReachVerdict;
+  readonly word: string;
+  readonly frame: 'badge_ok' | 'badge_warning' | 'badge_alert';
+  /** The accessible name: the word with what it is the verdict of. */
+  readonly label: string;
+}
 
 /** The Transfer between two Bodies of one planet is a short climb within that planet's pull. */
 const SAME_PLANET = "stay in one planet's pull";
@@ -74,11 +92,10 @@ export interface HopPlanView {
   readonly marginIsShort: boolean;
   readonly successChance: string;
   readonly low: boolean;
-  /**
-   * Words that flag a low Success Chance, or stronger a Margin below zero (so it is never colour
-   * alone); undefined when neither.
-   */
-  readonly warning: string | undefined;
+  /** Whether the Fuel reaches the target: an icon and a short word, never colour alone. */
+  readonly reach: ReachView;
+  /** True when the target is not Surveyed: the Landing estimate is cautious. */
+  readonly unsurveyed: boolean;
   /** The plan in one sentence, for a live region. */
   readonly summary: string;
 }
@@ -146,6 +163,12 @@ function fuelGauge(run: Run, plan: HopPlan): HopPlanFuel {
   };
 }
 
+function reachView(plan: HopPlan): ReachView {
+  const kind = reachVerdict(plan);
+  const { word, frame } = VERDICTS[kind];
+  return { kind, word, frame, label: `Reach: ${word}` };
+}
+
 export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
   const from = findBody(run.starSystem, plan.fromId);
   if (!from) throw new Error(`Hop plan names unknown Body ${plan.fromId}`);
@@ -157,10 +180,12 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
   const depleted = to !== undefined && isDepleted(run, to.id);
   const share = formatMarginShare(marginShare(plan));
   const marginDeltaV = formatDeltaVKmS(metersPerSecond(Math.abs(plan.margin)));
+  const unsurveyed = plan.destination === 'body' && plan.unsurveyed;
   const low = short || plan.successChance < LOW_SUCCESS_BELOW;
   const needed = formatDeltaVKmS(plan.totalEstimate);
   const available = formatDeltaVKmS(plan.availableDeltaV);
   const successChance = formatPercent(plan.successChance);
+  const reach = reachView(plan);
   return {
     burns: burnRows(run, plan, from, to),
     bar: deltaVBar(plannedBurns(plan), plan.availableDeltaV),
@@ -174,7 +199,8 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
     marginIsShort: short,
     successChance,
     low,
-    warning: short ? NOT_ENOUGH : low ? 'Low chance: may run dry' : undefined,
-    summary: `Hop plan for ${targetName}: needs ${needed}, you have ${available}, success chance ${successChance}.${depleted ? ' It is Depleted and will yield nothing.' : ''}`,
+    reach,
+    unsurveyed,
+    summary: `Hop plan for ${targetName}${unsurveyed ? ' (Unsurveyed)' : ''}: needs ${needed}, you have ${available}, success chance ${successChance}, ${reach.word}.${depleted ? ' It is Depleted and will yield nothing.' : ''}`,
   };
 }
