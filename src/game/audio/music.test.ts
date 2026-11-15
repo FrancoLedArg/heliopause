@@ -137,4 +137,27 @@ describe('Music', () => {
     });
     expect(voices.map((voice) => voice.file)).toEqual(['a.mp3']);
   });
+
+  it('keeps playing when an older game detaches after a newer one attached', () => {
+    const music = new Music({
+      fileFor: (key) => FILES[key],
+      settings: new MusicSettingsStore(null),
+    });
+    const voices: FakeVoice[] = [];
+    const player = () => ({
+      start: (file: string) => {
+        const voice = new FakeVoice(file);
+        voices.push(voice);
+        return voice;
+      },
+    });
+    const older = player();
+    const newer = player();
+    music.attach(older);
+    music.attach(newer);
+    music.detach(older);
+    expect(music.isAttached(newer)).toBe(true);
+    music.setScene('Title');
+    expect(voices.map((voice) => voice.file)).toEqual(['a.mp3']);
+  });
 });

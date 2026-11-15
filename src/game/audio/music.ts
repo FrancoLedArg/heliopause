@@ -68,12 +68,20 @@ export class Music {
 
   /**
    * Drops the player (the game is gone). The voices are not stopped here: destroying the game
-   * tears down its sound manager, which removes them.
+   * tears down its sound manager, which removes them. With `player`, it only detaches if that player
+   * is still the attached one: a game destroyed after a newer game attached (React StrictMode mounts
+   * twice in dev, and Phaser destroys on its next step) must not silence the newer game.
    */
-  detach(): void {
+  detach(player?: Player): void {
+    if (player !== undefined && player !== this.player) return;
     this.player = undefined;
     this.current = undefined;
     this.fading = [];
+  }
+
+  /** Whether `player` is the one attached now. */
+  isAttached(player: Player): boolean {
+    return this.player === player;
   }
 
   setScene(scene: SceneKey): void {
