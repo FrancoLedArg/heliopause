@@ -11,8 +11,12 @@ import {
   crossSegments,
   dashedSegments,
   initialChartState,
+  labelContextOf,
   layoutChart,
   MARK_GAP,
+  placeLabels,
+  placeYieldMarks,
+  YIELD_MARK_SIZE,
   ringSegments,
   routeEnds,
   type ChartCommand,
@@ -22,6 +26,8 @@ import {
   type ChartState,
 } from './navChartView.ts';
 import { SceneKey } from './keys.ts';
+import { KIT_ATLAS_KEY } from '../../ui/kit/kit.ts';
+import { yieldIcon } from '../../ui/yieldIcon.ts';
 
 export interface NavChartData {
   /** The Run whose Star System the chart shows. */
@@ -41,6 +47,9 @@ export class NavChart extends Scene {
   private layout!: ChartLayout;
   private chartState!: ChartState;
   private marks!: GameObjects.Graphics;
+  /** The yield icons beside the Bodies, rebuilt when a label moves (labels give way to focus and the target). */
+  private yieldMarks!: GameObjects.Container;
+  private yieldStrikes!: GameObjects.Graphics;
 
   constructor() {
     super(SceneKey.NavChart);
@@ -64,9 +73,13 @@ export class NavChart extends Scene {
     );
     for (const node of this.layout.nodes) chart.add(this.addBody(node));
     chart.add(this.addHeliopauseMark());
+    this.yieldMarks = this.add.container(0, 0);
+    this.yieldStrikes = this.add.graphics();
+    chart.add([this.yieldMarks, this.yieldStrikes]);
     this.marks = this.add.graphics();
     chart.add(this.marks);
     this.drawMarks();
+    this.drawYieldMarks();
 
     const offs = [
       EventBus.on('nav-chart-command', (command) => {
@@ -102,6 +115,7 @@ export class NavChart extends Scene {
       return;
     }
     this.drawMarks();
+    this.drawYieldMarks();
     EventBus.emit('nav-chart-state', this.chartState);
     if (this.chartState.selectedId !== before.selectedId) {
       EventBus.emit('nav-target-selected', this.chartState.selectedId);
@@ -178,6 +192,40 @@ export class NavChart extends Scene {
       this.apply({ kind: 'click', id: HELIOPAUSE });
     });
     return mark;
+  }
+
+  /**
+   * The Fuel or Materials icon beside each landable Body, dimmed and struck through once it is Depleted.
+   * Which corner an icon takes depends on where the labels sit, so they are placed again with the marks.
+   */
+  private drawYieldMarks(): void {
+    this.yieldMarks.removeAll(true);
+    const g = this.yieldStrikes;
+    g.clear();
+    const labels = placeLabels(this.layout, labelContextOf(this.run, this.chartState));
+    const boxes = placeYieldMarks(this.layout, labels);
+    for (const node of this.layout.nodes) {
+      const box = boxes.get(node.body.id);
+      const icon = yieldIcon(this.run, node.body);
+      if (!box || !icon) continue;
+      const cx = box.x + box.w / 2;
+      const cy = box.y + box.h / 2;
+      const image =
+        icon.resource === 'fuel'
+          ? this.add.image(cx, cy, KIT_ATLAS_KEY, 'res_fuel')
+          : this.add.image(cx, cy, 'res_materials');
+      image.setScale(YIELD_MARK_SIZE / image.width).setAlpha(icon.depleted ? 0.4 : 1);
+      this.yieldMarks.add(image);
+      if (!icon.depleted) continue;
+      // The same strike as the DOM icon: a dark stroke under a bright one, so it shows over any sprite.
+      for (const [width, colour] of [
+        [3, paletteNumber('void')],
+        [1, paletteNumber('am3')],
+      ] as const) {
+        g.lineStyle(width, colour);
+        g.lineBetween(box.x, box.y + box.h, box.x + box.w, box.y);
+      }
+    }
   }
 
   /** Where the Spacecraft is, what has focus, and the chosen target with its route. */

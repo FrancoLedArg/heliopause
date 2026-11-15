@@ -321,6 +321,10 @@ const wait = (ms: number): Promise<void> =>
     setTimeout(resolve, ms);
   });
 
+/** A plume's art: the takeoff exhaust (`fx_plume`) once the manifest has it, `fx_thruster` otherwise and in flight. */
+const isPlume = (image: GameObjects.Image): boolean =>
+  ['fx_thruster', 'fx_plume'].includes(image.texture.key);
+
 const emitters = (scene: Flight): GameObjects.Particles.ParticleEmitter[] =>
   scene.children.list.filter(
     (child): child is GameObjects.Particles.ParticleEmitter =>
@@ -372,7 +376,69 @@ it('Takeoff kicks up dust, and the Transfer trails sparks', async () => {
   expect(alive.length).toBeGreaterThan(0);
 });
 
-it('under reduced motion there are no particles and no stage fade', async () => {
+/** Steps the whole playback, `every` ms, calling `look` at each moment. */
+function stepThrough(scene: Flight, every: number, look: (ms: number) => void): void {
+  for (let t = 0; t < scene.playback.duration; t += every) {
+    scene.seek(t);
+    look(t);
+  }
+}
+
+it('the engine lights with a flash and rumbles the camera, harder at liftoff, calming as it climbs and again at touchdown', async () => {
+  const { scene } = await fly('scout');
+  const flashes: number[] = [];
+  const rumble: { burn: string; progress: number; amount: number }[] = [];
+  stepThrough(scene, 20, (t) => {
+    const { burn, progress } = scene.playback.at(t);
+    flashes.push(scene.flash);
+    rumble.push({ burn, progress, amount: scene.rumble });
+  });
+  expect(Math.max(...flashes)).toBeGreaterThan(0);
+  // A warm, low flash: the scene stays readable under it.
+  expect(Math.max(...flashes)).toBeLessThan(0.5);
+  const peak = (from: number, to: number, burn: string): number =>
+    Math.max(
+      ...rumble
+        .filter((r) => r.burn === burn && r.progress >= from && r.progress < to)
+        .map((r) => r.amount),
+    );
+  const onThePad = peak(0.03, 0.15, 'takeoff');
+  const liftoff = peak(0.15, 0.3, 'takeoff');
+  expect(onThePad).toBeGreaterThan(0);
+  expect(liftoff).toBeGreaterThan(onThePad);
+  expect(peak(0.9, 1, 'takeoff')).toBe(0);
+  expect(peak(0.8, 0.95, 'landing')).toBeGreaterThan(0);
+  // Settled when the Landed view takes over.
+  expect(rumble.at(-1)?.amount).toBe(0);
+});
+
+it('a ground glow lights the strip under the engine at liftoff and is gone once the Spacecraft has climbed away', async () => {
+  const { scene } = await fly('scout');
+  scene.seek(momentOf(scene, 'takeoff', 0.2));
+  expect(scene.groundGlow.visible).toBe(true);
+  expect(scene.groundGlow.alpha).toBeGreaterThan(0.3);
+  expect(scene.groundGlow.x).toBe(scene.ship.x);
+  expect(scene.groundGlow.y).toBe(SHIP_PLACEMENT.baseY);
+  scene.seek(momentOf(scene, 'takeoff', 0.9));
+  expect(scene.groundGlow.visible && scene.groundGlow.alpha > 0).toBe(false);
+});
+
+it('the plumes lengthen as the Spacecraft climbs', async () => {
+  const { scene } = await fly('scout');
+  const length = (): number => {
+    const plume = scene.ship.list.find(
+      (child): child is GameObjects.Image =>
+        child instanceof GameObjects.Image && isPlume(child) && child.visible,
+    );
+    return plume?.getBounds().height ?? 0;
+  };
+  scene.seek(momentOf(scene, 'takeoff', 0.25));
+  const low = length();
+  scene.seek(momentOf(scene, 'takeoff', 0.9));
+  expect(length()).toBeGreaterThan(low * 1.2);
+});
+
+it('under reduced motion there are no particles, flashes, shakes or stage fades, and the plumes still fire', async () => {
   vi.spyOn(window, 'matchMedia').mockImplementation(
     (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
   );
@@ -382,8 +448,17 @@ it('under reduced motion there are no particles and no stage fade', async () => 
   expect(scene.playback.duration).toBe(
     flightPlayback(data.before.spacecraft, data.flight, 'reduced').duration,
   );
-  scene.seek(transferSpan(scene).start + 50);
-  expect(scene.cameras.main.fadeEffect.isRunning).toBe(false);
+  const cam = scene.cameras.main;
+  let plumes = 0;
+  stepThrough(scene, 10, () => {
+    expect(scene.flash).toBe(0);
+    expect(scene.rumble).toBe(0);
+    expect(cam.shakeEffect.isRunning).toBe(false);
+    expect(cam.flashEffect.isRunning).toBe(false);
+    expect(cam.fadeEffect.isRunning).toBe(false);
+    plumes = Math.max(plumes, shownPlumes(scene).length);
+  });
+  expect(plumes).toBeGreaterThan(0);
 });
 
 it('the route inset names the two Bodies and shows how far along the Hop is', async () => {
@@ -450,6 +525,98 @@ it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clea
   // The whole Spacecraft, plumes included, sits right of the report.
   expect(scene.ship.getBounds().left).toBeGreaterThanOrEqual(reportRight);
 }, 60_000);
+
+/** Resolves on the next `hop-failed`: the report of a failed Hop is on its way. */
+function nextFailure(): Promise<void> {
+  return new Promise((resolve) => {
+    const off = EventBus.on('hop-failed', () => {
+      off();
+      resolve();
+    });
+  });
+}
+
+/** The Run with only `share` of its Fuel in the tank. */
+const withFuel =
+  (share: number) =>
+  (run: Run): Run => ({
+    ...run,
+    spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass * share) },
+  });
+
+it('a Spacecraft that Fell Short in the Takeoff sputters out mid-climb and sags, x fixed, then the report follows', async () => {
+  const { scene, data } = await fly('scout', homeMoonId, withFuel(0.05));
+  const { outcome } = data.flight;
+  expect(outcome.kind === 'fell-short' && outcome.burn).toBe('takeoff');
+  const { stopsAt } = scene.playback;
+  // Mid-climb: off the ground, the engine still firing.
+  scene.seek(stopsAt - 600);
+  expect(scene.ship.y).toBeLessThan(SHIP_PLACEMENT.baseY - 20);
+  expect(shownPlumes(scene).length).toBeGreaterThan(0);
+  // It sputters: the plumes flicker out before the Fuel is gone.
+  const shown = new Set<number>();
+  for (let t = stopsAt - 300; t < stopsAt; t += 10) {
+    scene.seek(t);
+    shown.add(shownPlumes(scene).length);
+  }
+  expect(shown.has(0)).toBe(true);
+  expect(shown.size).toBeGreaterThan(1);
+  // Dead, the glow under it gone, and it sags, still upright over the same spot.
+  scene.seek(stopsAt + 400);
+  const cutOut = scene.ship.y;
+  expect(shownPlumes(scene)).toHaveLength(0);
+  expect(scene.groundGlow.visible && scene.groundGlow.alpha > 0).toBe(false);
+  const failed = nextFailure();
+  scene.seek(scene.playback.duration);
+  await failed;
+  expect(scene.ship.y).toBeGreaterThan(cutOut);
+  expect(scene.ship.y).toBeLessThanOrEqual(SHIP_PLACEMENT.baseY);
+  expect(scene.ship.x).toBe(SHIP_PLACEMENT.x);
+});
+
+/**
+ * The Run with just enough Fuel to reach the home Moon but run dry about halfway through
+ * the Landing: a Crash well above the ground, whatever the Star System generation does to Fuel.
+ */
+function crashingRun(run: Run): Run {
+  const moon = homeMoonId(run);
+  if (!moon) throw new Error('The innermost planet has no Moon');
+  for (let share = 1; share > 0; share -= 0.001) {
+    const short = withFuel(share)(run);
+    const launched = launchHop(short, moon);
+    if (launched.kind !== 'flown' || launched.flight.outcome.kind !== 'crashed') continue;
+    const landing = launched.flight.burns.find((burn) => burn.burn === 'landing');
+    if (landing?.status === 'ran-out' && landing.delivered < landing.actual * 0.6) return short;
+  }
+  throw new Error('No Fuel load Crashes halfway through the Landing');
+}
+
+it('a Spacecraft that Crashed cuts out above the ground, drops straight down, hits hard and tips over', async () => {
+  const { scene, data } = await fly('scout', homeMoonId, crashingRun);
+  expect(data.flight.outcome.kind).toBe('crashed');
+  const { stopsAt } = scene.playback;
+  scene.seek(stopsAt);
+  expect(scene.ship.y).toBeLessThan(SHIP_PLACEMENT.baseY - 5);
+  expect(shownPlumes(scene)).toHaveLength(0);
+  // The hit: a stronger flash and a hard shake than the touchdown of a Landing.
+  let flash = 0;
+  let rumble = 0;
+  for (let t = stopsAt; t < scene.playback.duration; t += 10) {
+    scene.seek(t);
+    flash = Math.max(flash, scene.flash);
+    rumble = Math.max(rumble, scene.rumble);
+  }
+  expect(flash).toBeGreaterThan(0.2);
+  expect(rumble).toBeGreaterThan(3);
+  const failed = nextFailure();
+  scene.seek(scene.playback.duration);
+  await failed;
+  expect(scene.ship.y).toBe(SHIP_PLACEMENT.baseY);
+  expect(scene.ship.x).toBe(SHIP_PLACEMENT.x);
+  expect(scene.ship.angle).toBeGreaterThan(10);
+  // The camera came down with it: the wreck lies on the strip where the Landed view has its ground.
+  expect(scene.cameras.main.scrollY).toBe(0);
+});
 
 it('the Heliopause is drawn from its real sprite, not the code-drawn stand-in', async () => {
   const { scene } = await fly('lancer', () => HELIOPAUSE, readyForTheHeliopause);
@@ -528,7 +695,7 @@ it('Takeoff smoke is still on screen 1.5 s after it was kicked up, while the str
 });
 
 it.each(CHASSIS_IDS)(
-  'the %s hovers down upright onto the strip and ends on exactly the Landed view composition',
+  'the %s comes down upright onto the strip and ends on exactly the Landed view composition',
   async (chassis) => {
     const { scene, data } = await fly(chassis);
     scene.seek(scene.playback.duration - 1);
@@ -574,7 +741,7 @@ function shownPlumes(scene: Flight): { x: number; y: number; angle: number }[] {
   return scene.ship.list
     .filter(
       (child): child is GameObjects.Image =>
-        child instanceof GameObjects.Image && child.texture.key === 'fx_thruster' && child.visible,
+        child instanceof GameObjects.Image && isPlume(child) && child.visible,
     )
     .map((plume) => {
       const m = plume.getWorldTransformMatrix();
@@ -583,9 +750,9 @@ function shownPlumes(scene: Flight): { x: number; y: number; angle: number }[] {
 }
 
 const PLUME_MOMENTS = [
+  { name: 'lighting on the ground', burn: 'takeoff', progress: 0.1, pose: 'standing' },
   { name: 'rising off the ground', burn: 'takeoff', progress: 0.3, pose: 'standing' },
-  { name: 'tipping toward its heading', burn: 'takeoff', progress: 0.61, pose: 'standing' },
-  { name: 'boosting away', burn: 'takeoff', progress: 0.85, pose: 'flight' },
+  { name: 'climbing away', burn: 'takeoff', progress: 0.85, pose: 'standing' },
   { name: 'in the Transfer', burn: 'transfer', progress: 0.3, pose: 'flight' },
   { name: 'hovering down', burn: 'landing', progress: 0.5, pose: 'standing' },
 ] as const satisfies readonly { name: string; burn: string; progress: number; pose: ShipPose }[];
@@ -639,18 +806,73 @@ function hullOnScreen(scene: Flight): Box {
   };
 }
 
+/** Every ms of the playback spent on `burn`, every 25 ms. */
+function msOf(scene: Flight, burn: string): number[] {
+  const ms: number[] = [];
+  for (let t = 0; t < scene.playback.duration; t += 25) {
+    if (scene.playback.at(t).burn === burn) ms.push(t);
+  }
+  return ms;
+}
+
 it.each(CHASSIS_IDS)(
-  'the %s stays wholly on screen through the whole Hop, the boost and the Transfer included',
+  'the %s rises straight up at Takeoff: its x fixed, upright and standing, then climbs out through the top edge',
+  async (chassis) => {
+    const { scene } = await fly(chassis);
+    const takeoff = msOf(scene, 'takeoff');
+    let lastY = Infinity;
+    for (const t of takeoff) {
+      scene.seek(t);
+      const where = `Takeoff at ${String(t)} ms`;
+      expect(scene.ship.x, where).toBe(SHIP_PLACEMENT.x);
+      expect(scene.ship.angle, where).toBe(0);
+      expect(hullOf(scene.ship).frame.name, where).toMatch(/^landed/);
+      // It never sinks back while the engine pushes it up.
+      expect(scene.ship.y, where).toBeLessThanOrEqual(lastY);
+      lastY = scene.ship.y;
+    }
+    expect(SHIP_PLACEMENT.baseY - lastY).toBeGreaterThan(300);
+    // By the end of the Takeoff the whole hull has left the frame through the top edge.
+    expect(hullOnScreen(scene).bottom).toBeLessThan(0);
+  },
+);
+
+it.each(CHASSIS_IDS)(
+  'the %s comes straight down at Landing: it enters through the top edge, x fixed and upright, and never climbs',
+  async (chassis) => {
+    const { scene } = await fly(chassis);
+    const landing = msOf(scene, 'landing');
+    const [first] = landing;
+    if (first === undefined) throw new Error('no Landing');
+    scene.seek(first);
+    expect(hullOnScreen(scene).bottom).toBeLessThanOrEqual(0);
+    let lastY = -Infinity;
+    for (const t of landing) {
+      scene.seek(t);
+      const where = `Landing at ${String(t)} ms`;
+      expect(scene.ship.x, where).toBe(SHIP_PLACEMENT.x);
+      expect(scene.ship.angle, where).toBe(0);
+      expect(hullOf(scene.ship).frame.name, where).toMatch(/^landed/);
+      expect(scene.ship.y, where).toBeGreaterThanOrEqual(lastY);
+      lastY = scene.ship.y;
+    }
+  },
+);
+
+it.each(CHASSIS_IDS)(
+  'the %s stays on screen through the whole Hop, leaving and coming back only through the top edge',
   async (chassis) => {
     const { scene } = await fly(chassis);
     for (let t = 0; t < scene.playback.duration; t += 25) {
       scene.seek(t);
       const hull = hullOnScreen(scene);
-      const where = `${scene.playback.at(t).burn} at ${String(t)} ms`;
+      const { burn } = scene.playback.at(t);
+      const where = `${burn} at ${String(t)} ms`;
       expect(hull.left, where).toBeGreaterThanOrEqual(0);
-      expect(hull.top, where).toBeGreaterThanOrEqual(0);
       expect(hull.right, where).toBeLessThanOrEqual(GAME_WIDTH);
       expect(hull.bottom, where).toBeLessThanOrEqual(GAME_HEIGHT);
+      // Only the vertical climb and descent take it past the top edge.
+      if (burn === 'transfer') expect(hull.top, where).toBeGreaterThanOrEqual(0);
     }
   },
 );

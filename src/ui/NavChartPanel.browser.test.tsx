@@ -495,3 +495,66 @@ it('plans a Hop to the targeted Heliopause with a Jump Drive: Takeoff and Transf
   expect(option?.getAttribute('aria-disabled')).toBe('false');
   expect(option?.getAttribute('aria-selected')).toBe('true');
 });
+
+// Show, don't tell (#219): the Body's card and the Hop plan's target carry the yield icon, with its words.
+it('every yield icon on the card and the Hop plan target has its accessible name, and a Gas Giant has none', async () => {
+  const run = newRun(123, 'scout');
+  const bodies = listBodies(run.starSystem);
+  const landable = bodies.find((b) => b.landable && b.id !== run.starSystem.planets[0]?.id);
+  const gas = bodies.find((b) => b.kind === 'gas-giant');
+  if (!landable?.landable || !gas)
+    throw new Error('seed 123 needs a landable Body and a Gas Giant');
+  const names = (host: HTMLElement): (string | null)[] =>
+    [...host.querySelectorAll('[data-testid="resource-icon"]')].map((el) =>
+      el.getAttribute('aria-label'),
+    );
+
+  const expected = landable.composition === 'icy' ? 'yields Fuel' : 'yields Materials';
+  const withTarget = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: landable.id, selectedId: landable.id }} />,
+  );
+  // One on the card (tooltip), one on the target.
+  expect(names(withTarget)).toEqual([expected, expected]);
+  expect(byTestId(byTestId(withTarget, 'inspect'), 'resource-icon').getAttribute('role')).toBe(
+    'img',
+  );
+  expect(names(byTestId(withTarget, 'target'))).toEqual([expected]);
+  cleanUp();
+
+  const depleted = await renderUi(
+    <NavChartPanel
+      run={{ ...run, depleted: [landable.id] }}
+      state={{ focusedId: landable.id, selectedId: landable.id }}
+    />,
+  );
+  expect(names(depleted)).toEqual(['Depleted, yields nothing', 'Depleted, yields nothing']);
+  cleanUp();
+
+  const giant = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: gas.id, selectedId: undefined }} />,
+  );
+  expect(names(giant)).toEqual([]);
+});
+
+it('the yield icon fits inside the card and the target block', async () => {
+  // The landable Body with the longest name, so the fit holds whatever the generator draws.
+  const run = newRun(4171, 'scout');
+  const body = listBodies(run.starSystem)
+    .filter((b) => b.landable && b.id !== run.starSystem.planets[0]?.id)
+    .reduce<ReturnType<typeof listBodies>[number] | undefined>(
+      (longest, b) => (longest && longest.name.length >= b.name.length ? longest : b),
+      undefined,
+    );
+  if (!body) throw new Error('seed 4171 has no landable Body');
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: body.id, selectedId: body.id }} />,
+  );
+  const within = (inner: HTMLElement, outer: HTMLElement): void => {
+    const [i, o] = [inner.getBoundingClientRect(), outer.getBoundingClientRect()];
+    expect(i.left).toBeGreaterThanOrEqual(o.left);
+    expect(i.right).toBeLessThanOrEqual(o.right);
+    expect(i.bottom).toBeLessThanOrEqual(o.bottom);
+  };
+  within(byTestId(byTestId(host, 'inspect'), 'resource-icon'), byTestId(host, 'inspect'));
+  within(byTestId(byTestId(host, 'target'), 'resource-icon'), byTestId(host, 'target'));
+});

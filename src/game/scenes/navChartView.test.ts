@@ -24,6 +24,7 @@ import {
   placeLabels,
   placeTooltip,
   routeEnds,
+  placeYieldMarks,
   TOOLTIP_SIZE,
   tooltipHeight,
   tooltipKindExtra,
@@ -402,6 +403,38 @@ describe('the Heliopause on the Nav Chart', () => {
       }
     }
     expect(problems.join('\n')).toBe('');
+  });
+
+  it('puts a yield icon by every landable Body, on the chart and clear of the labels, and none by a Gas Giant', () => {
+    const problems: string[] = [];
+    const covered: string[] = [];
+    let icons = 0;
+    for (const seed of SEEDS.slice(0, 60)) {
+      const run = newRun(seed);
+      const layout = layoutFor(seed);
+      const here = currentBody(run).id;
+      const labels = placeLabels(layout, { hereId: here, targetId: undefined, focusedId: here });
+      const marks = placeYieldMarks(layout, labels);
+      for (const node of layout.nodes) {
+        const box = marks.get(node.body.id);
+        if (!node.body.landable) {
+          if (box) problems.push(`seed ${seed}: ${node.body.name} is a Gas Giant with an icon`);
+          continue;
+        }
+        icons += 1;
+        if (!box || !insideChart(box)) {
+          problems.push(`seed ${seed}: ${node.body.name}'s icon is off the chart`);
+          continue;
+        }
+        for (const label of labels) {
+          if (overlaps(label.box, box)) covered.push(`seed ${seed}: ${label.text} covers an icon`);
+        }
+      }
+    }
+    expect(icons).toBeGreaterThan(100);
+    expect(problems.join('\n')).toBe('');
+    // In the most crowded charts a corner is not always free; that is rare.
+    expect(covered.length / icons, covered.join('\n')).toBeLessThan(0.03);
   });
 
   it('labels the targeted Heliopause as the target', () => {

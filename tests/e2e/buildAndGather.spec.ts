@@ -8,6 +8,7 @@ import {
   startRun,
 } from '../../src/game/sim/index.ts';
 import { describeReport } from '../../src/ui/hopReportView.ts';
+import { yieldIcon } from '../../src/ui/yieldIcon.ts';
 
 // The whole loop of spec #14 on one seed: build, plan, Hop, gather, see the Body Depleted.
 const SEED = 123;
@@ -21,6 +22,9 @@ const built = install(run, slot, 'drill-1');
 if (built.kind !== 'installed') throw new Error('The starting Materials should buy a Drill');
 const builtRun = built.run;
 const afterDeltaV = availableDeltaV(builtRun.spacecraft);
+// Show, don't tell (#219): what the target Moon yields, from the simulation's own rule.
+const moonYield = yieldIcon(builtRun, moon);
+if (!moonYield || moonYield.depleted) throw new Error(`${moon.name} should still yield`);
 const hop = launchHop(builtRun, moon.id);
 if (hop.kind !== 'flown' || hop.flight.outcome.kind !== 'arrived') {
   throw new Error(`Seed ${SEED}: the Drilled Spacecraft's Hop to ${moon.name} should Arrive`);
@@ -108,6 +112,11 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
   await target(page, moon.name);
   await expect(page.getByTestId('plan-available')).toHaveText(formatPlanDeltaV(afterDeltaV));
+  // The target Moon shows what it yields, on its card and on the Hop plan's target.
+  await expect(page.getByTestId('target').getByRole('img', { name: moonYield.name })).toBeVisible();
+  await expect(
+    page.getByTestId('inspect').getByRole('img', { name: moonYield.name }),
+  ).toBeVisible();
 
   // 5. Hop to the Icy Moon; the report says what was collected, naming the Drill.
   // On the Hop plan, Tab goes to Cancel and then to Launch.
@@ -123,7 +132,10 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   await page.keyboard.press('Enter');
   await expect(report).toBeHidden();
   await expect(page.getByTestId('fuel')).toHaveText(formatFuel(hop.run.spacecraft.fuelMass));
-  await expect(page.getByTestId('landed-depleted')).toHaveText('· Depleted');
+  // The plate shows the struck-through icon (its words in the accessible name).
+  await expect(
+    page.getByTestId('landed-kind').getByRole('img', { name: 'Depleted, yields nothing' }),
+  ).toBeVisible();
 
   // 6. Back on the chart, the Moon is marked Depleted, and its tooltip badge is the amber warning.
   await page.keyboard.press('m');

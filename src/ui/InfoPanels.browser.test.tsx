@@ -1,7 +1,7 @@
 import { afterEach, expect, it } from 'vitest';
 import { GAME_HEIGHT, GAME_WIDTH } from '../game/main.ts';
 import { cleanUp, renderUi } from './browserTestKit.tsx';
-import { AboutPanel, CreditsPanel } from './InfoPanels.tsx';
+import { AboutPanel, CreditsPanel, HowToPlayPanel } from './InfoPanels.tsx';
 
 afterEach(cleanUp);
 
@@ -18,7 +18,7 @@ async function show(panel: 'credits' | 'about'): Promise<HTMLElement> {
   return renderUi(
     <>
       {panel === 'credits' ? <CreditsPanel onBack={onBack} /> : <AboutPanel onBack={onBack} />}
-      <p className="hud-tag ai-label">AI-generated art</p>
+      <p className="hud-tag ai-label">AI-generated art and music</p>
     </>,
   );
 }
@@ -45,7 +45,7 @@ it('Credits & References fits the 640x360 stage and keeps the AI-art label visib
   expect(body.scrollHeight).toBeGreaterThan(body.clientHeight);
   expect(body.scrollWidth).toBeLessThanOrEqual(body.clientWidth);
 
-  expect(label.textContent).toBe('AI-generated art');
+  expect(label.textContent).toBe('AI-generated art and music');
   expect(getComputedStyle(label).visibility).toBe('visible');
   expect(inside(label.getBoundingClientRect())).toBe(true);
   expect(apart(label.getBoundingClientRect(), plate.getBoundingClientRect())).toBe(true);
@@ -64,4 +64,18 @@ it('About fits the stage with its body inside the plate and the AI-art label vis
   expect(inside(plate.getBoundingClientRect())).toBe(true);
   expect(body.scrollWidth).toBeLessThanOrEqual(body.clientWidth);
   expect(apart(label.getBoundingClientRect(), plate.getBoundingClientRect())).toBe(true);
+});
+
+it("How to play's opening shows the Fuel and Materials icons inline, their words in accessible names (#189)", async () => {
+  const host = await renderUi(<HowToPlayPanel onBack={() => undefined} />);
+  const opening = [...host.querySelectorAll('section')].find(
+    (section) => section.querySelector('h2')?.textContent === 'The opening',
+  );
+  if (!opening) throw new Error('no opening entry');
+  const icons = [...opening.querySelectorAll('[data-testid="resource-icon"]')];
+  expect(icons.map((icon) => icon.getAttribute('aria-label'))).toEqual(['Fuel', 'Materials']);
+  expect(icons.map((icon) => icon.getAttribute('role'))).toEqual(['img', 'img']);
+  // The icons stand in for the words: no placeholder is left in the visible text.
+  expect(opening.textContent).not.toMatch(/[{}]/);
+  expect(opening.textContent).toContain('Starting Moon');
 });

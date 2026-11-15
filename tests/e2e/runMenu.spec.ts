@@ -15,7 +15,7 @@ test('the in-Run Menu leads back to the title, and a New Run works again', async
   const menu = page.getByRole('dialog');
   await expect(menu).toBeVisible();
   await expect(page.getByRole('button', { name: 'Resume' })).toBeFocused();
-  await expect(page.getByText('AI-generated art')).toBeVisible();
+  await expect(page.getByText('AI-generated art and music')).toBeVisible();
   await testInfo.attach('menu', { body: await page.screenshot(), contentType: 'image/png' });
 
   // Esc toggles; Resume gives focus back.
@@ -41,7 +41,7 @@ test('the in-Run Menu leads back to the title, and a New Run works again', async
   await expect(newRun).toBeVisible();
   await expect(newRun).toBeFocused();
   await expect(page.getByTestId('game-ui')).not.toHaveAttribute('data-run-seed', /.+/);
-  await expect(page.getByText('AI-generated art')).toBeVisible();
+  await expect(page.getByText('AI-generated art and music')).toBeVisible();
 
   await newRun.click();
   await expect(page.getByRole('heading', { name: home.name })).toBeVisible();
