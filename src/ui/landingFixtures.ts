@@ -68,14 +68,16 @@ export function landing(
 }
 
 /**
- * Seed 105 with a level-1 Drill, landed on Verpry by way of Husox and Liokioher: no Hop as built,
+ * Seed 4 with a level-1 Drill, landed on Prumal by way of Ludran and Ruquir-9: no Hop as built,
  * but removing the Drill saves the Run, with every Body Unsurveyed until landed on as in real play
  * (pass `preSurvey` false). Re-pinned for #190 (was seed 156's Rymoquox): Stranded and the warning
  * follow the plans the player sees, and the old route only warned with its other Bodies Surveyed.
+ * Re-pinned for #231 (was seed 105's Verpry): generation checks the Hauler's two-Tank start, so
+ * seed 105's Star System is drawn differently.
  */
 export const SAVE_BY_REMOVING = {
-  seed: 105,
-  path: ['Husox', 'Liokioher', 'Verpry'],
+  seed: 4,
+  path: ['Ludran', 'Ruquir-9', 'Prumal'],
   fit: 'drill-1',
 } as const;
 
