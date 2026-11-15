@@ -21,8 +21,8 @@ import {
   describeRemoveRefusal,
   describeSpacecraft,
   installTarget,
-  massBar,
   panelRows,
+  statBars,
 } from './spacecraftPanelView.ts';
 
 describe('a Component’s effect is shown as the Chassis scales it', () => {
@@ -153,34 +153,6 @@ describe('the catalogue rows', () => {
   });
 });
 
-describe('the Mass bar', () => {
-  it('fills with the dry mass against the heaviest loadout the Chassis could carry', () => {
-    const run = startRun(5, 'scout');
-    const bar = massBar(run.spacecraft);
-    expect(bar.label).toBe('Dry mass 4.0 t');
-    expect(bar.fraction).toBeGreaterThan(0);
-    expect(bar.fraction).toBeLessThan(1);
-    const heavier = install({ ...run, materials: materials(500) }, 2, 'fuel-tank-2');
-    if (heavier.kind !== 'installed') throw new Error('expected an install');
-    expect(massBar(heavier.run.spacecraft).fraction).toBeGreaterThan(bar.fraction);
-  });
-
-  it('never overflows, with the heaviest Components that fit in every free Slot', () => {
-    const run = startRun(5, 'scout');
-    // Heaviest first; a second Jump Drive is refused, so the next heaviest goes in after it.
-    const byMass = Object.values(COMPONENTS).sort((a, b) => b.mass - a.mass);
-    let rich = { ...run, materials: materials(1_000) };
-    for (const slot of [2, 3]) {
-      const fits = byMass
-        .map((component) => install(rich, slot, component.id))
-        .find((result) => result.kind === 'installed');
-      if (!fits) throw new Error('expected an install');
-      rich = fits.run;
-    }
-    expect(massBar(rich.spacecraft).fraction).toBeLessThanOrEqual(1);
-  });
-});
-
 describe('removing a Component is explained in words', () => {
   it('says why the last Engine and the last Fuel Tank stay', () => {
     expect(describeRemoveRefusal({ kind: 'last-engine' })).toBe(
@@ -217,61 +189,89 @@ describe('removing a Component is explained in words', () => {
 describe('the preview before you pay', () => {
   const scout = startRun(123, 'scout').spacecraft;
 
-  it('shows a Fuel Tank dropping Δv, in words as well as the numbers', () => {
+  it('says in one short line why Δv moves, with the lesson behind "Tell me more"', () => {
     const preview = describePreview(scout, { kind: 'install', component: 'fuel-tank-1' });
-    const dv = preview?.lines.find((line) => line.label === 'Δv');
     expect(preview?.heading).toBe('Install Fuel Tank 1');
-    expect(dv).toEqual({
-      label: 'Δv',
-      kind: 'delta-v',
-      before: '28.8 km/s',
-      after: '24.7 km/s',
-      change: 'Drops 4.1 km/s',
-      trend: 'down',
-    });
-    expect(preview?.note).toBe(
-      'Starts empty, so Δv drops. Filled up: 33.8\u00a0km/s, up from 28.8\u00a0km/s.',
-    );
-  });
-
-  it('shows the mass and Fuel capacity as before → after with the difference', () => {
-    const preview = describePreview(scout, { kind: 'install', component: 'fuel-tank-1' });
-    expect(preview?.lines.slice(0, 2)).toEqual([
-      {
-        label: 'Dry mass',
-        kind: 'mass',
-        before: '4.0 t',
-        after: '5.5 t',
-        change: '+1.5 t',
-        trend: 'up',
-      },
-      {
-        label: 'Fuel cap.',
-        kind: 'fuel',
-        before: '21.0 t',
-        after: '42.0 t',
-        change: '+21.0 t',
-        trend: 'up',
-      },
+    expect(preview?.note).toBe('Starts empty, so Δv drops.');
+    expect(preview?.more).toEqual([
+      COMPONENTS['fuel-tank-1'].explanation,
+      'Filled up: 33.8\u00a0km/s, up from 28.8\u00a0km/s.',
     ]);
   });
 
-  it('says no change when a figure does not move, and says a removal lowers mass', () => {
+  it('says mass costs Δv for a Drill, and a removal that sheds mass gives Δv back', () => {
     const drill = describePreview(scout, { kind: 'install', component: 'drill-1' });
-    expect(drill?.lines[1]?.change).toBe('No change');
-    expect(drill?.note).toBe(COMPONENTS['drill-1'].explanation);
+    expect(drill?.note).toBe('More mass, so Δv drops.');
+    expect(drill?.more).toEqual([COMPONENTS['drill-1'].explanation]);
     const removal = describePreview(refit(scout, ['engine-1', 'fuel-tank-1', 'drill-1', null]), {
       kind: 'remove',
       slot: 2,
     });
     expect(removal?.heading).toBe('Remove Drill 1');
-    expect(removal?.lines[0]?.change).toBe('−0.8 t');
-    expect(removal?.lines[2]?.trend).toBe('up');
+    expect(removal?.note).toBe('Less mass, so Δv rises.');
+  });
+
+  it('says a better Engine raises Δv despite its mass', () => {
+    const engine = describePreview(scout, { kind: 'install', component: 'engine-2' });
+    expect(engine?.note).toBe('Better Isp, so Δv rises.');
   });
 
   it('has nothing to preview with no empty Slot to install into', () => {
     const full = refit(scout, ['engine-1', 'fuel-tank-1', 'drill-1', 'drill-1']);
     expect(describePreview(full, { kind: 'install', component: 'drill-1' })).toBeUndefined();
+  });
+});
+
+describe('the stat bars', () => {
+  const scout = startRun(123, 'scout').spacecraft;
+
+  it('show the dry mass, Fuel capacity and Δv, in km/s as the top bar shows it', () => {
+    const bars = statBars(scout);
+    expect(bars.map((bar) => [bar.kind, bar.label, bar.value])).toEqual([
+      ['mass', 'Mass', '4.0 t'],
+      ['fuel', 'Fuel', '21.0 t'],
+      ['delta-v', 'Δv', '28.8 km/s'],
+    ]);
+    for (const bar of bars) {
+      expect(bar.share).toBeGreaterThan(0);
+      expect(bar.share).toBeLessThanOrEqual(1);
+      expect(bar.after).toBeUndefined();
+    }
+    expect(bars[2]?.name).toBe('Δv: 28.8 km/s');
+  });
+
+  it('show an install as before and after, with the change, as the simulation previews it', () => {
+    const bars = statBars(scout, { kind: 'install', component: 'fuel-tank-1' });
+    expect(bars.map((bar) => [bar.value, bar.after?.value, bar.after?.change])).toEqual([
+      ['4.0 t', '5.5 t', '+1.5'],
+      ['21.0 t', '42.0 t', '+21.0'],
+      ['28.8 km/s', '24.7 km/s', '−4.1'],
+    ]);
+    const [mass, fuel, dv] = bars;
+    expect(mass?.after?.share).toBeGreaterThan(mass?.share ?? 1);
+    expect(fuel?.after?.share).toBeGreaterThan(fuel?.share ?? 1);
+    expect(dv?.after?.share).toBeLessThan(dv?.share ?? 0);
+    // More mass is worse, more Fuel is better: the bar says which way is good.
+    expect([mass?.after?.good, fuel?.after?.good, dv?.after?.good]).toEqual([false, true, false]);
+    expect(dv?.name).toBe('Δv: 28.8 km/s now, 24.7 km/s after. Drops 4.1 km/s.');
+  });
+
+  it('say no change when a figure does not move', () => {
+    const [, fuel] = statBars(scout, { kind: 'install', component: 'drill-1' });
+    expect(fuel?.after).toMatchObject({ value: '21.0 t', change: '±0', trend: 'same' });
+    expect(fuel?.name).toBe('Fuel capacity: 21.0 t now, 21.0 t after. No change.');
+  });
+
+  it('never overflow, with the heaviest Components and the largest Fuel Tanks fitted', () => {
+    for (const slots of [
+      ['engine-2', 'fuel-tank-2', 'fuel-tank-2', 'fuel-tank-2'],
+      ['engine-2', 'fuel-tank-2', 'jump-drive', 'drill-2'],
+    ] as const) {
+      const full = refit(scout, slots);
+      for (const bar of statBars({ ...full, fuelMass: full.fuelCapacity })) {
+        expect(bar.share, bar.kind).toBeLessThanOrEqual(1);
+      }
+    }
   });
 });
 
@@ -291,11 +291,11 @@ describe('the Jump Drive in the panel', () => {
     });
   });
 
-  it('previews a drop in Δv, with its one-sentence explanation as the note', () => {
+  it('previews a drop in Δv, with its one-sentence explanation behind "Tell me more"', () => {
     const shown = describePreview(run.spacecraft, { kind: 'install', component: 'jump-drive' });
     expect(shown?.heading).toBe('Install Jump Drive');
-    expect(shown?.lines.find((line) => line.kind === 'delta-v')?.trend).toBe('down');
-    expect(shown?.note).toBe(COMPONENTS['jump-drive'].explanation);
+    expect(shown?.note).toBe('More mass, so Δv drops.');
+    expect(shown?.more).toEqual([COMPONENTS['jump-drive'].explanation]);
   });
 
   it('says in words that the Run is short of Materials when it cannot afford it', () => {

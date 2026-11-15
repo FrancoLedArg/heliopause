@@ -3,19 +3,25 @@ import { userEvent } from 'vitest/browser';
 import { afterEach, expect, it } from 'vitest';
 import { EventBus } from '../game/EventBus.ts';
 import {
+  availableDeltaV,
   CHASSIS_IDS,
   COMPONENT_IDS,
   COMPONENTS,
   install,
   materials,
+  preview,
   refit,
   remove,
   startRun,
   type Run,
+  type Slot,
 } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
+import { formatDeltaVKmS, formatMass } from './format.ts';
 import { SpacecraftPanel } from './SpacecraftPanel.tsx';
 import { componentLabel } from './spacecraftPanelView.ts';
+import { SpacecraftPicture } from './SpacecraftPicture.tsx';
+import { expectTextBudget } from './textBudget.ts';
 
 /** A no-break space: the Tank note keeps a figure and its unit together. */
 const NBSP = '\u00a0';
@@ -413,15 +419,27 @@ function previewText(host: HTMLElement): string {
   return byTestId(host, 'install-preview').textContent;
 }
 
+/** The Δv bar's name while a change is previewed: its figures and the change, in words. */
+function previewDv(host: HTMLElement): string {
+  const row = host.querySelector('[data-testid="preview-line"][data-stat="delta-v"]');
+  return row?.querySelector('[role="img"]')?.getAttribute('aria-label') ?? '';
+}
+
 it('previews a Fuel Tank dropping Δv, in words, when its Install button is focused and before paying', async () => {
   const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
   await tabTo(/Install Fuel Tank, level 1/);
   const text = previewText(host);
   expect(text).toContain('Install Fuel Tank 1');
   expect(text).toContain('28.8 km/s → 24.7 km/s');
-  expect(text).toContain('Drops 4.1 km/s');
-  expect(text).toContain('Starts empty, so Δv drops.');
-  expect(text).toContain(`Filled up: 33.8${NBSP}km/s, up from 28.8${NBSP}km/s.`);
+  // The drop is a signed number by the bar, and in words in the bar's name.
+  expect(text).toContain('−4.1');
+  expect(previewDv(host)).toContain('Drops 4.1 km/s');
+  expect(byTestId(host, 'preview-note').textContent).toBe('Starts empty, so Δv drops.');
+  // The rest of the lesson waits behind "Tell me more" (#224: one short line of prose per panel).
+  press(button(host, /Tell me more/));
+  expect(byTestId(host, 'preview-more').textContent).toContain(
+    `Filled up: 33.8${NBSP}km/s, up from 28.8${NBSP}km/s.`,
+  );
   // Nothing was paid: the Materials and the Δv in the figures are as they were.
   expect(byTestId(host, 'install-target').textContent).toContain('25 Materials in stock');
   expect(byTestId(host, 'panel-delta-v').textContent).toBe('28.8 km/s');
@@ -433,7 +451,9 @@ it('previews the removal of the Component in the chosen Slot, and says why when 
   );
   await focusSlot(/^Slot 3, Drill/);
   expect(previewText(host)).toContain('Remove Drill 1');
-  expect(previewText(host)).toContain('−0.8 t');
+  // #224: the change is a signed number beside the bar, its unit with the figures above it.
+  expect(previewText(host)).toContain('15.8 t → 15.0 t');
+  expect(previewText(host)).toContain('−0.8');
   await focusSlot(/^Slot 1, Engine/);
   expect(previewText(host)).toContain('last Engine');
   expect(host.querySelector('[data-testid="preview-line"]')).toBeNull();
@@ -463,17 +483,19 @@ it.each(CHASSIS_IDS)(
         range.selectNodeContents(el);
         const text = range.getBoundingClientRect();
         if (text.width === 0) continue;
-        // A sentence may wrap, in at most two lines; the figures keep to one line each.
+        // A sentence may wrap, in at most two lines; the figures keep to one line each, inside
+        // the box (#224: the figures now end at the box's right edge, beside their bars).
         if (el.classList.contains('spacecraft-panel__note')) {
           expect(text.height, el.className).toBeLessThanOrEqual(24);
         } else {
-          expect(text.right, el.className).toBeLessThanOrEqual(area.right - 16);
+          expect(text.right, el.className).toBeLessThanOrEqual(area.right);
+          expect(text.height, el.className).toBeLessThanOrEqual(14);
         }
         expect(text.bottom, el.className).toBeLessThanOrEqual(area.bottom - 8);
       }
-      // It stays clear of the figures above it.
-      const figures = host.querySelector<HTMLElement>('.spacecraft-panel__figures');
-      expect(area.top).toBeGreaterThanOrEqual(figures?.getBoundingClientRect().bottom ?? 0);
+      // It stays clear of the picture above it (#224: the picture replaced the figures there).
+      const picture = byTestId(host, 'spacecraft-figure');
+      expect(area.top).toBeGreaterThanOrEqual(picture.getBoundingClientRect().bottom);
     };
     for (const id of COMPONENT_IDS) {
       await tabTo(new RegExp(`Install ${componentLabel(id)},`));
@@ -512,10 +534,13 @@ it('keeps the removal preview while the remove question is open, even when the c
   expect(previewText(host)).toContain('Remove Drill 1');
 });
 
-it('says in a plain sentence why you might want an Engine, in the preview', async () => {
+it('says in a plain sentence why you might want an Engine, behind "Tell me more"', async () => {
   const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
   await tabTo(/Install Engine, level 2/);
-  expect(previewText(host)).toContain(COMPONENTS['engine-2'].explanation);
+  // #224: the explanation moved behind "Tell me more"; the visible line says why Δv moves.
+  expect(byTestId(host, 'preview-note').textContent).toBe('Better Isp, so Δv rises.');
+  press(button(host, /Tell me more/));
+  expect(byTestId(host, 'preview-more').textContent).toContain(COMPONENTS['engine-2'].explanation);
 });
 
 it('lists the Jump Drive from the first screen, previews it and refuses it plainly when unaffordable', async () => {
@@ -527,8 +552,13 @@ it('lists the Jump Drive from the first screen, previews it and refuses it plain
   expect(row?.textContent).toContain('Need 20 more');
   await tabTo(/Install Jump Drive,/);
   expect(previewText(host)).toContain('Install Jump Drive');
-  expect(previewText(host)).toContain('Drops');
-  expect(previewText(host)).toContain(COMPONENTS['jump-drive'].explanation);
+  // #224: the drop is in the Δv bar's name and the short line; the explanation is behind the toggle.
+  expect(previewDv(host)).toContain('Drops');
+  expect(byTestId(host, 'preview-note').textContent).toBe('More mass, so Δv drops.');
+  press(button(host, /Tell me more/));
+  expect(byTestId(host, 'preview-more').textContent).toContain(
+    COMPONENTS['jump-drive'].explanation,
+  );
   act(() => {
     installButton(host, /Install Jump Drive,/).click();
   });
@@ -560,11 +590,169 @@ it('greys out a second Jump Drive, says why in its entry, and refuses it plainly
   act(() => {
     button.focus();
   });
-  expect(previewText(host)).toBe('You already carry a Jump Drive.');
+  // #224: the preview block also holds the stat bars now, so the reason is read from its line.
+  expect(byTestId(host, 'preview-note').textContent).toBe('You already carry a Jump Drive.');
+  expect(host.querySelector('[data-testid="preview-line"]')).toBeNull();
   act(() => {
     button.click();
   });
   expect(byTestId(host, 'install-status').textContent).toBe(
     "Can't install. You already carry a Jump Drive.",
   );
+});
+
+// ---- The picture, the stat bars and the text budget (#224) ----
+
+function callouts(host: HTMLElement): HTMLElement[] {
+  return [...host.querySelectorAll<HTMLElement>('[role="radio"]')];
+}
+
+it('draws the Spacecraft with one callout per Slot, and names it in words', async () => {
+  const run = fullRun(['engine-1', 'fuel-tank-1', 'drill-1', null]);
+  const host = await renderUi(<Harness initial={run} />);
+  const picture = host.querySelector<HTMLElement>('[role="img"][data-testid="spacecraft-picture"]');
+  expect(picture?.getAttribute('aria-label')).toBe('Hauler: Engine 1, Fuel Tank 1, Drill 1');
+  const slots = callouts(host);
+  expect(slots.map((slot) => slot.getAttribute('aria-label'))).toEqual([
+    'Slot 1, Engine, level 1',
+    'Slot 2, Fuel Tank, level 1',
+    'Slot 3, Drill, level 1',
+    'Slot 4, empty',
+  ]);
+  // A fitted Slot shows its Component's icon; an empty one is an outline with no icon.
+  expect(
+    slots.map(
+      (slot) =>
+        slot.querySelector('[data-component-icon]')?.getAttribute('data-component-icon') ?? null,
+    ),
+  ).toEqual(['engine', 'fuel-tank', 'drill', null]);
+  expect(slots.map((slot) => slot.dataset['state'])).toEqual([
+    'fitted',
+    'fitted',
+    'fitted',
+    'empty',
+  ]);
+  // Each fitted callout has its line to the Component art; the empty one has none.
+  expect(host.querySelectorAll('[data-testid="callout-line"]')).toHaveLength(3);
+});
+
+it('adds the new Component to its callout and to the picture’s words when it is installed', async () => {
+  const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
+  press(installButton(host, /Install Fuel Tank, level 1/));
+  expect(slotRadio(host, /^Slot 3, Fuel Tank, level 1/).dataset['state']).toBe('fitted');
+  expect(byTestId(host, 'spacecraft-picture').getAttribute('aria-label')).toBe(
+    'Scout: Engine 1, Fuel Tank 1 ×2',
+  );
+});
+
+it.each([4, 6])(
+  'lays out %i Slots inside the picture, inside the 640×360 stage, with no two callouts overlapping',
+  async (count) => {
+    const slots: Slot[] = [
+      'engine-1',
+      'fuel-tank-1',
+      'drill-2',
+      ...Array<Slot>(count - 3).fill(null),
+    ];
+    const host = await renderUi(
+      <section className="spacecraft-panel" style={{ left: 8, top: 52, width: 624, height: 292 }}>
+        <div className="spacecraft-panel__left">
+          <SpacecraftPicture
+            chassisId="hauler"
+            slots={slots}
+            selected={0}
+            onSelect={() => undefined}
+            slotRef={() => undefined}
+          />
+        </div>
+      </section>,
+    );
+    const stage = host.getBoundingClientRect();
+    const picture = byTestId(host, 'spacecraft-figure').getBoundingClientRect();
+    const boxes = callouts(host).map((slot) => slot.getBoundingClientRect());
+    expect(boxes).toHaveLength(count);
+    for (const box of boxes) {
+      expect(box.left).toBeGreaterThanOrEqual(picture.left);
+      expect(box.right).toBeLessThanOrEqual(picture.right);
+      expect(box.top).toBeGreaterThanOrEqual(picture.top);
+      expect(box.bottom).toBeLessThanOrEqual(picture.bottom);
+      expect(box.right).toBeLessThanOrEqual(stage.left + 640);
+      expect(box.bottom).toBeLessThanOrEqual(stage.top + 360);
+    }
+    for (const a of boxes) {
+      for (const b of boxes) {
+        if (a === b) continue;
+        const apart =
+          a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+        expect(apart).toBe(true);
+      }
+    }
+  },
+);
+
+it('shows before-and-after bars for mass, Fuel and Δv, with the figures the simulation previews', async () => {
+  const run = startRun(2026, 'scout');
+  const host = await renderUi(<Harness initial={run} />);
+  await tabTo(/Install Fuel Tank, level 1/);
+  const after = preview(run.spacecraft, { kind: 'install', component: 'fuel-tank-1', slot: 2 });
+  if (!after) throw new Error('expected a preview');
+  const rows = [...host.querySelectorAll<HTMLElement>('[data-testid="preview-line"]')];
+  expect(rows.map((row) => row.dataset['stat'])).toEqual(['mass', 'fuel', 'delta-v']);
+  const expected = [
+    [formatMass(run.spacecraft.dryMass), formatMass(after.dryMass)],
+    [formatMass(run.spacecraft.fuelCapacity), formatMass(after.fuelCapacity)],
+    [formatDeltaVKmS(availableDeltaV(run.spacecraft)), formatDeltaVKmS(after.deltaV)],
+  ];
+  rows.forEach((row, i) => {
+    const [before, then] = expected[i] ?? [];
+    // Seen: both figures beside the bar. Heard: both in the bar's name.
+    expect(row.textContent).toContain(`${before ?? ''} → ${then ?? ''}`);
+    expect(row.querySelector('[role="img"]')?.getAttribute('aria-label')).toContain(
+      `${before ?? ''} now, ${then ?? ''} after`,
+    );
+  });
+  // The bars themselves: the after fill is longer for more mass and Fuel, shorter for less Δv.
+  const width = (row: HTMLElement | undefined, part: string): number =>
+    row?.querySelector<HTMLElement>(`.stat-bar__${part}`)?.getBoundingClientRect().width ?? 0;
+  const [mass, fuel, dv] = rows;
+  expect(width(mass, 'after')).toBeGreaterThan(width(mass, 'now'));
+  expect(width(fuel, 'after')).toBeGreaterThan(width(fuel, 'now'));
+  expect(width(dv, 'after')).toBeLessThan(width(dv, 'now'));
+});
+
+it('keeps to the text budget: one short line beside the picture, one in each catalogue card', async () => {
+  const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
+  const panel = host.querySelector<HTMLElement>('.spacecraft-panel');
+  if (!panel) throw new Error('no panel');
+  const cards = [...panel.querySelectorAll<HTMLElement>('[data-testid="component-row"]')];
+  const outsideCards = [
+    ...panel.querySelectorAll<HTMLElement>(
+      '.spacecraft-panel__titlebar, .spacecraft-panel__left, .spacecraft-panel__catalogue-head',
+    ),
+  ];
+  const check = (): void => {
+    expectTextBudget(outsideCards);
+    for (const card of cards) expectTextBudget(card);
+  };
+  check();
+  // With a preview showing too, and with the Slot choice moved to a fitted Component.
+  await tabTo(/Install Fuel Tank, level 1/);
+  check();
+  await focusSlot(/^Slot 1, Engine/);
+  check();
+});
+
+it('keeps the lesson behind "Tell me more", and opens it by keyboard', async () => {
+  const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
+  // The last catalogue entry: Tab then goes round by Close, the Slots and Remove to the toggle.
+  await tabTo(/Install Jump Drive,/);
+  expect(button(host, /Tell me more/).getAttribute('aria-expanded')).toBe('false');
+  expect(byTestId(host, 'preview-more').checkVisibility()).toBe(false);
+  await tabTo(/Tell me more/);
+  await userEvent.keyboard('{Enter}');
+  expect(button(host, /Tell me more/).getAttribute('aria-expanded')).toBe('true');
+  expect(byTestId(host, 'preview-more').textContent).toContain(
+    COMPONENTS['jump-drive'].explanation,
+  );
+  expect(byTestId(host, 'preview-more').checkVisibility()).toBe(true);
 });
