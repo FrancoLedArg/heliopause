@@ -32,7 +32,7 @@ import { LandedPanels } from './LandedPanels.tsx';
 import { AboutPanel, CreditsPanel, HowToPlayPanel } from './InfoPanels.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
 import { SpacecraftPanel } from './SpacecraftPanel.tsx';
-import { panelRows } from './spacecraftPanelView.ts';
+import { wantedHints } from './wantedHints.ts';
 import { RunMenu } from './RunMenu.tsx';
 import { TitleMenu, type TitleButton } from './TitleMenu.tsx';
 import { TopBar } from './TopBar.tsx';
@@ -310,7 +310,6 @@ export function GameUI() {
           setArrival(undefined);
           setGatheredHint(false);
           markSeen('first-landing');
-          markSeen('heliopause-found');
         }
       }),
     [markSeen],
@@ -400,17 +399,15 @@ export function GameUI() {
     !menuOpen &&
     !picking &&
     flight === undefined;
-  const wantedHints: HintId[] = [];
-  if (quiet && chart === undefined && !spacecraftOpen) {
-    if (arrival === undefined) wantedHints.push('first-landing');
-    if (gatheredHint) wantedHints.push('first-gathering');
-    if (arrival === undefined && run.knowledge.heliopauseFound)
-      wantedHints.push('heliopause-found');
-    if (arrival === undefined && panelRows(run).some((r) => r.affordable && !r.unavailable)) {
-      wantedHints.push('first-build');
-    }
-  }
-  if (quiet && chart?.selectedId !== undefined) wantedHints.push('first-hop-plan');
+  const wanted = wantedHints({
+    quiet,
+    run,
+    chartOpen: chart !== undefined,
+    targetChosen: chart?.selectedId !== undefined,
+    spacecraftOpen,
+    reportOpen: arrival !== undefined,
+    gatheredPending: gatheredHint,
+  });
 
   return (
     <div
@@ -545,7 +542,7 @@ export function GameUI() {
           onFastChange={changeFastForward}
         />
       )}
-      <FirstRunHint wanted={wantedHints} seen={seenHints} onDismiss={markSeen} />
+      <FirstRunHint wanted={wanted} seen={seenHints} onDismiss={markSeen} />
       <p className="hud-tag ai-label">AI-generated art and music</p>
     </div>
   );
