@@ -222,8 +222,10 @@ function buildable(run: Run): Design[] {
   for (let next = pending.pop(); next; next = pending.pop()) {
     const { outfit, installs, rushes } = next;
     const { slots, fuelMass, damage } = outfit.spacecraft;
+    // Damage is rare: only a Damaged Spacecraft pays for marking it in the key and trying Rushes.
+    const anyDamage = damage.some((slotDamage) => slotDamage !== null);
     const held = slots
-      .map((slot, i) => `${slot ?? ''}${damage[i] ? '!' : ''}`)
+      .map((slot, i) => (anyDamage && damage[i] ? `${slot ?? ''}!` : (slot ?? '')))
       .sort((a, b) => a.localeCompare(b));
     const key = `${held.join()}|${String(fuelMass)}|${String(installs)}|${String(rushes)}`;
     if ((richest.get(key) ?? -1) >= outfit.materials) continue;
@@ -234,13 +236,18 @@ function buildable(run: Run): Design[] {
       if (removalRefusal(slots, slot)) return;
       pending.push({ outfit: { ...outfit, ...withRemoved(outfit, slot) }, installs, rushes });
     });
-    damage.forEach((_, slot) => {
-      const cost = rushCost(outfit.spacecraft, slot);
-      if (cost === null || cost > outfit.materials) return;
-      const spacecraft = rushed(outfit.spacecraft, slot);
-      const left = materials(outfit.materials - cost);
-      pending.push({ outfit: { ...outfit, spacecraft, materials: left }, installs, rushes: true });
-    });
+    if (anyDamage)
+      damage.forEach((_, slot) => {
+        const cost = rushCost(outfit.spacecraft, slot);
+        if (cost === null || cost > outfit.materials) return;
+        const spacecraft = rushed(outfit.spacecraft, slot);
+        const left = materials(outfit.materials - cost);
+        pending.push({
+          outfit: { ...outfit, spacecraft, materials: left },
+          installs,
+          rushes: true,
+        });
+      });
     const empty = slots.indexOf(null);
     if (empty < 0) continue;
     for (const id of RESCUERS) {

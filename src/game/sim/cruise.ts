@@ -224,6 +224,13 @@ export function stepCruise(cruise: Cruise, spacecraft: Spacecraft, toTick: numbe
     spacecraft: { ...withDamage(spacecraft, damage), fuelMass: kilograms(fuel) },
   });
 
+  // A Cruise with nothing Damaged and no event left to strike changes nothing tick by tick: every Hop
+  // of a real Run until events are on, and every Hop the generator flies to check an opening.
+  const quiet =
+    damage.every((slotDamage) => slotDamage === null) &&
+    !cruise.schedule.some((event) => event.tick > cruise.tick && event.tick <= toTick);
+  if (quiet) return { kind: 'cruising', ...settle(Math.max(cruise.tick, toTick)) };
+
   for (let tick = cruise.tick + 1; tick <= toTick; tick++) {
     for (const event of cruise.schedule) {
       if (event.tick !== tick) continue;
