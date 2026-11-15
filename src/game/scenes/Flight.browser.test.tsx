@@ -1321,12 +1321,11 @@ describe('the live Cruise (#250)', () => {
       const scene = game.scene.getScene<Flight>(SceneKey.Flight);
       const cruise = scene.playback.cruise;
       if (!cruise) throw new Error('Expected a Cruise');
-      const rocksShown = () =>
-        scene.eventLayer.list.filter((rock) => (rock as { visible?: boolean }).visible).length;
+      const rocksShown = () => scene.rocksShown();
 
-      // Tick 100 is 10 s into the Cruise: 2 s before it the field is already in view, nothing struck.
+      // Tick 100 is 10 s into the Cruise: 1 s before it the field is already in view, nothing struck.
       act(() => {
-        scene.seek(cruise.start + 8_000);
+        scene.seek(cruise.start + 9_000);
       });
       expect(rocksShown()).toBeGreaterThan(0);
       expect(scene.live?.spacecraft.damage[fuelTank]).toBeNull();
@@ -1337,7 +1336,7 @@ describe('the live Cruise (#250)', () => {
       expect(scene.live?.spacecraft.damage[fuelTank] !== null).toBe(hits);
       // Long after, the field has drifted off.
       act(() => {
-        scene.seek(cruise.start + 20_000);
+        scene.seek(cruise.start + 25_000);
       });
       expect(rocksShown()).toBe(0);
     },

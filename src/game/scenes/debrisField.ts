@@ -8,13 +8,13 @@ import { createRng } from '../lib/rng.ts';
 export const DEBRIS_FIELD = {
   /** The field is on screen this many ticks before its strike tick, and this many after. */
   leadTicks: 40,
-  tailTicks: 40,
+  tailTicks: 110,
   /** Rocks travel this many px per tick along the heading (right to left, falling). */
-  pxPerTick: 9,
+  pxPerTick: 5,
   /** The field's rocks, the one that hits included. */
   rocks: 6,
   /** The other rocks keep at least this far from the target's line of travel (px). */
-  clearance: 56,
+  clearance: 44,
 } as const;
 
 /** The way the rocks travel: leftward and a little down. */

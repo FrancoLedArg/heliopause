@@ -267,7 +267,7 @@ const DEBRIS_CHUNKS = 6;
 /** The Debris fields' rocks kept ready: two fields at most in a Cruise. */
 const ROCK_POOL = 2 * DEBRIS_FIELD.rocks;
 /** The Cruise's rocks are drawn this big, so they read at 640x360. */
-const ROCK_SCALE = 2;
+const ROCK_SCALE = 3;
 /** Where a Spacecraft that Fell Short in the Transfer drifts to, right of the report. */
 const DRIFT_REST = { x: 470, y: 160 } as const;
 
@@ -379,7 +379,7 @@ export class Flight extends Scene {
    * Debris fields (#197) add their pieces here and pose them from the Cruise clock in `cruise`.
    */
   eventLayer!: GameObjects.Container;
-  /** The Debris fields' rocks (#252), pooled in the event layer: a fixed few per field. */
+  /** The Debris fields' rocks (#252), pooled: a fixed few per field, drawn in front of the Spacecraft. */
   private rocks: (GameObjects.Image | GameObjects.Rectangle)[] = [];
   /** The Cruise's star layers, far to near, each drifting at its own pace. */
   private starLayers: GameObjects.TileSprite[] = [];
@@ -453,14 +453,6 @@ export class Flight extends Scene {
     this.puffColors = { departure: departurePuff, arrival: atTarget?.puffColor };
     const space = this.buildSpace();
     this.eventLayer = this.add.container(0, 0).setScrollFactor(0);
-    this.rocks = Array.from({ length: ROCK_POOL }, () => {
-      const rock = hasAsset('fx_debris')
-        ? this.add.image(0, 0, 'fx_debris', 'chunk_0').setScale(ROCK_SCALE)
-        : this.add.rectangle(0, 0, 6, 6, paletteNumber('wh1'));
-      rock.setVisible(false);
-      this.eventLayer.add(rock);
-      return rock;
-    });
     const approach = this.buildApproach();
     this.shadow = this.add.ellipse(
       SHIP_PLACEMENT.x,
@@ -485,6 +477,14 @@ export class Flight extends Scene {
     this.fx = this.pace === 'full' ? createFlightEffects(this) : undefined;
     this.jumpFx = this.buildJumpFx();
     this.buildShip();
+    // The Debris fields' rocks fly in front of the Spacecraft, so a hit reads on its Component.
+    this.rocks = Array.from({ length: ROCK_POOL }, () => {
+      const rock = hasAsset('fx_debris')
+        ? this.add.image(0, 0, 'fx_debris', 'chunk_0').setScale(ROCK_SCALE)
+        : this.add.rectangle(0, 0, 6, 6, paletteNumber('wh1'));
+      rock.setVisible(false);
+      return rock;
+    });
     this.marks = createDamageMarks(this, this.pace === 'reduced');
     this.engineLight = this.buildEngineLight();
     // Over everything the scene draws: the engine's flash, the Jump's flash and the black it ends on.
@@ -621,6 +621,11 @@ export class Flight extends Scene {
     }
   }
 
+  /** Test seam: how many Debris rocks are on screen now. */
+  rocksShown(): number {
+    return this.rocks.filter((rock) => rock.visible).length;
+  }
+
   /**
    * The Debris fields (#252) of the Cruise at Cruise tick `now`: the live schedule while the Cruise
    * runs, the struck events once it has settled. A hit aims at its Component, a miss at the Spacecraft.
@@ -683,6 +688,8 @@ export class Flight extends Scene {
 
   private render(ms: number): void {
     this.cruiseTo(ms);
+    // Only the Cruise draws the Debris fields' rocks.
+    for (const rock of this.rocks) rock.setVisible(false);
     this.playbackMs = ms;
     if (this.jump && ms > this.playback.duration) {
       this.renderJump(this.jump, ms - this.playback.duration);
