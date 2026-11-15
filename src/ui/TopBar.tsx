@@ -3,6 +3,7 @@ import { imageUrl } from '../game/assets/manifest.ts';
 import { formatDeltaVKmS, formatFuel } from './format.ts';
 import { FuelGauge } from './FuelGauge.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { MusicControls } from './MusicControls.tsx';
 
 const BAR_WIDTH = 624;
 const BAR_HEIGHT = 40;
@@ -78,6 +79,7 @@ export function TopBar({
       <p className="top-bar__value top-bar__materials" data-testid="materials">
         {materials}
       </p>
+      <MusicControls className="music-controls--bar" />
       <p className="sr-only" role="status" data-testid="top-bar-status">
         {announcement}
       </p>
