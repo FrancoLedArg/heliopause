@@ -1,5 +1,5 @@
-// Stranded: the Run's end when no Hop could have any Success Chance, even after removing every
-// removable Component, and the warning while a change to the Spacecraft could still save the Run.
+// Stranded: the Run's end when no Hop could have any Success Chance, whatever Components the
+// Spacecraft could still install or remove, and the warning while a change could still save the Run.
 import type { ComponentId } from './catalogue.ts';
 import { formatDeltaV, HELIOPAUSE, leastDeltaV, planHop, type HopTarget } from './hop.ts';
 import { installRefusal, withInstalled, type Outfit } from './install.ts';
