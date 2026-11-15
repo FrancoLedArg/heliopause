@@ -4,7 +4,9 @@ import { EventBus } from '../EventBus.ts';
 import { chooseCruiseLeak } from '../lib/cruiseLeak.ts';
 import {
   beginHop,
+  currentBody,
   install,
+  landedDayFraction,
   remove,
   rushRepair,
   startRepair,
@@ -13,6 +15,7 @@ import {
 } from '../sim/index.ts';
 import { anyDamaged } from '../../ui/repairView.ts';
 import { createDamageMarks, repairClickAt, type DamageMarks } from './damageMarks.ts';
+import { addSkyLight, localTimeAnnouncer, type SkyLight } from './skyLight.ts';
 import { standingExtent } from './chassisArt.ts';
 import { describeGathering, type Gathering } from './gathering.ts';
 import { playGatheringMoment } from './gatheringMoment.ts';
@@ -97,6 +100,11 @@ export class Landed extends Scene {
   /** The drawn Spacecraft, composed from its Chassis art and Component art. */
   spacecraft!: SpacecraftArt;
   private shadow!: GameObjects.Ellipse;
+  /** The light of the local day: tests read it. */
+  skyLight!: SkyLight;
+  /** Real seconds spent standing here: the slow game time while Landed (view-only, never the Run's). */
+  private landedSeconds = 0;
+  private announceTime = localTimeAnnouncer();
   /** The Spacecraft's layer, where the gathering moment flows in. */
   private shipLayer!: GameObjects.Container;
   /** The Damage drawn on the standing Spacecraft. */
@@ -117,6 +125,10 @@ export class Landed extends Scene {
 
   create(): void {
     const landscape = buildLandscape(this, standingOn(this.run));
+    this.skyLight = addSkyLight(this, landscape.layers.sky, landscape.layers.ground);
+    this.landedSeconds = 0;
+    this.announceTime = localTimeAnnouncer();
+    this.applyLocalTime();
     const ship = this.buildShip();
     this.shipLayer = ship.container;
     this.layers = { ...landscape.layers, ship: ship.container };
@@ -265,6 +277,30 @@ export class Landed extends Scene {
     EventBus.emit('scene-ready', SceneKey.Landed);
   }
 
+  /** The fraction of the local day now: the Run's clock plus the slow drift of the time spent standing here. */
+  localDayFraction(): number {
+    const run = standingOn(this.run);
+    return landedDayFraction(run.starSystem, currentBody(run), run.gameHours, this.landedSeconds);
+  }
+
+  /** Lights the sky for the local time and tells React the dial. */
+  private applyLocalTime(): void {
+    const fraction = this.localDayFraction();
+    this.skyLight.set(fraction);
+    this.announceTime(fraction);
+  }
+
+  /**
+   * Each frame: the Damage marks follow the drifting Spacecraft, and the sky is never still. Game
+   * time drifts on while Landed, unless the player prefers reduced motion.
+   */
+  override update(_time: number, delta: number): void {
+    if (anyDamaged(this.run)) this.showDamage();
+    if (this.reducedMotion) return;
+    this.landedSeconds += delta / 1000;
+    this.applyLocalTime();
+  }
+
   /**
    * The Radar reaching out: one cyan ring growing from the middle of the Spacecraft, wide enough to
    * sweep the sky, and fading. Skipped under reduced motion.
@@ -390,10 +426,6 @@ export class Landed extends Scene {
    */
   private showDamage(): void {
     this.marks.show(this.run, this.spacecraft.componentBounds(), this.time.now);
-  }
-
-  override update(): void {
-    if (anyDamaged(this.run)) this.showDamage();
   }
 
   /** Where the standing Spacecraft's engines idle: every nozzle exit of its art. */

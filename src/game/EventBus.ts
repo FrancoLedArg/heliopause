@@ -135,6 +135,8 @@ export interface GameEvents {
    * removal that strands it (instead of `run-updated`).
    */
   'run-stranded': [ended: Run];
+  /** Phaser -> React: the local time of day on the Body the Landed view shows moved (0 to 1, 0 = midnight, 0.5 = noon). */
+  'local-time-changed': [fraction: number];
   /** React -> Phaser: the player confirmed leaving the Run from the in-Run Menu; go back to the Title scene. */
   'leave-run-requested': [];
 }
