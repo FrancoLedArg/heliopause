@@ -1,16 +1,9 @@
 import { useEffect, useState } from 'react';
+import { DayDial } from './DayDial.tsx';
 import { EventBus } from '../game/EventBus.ts';
 import { currentBody, localDayFraction, timeOfDayWords, type Run } from '../game/sim/index.ts';
 
 const SIZE = 30;
-const RADIUS = 11;
-const MID = SIZE / 2;
-
-/** Where the marker sits on the dial for a fraction of the day: midnight at the bottom, noon at the top, sunrise on the right. */
-function markerPosition(fraction: number): { x: number; y: number } {
-  const angle = 2 * Math.PI * fraction;
-  return { x: MID + RADIUS * Math.sin(angle), y: MID + RADIUS * Math.cos(angle) };
-}
 
 /**
  * The local time on the Body the Spacecraft stands on, as a day/night dial (#192, show don't tell): a
@@ -30,35 +23,16 @@ export function LocalTimeDial({ run }: { run: Run }) {
   );
   // A fresh Run (a Hop landed, a Jump) starts from its own clock again.
   const fraction = live?.of === run ? live.fraction : fromRun;
-  const { x, y } = markerPosition(fraction);
   // The sun by day, the moon by night: the same split as the words (night is before 0.15 and from 0.85).
   const day = timeOfDayWords(fraction) !== 'night';
   return (
-    <svg
+    <DayDial
       className="local-time-dial"
-      width={SIZE}
-      height={SIZE}
-      viewBox={`0 0 ${String(SIZE)} ${String(SIZE)}`}
-      role="img"
-      aria-label={`Local time: ${timeOfDayWords(fraction)}`}
-      data-testid="local-time-dial"
-      data-fraction={fraction.toFixed(3)}
-    >
-      <circle cx={MID} cy={MID} r={RADIUS} fill="var(--scr2)" stroke="var(--gm3)" />
-      <path
-        d={`M ${String(MID - RADIUS)} ${String(MID)} A ${String(RADIUS)} ${String(RADIUS)} 0 0 1 ${String(MID + RADIUS)} ${String(MID)} Z`}
-        fill="var(--cy0)"
-        opacity="0.55"
-      />
-      <line x1={MID - RADIUS} y1={MID} x2={MID + RADIUS} y2={MID} stroke="var(--gm3)" />
-      {day ? (
-        <circle cx={x} cy={y} r={3.5} fill="var(--am3)" stroke="var(--am1)" />
-      ) : (
-        <>
-          <circle cx={x} cy={y} r={4.5} fill="var(--wh3)" />
-          <circle cx={x + 2.2} cy={y - 1.5} r={3.6} fill="var(--scr2)" />
-        </>
-      )}
-    </svg>
+      fraction={fraction}
+      day={day}
+      label={`Local time: ${timeOfDayWords(fraction)}`}
+      size={SIZE}
+      testId="local-time-dial"
+    />
   );
 }

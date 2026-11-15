@@ -4,6 +4,7 @@ export { findBody, listBodies, startingMoon } from './starSystem.ts';
 export { generateStarSystem } from './generation.ts';
 export { currentBody, generateSystem, starSystemNumber, starSystemSeed, startRun } from './run.ts';
 export {
+  arrivalDayFraction,
   landedDayFraction,
   localDayFraction,
   rotationPeriodHours,
