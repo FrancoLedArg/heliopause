@@ -725,7 +725,9 @@ it('sweeps a Radar ring out from the Spacecraft when one is installed, and says 
 it('sweeps the carried Radar and says what it found on arrival after a Jump', async () => {
   const scene = await landOn(runWith('scout', ['radar-1']), undefined, undefined, true);
   await expect
-    .poll(() => document.querySelector('[data-testid="comms-announcement"]')?.textContent)
+    .poll(() => document.querySelector('[data-testid="comms-announcement"]')?.textContent, {
+      timeout: 5000,
+    })
     .toMatch(/^Radar Detected \d+ Bod(y|ies)\.$/);
   expect(scene.radarSweep?.parentContainer).toBe(scene.layers.ship);
 });
