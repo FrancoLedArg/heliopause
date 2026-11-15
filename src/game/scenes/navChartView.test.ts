@@ -322,6 +322,42 @@ describe('the Heliopause on the Nav Chart', () => {
     }
   });
 
+  it('always names the Heliopause on the chart, targeted or not, clear of Bodies, marks and labels', () => {
+    const problems: string[] = [];
+    for (const seed of Array.from({ length: 200 }, (_, i) => i + 1)) {
+      const run = newRun(seed);
+      const layout = layoutFor(seed);
+      const here = currentBody(run).id;
+      for (const [targetId, focusedId] of [
+        [undefined, here],
+        [HELIOPAUSE, here],
+        [HELIOPAUSE, HELIOPAUSE],
+        [undefined, HELIOPAUSE],
+      ] as const) {
+        const context = { hereId: here, targetId, focusedId };
+        const labels = placeLabels(layout, context);
+        const where = `seed ${seed}, target ${targetId ?? 'none'}, focus ${focusedId}`;
+        const edge = labels.find((l) => l.kind === 'heliopause');
+        if (!edge) {
+          problems.push(`${where}: no Heliopause label`);
+          continue;
+        }
+        if (!insideChart(edge.box)) problems.push(`${where}: off the chart`);
+        problems.push(...farLabels({ where, layout, context, labels: [edge] }));
+        if (touchesCircle(edge.box, layout.heliopause)) problems.push(`${where}: on its mark`);
+        for (const n of [...layout.nodes, layout.star]) {
+          if (touchesCircle(edge.box, n)) problems.push(`${where}: on a Body`);
+        }
+        for (const other of labels) {
+          if (other !== edge && overlaps(other.box, edge.box)) {
+            problems.push(`${where}: over ${other.text}`);
+          }
+        }
+      }
+    }
+    expect(problems.join('\n')).toBe('');
+  });
+
   it('labels the targeted Heliopause as the target', () => {
     const run = newRun(9);
     const context = { hereId: currentBody(run).id, targetId: HELIOPAUSE, focusedId: HELIOPAUSE };
@@ -515,7 +551,13 @@ function farLabels({ where, layout, labels }: ChartCase): string[] {
           layout.heliopauseRadius - Math.hypot(cx - layout.star.x, cy - layout.star.y),
       );
       const fromRing = Math.min(...inside);
-      if (fromRing > 8 || fromRing < 0) problems.push(`${where}: Heliopause ${fromRing} px`);
+      // Hanging just inside its ring, or, where the ring has no room, beside its mark.
+      const fromMark = edgeDistance(label.box, layout.heliopause);
+      if ((fromRing > 8 || fromRing < 0) && fromMark > 8) {
+        problems.push(
+          `${where}: Heliopause ${fromRing} px from its ring, ${fromMark} from its mark`,
+        );
+      }
     } else if (label.kind === 'planet') {
       const own = layout.nodes.find((n) => n.body.id === label.id);
       if (own && edgeDistance(label.box, own) > 8) problems.push(`${where}: ${label.text}`);

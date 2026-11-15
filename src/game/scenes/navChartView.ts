@@ -706,7 +706,7 @@ const LABEL_GAPS = [1, 2, 3, 4, 6, 8, 10, 13, 17, 22, 30, 40];
 const SLIDES = Array.from({ length: 9 }, (_, i) => i / 8);
 
 /** Spots for a box of `w` x `h` round a Body: below and above (slid along), right and left, and the corners. */
-function spotsAround(node: ChartNode, w: number, h: number): Rect[] {
+function spotsAround(node: ChartSpot, w: number, h: number): Rect[] {
   const spots: Rect[] = [];
   for (const gap of LABEL_GAPS) {
     const out = node.radius + gap;
@@ -780,6 +780,13 @@ const CRAMPED_COST = 3;
 const OPTIONAL_REACH = 8;
 /** Pixels a label may sit nearer another Body than its own and still read as its own. */
 const STRAY_LEEWAY = 2;
+/** Heights (px from the star's level) tried for the Heliopause label along its ring, nearest first. */
+const RING_LABEL_STEPS = [
+  0,
+  ...Array.from({ length: 15 }, (_, i) => (i + 1) * 7).flatMap((d) => [-d, d]),
+];
+/** For the Heliopause label with nowhere clear: covering another label costs this many marks. */
+const LABEL_OVER_LABEL = 10;
 /** How much worse than straying a label is when it covers another label or a mark, per thing covered. */
 const NOWHERE_CLEAR = 1000;
 
@@ -882,6 +889,54 @@ export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedL
     return least.by;
   };
 
+  /**
+   * A spot for the Heliopause label beside its mark, the way a Body's label sits beside its sprite:
+   * nearer the mark than any Body, on one line or as "Heliopause" over "target". `undefined` when
+   * none is clear.
+   */
+  const besideMark = (text: string): LabelOption | undefined => {
+    const mark = layout.heliopause;
+    const shapes: { lines: string[]; w: number; h: number }[] = [
+      { lines: [text], w: text.length * LABEL.charWidth, h: LABEL.height },
+    ];
+    if (text !== 'Heliopause') {
+      shapes.push({
+        lines: ['Heliopause', 'target'],
+        w: 10 * LABEL.charWidth,
+        h: 2 * LABEL.height + 1,
+      });
+    }
+    const options = shapes
+      .flatMap(({ lines, w, h }) =>
+        spotsAround(mark, w, h).map((box) => ({ lines, box, d: edgeDistance(box, mark) })),
+      )
+      // Right beside the mark, or it would not read as its name.
+      .filter((option) => option.d <= OPTIONAL_REACH)
+      .sort((a, b) => a.d - b.d);
+    const ownIsNearest = (option: LabelOption): boolean =>
+      [layout.star, ...layout.nodes].every(
+        (n) => edgeDistance(option.box, n) + STRAY_LEEWAY >= option.d,
+      );
+    const clear =
+      nearestFit(options, undefined, ownIsNearest) ?? nearestFit(options, undefined, () => true);
+    if (clear) return clear;
+    // Nowhere clear (a crowded edge of the chart): the spot beside the mark that covers the fewest
+    // labels and marks, and never a Body, the star or the mark itself.
+    let least: { option: LabelOption; cost: number } | undefined;
+    for (const o of options) {
+      const box = clampToChart(o.box);
+      if (circleTouchesBox(mark, box, 1)) continue;
+      const cost =
+        [layout.star, ...layout.nodes].filter((n) => circleTouchesBox(n, box, 0)).length *
+          NOWHERE_CLEAR +
+        placed.filter((l) => boxesTouch(l.box, box, 0)).length * LABEL_OVER_LABEL +
+        [star, edge, ...marks.values()].filter((f) => touches(f, box, 0)).length +
+        edgeDistance(box, mark) / 100;
+      if (!least || cost < least.cost) least = { option: { ...o, box }, cost };
+    }
+    return least?.option;
+  };
+
   // The Spacecraft's Body, the target and the focused Body, each labelled once. One label can take
   // another's only good spot, so when the usual order (here, target, focus) leaves one straying, the
   // other orders are tried and the first that strays least wins.
@@ -908,7 +963,7 @@ export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedL
   const ringText = context.targetId === HELIOPAUSE ? 'Heliopause · target' : 'Heliopause';
   const w = ringText.length * LABEL.charWidth;
   const ringOptions: LabelOption[] = [];
-  for (const dy of [0, -14, 14, -28, 28, -42, 42, -56, 56, -70, 70, -84, 84]) {
+  for (const dy of RING_LABEL_STEPS) {
     const ringX = layout.star.x + Math.sqrt(layout.heliopauseRadius ** 2 - dy * dy);
     const box = {
       x: Math.round(ringX - 4 - w),
@@ -918,7 +973,8 @@ export function placeLabels(layout: ChartLayout, context: LabelContext): PlacedL
     };
     ringOptions.push({ lines: [ringText], box, d: Math.abs(dy) / 100 });
   }
-  const ring = nearestFit(ringOptions, undefined, () => true);
+  // The goal is always named: when its ring has no room, the label sits beside its mark instead.
+  const ring = nearestFit(ringOptions, undefined, () => true) ?? besideMark(ringText);
   if (ring) {
     placed.push({
       id: HELIOPAUSE,
@@ -1018,9 +1074,10 @@ export function placeTooltip(
   const ownMarks = focusedNode
     ? footprint(focusedNode, context)
     : heliopauseFootprint(layout, context);
-  const keepOffLabels = labels.filter((l) => l.kind === 'here' || l.kind === 'target');
+  const keptLabel = (l: PlacedLabel): boolean => l.kind === 'here' || l.kind === 'target';
+  const keepOffLabels = labels.filter(keptLabel);
   const others = layout.nodes.filter((n) => !kept.has(n.body.id));
-  const otherLabels = labels.filter((l) => l.kind !== 'here' && l.kind !== 'target');
+  const otherLabels = labels.filter((l) => !keptLabel(l));
 
   /** On the chart and off everything kept in view; `overBrackets` lets it cover the Body's own marks. */
   const clear = (box: Rect, overBrackets = false): boolean =>
@@ -1032,6 +1089,9 @@ export function placeTooltip(
   const cost = (box: Rect): number =>
     others.filter((n) => circleTouchesBox(n, box, 1)).length * TOOLTIP_HIDES_BODY +
     otherLabels.filter((l) => boxesTouch(l.box, box, 0)).length * TOOLTIP_HIDES_LABEL +
+    // The Heliopause's name is the goal: hiding it costs as much as hiding a Body.
+    otherLabels.filter((l) => l.kind === 'heliopause' && boxesTouch(l.box, box, 0)).length *
+      (TOOLTIP_HIDES_BODY - TOOLTIP_HIDES_LABEL) +
     edgeDistance(box, node);
 
   const best = (spots: readonly Rect[], overBrackets = false): Rect | undefined => {
