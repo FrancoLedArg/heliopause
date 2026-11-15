@@ -561,14 +561,28 @@ it('a Spacecraft that Fell Short in the Takeoff sputters out mid-climb and sags,
   expect(scene.ship.x).toBe(SHIP_PLACEMENT.x);
 });
 
+/**
+ * The Run with just enough Fuel to reach the Home Planet's Moon but run dry about halfway through
+ * the Landing: a Crash well above the ground, whatever the Star System generation does to Fuel.
+ */
+function crashingRun(run: Run): Run {
+  const moon = homePlanet(run.starSystem).moons[0];
+  if (!moon) throw new Error('The Home Planet has no Moon');
+  for (let share = 1; share > 0; share -= 0.001) {
+    const short = withFuel(share)(run);
+    const launched = launchHop(short, moon.id);
+    if (launched.kind !== 'flown' || launched.flight.outcome.kind !== 'crashed') continue;
+    const landing = launched.flight.burns.find((burn) => burn.burn === 'landing');
+    if (landing?.status === 'ran-out' && landing.delivered < landing.actual * 0.6) return short;
+  }
+  throw new Error('No Fuel load Crashes halfway through the Landing');
+}
+
 it('a Spacecraft that Crashed cuts out above the ground, drops straight down, hits hard and tips over', async () => {
   const { scene, data } = await fly(
     'scout',
-    (run) =>
-      listBodies(run.starSystem).find((body) => {
-        const launched = launchHop(run, body.id);
-        return launched.kind === 'flown' && launched.flight.outcome.kind === 'crashed';
-      })?.id,
+    (run) => homePlanet(run.starSystem).moons[0]?.id,
+    crashingRun,
   );
   expect(data.flight.outcome.kind).toBe('crashed');
   const { stopsAt } = scene.playback;
