@@ -13,6 +13,7 @@ import { describeFlight } from './flightHudView.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import { EndOfRun } from './EndOfRun.tsx';
+import { HopReport } from './HopReport.tsx';
 import { TopBar } from './TopBar.tsx';
 import './FlightHud.css';
 
@@ -36,6 +37,10 @@ interface FlightHudProps {
   moment: FlightMoment | undefined;
   /** The Run the failed Hop ended, once its playback is over: the End-of-Run screen shows it. */
   ended: Run | undefined;
+  /** The player has read the failed Hop's report and moved on to the End-of-Run screen. */
+  reportDone: boolean;
+  /** Continue from the failed Hop's report to the End-of-Run screen. */
+  onContinue: () => void;
   /** New Run after a failure: asks for a Chassis, then a new Star System. */
   onNewRun: () => void;
   onLeave: () => void;
@@ -46,7 +51,16 @@ interface FlightHudProps {
  * Transfer → Landing), the Fuel bar and the flight log. Panels keep to the left and the top, clear of
  * the Spacecraft. The in-Run Menu is not offered here: the playback runs to its end.
  */
-export function FlightHud({ before, flight, moment, ended, onNewRun, onLeave }: FlightHudProps) {
+export function FlightHud({
+  before,
+  flight,
+  moment,
+  ended,
+  reportDone,
+  onContinue,
+  onNewRun,
+  onLeave,
+}: FlightHudProps) {
   const view = describeFlight(before, flight, moment);
   const fuel = moment?.fuel ?? flight.fuelAtLaunch;
   const deltaV = availableDeltaV({ ...before.spacecraft, fuelMass: kilograms(fuel) });
@@ -86,7 +100,16 @@ export function FlightHud({ before, flight, moment, ended, onNewRun, onLeave }: 
           deltaV={deltaV}
           materials={before.materials}
         />
-        <EndOfRun run={ended} onNewRun={onNewRun} onLeave={onLeave} />
+        {reportDone ? (
+          <EndOfRun run={ended} onNewRun={onNewRun} onLeave={onLeave} />
+        ) : (
+          <HopReport
+            before={before}
+            flight={flight}
+            actions={[{ label: 'Continue', onClick: onContinue, primary: true }]}
+            onEscape={onContinue}
+          />
+        )}
       </>
     );
   }

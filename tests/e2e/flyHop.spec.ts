@@ -187,7 +187,17 @@ test('a Hop that Crashes stops on the Landing and says why, and the title is the
   const outcome = page.getByRole('alertdialog', { name: 'Crashed' });
   await expect(outcome).toBeVisible({ timeout: 10_000 });
   await expect(outcome).toContainText('not enough Δv left to finish the Landing');
+  await expect(outcome).toContainText('The Transfer succeeded');
+  await expect(outcome.getByRole('row', { name: /Landing/ })).toContainText('ran out');
+  await expect(outcome.getByRole('row', { name: /Transfer/ })).toContainText(/[+−±]\d+%/);
   await expect(outcome).toContainText(crashFlight.why);
+  await testInfo.attach('crashed-report', {
+    body: await page.screenshot(),
+    contentType: 'image/png',
+  });
+  // Continue (focused) moves on from the Hop report to the End-of-Run screen.
+  await expect(outcome.getByRole('button', { name: 'Continue' })).toBeFocused();
+  await page.keyboard.press('Enter');
   // The End-of-Run screen: the Score (one Hop flown, no Star System escaped) and the Best Score it set.
   await expect(outcome.getByTestId('end-of-run-score')).toHaveText(
     '0 Star Systems escaped, 1 Hop flown',
@@ -216,6 +226,8 @@ test('the End-of-Run screen keeps focus inside it, and New Run from the keyboard
   await page.getByRole('button', { name: 'Launch' }).click();
   const outcome = page.getByRole('alertdialog', { name: 'Crashed' });
   await expect(outcome).toBeVisible({ timeout: 10_000 });
+  await expect(outcome.getByRole('button', { name: 'Continue' })).toBeFocused();
+  await page.keyboard.press('Enter');
   const newRun = outcome.getByRole('button', { name: 'New Run' });
   const back = outcome.getByRole('button', { name: 'Back to title' });
   await expect(newRun).toBeFocused();
@@ -270,6 +282,7 @@ test('after a failed Hop, New Run starts a different Star System on its Home Pla
   await page.getByRole('button', { name: 'Launch' }).click();
   const outcome = page.getByRole('alertdialog', { name: 'Crashed' });
   await expect(outcome).toBeVisible({ timeout: 10_000 });
+  await outcome.getByRole('button', { name: 'Continue' }).click();
   await outcome.getByRole('button', { name: 'New Run' }).click();
 
   // The address bar follows the Run being played.
@@ -301,12 +314,16 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   const outcome = page.getByRole('alertdialog', { name: 'Fell Short' });
   await expect(outcome).toBeVisible({ timeout: 10_000 });
   await expect(outcome).toContainText('Fuel ran out during the Transfer');
-  await expect(outcome.getByTestId('end-of-run-score')).toHaveText(
-    '0 Star Systems escaped, 1 Hop flown',
-  );
+  await expect(outcome.getByRole('row', { name: /Transfer/ })).toContainText('ran out');
+  await expect(outcome.getByRole('row', { name: /Landing/ })).toContainText('not flown');
   await expect(outcome).toContainText(shortFlight.why);
   await testInfo.attach('fell-short', { body: await page.screenshot(), contentType: 'image/png' });
 
+  await outcome.getByRole('button', { name: 'Continue' }).click();
+  await expect(outcome.getByTestId('end-of-run-score')).toHaveText(
+    '0 Star Systems escaped, 1 Hop flown',
+  );
+  await expect(outcome.getByTestId('end-of-run-best')).toContainText('(new Best Score)');
   await outcome.getByRole('button', { name: 'New Run' }).click();
   await expect(page.getByRole('heading', { name: 'Choose a Chassis' })).toBeVisible();
   // The picker starts on the Chassis just flown.

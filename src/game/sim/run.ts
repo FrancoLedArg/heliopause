@@ -10,7 +10,6 @@ import {
   type StarSystem,
 } from './starSystem.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
-import type { RunEnd } from './score.ts';
 import { materials, type Materials } from './units.ts';
 
 /**
@@ -18,6 +17,15 @@ import { materials, type Materials } from './units.ts';
  * a Drill (25), so the first design decision has more than one option.
  */
 export const STARTING_MATERIALS: Materials = materials(25);
+
+/**
+ * How a Run ended, each with its plain-language reason. Fell Short and Crashed come from a flown Hop
+ * (the reason is the Hop's why); Stranded is set when no Hop could have any Success Chance.
+ */
+export type RunEnd =
+  | { readonly kind: 'fell-short'; readonly reason: string }
+  | { readonly kind: 'crashed'; readonly reason: string }
+  | { readonly kind: 'stranded'; readonly reason: string };
 
 /** Where the Run stands: landed on a Body and free to plan a Hop, or ended by a failed Hop. */
 export type RunStatus =

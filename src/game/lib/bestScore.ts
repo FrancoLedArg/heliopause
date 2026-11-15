@@ -60,7 +60,7 @@ export function recordScore(
   try {
     storage?.setItem(KEY, JSON.stringify(score));
   } catch {
-    // Without storage the Best Score lasts only as long as the page.
+    // Without storage the Best Score is not kept: the game plays on without it.
   }
   return { best: score, isNewBest: true };
 }

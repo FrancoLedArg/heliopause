@@ -1,13 +1,4 @@
-import type { Run } from './run.ts';
-
-/**
- * How a Run ended, each with its plain-language reason. Fell Short and Crashed come from a flown Hop
- * (the reason is the Hop's why); Stranded is set when no Hop could have any Success Chance.
- */
-export type RunEnd =
-  | { readonly kind: 'fell-short'; readonly reason: string }
-  | { readonly kind: 'crashed'; readonly reason: string }
-  | { readonly kind: 'stranded'; readonly reason: string };
+import type { Run, RunEnd } from './run.ts';
 
 /** A Run's Score: Star Systems escaped first, Hops flown as the tie-breaker. */
 export interface Score {

@@ -507,16 +507,24 @@ export class Flight extends Scene {
   private finish(): void {
     if (this.finished) return;
     this.finished = true;
-    if (this.flight.outcome.kind === 'arrived') {
-      const data: LandedData = {
-        run: this.after,
-        report: { before: this.before, flight: this.flight },
-      };
-      this.scene.start(SceneKey.Landed, data);
-    } else {
-      if (this.flight.outcome.kind === 'crashed') this.scatterDebris();
-      else this.drift();
-      EventBus.emit('hop-failed', this.flight, this.after);
+    // Exhaustive: a new outcome kind must be handled here before it type-checks.
+    switch (this.flight.outcome.kind) {
+      case 'arrived': {
+        const data: LandedData = {
+          run: this.after,
+          report: { before: this.before, flight: this.flight },
+        };
+        this.scene.start(SceneKey.Landed, data);
+        return;
+      }
+      case 'crashed':
+        this.scatterDebris();
+        EventBus.emit('hop-failed', this.flight, this.after);
+        return;
+      case 'fell-short':
+        this.drift();
+        EventBus.emit('hop-failed', this.flight, this.after);
+        return;
     }
   }
 

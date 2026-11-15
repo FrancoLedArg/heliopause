@@ -278,7 +278,7 @@ it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clea
   await act(frame);
   await act(frame);
 
-  const report = document.querySelector('[data-testid="end-of-run"]');
+  const report = document.querySelector('[data-testid="hop-report"]');
   const stage = document.querySelector('.stage');
   if (!report || !stage) throw new Error('no report on screen');
   const s = stage.getBoundingClientRect();

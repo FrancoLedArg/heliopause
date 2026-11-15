@@ -35,7 +35,8 @@ export function GameUI() {
   const [menuOpen, setMenuOpen] = useState(false);
   // The Hop being played back: the Run at Launch, the flight, where the playback is, and whether it failed.
   const [flight, setFlight] = useState<
-    { before: Run; flight: HopFlight; moment?: FlightMoment; ended?: Run } | undefined
+    | { before: Run; flight: HopFlight; moment?: FlightMoment; ended?: Run; reportDone?: boolean }
+    | undefined
   >(undefined);
 
   // The report of the Hop that just Arrived, shown beside the Landed view of its target until dismissed.
@@ -262,6 +263,10 @@ export function GameUI() {
           flight={flight.flight}
           moment={flight.moment}
           ended={flight.ended}
+          reportDone={flight.reportDone === true}
+          onContinue={() => {
+            setFlight((now) => now && { ...now, reportDone: true });
+          }}
           onNewRun={startNewRun}
           onLeave={leaveRun}
         />
