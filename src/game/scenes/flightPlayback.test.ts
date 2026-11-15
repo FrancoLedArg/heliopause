@@ -321,15 +321,15 @@ describe('the shots of a Hop’s playback', () => {
     }
   });
 
-  it('the Cruise lasts about 2 minutes at normal speed, at either pace, and about 30 s on fast-forward', () => {
+  it('the Cruise lasts about 50 s at normal speed, at either pace, and about 12.5 s on fast-forward', () => {
     for (const pace of ['full', 'reduced'] as const) {
       const playback = flightPlayback(run.spacecraft, arrived, pace);
       const normal = realTimeThrough(playback, 'cruise', () => 1);
-      expect(normal).toBeGreaterThanOrEqual(110_000);
-      expect(normal).toBeLessThanOrEqual(130_000);
+      expect(normal).toBeGreaterThanOrEqual(45_000);
+      expect(normal).toBeLessThanOrEqual(55_000);
       const fast = realTimeThrough(playback, 'cruise', () => FAST_FORWARD);
-      expect(fast).toBeGreaterThanOrEqual(27_000);
-      expect(fast).toBeLessThanOrEqual(33_000);
+      expect(fast).toBeGreaterThanOrEqual(11_000);
+      expect(fast).toBeLessThanOrEqual(14_000);
     }
   });
 
@@ -407,7 +407,7 @@ describe('the shots of a Hop’s playback', () => {
 
   it('the systems lights come on one after another early in the Cruise, then all hold steady', () => {
     expect(systemsLit(undefined, 3)).toBe(0);
-    const lit = (elapsed: number): number => systemsLit({ elapsed, total: 120_000 }, 3);
+    const lit = (elapsed: number): number => systemsLit({ elapsed, total: 50_000 }, 3);
     expect(lit(0)).toBe(0);
     const steps = Array.from({ length: 100 }, (_, i) => lit(i * 100));
     // Each light comes on by itself, in turn, and none goes out again.
@@ -416,6 +416,6 @@ describe('the shots of a Hop’s playback', () => {
       expect(n).toBeGreaterThanOrEqual(steps[i - 1] ?? 0);
     });
     expect(lit(10_000)).toBe(3);
-    expect(lit(119_000)).toBe(3);
+    expect(lit(49_000)).toBe(3);
   });
 });

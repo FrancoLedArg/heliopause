@@ -154,9 +154,15 @@ const TARGET_AHEAD = {
 /**
  * Distant Bodies of the Star System passing far behind the Spacecraft (presentation tuning): the
  * first after `first` ms of Cruise, then one every `every` ms, each taking `crossMs` to cross the
- * screen against the heading, `size` px across.
+ * screen against the heading through the open sky above the Spacecraft (`y` px), `size` px across.
  */
-const PASSING = { first: 9000, every: 26_000, crossMs: 15_000, size: { min: 8, max: 22 } } as const;
+const PASSING = {
+  first: 6000,
+  every: 15_000,
+  crossMs: 12_000,
+  y: { min: 60, max: 110 },
+  size: { min: 8, max: 22 },
+} as const;
 /**
  * The star's light behind the Spacecraft, off the left edge: a soft warm glow that breathes slowly
  * (where, how big across, how bright). Drawn in code; `fx_flare` is the solar flare's art (#210).
@@ -177,11 +183,11 @@ const VENT = {
 } as const;
 /**
  * How far the dust and smoke follow the camera. At Takeoff the camera climbs and the ground drops
- * away fast; at 0.4 the puffs fall away slower, so they stay on screen for the first 1.5 s or more
- * (the strip is gone from view after about 1 s) and hang in the air as the Spacecraft leaves. At
+ * away fast; at 0.3 the puffs fall away slower, so they stay on screen for the first 1.5 s or more
+ * (the strip is gone from view after about 1 s of the 2.8 s climb) and hang in the air as the Spacecraft leaves. At
  * Landing the ground rises into view with them, so they move with it.
  */
-const FX_SCROLL_FACTOR = { departure: 0.4, arrival: 1 } as const;
+const FX_SCROLL_FACTOR = { departure: 0.3, arrival: 1 } as const;
 /**
  * The departure Body in the Cruise: large at the left, receding toward the left edge over `ms` of
  * Cruise, then drifting off it. It stays in the open sky between the top bar and phase strip (above y
@@ -226,7 +232,7 @@ const JUMP_FLASH_ALPHA = 0.85;
 
 const STREAK_COUNT = 34;
 /** After the boost the streaks fade to this share of their brightness: the coast is calmer. */
-const COAST_STREAKS = 0.35;
+const COAST_STREAKS = 0.5;
 /** Speed streaks run against the direction of travel: down and to the left. */
 const STREAK_ANGLE = Math.atan2(0.42, -1);
 /** The direction of travel through space, a unit vector: up and to the right. */
@@ -239,8 +245,8 @@ const MAX_FRAME_MS = 250;
  * no Landing: it ends in space, the Heliopause ahead, and the Jump follows: the Jump Drive charges
  * and fires, the screen goes dark behind the flavour text, and the Landed view of the next Home
  * Planet comes up out of the black). Takeoff rises straight up off the departure Body, upright on
- * its engines, and climbs out through the top edge (see `verticalShots`); the Cruise (about 2
- * minutes, the Transfer) flies the Spacecraft big at a 3/4 view through drifting stars, the departure
+ * its engines, and climbs out through the top edge (see `verticalShots`); the Cruise (the
+ * Transfer, see `SHOT_MS`) flies the Spacecraft big at a 3/4 view through drifting stars, the departure
  * Body falling behind and the target small far ahead; Landing comes straight down onto the target,
  * upright, ending on exactly the Landed view's composition. One clock drives everything from the
  * simulation's flight (see `flightPlayback`), so playback can only show the outcome, never change it.
@@ -330,6 +336,8 @@ export class Flight extends Scene {
   /** A distant Body passing far behind the Spacecraft, and the sprites it is drawn from. */
   private passing!: { readonly image: GameObjects.Image; readonly sprites: readonly string[] };
   private glint!: GameObjects.Image;
+  /** The Body crossing now: which one in turn, and its size and height on screen. */
+  private passer: { readonly index: number; readonly size: number; readonly y: number } | undefined;
   /** The attitude thruster's puff, on the Spacecraft; `undefined` under reduced motion. */
   private vent: GameObjects.Image | undefined;
   private stage: 'departure' | 'arrival' | 'space' | undefined;
@@ -357,6 +365,7 @@ export class Flight extends Scene {
     this.fast = false;
     this.streaks = [];
     this.starLayers = [];
+    this.passer = undefined;
     this.played = new Set();
     this.flash = 0;
     this.rumble = 0;
@@ -612,7 +621,7 @@ export class Flight extends Scene {
    * bobbing and swaying; its rearward plumes and sparks fire through the boost (`firing`). Behind it
    * the stars drift at three depths (faster through the boost), streaks fly past, a distant Body
    * passes now and then, the departure Body falls behind and the target waits small far ahead, so
-   * the 2 minutes are never a still image. A Spacecraft whose engine died drifts and slows.
+   * the Cruise is never a still image. A Spacecraft whose engine died drifts and slows.
    */
   private cruise(ms: number, firing: boolean): void {
     const window = this.playback.cruise;
@@ -714,14 +723,20 @@ export class Flight extends Scene {
     const on = since >= 0 && t < 1 && sprite !== undefined;
     image.setVisible(on);
     if (!on) return;
-    const rng = createRng(this.before.seed ^ (0xb0d1 + index));
-    const size = rng.int(PASSING.size.min, PASSING.size.max);
-    const y0 = rng.int(96, 200);
-    if (image.texture.key !== sprite) image.setTexture(sprite);
+    // Each passing Body's size and height are drawn once, when it starts to cross.
+    if (this.passer?.index !== index) {
+      const rng = createRng(this.before.seed ^ (0xb0d1 + index));
+      this.passer = {
+        index,
+        size: rng.int(PASSING.size.min, PASSING.size.max),
+        y: rng.int(PASSING.y.min, PASSING.y.max),
+      };
+      image.setTexture(sprite);
+    }
     const x = 660 - 700 * t;
     image
-      .setScale(size / image.width)
-      .setPosition(Math.round(x), Math.round(y0 + (660 - x) * 0.18))
+      .setScale(this.passer.size / image.width)
+      .setPosition(Math.round(x), Math.round(this.passer.y + (660 - x) * 0.04))
       .setAlpha(0.75);
   }
 

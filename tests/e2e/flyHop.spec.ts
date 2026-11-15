@@ -128,7 +128,7 @@ test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, the
   });
   const report = page.getByRole('dialog', { name: 'Arrived' });
   await expect(report).toBeVisible();
-  // The film's shots, in order, from the HUD (the 2-minute Cruise played fast: see FAST_CRUISE).
+  // The film's shots, in order, from the HUD (the Cruise played fast: see FAST_CRUISE).
   expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise', 'landing']);
   await expect(report).toContainText(`Landed on ${homeMoon.name}`);
   for (const burn of ['Takeoff', 'Transfer', 'Landing']) {

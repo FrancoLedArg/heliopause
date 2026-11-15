@@ -29,6 +29,8 @@ async function hudAt(ms: (playback: FlightPlayback) => number): Promise<HTMLElem
       onContinue={() => undefined}
       onNewRun={() => undefined}
       onLeave={() => undefined}
+      fast={false}
+      onFastChange={() => undefined}
     />,
   );
 }
@@ -113,6 +115,8 @@ it('gives the clipped route names of the longest-named Bodies their full name', 
       onContinue={() => undefined}
       onNewRun={() => undefined}
       onLeave={() => undefined}
+      fast={false}
+      onFastChange={() => undefined}
     />,
   );
   const inset = byTestId(host, 'route-inset');
@@ -131,4 +135,19 @@ it('gives the clipped route names of the longest-named Bodies their full name', 
   expect(inset.querySelector('[role="progressbar"]')?.getAttribute('aria-valuetext')).toContain(
     `${fromName} to ${toName}`,
   );
+});
+
+it('shows a Fuel tank in the Cruise that drains through the boost, and none in the Takeoff', async () => {
+  const takeoff = await hudAt(() => 100);
+  expect(takeoff.querySelector('[data-testid="cruise-fuel-gauge"]')).toBeNull();
+  cleanUp();
+  const share = (host: HTMLElement): number =>
+    Number(byTestId(host, 'cruise-fuel-gauge-fill').getAttribute('data-share'));
+  const start = await hudAt((playback) => cruiseStart(playback) + 1);
+  const full = share(start);
+  expect(byTestId(start, 'cruise-fuel-gauge').getAttribute('role')).toBe('meter');
+  cleanUp();
+  const later = await hudAt((playback) => cruiseStart(playback) + 30_000);
+  expect(share(later)).toBeLessThan(full);
+  expect(share(later)).toBeGreaterThan(0);
 });

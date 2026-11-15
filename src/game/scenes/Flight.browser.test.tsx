@@ -192,40 +192,45 @@ it('the Cruise is never a still image: the Spacecraft and the stars keep moving'
     return { x: scene.ship.x, y: scene.ship.y, angle: scene.ship.angle };
   };
   // Long after the boost, deep in the coast: every second something has moved.
-  for (const t of [30_000, 60_000, 100_000]) {
+  for (const t of [15_000, 28_000, 42_000]) {
     expect(look(start + t + 1000)).not.toEqual(look(start + t));
   }
 });
 
-it('the Spacecraft flies big in the Cruise, and each installed Component’s bounds lie inside the frame, large enough to click', async () => {
-  const { scene, data } = await fly('scout');
-  const { start } = cruiseSpan(scene);
-  scene.seek(start + 20_000);
-  await act(frame);
-  const installed = data.before.spacecraft.slots.flatMap((slot, i) => (slot === null ? [] : [i]));
-  const bounds = scene.componentBounds();
-  expect([...bounds.keys()]).toEqual(installed);
-  const hull = hullOnScreen(scene);
-  expect(hull.right - hull.left).toBeGreaterThan(200);
-  for (const [slot, rect] of bounds) {
-    const where = `Slot ${String(slot)}`;
-    expect(rect.width, where).toBeGreaterThanOrEqual(24);
-    expect(rect.height, where).toBeGreaterThanOrEqual(24);
-    expect(rect.x, where).toBeGreaterThanOrEqual(0);
-    expect(rect.y, where).toBeGreaterThanOrEqual(0);
-    expect(rect.x + rect.width, where).toBeLessThanOrEqual(GAME_WIDTH);
-    expect(rect.y + rect.height, where).toBeLessThanOrEqual(GAME_HEIGHT);
-    // On the Spacecraft, and no HUD panel covers it.
-    const box: Box = {
-      left: rect.x,
-      top: rect.y,
-      right: rect.x + rect.width,
-      bottom: rect.y + rect.height,
-    };
-    expect(overlaps(box, hull), where).toBe(true);
-    for (const panel of hudPanels()) expect(overlaps(box, panel), where).toBe(false);
-  }
-});
+it.each(CHASSIS_IDS)(
+  'the %s flies big in the Cruise: each installed Component’s bounds lie inside the frame, large enough to click, and clear of the HUD and its Fuel tank',
+  async (chassis) => {
+    const { scene, data } = await fly(chassis);
+    const { start } = cruiseSpan(scene);
+    scene.seek(start + 20_000);
+    await act(frame);
+    // The Fuel tank beside the Spacecraft is one of the HUD's panels checked below.
+    expect(document.querySelector('[data-testid="cruise-fuel-gauge"]')).not.toBeNull();
+    const installed = data.before.spacecraft.slots.flatMap((slot, i) => (slot === null ? [] : [i]));
+    const bounds = scene.componentBounds();
+    expect([...bounds.keys()]).toEqual(installed);
+    const hull = hullOnScreen(scene);
+    expect(hull.right - hull.left).toBeGreaterThan(200);
+    for (const [slot, rect] of bounds) {
+      const where = `Slot ${String(slot)}`;
+      expect(rect.width, where).toBeGreaterThanOrEqual(24);
+      expect(rect.height, where).toBeGreaterThanOrEqual(24);
+      expect(rect.x, where).toBeGreaterThanOrEqual(0);
+      expect(rect.y, where).toBeGreaterThanOrEqual(0);
+      expect(rect.x + rect.width, where).toBeLessThanOrEqual(GAME_WIDTH);
+      expect(rect.y + rect.height, where).toBeLessThanOrEqual(GAME_HEIGHT);
+      // On the Spacecraft, and no HUD panel covers it.
+      const box: Box = {
+        left: rect.x,
+        top: rect.y,
+        right: rect.x + rect.width,
+        bottom: rect.y + rect.height,
+      };
+      expect(overlaps(box, hull), where).toBe(true);
+      for (const panel of hudPanels()) expect(overlaps(box, panel), where).toBe(false);
+    }
+  },
+);
 
 it('the Cruise draws its event layer between the starfield and the Spacecraft', async () => {
   const { scene } = await fly('scout');
@@ -399,37 +404,61 @@ const emitters = (scene: Flight): GameObjects.Particles.ParticleEmitter[] =>
       child instanceof GameObjects.Particles.ParticleEmitter,
   );
 
-it('the F key turns fast-forward on and off: the clock runs about 4x as fast and the button shows it', async () => {
+/**
+ * Holds the game loop, so a test steps the Flight scene itself with fixed frame times: the clock it
+ * shows then depends on nothing but those frames, however loaded the machine is.
+ */
+function holdLoop(scene: Flight): (frames: number, delta: number) => number {
+  scene.game.loop.sleep();
+  return (frames, delta) => {
+    const from = scene.playbackMs;
+    for (let i = 0; i < frames; i++) scene.update(0, delta);
+    return scene.playbackMs - from;
+  };
+}
+
+const pressF = async (): Promise<void> => {
+  await act(() => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
+    return Promise.resolve();
+  });
+};
+
+it('the F key turns fast-forward on and off: the clock runs exactly 4x as fast and the button shows it', async () => {
   const { scene } = await fly('scout');
   const button = document.querySelector<HTMLButtonElement>('.fast-forward');
   expect(button?.getAttribute('aria-pressed')).toBe('false');
-  // Playback per millisecond of the tween clock (`tweens.time`, in seconds), not of wall time: the
-  // tween manager advances both together every update, so the ratio is exactly the time scale the
-  // feature sets (1 at 1x, 4 at 4x) however loaded the machine is.
-  const advance = async (): Promise<number> => {
-    const playbackStart = scene.playbackMs;
-    const tweenStart = scene.tweens.time;
-    await wait(1000);
-    return (scene.playbackMs - playbackStart) / ((scene.tweens.time - tweenStart) * 1000);
-  };
-  await wait(300); // let the create frame's catch-up pass before the 1x window
-  const normal = await advance();
-  await act(() => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
-    return Promise.resolve();
-  });
+  const step = holdLoop(scene);
+  // Ten 100 ms frames: a second of playback at 1x, four on fast-forward.
+  expect(step(10, 100)).toBeCloseTo(1000, 6);
+  await pressF();
   expect(button?.getAttribute('aria-pressed')).toBe('true');
   // The cue is not colour alone: the rate shows while it is on.
   expect(button?.textContent).toContain('4×');
-  const fast = await advance();
-  expect(fast / normal).toBeGreaterThan(2.8);
-  expect(fast / normal).toBeLessThan(5.2);
-  await act(() => {
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f' }));
-    return Promise.resolve();
-  });
+  expect(step(10, 100)).toBeCloseTo(4000, 6);
+  // A long stall (a hidden tab) steps at most 250 ms of real time, then the speed applies.
+  expect(step(1, 1000)).toBeCloseTo(1000, 6);
+  await pressF();
   expect(button?.getAttribute('aria-pressed')).toBe('false');
   expect(button?.textContent).not.toContain('4×');
+  expect(step(1, 1000)).toBeCloseTo(250, 6);
+});
+
+it('fast-forward stays on for the next Hop of the Run', async () => {
+  const { scene, data } = await fly('scout');
+  await pressF();
+  const landed = nextSceneReady(SceneKey.Landed);
+  scene.seek(scene.playback.duration);
+  await landed;
+  // The next Hop's playback starts already fast.
+  const ready = nextSceneReady(SceneKey.Flight);
+  game?.scene.start(SceneKey.Flight, data);
+  await ready;
+  await act(() => Promise.resolve());
+  const next = game?.scene.getScene<Flight>(SceneKey.Flight);
+  if (!next) throw new Error('no Flight scene');
+  expect(document.querySelector('.fast-forward')?.getAttribute('aria-pressed')).toBe('true');
+  expect(holdLoop(next)(10, 100)).toBeCloseTo(4000, 6);
 });
 
 it('Takeoff kicks up dust, and the Cruise trails sparks through the boost', async () => {
@@ -772,7 +801,10 @@ it('Takeoff dust and smoke start at the strip top edge under the Spacecraft', as
 
 it('Takeoff smoke is still on screen 1.5 s after it was kicked up, while the strip has dropped away', async () => {
   const { scene } = await fly('scout');
-  await act(() => wait(1700));
+  // Step the whole scene (its clock and the particles) through 1.7 s of fixed 16 ms frames, with
+  // the game loop held, so the result never depends on how busy the machine is.
+  scene.game.loop.sleep();
+  for (let i = 0, time = 0; i < 106; i++, time += 16) scene.sys.step(time, 16);
   const smoke = emitters(scene).find((e) => e.texture.key === 'fx_smoke');
   if (!smoke) throw new Error('no smoke emitter');
   // The camera has climbed: the strip's top edge is off the bottom of the screen.
