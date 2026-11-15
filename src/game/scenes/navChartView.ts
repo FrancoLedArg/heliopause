@@ -13,6 +13,7 @@ import {
   type Planet,
   type Run,
 } from '../sim/index.ts';
+import { createRng } from '../lib/rng.ts';
 import { SPRITE_SIZE } from './landedView.ts';
 import {
   centreOn,
@@ -768,4 +769,46 @@ export function tooltipHeight(why: string | undefined, kindExtra = 0): number {
     }
   }
   return REASON.top + lines * REASON.lineHeight + REASON.bottomPad + kindExtra;
+}
+
+/** The "?" over an Unsurveyed Body: its box in screen pixels (Silkscreen 8 px). */
+export const MARK_BOX = { w: 6, h: 8 } as const;
+
+/**
+ * Where the "?" sits, as a screen offset from the Body: past the corner of the focus brackets (which
+ * scale with the map's zoom), up and to the right, so it never touches them.
+ */
+export function unsurveyedMarkAt(zoom: number, node: ChartSpot): { dx: number; dy: number } {
+  const half = (node.radius + BRACKET_GAP) * zoom + 1;
+  return { dx: half, dy: -half - MARK_BOX.h };
+}
+
+/** One layer of the chart's backdrop stars: how far they follow the camera (1 = stuck to the map). */
+export interface StarLayer {
+  readonly parallax: number;
+  readonly size: number;
+  readonly alpha: number;
+  readonly stars: readonly Point[];
+}
+
+/** Gameplay tuning: the backdrop's layers, far to near (stars per 10 000 px^2 of map). */
+const STAR_LAYERS = [
+  { parallax: 0.15, size: 1, alpha: 0.35, density: 3 },
+  { parallax: 0.35, size: 1, alpha: 0.6, density: 1.2 },
+  { parallax: 0.6, size: 2, alpha: 0.4, density: 0.25 },
+] as const;
+/** Stars reach this far past the map's edge, so panning to the edge never shows a bare corner. */
+const STAR_MARGIN = 700;
+
+/** Faint layered stars over the map and beyond it, the same for the same seed. */
+export function starfield(seed: number, world: WorldSize): readonly StarLayer[] {
+  const rng = createRng(seed ^ 0x5eed);
+  const [w, h] = [world.width + 2 * STAR_MARGIN, world.height + 2 * STAR_MARGIN];
+  return STAR_LAYERS.map(({ density, ...rest }) => ({
+    ...rest,
+    stars: Array.from({ length: Math.round((w * h * density) / 10_000) }, () => ({
+      x: Math.round(rng.next() * w - STAR_MARGIN),
+      y: Math.round(rng.next() * h - STAR_MARGIN),
+    })),
+  }));
 }
