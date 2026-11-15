@@ -627,6 +627,11 @@ export interface PlacedLabel {
   readonly box: Rect;
 }
 
+/** The label context for a Run on the chart in `state`. */
+export function labelContextOf(run: Run, state: ChartState): LabelContext {
+  return { hereId: currentBody(run).id, targetId: state.selectedId, focusedId: state.focusedId };
+}
+
 /** The label text: the Body's name, then "you" or "target" where that applies. */
 export function labelText(body: Body, context: LabelContext): string {
   if (body.id === context.hereId) return `${body.name} · you`;
@@ -645,6 +650,43 @@ interface Footprint {
 function footprint(node: ChartNode, context: LabelContext): Footprint {
   const ringed = node.body.id === context.hereId || node.body.kind === 'gas-giant';
   return markFootprint(node, node.body.id, ringed, context);
+}
+
+/** The side (px) of a Body's yield icon on the chart: the kit's 32 px icon at five sixteenths. */
+export const YIELD_MARK_SIZE = 10;
+
+/**
+ * Where each landable Body's yield icon sits on the chart: tucked into a corner of its sprite's square
+ * (the upper right if it can, else the lower right, upper left or lower left), on the chart and clear of
+ * the labels and of every other Body's sprite. A Gas Giant has no yield, so no icon. Placed after the
+ * labels, so the labels (which have enough to do) are not asked to leave room for them. The same chart
+ * and labels always give the same icons.
+ */
+export function placeYieldMarks(
+  layout: ChartLayout,
+  labels: readonly PlacedLabel[],
+): ReadonlyMap<BodyId, Rect> {
+  const size = YIELD_MARK_SIZE;
+  const marks = new Map<BodyId, Rect>();
+  for (const node of layout.nodes) {
+    if (!node.body.landable) continue;
+    // Tucked into the empty corner of a round sprite's square.
+    const reach = Math.round(node.radius * Math.SQRT1_2) + 1;
+    const boxes = [
+      { x: node.x + reach, y: node.y - reach - size },
+      { x: node.x + reach, y: node.y + reach },
+      { x: node.x - reach - size, y: node.y - reach - size },
+      { x: node.x - reach - size, y: node.y + reach },
+    ].map((corner): Rect => ({ ...corner, w: size, h: size }));
+    const clear = (box: Rect): boolean =>
+      insideBox(box) &&
+      labels.every((label) => !boxesTouch(label.box, box, 0)) &&
+      layout.nodes.every((other) => other === node || !circleTouchesBox(other, box, 1)) &&
+      !circleTouchesBox(layout.star, box, 1);
+    const chosen = boxes.find(clear) ?? boxes.find(insideBox) ?? boxes[0];
+    if (chosen) marks.set(node.body.id, chosen);
+  }
+  return marks;
 }
 
 /** The Heliopause mark's footprint: its diamond, and the target square and brackets when it has them. */

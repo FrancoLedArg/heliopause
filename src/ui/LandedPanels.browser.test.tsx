@@ -24,8 +24,9 @@ it('marks a Depleted Body on the Landed plate, on the kind row, inside an unchan
   const plate = host.querySelector<HTMLElement>('.landed-plate');
   const detail = host.querySelector<HTMLElement>('.landed-plate__detail');
   if (!plate || !detail) throw new Error('no plate');
+  // Depleted is the struck-through yield icon, its words in the accessible name (no amber word to fit).
   const mark = byTestId(host, 'landed-depleted');
-  expect(mark.textContent).toBe(' · Depleted');
+  expect(mark.getAttribute('aria-label')).toBe('Depleted, yields nothing');
   const frame = plate.getBoundingClientRect();
   const box = mark.getBoundingClientRect();
   // The plate keeps its size and place (the Hop report ends above y 274), and the whole kind row,
@@ -40,7 +41,6 @@ it('marks a Depleted Body on the Landed plate, on the kind row, inside an unchan
     detail.getBoundingClientRect().top + 1,
   );
   expect(box.right).toBeLessThanOrEqual(frame.right - SLACK);
-  expect(mark.scrollWidth).toBeLessThanOrEqual(mark.clientWidth);
 });
 
 it('does not mark a fresh Body on the Landed plate', async () => {
@@ -141,4 +141,37 @@ it('the longer warning, when only a new Component would save the Run, fits its f
 it('shows no Stranded warning while a Hop is possible', async () => {
   const host = await landed(startRun(123, 'scout'));
   expect(host.querySelector('[data-testid="stranded-warning"]')).toBeNull();
+});
+
+it('the Landed plate shows the yield icon next to Icy or Rocky, struck through and named once Depleted, inside the plate', async () => {
+  const run = startRun(123, 'scout');
+  const body = listBodies(run.starSystem).find((b) => b.landable);
+  if (!body?.landable) throw new Error('seed 123 has no landable Body');
+  const resource = body.composition === 'icy' ? 'yields Fuel' : 'yields Materials';
+  for (const [depleted, name] of [
+    [[], resource],
+    [[body.id], 'Depleted, yields nothing'],
+  ] as const) {
+    const host = await renderUi(
+      <LandedPanels
+        run={{ ...run, status: { kind: 'landed', bodyId: body.id }, depleted: [...depleted] }}
+        chartOpen={false}
+        spacecraftOpen={false}
+        onOpenSpacecraft={() => undefined}
+      />,
+    );
+    const icon = byTestId(
+      byTestId(host, 'landed-kind'),
+      depleted.length > 0 ? 'landed-depleted' : 'resource-icon',
+    );
+    expect(icon.getAttribute('role')).toBe('img');
+    expect(icon.getAttribute('aria-label')).toBe(name);
+    expect(icon.classList.contains('resource-icon--depleted')).toBe(depleted.length > 0);
+    const plate = host.querySelector<HTMLElement>('.landed-plate')?.getBoundingClientRect();
+    const box = icon.getBoundingClientRect();
+    if (!plate) throw new Error('no plate');
+    expect(box.top).toBeGreaterThanOrEqual(plate.top);
+    expect(box.bottom).toBeLessThanOrEqual(plate.bottom);
+    cleanUp();
+  }
 });
