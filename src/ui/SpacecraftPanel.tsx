@@ -7,9 +7,12 @@ import { Disclosure, DisclosurePanel, TellMeMoreToggle } from './Disclosure.tsx'
 import { chassisName } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { repairState } from './repairView.ts';
+import { ResourceIcon } from './ResourceIcon.tsx';
 import { SpacecraftPicture } from './SpacecraftPicture.tsx';
 import {
   componentLabel,
+  componentTitle,
   describePreview,
   describeRefusal,
   describeRemoval,
@@ -250,6 +253,15 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
           }}
           onKeyDown={onSlotKey}
           describedBy={keysId}
+          damaged={spacecraft.damage.map((damage) => damage !== null)}
+        />
+        <RepairControls
+          run={run}
+          slot={selected}
+          onDone={() => {
+            // The button pressed goes away with the Damage it fixed: focus back to the Slot.
+            slotRefs.current[selected]?.focus();
+          }}
         />
         <KitButton
           ref={removeRef}
@@ -429,6 +441,45 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * A Damaged Slot's Repair and Rush, beside Remove (#250): Repair starts it (it runs in the next
+ * Cruise), Rush finishes it now for the Materials shown. Nothing for a sound Slot.
+ */
+function RepairControls({ run, slot, onDone }: { run: Run; slot: number; onDone: () => void }) {
+  const state = repairState(run, slot);
+  const held = run.spacecraft.slots[slot];
+  if (state.kind === 'sound' || held === null || held === undefined) return null;
+  const title = componentTitle(held);
+  return (
+    <div className="spacecraft-panel__repair" data-testid="repair-controls">
+      {state.progress === null && (
+        <KitButton
+          width={56}
+          aria-label={`Repair ${title}: ${String(state.secondsLeft)} s of the next Cruise`}
+          onClick={() => {
+            EventBus.emit('repair-requested', slot);
+            onDone();
+          }}
+        >
+          Repair
+        </KitButton>
+      )}
+      <KitButton
+        width={56}
+        disabled={!state.affordable}
+        aria-label={`Rush the Repair of ${title} for ${String(state.rush)} Materials`}
+        onClick={() => {
+          EventBus.emit('rush-requested', slot);
+          onDone();
+        }}
+      >
+        <ResourceIcon resource="materials" size={12} />
+        {String(state.rush)}
+      </KitButton>
+    </div>
   );
 }
 
