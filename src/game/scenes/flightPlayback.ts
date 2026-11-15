@@ -24,12 +24,12 @@ export type Shot = 'takeoff' | 'cruise' | 'approach' | 'landing';
  * How long each shot lasts, in ms at normal speed (presentation tuning). The Cruise is gameplay time,
  * where Cruise events will play (#210), so it keeps its real length under reduced motion. Interim: the
  * Cruise is about 50 s until Cruise events fill it (the human's call in #204's fix round); #210's
- * events ticket restores the 2-minute Cruise of the human's amendment on #200. The Approach has no length until #205 draws it:
- * until then the Cruise hands straight to the Landing.
+ * events ticket restores the 2-minute Cruise of the human's amendment on #200. A Hop to the Heliopause
+ * never gets an Approach (see `shotsOfBurn`).
  */
 export const SHOT_MS: Readonly<Record<Pace, Readonly<Record<Shot, number>>>> = {
-  full: { takeoff: 2800, cruise: 50_000, approach: 0, landing: 2800 },
-  reduced: { takeoff: 1000, cruise: 50_000, approach: 0, landing: 1000 },
+  full: { takeoff: 2800, cruise: 50_000, approach: 2200, landing: 2800 },
+  reduced: { takeoff: 1000, cruise: 50_000, approach: 700, landing: 1000 },
 };
 
 /**

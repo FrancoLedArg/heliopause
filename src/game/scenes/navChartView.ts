@@ -111,8 +111,6 @@ const STAR: ChartLayout['star'] = { x: 34, y: CHART.height / 2, radius: SPRITE_S
 const INNER_RING = 62;
 /** Gameplay tuning: the Heliopause ring when the planets leave room; it moves out to clear them. */
 const MIN_HELIOPAUSE = 328;
-/** Gameplay tuning: how far out the chart reaches, as a multiple of the outermost planet's distance. */
-const CHART_SPAN_PER_OUTERMOST_PLANET = 4.1;
 /** Gameplay tuning: how far apart outward distances look (1 would be linear; smaller spreads inner planets). */
 const DISTANCE_EXPONENT = 0.4;
 /** Pixels kept clear between two Bodies (or a Body and the star). */
@@ -150,12 +148,10 @@ export function layoutChart(run: Run): ChartLayout {
   const planets = [...system.planets].sort(
     (a, b) => a.distanceFromStar - b.distanceFromStar || a.id.localeCompare(b.id),
   );
-  // The chart spans about four times the outermost planet's distance (the Solar System's heliopause
-  // ratio), whatever the Heliopause's own: it lies just past that planet (#191), and scaling to it
-  // would crowd the outer planets against the chart's edge.
-  const scale = (planets.at(-1)?.distanceFromStar ?? 1) * CHART_SPAN_PER_OUTERMOST_PLANET;
   const firstRing = (planet: Planet, previousRing: number): number => {
-    const fraction = (planet.distanceFromStar / scale) ** DISTANCE_EXPONENT;
+    // The map's reach, not the Heliopause's: it lies just past the outermost planet (#191), and
+    // scaling to it would crowd the outer planets against the chart's edge.
+    const fraction = (planet.distanceFromStar / system.mapRadius) ** DISTANCE_EXPONENT;
     return Math.max(
       Math.round(INNER_RING + (MIN_HELIOPAUSE - INNER_RING) * fraction),
       previousRing + 1,

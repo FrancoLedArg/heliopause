@@ -102,6 +102,13 @@ export const GENERATION_TUNING = {
    */
   heliopauseBeyondOutermostPlanet: { min: 0.75, max: 0.95 },
   /**
+   * How far out a map of the Star System reaches, as a multiple of the outermost planet's distance:
+   * where the Solar System's ratio puts a heliopause, Voyager 1 crossing at about 122 AU (§5) with
+   * Neptune at 30.2 AU (§1), about 4×. The Nav Chart scales to it, as it did to the Heliopause
+   * before #191 drew that in.
+   */
+  mapRadiusPerOutermostPlanet: { min: 3.5, max: 4.5 },
+  /**
    * Gas Giants are home to 1 to 4 Moons. Every rocky planet has two, so a Spacecraft landed on any
    * of the three Bodies always has a short Hop onward within reach (#188: no early dead ends).
    */
@@ -239,15 +246,23 @@ export interface ChassisTuning {
  * comfortable Margin in every Star System, starter Fuel covers roughly 3 to 6 nearby Hops (2 to 4
  * before #188 gave every rocky planet two Moons), and their starting Δv differs noticeably. The
  * hauler carries the most Fuel yet has the least Δv: its dry mass costs it.
+ *
+ * The Isp is 30% above its first tuning (1,230, 1,210 and 1,280 s) since #247: a new Run felt out
+ * of Fuel after its first Hop. The gauge reads Fuel mass, and the rocket equation spends the
+ * heaviest Fuel first: the first Hop took about 40% of the tank, most of it for the Landing on the
+ * Starting Moon's planet (about 4 km/s). A bigger tank cannot fix that, since the share a Burn
+ * leaves can never top e^(−Δv / exhaust velocity), about 65% here; a better Engine raises that
+ * ceiling. On average the first Hop now leaves at least 60% of the tank and the starting Fuel alone
+ * lasts 3 nearby Hops.
  */
 export const CHASSIS_TUNING = {
-  scout: { dryMass: kilograms(4_000), fuelCapacity: kilograms(21_000), engineIsp: seconds(1_230) },
+  scout: { dryMass: kilograms(4_000), fuelCapacity: kilograms(21_000), engineIsp: seconds(1_600) },
   hauler: {
     dryMass: kilograms(15_000),
     fuelCapacity: kilograms(66_000),
-    engineIsp: seconds(1_210),
+    engineIsp: seconds(1_575),
   },
-  lancer: { dryMass: kilograms(6_000), fuelCapacity: kilograms(36_000), engineIsp: seconds(1_280) },
+  lancer: { dryMass: kilograms(6_000), fuelCapacity: kilograms(36_000), engineIsp: seconds(1_665) },
 } as const satisfies Record<ChassisId, ChassisTuning>;
 
 /**

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { FAST_CRUISE } from './cruise.ts';
+import { recordShots, shotsSeen } from './shots.ts';
 import {
   findBody,
   firstDetectedBody,
@@ -20,9 +21,9 @@ import { JUMP_FLAVOUR_TEXT } from '../../src/ui/jumpFlavour.ts';
 // Spec #15's way out, on one seed, by keyboard alone, since #191 found only by the Radar: the chart
 // opens with no Heliopause; build a Radar, Hop out until it finds the Heliopause, build the Jump
 // Drive, target the Heliopause, Launch, reach it, Jump to Star System 2 and Hop on from its Starting
-// Moon. The route is a careful explorer's (`readyToJump`): seed 296 gets out in 5 Hops. Re-pinned for
-// #191 (was seed 1033, whose first target paid for the Jump Drive with the Heliopause already found).
-const SEED = 296;
+// Moon. The route is a careful explorer's (`readyToJump`): seed 121 gets out in 5 Hops. Re-pinned for
+// #191 (was seed 28, whose first target paid for the Jump Drive with the Heliopause already found).
+const SEED = 121;
 const ready = readyToJump(SEED, 'scout');
 if (!ready) throw new Error(`Seed ${String(SEED)} should have a way out`);
 const run = startRun(SEED, 'scout');
@@ -200,12 +201,15 @@ test('build a Radar to find the Heliopause, then a Jump Drive, reach it by keybo
   });
 
   // 6. Launch: Takeoff and Transfer play, then the Jump: the flavour text over the black.
+  await recordShots(page);
   await launch(page);
   const strip = page.getByTestId('phase-strip');
   await expect(strip).toBeVisible();
   await expect(strip).not.toContainText('Landing');
   const caption = page.getByTestId('jump-caption');
   await expect(caption).toHaveText(JUMP_FLAVOUR_TEXT, { timeout: 30_000 });
+  // No Approach on the way out: the Jump follows the Cruise.
+  expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise']);
   await testInfo.attach('the-jump', { body: await page.screenshot(), contentType: 'image/png' });
 
   // 7. The Landed view of System 2's Starting Moon: the Jump Drive burnt out, Materials kept and its

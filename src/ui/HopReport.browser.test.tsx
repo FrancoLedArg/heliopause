@@ -49,12 +49,13 @@ async function spareBelowContinue(before: Run, flight: HopFlight): Promise<numbe
   return body.getBoundingClientRect().bottom - actions.getBoundingClientRect().bottom;
 }
 
-// Re-pinned for #189: seed 786's Laelresmaen Minor is the longest-named Icy first target of a hauler
+// Re-pinned for #189: seed 786's Laelresmaen Minor was the longest-named Icy first target of a hauler
 // opening on a Rocky Starting Moon in 2000 seeds, so its Fuel is the Run's first (was seed 786's
-// Quaexpruxthaer Nova); seed 98 leaves Fuel behind (was seed 5).
-it('the Arrived report fits its panel with the ice line (seed 786, hauler, first Fuel collected)', async () => {
-  const before = startRun(786, 'hauler');
-  const { flight } = hop(before, 'Laelresmaen Minor');
+// Quaexpruxthaer Nova); seed 98 leaves Fuel behind (was seed 5). Re-pinned for #247: the Isp rise
+// moves seed 786 to another Star System; seed 892's Praerionrio Prime is now that longest name.
+it('the Arrived report fits its panel with the ice line (seed 892, hauler, first Fuel collected)', async () => {
+  const before = startRun(892, 'hauler');
+  const { flight } = hop(before, 'Praerionrio Prime');
   expect(flight.collection?.kind).toBe('fuel');
   // Continue sits clear of the panel's bottom border.
   expect(await spareBelowContinue(before, flight)).toBeGreaterThanOrEqual(8);
@@ -67,9 +68,9 @@ it('the Arrived report fits its panel with a left-behind clause (seed 98, scout,
   expect(await spareBelowContinue(first.run, second.flight)).toBeGreaterThanOrEqual(8);
 });
 
-it('the worst report fits: the ice line and a left-behind clause together (seed 786, hauler)', async () => {
-  const before = startRun(786, 'hauler');
-  const { flight } = hop(before, 'Laelresmaen Minor');
+it('the worst report fits: the ice line and a left-behind clause together (seed 892, hauler)', async () => {
+  const before = startRun(892, 'hauler');
+  const { flight } = hop(before, 'Praerionrio Prime');
   if (flight.collection?.kind !== 'fuel') throw new Error('Expected Fuel collected');
   // The Fuel was all collected in the Tank's last tonnes: the rest is left behind.
   const worst = {
@@ -79,11 +80,11 @@ it('the worst report fits: the ice line and a left-behind clause together (seed 
   expect(await spareBelowContinue(before, worst)).toBeGreaterThanOrEqual(0);
 });
 
-it('the worst report with a Drill fits with room to spare: ice line, left-behind clause and Drill text (seed 786, hauler)', async () => {
-  const fitted = install(startRun(786, 'hauler'), 2, 'drill-1');
+it('the worst report with a Drill fits with room to spare: ice line, left-behind clause and Drill text (seed 892, hauler)', async () => {
+  const fitted = install(startRun(892, 'hauler'), 2, 'drill-1');
   if (fitted.kind !== 'installed') throw new Error('Expected the Drill to install');
   const before = fitted.run;
-  const { flight } = hop(before, 'Laelresmaen Minor');
+  const { flight } = hop(before, 'Praerionrio Prime');
   if (flight.collection?.kind !== 'fuel') throw new Error('Expected Fuel collected');
   const worst = {
     ...flight,
@@ -142,8 +143,8 @@ const reports: [string, () => [Run, HopFlight]][] = [
   [
     'Arrived (first Fuel, so the fact exists)',
     () => {
-      const before = startRun(786, 'hauler');
-      return [before, hop(before, 'Laelresmaen Minor').flight];
+      const before = startRun(892, 'hauler');
+      return [before, hop(before, 'Praerionrio Prime').flight];
     },
   ],
   ['Fell Short', () => halfFuelledHop('fell-short', 'hauler')],
@@ -170,8 +171,8 @@ it.each(reports)('%s: one visible sentence, which is the why line', async (_name
 });
 
 it('"Tell me more" opens the Burn table, the Margin and the fact by keyboard, and they still fit', async () => {
-  const before = startRun(786, 'hauler');
-  const { flight } = hop(before, 'Laelresmaen Minor');
+  const before = startRun(892, 'hauler');
+  const { flight } = hop(before, 'Praerionrio Prime');
   const host = await renderUi(
     <HopReport
       before={before}

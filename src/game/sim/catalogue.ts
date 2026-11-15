@@ -25,9 +25,9 @@ export const COMPONENT_IDS = [
   'fuel-tank-2',
   'drill-1',
   'drill-2',
-  'jump-drive',
   'radar-1',
   'radar-2',
+  'jump-drive',
 ] as const;
 export type ComponentId = (typeof COMPONENT_IDS)[number];
 

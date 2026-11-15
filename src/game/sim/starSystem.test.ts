@@ -307,7 +307,7 @@ describe('Star System difficulty levels', { timeout: 60_000 }, () => {
     );
     // Re-pinned for #189: the Starting Moon replaces the Home Planet, and generation checks its opening.
     // Re-pinned for #191: the Heliopause lies just past the outermost planet, where the Radar finds it.
-    expect(stringSeed(json)).toBe(3779818511);
+    expect(stringSeed(json)).toBe(1752515780);
   });
 
   it('a higher difficulty level raises gravity', () => {

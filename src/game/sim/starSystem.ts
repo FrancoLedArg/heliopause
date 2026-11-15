@@ -112,6 +112,11 @@ export interface StarSystem {
   readonly startingMoonId: BodyId;
   /** The outer edge of the Star System. */
   readonly heliopauseRadius: AstronomicalUnits;
+  /**
+   * How far out a map of the Star System reaches: where a real heliopause would lie, beyond the
+   * game's Heliopause (see `GENERATION_TUNING.mapRadiusPerOutermostPlanet`). The Nav Chart scales to it.
+   */
+  readonly mapRadius: AstronomicalUnits;
 }
 
 /**
@@ -184,13 +189,19 @@ export function drawStarSystem(seed: Seed, level = 1): StarSystem {
   // Radar reaches from there: every Heliopause can be found.
   const outermostGasGiant = gasGiants.at(-1);
   if (!outermostGasGiant) throw new Error(`Star System ${name} generated no Gas Giant`);
+  // One draw places both the Heliopause and the edge of the Star System's map.
+  const draw = rng.next();
+  const farther = difficultyFactor(DIFFICULTY_TUNING.heliopauseRadius, level);
   const beyond = Math.min(
-    sampleFloat(rng, GENERATION_TUNING.heliopauseBeyondOutermostPlanet) *
-      RADAR_TUNING.range[1] *
-      difficultyFactor(DIFFICULTY_TUNING.heliopauseRadius, level),
+    lerp(GENERATION_TUNING.heliopauseBeyondOutermostPlanet, draw) * RADAR_TUNING.range[1] * farther,
     HELIOPAUSE_WITHIN_LEVEL_2 * RADAR_TUNING.range[2],
   );
   const heliopauseRadius = astronomicalUnits(outermostGasGiant.distanceFromStar + beyond);
+  const mapRadius = astronomicalUnits(
+    outermostGasGiant.distanceFromStar *
+      lerp(GENERATION_TUNING.mapRadiusPerOutermostPlanet, draw) *
+      farther,
+  );
 
   // Frozen: Bodies do not move, and nothing outside the rules can change them.
   return deepFreeze({
@@ -200,6 +211,7 @@ export function drawStarSystem(seed: Seed, level = 1): StarSystem {
     planets: start.planets,
     startingMoonId: start.moonId,
     heliopauseRadius,
+    mapRadius,
   });
 }
 

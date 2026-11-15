@@ -200,9 +200,9 @@ describe('the Hop plan as the player reads it', () => {
     const innerMoon = home.starSystem.planets[0]?.moons[0];
     if (!innerMoon) throw new Error('The innermost planet has a Moon');
     const view = describeHopPlan(home, planFor(innerMoon.id, home));
-    // The top bar reads the same Spacecraft's Δv: 22,105 m/s is 22.1 km/s in both.
+    // The top bar reads the same Spacecraft's Δv: 28,754 m/s is 28.8 km/s in both (#247's Isp).
     expect(view.available).toBe(formatDeltaVKmS(availableDeltaV(home.spacecraft)));
-    expect(view.available).toBe('22.1 km/s');
+    expect(view.available).toBe('28.8 km/s');
     for (const text of [...view.burns.map((b) => b.estimate), view.needed, view.available]) {
       // Two decimals under 1 km/s, as everywhere (re-pinned for #189: this Transfer is short).
       expect(text).toMatch(/^\d+\.\d{1,2} km\/s$/);
@@ -211,12 +211,12 @@ describe('the Hop plan as the player reads it', () => {
     expect(view.burns.map((b) => b.estimate)).toEqual(['3.8 km/s', '1.3 km/s', '0.24 km/s']);
     expect(view.needed).toBe('5.4 km/s');
 
-    // Below 10 km/s too: a scout with 3.14 t of Fuel has 1230 s × g0 × ln(7.14 / 4) ≈ 6,989 m/s,
-    // which the top bar and the plan both read as 7.0 km/s.
+    // Below 10 km/s too: a scout with 3.14 t of Fuel has 1600 s × g0 × ln(7.14 / 4) ≈ 9,091 m/s,
+    // which the top bar and the plan both read as 9.1 km/s.
     const low: Run = { ...home, spacecraft: { ...home.spacecraft, fuelMass: kilograms(3140) } };
     const lowView = describeHopPlan(low, planFor(innerMoon.id, low));
     expect(lowView.available).toBe(formatDeltaVKmS(availableDeltaV(low.spacecraft)));
-    expect(lowView.available).toBe('7.0 km/s');
+    expect(lowView.available).toBe('9.1 km/s');
   });
 
   it('shows the Margin as a whole percent of the available Δv, with its sign', () => {
@@ -232,6 +232,7 @@ describe('the Hop plan as the player reads it', () => {
 
   it('gives the same percentage as the why text for a hauler Hop on seed 123 that is short', () => {
     // Re-pinned for #189: from the innermost planet, a half-fuelled hauler's Hop to Rexsio is short.
+    // #247's Isp leaves it less short.
     const full = onInnerPlanet(startRun(123, 'hauler'));
     const hauler: Run = {
       ...full,
@@ -239,7 +240,7 @@ describe('the Hop plan as the player reads it', () => {
     };
     const rexsio = listBodies(hauler.starSystem).find((body) => body.name === 'Rexsio');
     if (!rexsio) throw new Error('seed 123 has no Rexsio');
-    expect(describeHopPlan(hauler, planFor(rexsio.id, hauler)).margin).toBe('−7.0 km/s (34%)');
+    expect(describeHopPlan(hauler, planFor(rexsio.id, hauler)).margin).toBe('−2.9 km/s (14%)');
   });
 
   it('drops the percentage once the Margin is as big as the estimate', () => {
