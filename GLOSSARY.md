@@ -152,6 +152,10 @@ _Avoid_: Money, budget, credits, scrap
 One planned trip of the Spacecraft from the Body it is on to another Body or to the Heliopause, played out after the player commits to it.
 _Avoid_: Jump, mission, trip, turn
 
+**Hop range**:
+How far one Hop can go: to the planet the Spacecraft is at, or the planet on either side of it, or any of their Moons. The Heliopause is in range only from the outermost planet or its Moons, so the way out is planet by planet.
+_Avoid_: Reach (that is the Success Chance verdict), jump range
+
 **Burn**:
 One engine firing within a Hop: Takeoff from the current Body, Transfer through space, or Landing on the target.
 _Avoid_: Phase, maneuver, stage

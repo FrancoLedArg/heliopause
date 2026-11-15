@@ -34,6 +34,7 @@ import {
   targetStatus,
   type Direction,
 } from './navChartView.ts';
+import { heliopauseInRange } from '../sim/testing.ts';
 import { edgeMarkers, MAP_AREA, PLAN_MAP_AREA, SCREEN, toScreen } from './navChartMap.ts';
 
 /** A New Run as the player starts it: on its Starting Moon, knowing only the opening. */
@@ -220,11 +221,14 @@ describe('choosing a Hop target on the Nav Chart', () => {
   it('accepts a Moon of a Gas Giant, and the Moon of the Home Planet', () => {
     let checked = 0;
     for (const seed of SEEDS) {
-      const run = newRun(seed);
-      const giantMoon = run.starSystem.planets
-        .filter((p) => p.kind === 'gas-giant')
-        .flatMap((p) => p.moons)[0];
-      if (giantMoon) {
+      const full = newRun(seed);
+      const { planets } = full.starSystem;
+      const giant = planets.findIndex((p) => p.kind === 'gas-giant');
+      const giantMoon = planets[giant]?.moons[0];
+      const before = planets[giant - 1];
+      if (giantMoon && before) {
+        // Stood on the planet before it, so the Moon is within the Hop range (#283).
+        const run: Run = { ...full, status: { kind: 'landed', bodyId: before.id } };
         expect(targetStatus(run, giantMoon.id)).toEqual({ valid: true });
         checked += 1;
       }
@@ -340,7 +344,7 @@ describe('the Heliopause on the Nav Chart', () => {
   });
 
   it('says why the Heliopause cannot be the target without a Jump Drive', () => {
-    const run = newRun(5);
+    const run = heliopauseInRange(newRun(5));
     const status = targetStatus(run, HELIOPAUSE);
     expect(status).toMatchObject({ valid: false, reason: 'no-jump-drive' });
     expect(status.valid ? '' : status.why).toMatch(/Jump Drive/);
@@ -348,7 +352,7 @@ describe('the Heliopause on the Nav Chart', () => {
   });
 
   it('Enter on the focused Heliopause makes it the target only with a Jump Drive', () => {
-    const run = newRun(5);
+    const run = heliopauseInRange(newRun(5));
     const layout = layoutChart(run);
     const focused = chartReducer(run, layout, initialChartState(run, layout), {
       kind: 'click',

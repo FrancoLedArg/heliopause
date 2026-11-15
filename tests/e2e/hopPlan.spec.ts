@@ -8,14 +8,17 @@ import { firstDetectedBody, startRun } from '../../src/game/sim/index.ts';
 // Querrelys, the way back to the Starting Moon, Thylthiolhiol, is far: a lancer reaches it at a low
 // chance with some Margin, a hauler cannot reach it at all. Re-pinned for #247 (was seed 1442's
 // Korxel, seen from Thosny): the Chassis Isp rose 30%, so a lancer makes that Hop for sure.
-const SEED = 179;
+// Re-pinned for #283 (was seed 179's Thylthiolhiol from Querrelys, now past the Hop range): on seed
+// 130, after Tiothael, Xose and Tyvo, the way back to Tiothael is a Marginal Hop for a lancer
+// (52%, with some Margin) and out of reach for a hauler.
+const SEED = 130;
 const run = startRun(SEED, 'scout');
 const homeMoon = firstDetectedBody(run.starSystem);
 /** The Hops that Arrive on the way, every Chassis alike; the first is the first target. */
-const PATH = ['Hehaequan', 'Dryspraes Tau', 'Querrelys'] as const;
-const FAR = 'Thylthiolhiol';
-/** Another Body known on Querrelys: Lycio, a sure Hop for a lancer. */
-const NEAR = 'Lycio';
+const PATH = ['Tiothael', 'Xose', 'Tyvo'] as const;
+const FAR = 'Tiothael';
+/** Another Body known on Tyvo: Saethux, a sure Hop for a lancer. */
+const NEAR = 'Saethux';
 
 async function openNavChart(page: Page, chassis = 'scout'): Promise<void> {
   // The fast Cruise (#246): two tests fly the first Hop before the far Body is known (#189). With no
@@ -121,8 +124,8 @@ test('a far Body has a lower Success Chance, flagged in words when low; Cancel c
   await target(page, FAR);
   const farPercent = await percentOf(page);
   expect(farPercent).toBeLessThan(nearPercent);
-  // Seed 179's Thylthiolhiol is 57% for the lancer from Querrelys: below the low-chance line, with a
-  // thin Margin.
+  // Seed 130's Tiothael is 52% for the lancer from Tyvo: below the low-chance line, with a thin
+  // Margin.
   // The reach verdict (#190): a triangle and "Marginal", named for assistive technology.
   await expect(page.getByTestId('plan-warning')).toHaveText('Marginal');
   await expect(page.getByTestId('plan-warning')).toHaveAttribute('aria-label', 'Reach: Marginal');

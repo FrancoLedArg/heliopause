@@ -14,16 +14,16 @@ import {
   launchHop,
   materials,
   type BodyHopPlan,
-  type Run,
   type HopFlight,
 } from '../game/sim/index.ts';
 import { describeFlight } from './flightHudView.ts';
+import { heliopauseFound } from '../game/sim/testing.ts';
 
-/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
-const found = (run: Run): Run => ({
-  ...run,
-  knowledge: { ...run.knowledge, heliopauseFound: true },
-});
+/**
+ * The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target, and
+ * only within the Hop range (#283).
+ */
+const found = heliopauseFound;
 
 const run = startRun(123, 'scout');
 const moonId = firstDetectedBody(run.starSystem).id;

@@ -27,6 +27,9 @@ function fresh(seed: number): Run {
   return { ...onInnerPlanet(startRun(seed, 'scout')), depleted: [] };
 }
 
+// Seed 2027, not 2026: from 2026's inner planet no Icy Body is in sure reach within the Hop range (#283).
+const SEED = 2027;
+
 /** A Body of `composition` that a Hop from `run` reaches for sure. */
 function sureTarget(run: Run, composition: 'icy' | 'rocky'): LandableBody {
   const body = listBodies(run.starSystem).find((b): b is LandableBody => {
@@ -43,7 +46,7 @@ function withFuel(run: Run, fuel: number): Run {
 }
 
 describe('landing collects a Body’s yield', () => {
-  const run = fresh(2026);
+  const run = fresh(SEED);
   const moon = sureTarget(run, 'icy');
 
   it('landing on an Icy Body adds Fuel up to Tank capacity', () => {
@@ -128,7 +131,7 @@ describe('an Icy yield against Tank capacity', () => {
 });
 
 describe('collection on arrival', () => {
-  const run = fresh(2026);
+  const run = fresh(SEED);
   const moon = sureTarget(run, 'icy');
 
   it('an arrived Hop collects the target’s yield and Depletes it', () => {
@@ -181,7 +184,7 @@ describe('Fuel left behind in a real Run', () => {
 });
 
 describe('a Drill multiplies yields', () => {
-  const base = fresh(2026);
+  const base = fresh(SEED);
   const moon = sureTarget(base, 'icy');
   const home = sureTarget(base, 'rocky');
   const withSlots = (run: Run, slots: readonly Slot[]): Run => ({
