@@ -223,3 +223,28 @@ it('refuses more Components of a kind than the art has mount points for', () => 
   const sevenTanks: Slot[] = ['engine-1', ...Array<Slot>(6).fill('fuel-tank-1')];
   expect(() => composeSpacecraft('hauler', sevenTanks, 'landed')).toThrow(/mount point/);
 });
+
+describe.each(CHASSIS_IDS)('the %s with Instruments (#323)', (chassisId) => {
+  it.each(['landed', 'landed_lit', 'flight'] as const)(
+    'draws a Camera, a Chemistry scanner and a Sample lab, each on its own mount point, in %s',
+    (frame) => {
+      const slots: Slot[] = [
+        'engine-1',
+        'fuel-tank-1',
+        'camera',
+        'chemistry-scanner',
+        'sample-lab',
+        null,
+      ];
+      const drawn = composeSpacecraft(chassisId, slots, frame);
+      const parts = [2, 3, 4].map((slot) => drawn.components.get(slot));
+      expect(parts.map((p) => p?.kind)).toEqual(['instrument', 'instrument', 'instrument']);
+      expect(parts.map((p) => p?.mount)).toEqual([0, 1, 2]);
+      for (const slot of [2, 3, 4]) {
+        expect(drawn.layers.filter((l) => l.kind === 'component' && l.slot === slot)).toHaveLength(
+          1,
+        );
+      }
+    },
+  );
+});
