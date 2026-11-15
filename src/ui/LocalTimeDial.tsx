@@ -31,7 +31,8 @@ export function LocalTimeDial({ run }: { run: Run }) {
   // A fresh Run (a Hop landed, a Jump) starts from its own clock again.
   const fraction = live?.of === run ? live.fraction : fromRun;
   const { x, y } = markerPosition(fraction);
-  const day = fraction > 0.25 && fraction < 0.75;
+  // The sun by day, the moon by night: the same split as the words (night is before 0.15 and from 0.85).
+  const day = timeOfDayWords(fraction) !== 'night';
   return (
     <svg
       className="local-time-dial"
@@ -54,8 +55,8 @@ export function LocalTimeDial({ run }: { run: Run }) {
         <circle cx={x} cy={y} r={3.5} fill="var(--am3)" stroke="var(--am1)" />
       ) : (
         <>
-          <circle cx={x} cy={y} r={3.5} fill="var(--wh2)" />
-          <circle cx={x + 1.8} cy={y - 1.2} r={3} fill="var(--scr2)" />
+          <circle cx={x} cy={y} r={4.5} fill="var(--wh3)" />
+          <circle cx={x + 2.2} cy={y - 1.5} r={3.6} fill="var(--scr2)" />
         </>
       )}
     </svg>

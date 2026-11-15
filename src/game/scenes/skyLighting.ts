@@ -2,7 +2,7 @@
 import { skyDay } from '../sim/clock.ts';
 
 /** How strong the glow and the shade get (presentation tuning): the night is never fully black, the day never washed out. */
-export const SKY_LIGHT = { glowMax: 0.3, shadeMax: 0.55 } as const;
+export const SKY_LIGHT = { glowMax: 0.4, shadeMax: 0.55 } as const;
 
 export interface SkyLighting {
   /** Alpha of the pale glow behind the sky's Bodies. */

@@ -251,9 +251,9 @@ it.each(CHASSIS_IDS)(
 );
 
 it('shows the local time as a dial on the plate, named in words, clear of the plate text at 640x360 (#192)', async () => {
-  const run = startRun(10540, 'scout');
-  const body = listBodies(run.starSystem).find((b) => b.name === 'Drioldrionlael Minor');
-  if (!body) throw new Error('seed 10540 has no Drioldrionlael Minor');
+  const run = startRun(7088, 'scout');
+  const body = listBodies(run.starSystem).find((b) => b.name === 'Quioxdrardriox Minor');
+  if (!body) throw new Error('seed 7088 has no Quioxdrardriox Minor');
   const host = await renderUi(
     <LandedPanels
       run={{ ...run, status: { kind: 'landed', bodyId: body.id }, depleted: [body.id] }}

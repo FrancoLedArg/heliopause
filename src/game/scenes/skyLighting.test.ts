@@ -17,7 +17,7 @@ describe('the sky light follows the local time of day', () => {
     for (let i = 0; i <= 100; i++) {
       const light = skyLighting(i / 100);
       expect(light.shadeAlpha).toBeLessThanOrEqual(0.6);
-      expect(light.glowAlpha).toBeLessThanOrEqual(0.35);
+      expect(light.glowAlpha).toBeLessThanOrEqual(0.45);
     }
   });
 });
