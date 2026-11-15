@@ -24,12 +24,11 @@ import { JUMP_FLAVOUR_TEXT } from '../../src/ui/jumpFlavour.ts';
 // Spec #15's way out, on one seed, by keyboard alone, since #191 found only by the Radar: the chart
 // opens with no Heliopause; build a Radar, Hop out until it finds the Heliopause, build the Jump
 // Drive, target the Heliopause, Launch, reach it, Jump to Star System 2 and Hop on from its Starting
-// Moon. The route is a careful explorer's (`readyToJump`): seed 418 gets out, planet by
+// Moon. The route is a careful explorer's (`readyToJump`): seed 411 gets out in 10 Hops, planet by
 // planet. Re-pinned for #191 (was seed 28, whose first target paid for the Jump Drive with the
 // Heliopause already found). Re-pinned for #283 (was seed 121's 5 Hops): the Hop range sends that
-// explorer another way, and it no longer gets out. Re-pinned for #311 (was seed 411): with the orbits
-// past two Gas Giants landable, the wandering in System 2 ended in a Crash, not Stranded.
-const SEED = 418;
+// explorer another way, and it no longer gets out.
+const SEED = 411;
 // Flown with no Cruise events (#250), as `readyToJump` flies it: this pins the way out on the Burns.
 const CALM = { schedule: [] } as const;
 const ready = readyToJump(SEED, 'scout');

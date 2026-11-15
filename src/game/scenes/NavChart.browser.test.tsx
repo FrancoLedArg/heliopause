@@ -196,7 +196,7 @@ it('the starfield sits below every Body, and nothing pings without a new Detecti
 
 /** A Run just landed on a Body whose landing Detected another, as the Hop report would carry it. */
 function landedWithDetection(): { run: Run; report: NonNullable<LandedData['report']> } {
-  const { before, flight, run } = landing(123, ['Viormio'], undefined, 0, false);
+  const { before, flight, run } = landing(123, ['Viosprixzul'], undefined, 0, false);
   expect(flight.reveal?.detected.length).toBeGreaterThan(0);
   return { run, report: { before, flight } };
 }

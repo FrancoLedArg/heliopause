@@ -164,18 +164,17 @@ describe('collection on arrival', () => {
 
 describe('Fuel left behind in a real Run', () => {
   // Re-pinned for #189 (was seed 5, Culmusu then Raertha): Runs open on a Starting Moon now.
-  // Re-pinned for #298/#311 (was Ceprael then Naeca): Icy yields tripled and the Gas Giants capped.
   // Flown with no Cruise events (#250 turned the Fuel leak on): a leak would drain what is left behind.
-  it('seed 98, scout: the Hop to Tyxsae after Quylex leaves Fuel behind', () => {
+  it('seed 98, scout: the Hop to Naeca after Ceprael leaves Fuel behind', () => {
     const start = startRun(98, 'scout');
     const named = (run: Run, name: string) => {
       const body = listBodies(run.starSystem).find((b) => b.name === name);
       if (!body) throw new Error(`no Body ${name}`);
       return body.id;
     };
-    const first = launchHop(start, named(start, 'Quylex'), { events: [] });
+    const first = launchHop(start, named(start, 'Ceprael'), { events: [] });
     if (first.kind !== 'flown') throw new Error('Expected a flown Hop');
-    const second = launchHop(first.run, named(first.run, 'Tyxsae'), { events: [] });
+    const second = launchHop(first.run, named(first.run, 'Naeca'), { events: [] });
     if (second.kind !== 'flown') throw new Error('Expected a flown Hop');
     const { collection } = second.flight;
     if (collection?.kind !== 'fuel') throw new Error('Expected Fuel collected');
