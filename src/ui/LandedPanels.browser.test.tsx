@@ -14,14 +14,15 @@ import { LandedPanels } from './LandedPanels.tsx';
 
 afterEach(cleanUp);
 
-// Seed 10540 has the longest Moon name in 20,000 seeds: Drioldrionlael Minor, a Moon of Tioraevel Rho.
-// Re-pinned for #188 (was seed 4171's Thirthiothux Minor).
+// Seed 7088 has the longest Moon name in 20,000 seeds: Quioxdrardriox Minor, a Moon of Riosxa.
+// Re-pinned for #188 (was seed 4171's Thirthiothux Minor) and #247 (was seed 10540's Drioldrionlael
+// Minor): the Isp rise moves seed 10540 to another Star System.
 const SLACK = 6;
 
 it('marks a Depleted Body on the Landed plate, on the kind row, inside an unchanged plate', async () => {
-  const run = startRun(10540, 'scout');
-  const body = listBodies(run.starSystem).find((b) => b.name === 'Drioldrionlael Minor');
-  if (!body) throw new Error('seed 10540 has no Drioldrionlael Minor');
+  const run = startRun(7088, 'scout');
+  const body = listBodies(run.starSystem).find((b) => b.name === 'Quioxdrardriox Minor');
+  if (!body) throw new Error('seed 7088 has no Quioxdrardriox Minor');
   const host = await renderUi(
     <LandedPanels
       run={{ ...run, status: { kind: 'landed', bodyId: body.id }, depleted: [body.id] }}

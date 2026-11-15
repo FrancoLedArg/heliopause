@@ -253,12 +253,13 @@ it('keeps the tallest plan, with a 21-character target and a Margin warning, cle
   );
 });
 
-// Seed 10540 has the longest Moon name in 20,000 seeds: Drioldrionlael Minor (20 characters), a Moon
-// of Tioraevel Rho. Re-pinned for #188 (was seed 4171's Thirthiothux Minor).
+// Seed 7088 has the longest Moon name in 20,000 seeds: Quioxdrardriox Minor (20 characters), a Moon
+// of Riosxa. Re-pinned for #188 (was seed 4171's Thirthiothux Minor) and #247 (was seed 10540's
+// Drioldrionlael Minor): the Isp rise moves seed 10540 to another Star System.
 // Every line a name or subtitle appears on must show it whole, inside its frame, with slack for the
 // fonts CI draws, which are a little wider than the ones on a dev machine.
 const SLACK = 6;
-const [LONG_SEED, LONG_NAME, LONG_PARENT] = [10540, 'Drioldrionlael Minor', 'Tioraevel Rho'];
+const [LONG_SEED, LONG_NAME, LONG_PARENT] = [7088, 'Quioxdrardriox Minor', 'Riosxa'];
 
 /** Where the drawn text of a block ends, not the block's own box (which fills its container). */
 function textRight(el: HTMLElement): number {
@@ -535,16 +536,16 @@ it('leads the Hop plan with Success Chance, then the Δv bar, then the Fuel gaug
   const top = (id: string): number => byTestId(host, id).getBoundingClientRect().top;
   expect(top('plan-success')).toBeLessThan(top('dv-bar'));
   expect(top('dv-bar')).toBeLessThan(top('plan-fuel'));
-  // Seed 123's innermost planet to its Moon: 5.4 of 22.1 km/s, and the bar's segments, gap and words
+  // Seed 123's innermost planet to its Moon: 5.4 of 28.8 km/s, and the bar's segments, gap and words
   // agree (re-pinned for #189; was the Home Planet's Moon).
   const bar = byTestId(host, 'dv-bar');
   expect(bar.getAttribute('role')).toBe('img');
   expect(bar.getAttribute('aria-label')).toBe(
-    'Δv: Takeoff 3.8 km/s, Transfer 1.3 km/s, Landing 0.24 km/s. Needs 5.4 of 22.1 km/s, Margin +16.7 km/s.',
+    'Δv: Takeoff 3.8 km/s, Transfer 1.3 km/s, Landing 0.24 km/s. Needs 5.4 of 28.8 km/s, Margin +23.4 km/s.',
   );
   expect(byTestId(host, 'plan-needed').textContent).toBe('5.4');
-  expect(byTestId(host, 'plan-available').textContent).toBe('22.1 km/s');
-  expect(byTestId(host, 'plan-margin').textContent).toBe('+16.7 km/s');
+  expect(byTestId(host, 'plan-available').textContent).toBe('28.8 km/s');
+  expect(byTestId(host, 'plan-margin').textContent).toBe('+23.4 km/s');
   const fuel = byTestId(host, 'plan-fuel');
   expect(fuel.getAttribute('role')).toBe('img');
   expect(fuel.getAttribute('aria-label')).toMatch(/^Fuel: 21\.0 t now, \d+\.\d t after the Hop\.$/);

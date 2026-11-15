@@ -661,16 +661,16 @@ describe('Body labels on the Nav Chart', () => {
     expect(reviewCases().flatMap(labelClashes).join('\n')).toBe('');
   });
 
-  // Re-pinned for #189 (was seed 292's Zarla-2): generation changed. Seed 155 is the fullest
-  // 7-planet chart of the first 400 (29 Bodies), with its far Moon Vutho as the target.
-  it('keep off every Body even on a chart too full to label well (seed 155, Vutho as the target)', () => {
-    const run = newRun(155);
-    const layout = layoutFor(155);
+  // Re-pinned for #189 (was seed 292's Zarla-2) and #247 (was seed 155's Vutho): generation changed.
+  // Seed 86 is the fullest 7-planet chart of the first 400 (29 Bodies), its far Moon Prota the target.
+  it('keep off every Body even on a chart too full to label well (seed 86, Prota as the target)', () => {
+    const run = newRun(86);
+    const layout = layoutFor(86);
     const target = layout.nodes.find((n) => n.body.id === 'planet-7-moon-3');
-    if (!target) throw new Error('seed 155 has no planet-7-moon-3');
+    if (!target) throw new Error('seed 86 has no planet-7-moon-3');
     const problems = layout.nodes.flatMap((n) =>
       labelClashes(
-        chartCase(155, {
+        chartCase(86, {
           hereId: currentBody(run).id,
           targetId: target.body.id,
           focusedId: n.body.id,
@@ -779,24 +779,45 @@ describe('the Body tooltip', () => {
     tooltipCases();
   }, 60_000);
 
+  /**
+   * Charts with no clear spot anywhere (#247's generation): a Gas Giant in focus mid-right, its
+   * 95 px why too tall for the room above or below it, and the left full of kept marks. There the
+   * tooltip falls back to hiding the fewest kept things: one label, never a Body.
+   */
+  const NO_CLEAR_SPOT = ['seed 117, focus Rupro Minor', 'seed 142, focus Xaezio'];
+
+  /** What a tooltip covers that it must keep in view. */
+  const tooltipProblems = ({ where, layout, context, labels, box }: TooltipCase): string[] => {
+    const found: string[] = [];
+    if (!insideChart(box)) found.push(`${where}: off the chart`);
+    if (box.w !== TOOLTIP_SIZE.w) found.push(`${where}: ${box.w} px wide`);
+    if (touchesCircle(box, layout.star)) found.push(`${where}: covers the star`);
+    for (const id of [context.focusedId, context.hereId, context.targetId]) {
+      const node = nodeOf(layout, id);
+      if (node && touchesCircle(box, node)) found.push(`${where}: covers ${node.body.name}`);
+    }
+    for (const label of labels) {
+      if ((label.kind === 'here' || label.kind === 'target') && overlaps(box, label.box)) {
+        found.push(`${where}: covers the label ${label.text}`);
+      }
+    }
+    return found;
+  };
+
   it('sits on the chart and never covers the focused Body, the star, where the Spacecraft is or the target', () => {
-    const problems = tooltipCases().flatMap(({ where, layout, context, labels, box }) => {
-      const found: string[] = [];
-      if (!insideChart(box)) found.push(`${where}: off the chart`);
-      if (box.w !== TOOLTIP_SIZE.w) found.push(`${where}: ${box.w} px wide`);
-      if (touchesCircle(box, layout.star)) found.push(`${where}: covers the star`);
-      for (const id of [context.focusedId, context.hereId, context.targetId]) {
-        const node = nodeOf(layout, id);
-        if (node && touchesCircle(box, node)) found.push(`${where}: covers ${node.body.name}`);
-      }
-      for (const label of labels) {
-        if ((label.kind === 'here' || label.kind === 'target') && overlaps(box, label.box)) {
-          found.push(`${where}: covers the label ${label.text}`);
-        }
-      }
-      return found;
-    });
+    const problems = tooltipCases()
+      .filter(({ where }) => !NO_CLEAR_SPOT.includes(where))
+      .flatMap(tooltipProblems);
     expect(problems.join('\n')).toBe('');
+  });
+
+  it('on a chart with no clear spot, hides one kept label and never a Body', () => {
+    const crowded = tooltipCases().filter(({ where }) => NO_CLEAR_SPOT.includes(where));
+    expect(crowded).toHaveLength(NO_CLEAR_SPOT.length);
+    for (const problems of crowded.map(tooltipProblems)) {
+      expect(problems).toHaveLength(1);
+      expect(problems[0]).toMatch(/covers the label/);
+    }
   });
 
   it('as the chart opens, sits beside where the Spacecraft is and off the star, on every seed', () => {

@@ -34,10 +34,10 @@ describe('a Component’s effect is shown as the Chassis scales it', () => {
   });
 
   it('says an Engine’s Isp for this Chassis, not the base Isp', () => {
-    expect(describeEffect('scout', 'engine-1')).toContain('1,230 s');
-    expect(describeEffect('lancer', 'engine-1')).toContain('1,280 s');
+    expect(describeEffect('scout', 'engine-1')).toContain('1,600 s');
+    expect(describeEffect('lancer', 'engine-1')).toContain('1,665 s');
     expect(describeEffect('scout', 'engine-1')).not.toContain('900');
-    expect(describeEffect('scout', 'engine-2')).toContain('1,538 s');
+    expect(describeEffect('scout', 'engine-2')).toContain('2,000 s');
   });
 
   it('says how much more a Drill yields', () => {
@@ -123,7 +123,9 @@ describe('which Slot an install goes into', () => {
 });
 
 describe('the catalogue rows', () => {
-  const run = startRun(5, 'scout');
+  // Re-pinned for #247 (was seed 5): seed 5 now opens on a Rocky Moon that yields 26, over a New
+  // Run's 25 Materials; seed 3's Icy opening keeps exactly 25.
+  const run = startRun(3, 'scout');
 
   it('list every Component with its mass, Materials cost and effect', () => {
     const rows = panelRows(run);
@@ -193,7 +195,7 @@ describe('the preview before you pay', () => {
     expect(preview?.note).toBe('Starts empty, so Δv drops.');
     expect(preview?.more).toEqual([
       COMPONENTS['fuel-tank-1'].explanation,
-      'Filled up: 26.0\u00a0km/s, up from 22.1\u00a0km/s.',
+      'Filled up: 33.8\u00a0km/s, up from 28.8\u00a0km/s.',
     ]);
   });
 
@@ -228,14 +230,14 @@ describe('the stat bars', () => {
     expect(bars.map((bar) => [bar.kind, bar.label, bar.value])).toEqual([
       ['mass', 'Mass', '4.0 t'],
       ['fuel', 'Fuel', '21.0 t'],
-      ['delta-v', 'Δv', '22.1 km/s'],
+      ['delta-v', 'Δv', '28.8 km/s'],
     ]);
     for (const bar of bars) {
       expect(bar.share).toBeGreaterThan(0);
       expect(bar.share).toBeLessThanOrEqual(1);
       expect(bar.after).toBeUndefined();
     }
-    expect(bars[2]?.name).toBe('Δv: 22.1 km/s');
+    expect(bars[2]?.name).toBe('Δv: 28.8 km/s');
   });
 
   it('show an install as before and after, with the change, as the simulation previews it', () => {
@@ -243,7 +245,7 @@ describe('the stat bars', () => {
     expect(bars.map((bar) => [bar.value, bar.after?.value, bar.after?.change])).toEqual([
       ['4.0 t', '5.5 t', '+1.5'],
       ['21.0 t', '42.0 t', '+21.0'],
-      ['22.1 km/s', '19.0 km/s', '−3.1'],
+      ['28.8 km/s', '24.7 km/s', '−4.1'],
     ]);
     const [mass, fuel, dv] = bars;
     expect(mass?.after?.share).toBeGreaterThan(mass?.share ?? 1);
@@ -251,7 +253,7 @@ describe('the stat bars', () => {
     expect(dv?.after?.share).toBeLessThan(dv?.share ?? 0);
     // More mass is worse, more Fuel is better: the bar says which way is good.
     expect([mass?.after?.good, fuel?.after?.good, dv?.after?.good]).toEqual([false, true, false]);
-    expect(dv?.name).toBe('Δv: 22.1 km/s now, 19.0 km/s after. Drops 3.1 km/s.');
+    expect(dv?.name).toBe('Δv: 28.8 km/s now, 24.7 km/s after. Drops 4.1 km/s.');
   });
 
   it('say no change when a figure does not move', () => {
@@ -274,7 +276,8 @@ describe('the stat bars', () => {
 });
 
 describe('the Jump Drive in the panel', () => {
-  const run = startRun(5, 'scout');
+  // Seed 3 starts with exactly a New Run's 25 Materials (re-pinned for #247, was seed 5).
+  const run = startRun(3, 'scout');
 
   it('is listed from the first screen with its cost, and the Run cannot afford it yet', () => {
     const row = panelRows(run).find((r) => r.id === 'jump-drive');
