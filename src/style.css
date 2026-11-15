@@ -415,10 +415,21 @@ body {
   left: 12px;
 }
 
+.landed-plate__clock {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  line-height: 0;
+}
+
 .landed-plate__title {
   position: absolute;
   top: 9px;
   left: 12px;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font: 16px/16px var(--font-pixel);
   text-transform: uppercase;
   color: var(--am3);

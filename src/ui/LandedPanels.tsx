@@ -11,6 +11,7 @@ import { SHIP_PLACEMENT, SHIP_SWEEP } from '../game/scenes/landedView.ts';
 import type { GatheringReadout } from '../game/scenes/gathering.ts';
 import { bodyFullLabel, formatDistanceAu, formatGravity } from './format.ts';
 import { FuelGauge } from './FuelGauge.tsx';
+import { LocalTimeDial } from './LocalTimeDial.tsx';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import { ResourceIcon } from './ResourceIcon.tsx';
@@ -148,6 +149,9 @@ export function LandedPanels({
             <h1 id="landed-title" className="landed-plate__title">
               {body.name}
             </h1>
+            <div className="landed-plate__clock">
+              <LocalTimeDial run={run} />
+            </div>
             <p className="landed-plate__kind" data-testid="landed-kind">
               {yields && (
                 <ResourceIcon
