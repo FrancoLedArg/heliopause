@@ -7,6 +7,7 @@ import type { JumpStage } from './scenes/jumpPlayback.ts';
 import type {
   ChassisId,
   ComponentId,
+  DiscoveryReveal,
   HopFlight,
   HopTarget,
   Reveal,
@@ -31,6 +32,12 @@ export interface GameEvents {
    * `run-started` it is not a new view: reports and focus stay as they are.
    */
   'run-updated': [run: Run];
+  /**
+   * Phaser -> React: an Instrument installed while landed revealed Discoveries on the current Body
+   * (#318), each new (with its Science) or already found here. React shows each as a Discovery card.
+   * A landing's reveals come with its Hop report, in `HopFlight.discoveries`.
+   */
+  'discoveries-revealed': [run: Run, revealed: readonly DiscoveryReveal[]];
   /**
    * React -> Phaser: the player installed `componentId` in Slot `slotIndex` (0-based) from the Spacecraft
    * panel, which has already checked the install is allowed. The Landed scene applies it to its Run and

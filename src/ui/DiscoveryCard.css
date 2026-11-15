@@ -1,0 +1,92 @@
+/* ---- Discovery card: a panel on the left, like the Hop report, clear of the Spacecraft ---- */
+
+.discovery-card {
+  position: absolute;
+  top: 52px;
+  left: 8px;
+  pointer-events: auto;
+}
+
+.discovery-card > .kit-frame:first-child {
+  position: absolute;
+  inset: 0;
+}
+
+.discovery-card__body {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 12px 8px;
+  overflow: hidden;
+}
+
+.discovery-card__badge {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin: 0;
+  font: 8px/12px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gr3);
+}
+
+.discovery-card--already-found-here .discovery-card__badge {
+  color: var(--gm5);
+}
+
+.game-ui .discovery-card__title {
+  margin: 0;
+  font: 16px/16px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--wh3);
+}
+
+.discovery-card__fact {
+  margin: 0;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--gm6);
+}
+
+.discovery-card__science {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin: 0;
+  font: 18px/16px var(--font-pixel-body);
+  color: var(--wh3);
+}
+
+.discovery-card__more {
+  align-self: flex-start;
+}
+
+.discovery-card__details {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--gm6);
+  scrollbar-width: thin;
+  scrollbar-color: var(--cy3) transparent;
+}
+
+.discovery-card__details p {
+  margin: 0 0 2px;
+}
+
+.discovery-card__place {
+  color: var(--cy3);
+}
+
+.discovery-card__details a {
+  color: var(--cy3);
+}
+
+.discovery-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  flex: none;
+}

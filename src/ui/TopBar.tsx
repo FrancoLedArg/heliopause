@@ -6,6 +6,7 @@ import { KitFrame } from './kit/KitFrame.tsx';
 import { MissionTracker } from './MissionTracker.tsx';
 import type { MissionGoal } from './missionTrackerView.ts';
 import { MusicControls } from './MusicControls.tsx';
+import { ScienceIcon } from './ScienceIcon.tsx';
 
 const BAR_WIDTH = 624;
 const BAR_HEIGHT = 40;
@@ -19,6 +20,8 @@ interface TopBarProps {
   fuelCapacity: Kilograms;
   deltaV: MetersPerSecond;
   materials: Materials;
+  /** The Science this Run has earned (#318); omitted where no Run is in play. */
+  science?: number | undefined;
   /** The UTC day of the Daily Star System being played, `YYYY-MM-DD`; `undefined` for any other Run. */
   dailyDay?: string | undefined;
   /** The readout a gathering moment is filling: its icon pulses as the resource arrives. */
@@ -37,6 +40,7 @@ export function TopBar({
   fuelCapacity,
   deltaV,
   materials,
+  science,
   dailyDay,
   filling,
   goals,
@@ -56,6 +60,17 @@ export function TopBar({
         </p>
       )}
       <p className="top-bar__value top-bar__system">{systemName}</p>
+      {science !== undefined && (
+        <p
+          className="top-bar__value top-bar__science"
+          role="img"
+          aria-label={`Science ${String(science)}`}
+          data-testid="science"
+        >
+          <ScienceIcon size={14} />
+          <span>{science}</span>
+        </p>
+      )}
       <KitFrame frame="res_fuel" className={`top-bar__icon top-bar__fuel-icon${pulse('fuel')}`} />
       <p className="top-bar__label top-bar__fuel-label">Fuel</p>
       <p className="top-bar__value top-bar__fuel" data-testid="fuel">
