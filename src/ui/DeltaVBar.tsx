@@ -42,7 +42,7 @@ export function DeltaVBar({
     <div
       className={className ? `dv-bar ${className}` : 'dv-bar'}
       role="img"
-      aria-label={unsureLanding ? `${bar.label}; Landing is a guess, Unsurveyed` : bar.label}
+      aria-label={unsureLanding ? `${bar.label} Landing is a guess, Unsurveyed.` : bar.label}
       data-testid="dv-bar"
       data-drained={drained === undefined ? undefined : drained.toFixed(3)}
     >
