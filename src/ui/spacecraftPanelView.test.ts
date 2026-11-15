@@ -14,6 +14,8 @@ import {
 import {
   describeEffect,
   describeRefusal,
+  describeRemoval,
+  describeRemoveRefusal,
   installTarget,
   massBar,
   panelRows,
@@ -163,5 +165,38 @@ describe('the Mass bar', () => {
       rich = result.run;
     }
     expect(massBar(rich.spacecraft).fraction).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('removing a Component is explained in words', () => {
+  it('says why the last Engine and the last Fuel Tank stay', () => {
+    expect(describeRemoveRefusal({ kind: 'last-engine' })).toBe(
+      'It is your last Engine, and without one you cannot fly.',
+    );
+    expect(describeRemoveRefusal({ kind: 'last-fuel-tank' })).toBe(
+      'It is your last Fuel Tank, and without one you have no Fuel.',
+    );
+    expect(describeRemoveRefusal({ kind: 'empty-slot', slot: 2 })).toBe(
+      'Slot 3 is empty, so there is nothing to remove.',
+    );
+  });
+
+  it('asks before removing: the refund, and the Fuel that would be lost', () => {
+    expect(
+      describeRemoval({
+        slot: 2,
+        held: 'fuel-tank-1',
+        refund: materials(10),
+        fuelLost: kilograms(3000),
+      }),
+    ).toBe(
+      'Remove Fuel Tank, level 1 from Slot 3? You get 10 Materials back. 3.0 t of Fuel will be lost.',
+    );
+  });
+
+  it('does not mention Fuel when none would be lost', () => {
+    expect(
+      describeRemoval({ slot: 3, held: 'drill-1', refund: materials(12), fuelLost: kilograms(0) }),
+    ).toBe('Remove Drill, level 1 from Slot 4? You get 12 Materials back.');
   });
 });

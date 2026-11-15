@@ -21,6 +21,12 @@ export interface GameEvents {
    * answers with `run-updated`.
    */
   'component-install-requested': [slotIndex: number, componentId: ComponentId];
+  /**
+   * React -> Phaser: the player confirmed removing the Component in Slot `slotIndex` (0-based) from the
+   * Spacecraft panel, which has already checked the removal is allowed. The Landed scene applies it to
+   * its Run, refunds half the cost and answers with `run-updated`.
+   */
+  'component-remove-requested': [slotIndex: number];
   /** React -> Phaser: the player launched a New Run; it starts from `seed` (see `chooseRunSeed`) on `chassisId`. */
   'new-run-requested': [seed: Seed, chassisId: ChassisId];
   /** React -> Phaser: the player asked to open the Nav Chart over the Landed view. */
