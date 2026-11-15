@@ -40,7 +40,7 @@ PALETTE = {
     "rd0": "4a0e1c", "rd1": "8e1c2c", "rd2": "d23a44", "rd3": "ff7a6e", "rd4": "ffc0b0",
     "gr0": "0e3a2c", "gr1": "1a6e46", "gr2": "34b26a", "gr3": "7ceaa0", "gr4": "d0ffd8",
     "vi0": "2a1650", "vi1": "4e2a8c", "vi2": "8150d0", "vi3": "b48cff", "vi4": "e2d4ff",
-    "wh0": "6a7890", "wh1": "9eacc0", "wh2": "d2dce8", "wh3": "f4f8ff",
+    "scr2": "102434", "wh0": "6a7890", "wh1": "9eacc0", "wh2": "d2dce8", "wh3": "f4f8ff",
 }
 
 
@@ -548,74 +548,95 @@ def preview(sprites, path, scale=4):
 # Ground strips (tickets #22, #132): one flat side-view strip per surface kind,
 #   surface_<kind>  800x64  fully opaque, <kind> in rocky / moon / icy
 # Row 0 is the level surface line (the Spacecraft's base line in the Landed scene).
-# Below it, stones are seen in cross-section, packed in offset courses, lit on the
+# Below it, stones are seen in cross-section, packed in offset rows, lit on the
 # upper left and darker with depth, with mortar in the darkest shade of the ramp.
 # No pebbles (the game places those). The left edge continues from the right edge,
 # so the strip repeats without a seam. The contract is in src/game/scenes/landscape.ts.
 
 SURFACE_W = 800
 SURFACE_H = 64
-COURSE_H = 8  # one course of stones, mortar row included
 # Where the strip's top row sits in the 640x360 Landed scene, and the scene's left crop in the strip.
 SURFACE_SCENE_Y = 296
 SURFACE_SCENE_X = 80
 
-# Seven shades, darkest (mortar) to brightest (the surface line). Rocky keeps its mortar and
-# its deepest stones apart: rd0 is the mortar, am0 the deepest stone.
+# The ramps match `PALETTES` in src/game/scenes/landscape.ts (and the shipwright mockup), except
+# Rocky's mortar: shade 0 is `ink`, a colour no stone uses, so the mortar never blends into the
+# deepest stones. Seven shades, darkest (mortar) to brightest (the surface line).
 SURFACE_RAMPS = {
     "moon": ("gm0", "gm1", "gm2", "gm3", "gm4", "gm5", "gm6"),
-    "rocky": ("rd0", "am0", "rd1", "am1", "am2", "am3", "am4"),
-    "icy": ("cy0", "cy1", "cy2", "cy3", "cy4", "wh2", "wh3"),
+    "rocky": ("ink", "rd0", "rd1", "am0", "am1", "am2", "am3"),
+    "icy": ("scr2", "cy0", "cy1", "cy2", "wh1", "wh2", "wh3"),
 }
-SURFACE_SEEDS = {"moon": 1321, "rocky": 1322, "icy": 1323}
+SURFACE_SEEDS = {"moon": 0x5A4E1, "rocky": 0x5A4E2, "icy": 0x5A4E3}
+
+# Stone cell 16x8 (the width divides the strip, so the pattern repeats exactly); distances are
+# stretched vertically by STONE_SQUASH; a pixel within MORTAR of the border between two stones is mortar.
+CELL_W, CELL_H = 16, 8
+MORTAR = 1.3
+STONE_SQUASH = 1.4
 
 
-def _stone_edges(rng, offset):
-    """Joint x positions of one course: stones 11-21 px wide that wrap exactly around SURFACE_W."""
-    edges, x = [], offset
-    while x < offset + SURFACE_W - 22:
-        edges.append(x)
-        x += rng.randrange(11, 22)
-    # The last stone runs on to close the course exactly on `offset`; a sliver merges into its neighbour.
-    if offset + SURFACE_W - x >= 10:
-        edges.append(x)
-    return [e % SURFACE_W for e in edges]
+def _lay_stones(rng):
+    """Jittered stone centres for rows -1..ROWS, alternate rows shifted half a cell. Column i and
+    i + COLUMNS are the same stone, so the strip tiles."""
+    columns = SURFACE_W // CELL_W
+    rows = -(-SURFACE_H // CELL_H)
+    out = []
+    for j in range(-1, rows + 1):
+        shift = (j & 1) * CELL_W / 2
+        row = []
+        for i in range(columns):
+            row.append((
+                i * CELL_W + shift + 2 + rng.random() * (CELL_W - 4),
+                j * CELL_H + 1 + rng.random() * (CELL_H - 2),
+                rng.random(),
+            ))
+        out.append(row)
+    return out
 
 
 def surface_strip(kind):
+    """Stones packed in offset rows seen in cross-section: mortar in shade 0, each stone lit on
+    its upper left and darker with depth, flat facets with no speckle. Row 0 is the brightest
+    shade (the surface line), row 1 the next, row 2 shade 4 unless it is mortar."""
     ramp = SURFACE_RAMPS[kind]
-    seed = SURFACE_SEEDS[kind]
-    rng = random.Random(seed)
+    top = len(ramp) - 1
+    stones = _lay_stones(random.Random(SURFACE_SEEDS[kind]))
+    columns = SURFACE_W // CELL_W
     s = Spr(SURFACE_W, SURFACE_H)
-    for x in range(SURFACE_W):
-        s.px(x, 0, ramp[6])
-        s.px(x, 1, ramp[5])
-    for course in range((SURFACE_H - 2) // COURSE_H + 1):
-        top = 2 + course * COURSE_H
-        edges = _stone_edges(rng, rng.randrange(SURFACE_W))
-        depth = top / SURFACE_H
-        for n, left in enumerate(edges):
-            right = edges[(n + 1) % len(edges)]
-            width = (right - left) % SURFACE_W or SURFACE_W
-            tone = rng.random()
-            base = 4.2 - depth * 3.2 + (tone - 0.5) * 1.4
-            for dy in range(COURSE_H):
-                y = top + dy
-                if y >= SURFACE_H:
-                    break
-                for dx in range(width):
-                    x = (left + dx) % SURFACE_W
-                    # Mortar: the course's bottom row and each stone's right-hand joint.
-                    if dy == COURSE_H - 1 or dx == width - 1:
-                        s.px(x, y, ramp[0])
-                        continue
-                    lum = base
-                    if dy == 0 or dx == 0:
-                        lum += 0.9  # lit upper-left rim
-                    elif dy == COURSE_H - 2 or dx == width - 2:
-                        lum -= 0.7  # shaded lower-right rim
-                    lum += (hash01(x, y, seed) - 0.5) * 0.6
-                    s.px(x, y, ramp[max(1, min(5, int(round(lum))))])
+    for y in range(SURFACE_H):
+        row = y // CELL_H
+        for x in range(SURFACE_W):
+            nearest = second = float("inf")
+            best, best_offset = None, 0.0
+            for j in range(row - 1, row + 2):
+                if not 0 <= j + 1 < len(stones):
+                    continue
+                for wrap in (-SURFACE_W, 0, SURFACE_W):
+                    first = max(0, int((x - wrap) // CELL_W) - 2)
+                    for i in range(first, min(columns, first + 5)):
+                        sx, sy, tone = stones[j + 1][i]
+                        dx = x + 0.5 - (sx + wrap)
+                        dy = y + 0.5 - sy
+                        d = math.hypot(dx, dy * STONE_SQUASH)
+                        if d < nearest:
+                            second, nearest = nearest, d
+                            best, best_offset = (sx, sy, tone), dx + dy
+                        elif d < second:
+                            second = d
+            mortar = second - nearest < MORTAR
+            shade = 0
+            if best and not mortar:
+                lit = max(-0.15, min(0.2, -0.035 * best_offset))
+                lum = 0.36 + 0.26 * best[2] - (y / SURFACE_H) * 0.3 + lit
+                shade = max(1, min(top - 1, round(lum * top)))  # no stone takes the mortar shade
+            if y == 0:
+                shade = top
+            elif y == 1:
+                shade = top - 1
+            elif y == 2 and not mortar:
+                shade = top - 2
+            s.px(x, y, ramp[shade])
     return s
 
 
