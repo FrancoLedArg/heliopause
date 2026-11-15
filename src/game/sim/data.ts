@@ -342,10 +342,15 @@ export const CRUISE_TUNING = {
   /** The Cruise lasts 120 s: 1,200 ticks. */
   ticks: 1_200,
   /**
-   * The kinds a real Run schedules: the Fuel leak since #250, the Debris field since #252 and the
-   * solar flare since #253. The Engine fire switches on with #251.
+   * The kinds a real Run schedules: the Fuel leak since #250, the Engine fire since #251 (only after
+   * the mild Hops), the Debris field since #252 and the solar flare since #253.
    */
-  enabledKinds: ['fuel-leak', 'debris-field', 'solar-flare'] as readonly CruiseEventKind[],
+  enabledKinds: [
+    'fuel-leak',
+    'engine-fire',
+    'debris-field',
+    'solar-flare',
+  ] as readonly CruiseEventKind[],
   /**
    * The first Hops of a Run are mild: only `mildKinds`. A mild Debris field never misses and hits any
    * part but the Jump Drive, rotating so the first Hops show several kinds of Damage (#320). A leak is slower and stops at the

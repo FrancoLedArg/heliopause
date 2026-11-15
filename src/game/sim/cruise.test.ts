@@ -152,19 +152,34 @@ describe('the Cruise event schedule', () => {
     }
   });
 
-  it('every Cruise of a real Run has one or two events, mild ones on the first Hops (#250, #252, #253)', () => {
+  it('every Cruise of a real Run has one or two events, mild ones on the first Hops and an Engine fire only after them (#250, #251, #252, #253)', () => {
+    const later: CruiseEventKind[] = [];
     for (const hop of [1, 2, 3, 6]) {
       for (const seed of SEEDS) {
         const schedule = cruiseSchedule(seed, hop, 1, fullSpacecraft, CRUISE_TUNING.enabledKinds);
         expect(schedule.length).toBeGreaterThanOrEqual(1);
         expect(schedule.length).toBeLessThanOrEqual(2);
-        const kinds =
+        const kinds = schedule.map((event) => event.kind);
+        const allowed: readonly CruiseEventKind[] =
           hop <= CRUISE_TUNING.mildHops
             ? ['fuel-leak', 'debris-field']
-            : ['fuel-leak', 'debris-field', 'solar-flare'];
-        expect(schedule.every((event) => kinds.includes(event.kind))).toBe(true);
+            : ['fuel-leak', 'debris-field', 'solar-flare', 'engine-fire'];
+        expect(kinds.every((kind) => allowed.includes(kind))).toBe(true);
+        if (hop > CRUISE_TUNING.mildHops) later.push(...kinds);
       }
     }
+    expect(later).toContain('engine-fire');
+  });
+
+  it('the Engine fire keeps its own share of the harsh events, whichever others are switched on', () => {
+    const fires = (kinds: readonly CruiseEventKind[]) =>
+      SEEDS.flatMap((seed) => cruiseSchedule(seed, 8, 2, fullSpacecraft, kinds)).filter(
+        (event) => event.kind === 'engine-fire',
+      ).length;
+    const alone = fires(['fuel-leak', 'engine-fire']);
+    const withFlare = fires(['fuel-leak', 'engine-fire', 'solar-flare']);
+    expect(alone).toBeGreaterThan(0);
+    expect(Math.abs(alone - withFlare)).toBeLessThanOrEqual(withFlare * 0.25);
   });
 
   it('a later Debris field hits or misses, and what it hits is an Engine, a Fuel Tank or a Drill', () => {
