@@ -54,11 +54,11 @@ function ScoreFigure({ label, figures, summary, marker, testId }: ScoreFigurePro
       </span>
       <span className="end-of-run__figures">
         <span className="end-of-run__figure">
-          <StarSystemIcon name={figures.starSystems.name} />
+          <StarSystemIcon name={figures.starSystems.name} decorative />
           <span aria-hidden="true">{figures.starSystems.count}</span>
         </span>
         <span className="end-of-run__figure">
-          <HopIcon name={figures.hops.name} />
+          <HopIcon name={figures.hops.name} decorative />
           <span aria-hidden="true">{figures.hops.count}</span>
         </span>
       </span>

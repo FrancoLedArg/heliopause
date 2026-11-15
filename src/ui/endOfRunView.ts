@@ -46,9 +46,8 @@ export function scoreFigures(score: Score): ScoreFigures {
 
 /** "2 Star Systems escaped, 5 Hops flown". */
 export function formatScore(score: Score): string {
-  const systems = score.starSystemsEscaped === 1 ? 'Star System' : 'Star Systems';
-  const hops = score.hopsFlown === 1 ? 'Hop' : 'Hops';
-  return `${String(score.starSystemsEscaped)} ${systems} escaped, ${String(score.hopsFlown)} ${hops} flown`;
+  const { starSystems, hops } = scoreFigures(score);
+  return `${starSystems.name}, ${hops.name}`;
 }
 
 /** The Score rule in one line. */
