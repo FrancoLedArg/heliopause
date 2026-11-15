@@ -169,15 +169,16 @@ describe('the Jump', () => {
   });
 
   it('a Jump that lands where no Hop could ever have a chance ends the Run as Stranded', () => {
-    // Test fixture: deep into a Run, at difficulty level 60, with no Materials left to change the
-    // Spacecraft. Level 61's gravity puts every Hop out of reach even with a full Tank. Re-pinned
+    // Test fixture: deep into a Run, at difficulty level 101, with no Materials left to change the
+    // Spacecraft. Level 102's gravity puts every Hop out of reach even with a full Tank. Re-pinned
     // for #189 (was level 40): a Starting Moon is easier to leave than the Home Planet was.
     // Re-pinned for #247 (was level 41): the Chassis Isp rose 30%, so the Spacecraft lasts deeper.
     // Re-pinned for #298 (was level 47): every Chassis has the scout's mass and a 36 t Tank.
+    // Re-pinned for #311 (was level 60): the orbits past two Gas Giants hold landable planets.
     const deep = (() => {
-      const starSystem = generateSystem(2026, 60);
+      const starSystem = generateSystem(2026, 101);
       const at = landedOn(
-        { ...start, starSystemNumber: 60, starSystem },
+        { ...start, starSystemNumber: 101, starSystem },
         starSystem.startingMoonId,
       );
       return { ...escape(at).before, materials: materials(0) };
@@ -186,11 +187,11 @@ describe('the Jump', () => {
     if (launched.kind !== 'flown') throw new Error('Expected the Hop to the Heliopause');
     expect(launched.flight.outcome.kind).toBe('reached-heliopause');
     const { run } = launched;
-    expect(run.starSystemNumber).toBe(61);
+    expect(run.starSystemNumber).toBe(102);
     expect(run.status).toMatchObject({
       kind: 'ended',
       end: { kind: 'stranded', bodyId: run.starSystem.startingMoonId },
     });
-    expect(score(run).starSystemsEscaped).toBe(60);
+    expect(score(run).starSystemsEscaped).toBe(101);
   });
 });

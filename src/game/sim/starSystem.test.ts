@@ -92,7 +92,9 @@ describe('Star System generation', () => {
     // Expected ranges written out from docs/research/nasa-data-for-generation.md §1, "Sampling
     // ranges for the generator", in the module's units (m/s², m/s, AU).
     const ranges = {
-      'rocky-planet': { gravity: [3.7, 9.8], escape: [4300, 11200], distance: [0.39, 1.52] },
+      // Rocky planets reach out to the Gas Giants' orbits since #311: the slots past the second Gas
+      // Giant hold landable planets.
+      'rocky-planet': { gravity: [3.7, 9.8], escape: [4300, 11200], distance: [0.39, 30.2] },
       'gas-giant': { gravity: [8.7, 23.1], escape: [21300, 59500], distance: [5.2, 30.2] },
       moon: { gravity: [0.11, 1.8], escape: [240, 2700], distance: [0.39, 30.2] },
     } as const;
@@ -139,11 +141,13 @@ describe('Star System generation', () => {
     }
   });
 
-  it('the Starting Moon is picked from the seed: rocky planets and Gas Giants both have Runs start on their Moons', () => {
+  // Since #311 the two Gas Giants are always the outermost planets, past the inner half the Starting
+  // Moon is picked from, so a Run starts on a landable planet's Moon (was: Gas Giants' Moons too).
+  it("the Starting Moon is picked from the seed, among the inner landable planets' Moons", () => {
     const kinds = new Set(
       systems.map((system) => findBody(system, startingMoon(system).planetId)?.kind),
     );
-    expect([...kinds].sort()).toEqual(['gas-giant', 'rocky-planet']);
+    expect([...kinds]).toEqual(['rocky-planet']);
     const moonIndexes = new Set(systems.map((system) => startingMoon(system).id.slice(-1)));
     expect(moonIndexes.size).toBeGreaterThan(1);
   });
@@ -177,7 +181,8 @@ describe('Star System generation', () => {
     const system = generateStarSystem(123);
     const pinned = JSON.parse(
       // Re-pinned for #189: generation keeps the first draw with a fair opening on its Starting Moon.
-      '["Tothaexprae","planet-4-moon-3","28.484496",[["planet-1","Mioquoxdru","0.434101","3.682326","3.929378","4559.460"],["planet-1-moon-1","Draeldri","0.434101","3.751611","0.145221","291.269"],["planet-1-moon-2","Draeprer","0.434101","1.871768","1.007471","1546.378"],["planet-2","Tiosli","1.129603","5.613642","4.036287","4680.390"],["planet-2-moon-1","Hulxu","1.129603","3.164405","1.764707","2648.627"],["planet-2-moon-2","Ruxi","1.129603","3.516488","0.474599","770.718"],["planet-3","Quyzi Prime","6.338748","3.402418","9.287885","22859.528"],["planet-3-moon-1","Tyquesion","6.338748","0.564942","1.218963","1854.230"],["planet-3-moon-2","Zulthix-2","6.338748","1.548380","1.078617","1649.940"],["planet-3-moon-3","Thuri","6.338748","3.148021","0.317604","542.193"],["planet-3-moon-4","Venke","6.338748","5.224049","0.692915","1088.504"],["planet-4","Viosprixzul","8.208549","6.019771","10.320600","25599.091"],["planet-4-moon-1","Viormio","8.208549","4.047939","1.244971","1892.088"],["planet-4-moon-2","Thyhae","8.208549","5.446103","1.168266","1780.434"],["planet-4-moon-3","Hyrzethion","8.208549","4.218566","0.212536","389.254"],["planet-5","Caexisu","12.556880","1.667084","16.331792","41545.448"],["planet-5-moon-1","Mesprursin","12.556880","0.576598","0.364335","610.215"],["planet-5-moon-2","Maerprondro Nova","12.556880","1.518801","0.271552","475.159"],["planet-6","Raexthanho","18.627722","5.859746","20.504913","52615.812"],["planet-6-moon-1","Relhoxry","18.627722","0.845263","1.058425","1620.547"],["planet-6-moon-2","Thakyxy","18.627722","1.127325","1.112827","1699.736"],["planet-7","Narsexdros","23.252931","4.579620","12.472028","31306.352"],["planet-7-moon-1","Rexsio","23.252931","5.402485","1.215491","1849.176"],["planet-7-moon-2","Niovy","23.252931","3.856455","1.174568","1789.608"],["planet-7-moon-3","Xydraes","23.252931","3.337050","0.137052","279.378"],["planet-7-moon-4","Xezix","23.252931","4.000847","1.399849","2117.531"]]]',
+      // Re-pinned for #311: its third Gas Giant's orbit holds a landable planet.
+      '["Tothaexprae","planet-4-moon-2","28.839323",[["planet-1","Mioquoxdru","0.434101","3.682326","3.929378","4559.460"],["planet-1-moon-1","Draeldri","0.434101","3.751611","0.145221","291.269"],["planet-1-moon-2","Draeprer","0.434101","1.871768","1.007471","1546.378"],["planet-2","Tiosli","1.129603","5.613642","4.036287","4680.390"],["planet-2-moon-1","Hulxu","1.129603","3.164405","1.764707","2648.627"],["planet-2-moon-2","Ruxi","1.129603","3.516488","0.474599","770.718"],["planet-3","Quyzi Prime","6.338748","3.402418","3.726347","4329.802"],["planet-3-moon-1","Taemar","6.338748","2.359976","0.597386","949.449"],["planet-3-moon-2","Drinoxio","6.338748","4.932758","0.293045","506.444"],["planet-4","Quixi","8.208549","2.141785","3.772630","4382.155"],["planet-4-moon-1","Taxa","8.208549","1.343100","1.515122","2285.326"],["planet-4-moon-2","Xiohyx","8.208549","5.451452","0.499985","807.671"],["planet-5","Ziovarvior","12.556880","5.812505","4.042033","4686.889"],["planet-5-moon-1","Nimal","12.556880","2.551125","0.524392","843.198"],["planet-5-moon-2","Naelnyte","12.556880","2.814363","1.190646","1813.012"],["planet-6","Draexcon","18.627722","2.632839","20.504913","52615.812"],["planet-6-moon-1","Sicy","18.627722","5.730478","1.132541","1728.432"],["planet-6-moon-2","Sindra","18.627722","4.693756","1.514205","2283.991"],["planet-6-moon-3","Prondro Nova","18.627722","1.518801","0.271552","475.159"],["planet-7","Raexthanho","23.252931","5.859746","12.472028","31306.352"],["planet-7-moon-1","Relhoxry","23.252931","0.845263","1.058425","1620.547"],["planet-7-moon-2","Thakyxy","23.252931","1.127325","1.112827","1699.736"]]]',
     ) as unknown;
     expect([
       system.name,
@@ -193,6 +198,19 @@ describe('Star System generation', () => {
       ]),
     ]).toEqual(pinned);
   });
+});
+
+// #311: a Star System has at most 2 Gas Giants; the outer orbits past them hold landable planets.
+it('a Star System has at most 2 Gas Giants, in Star Systems 1 to 3', { timeout: 120_000 }, () => {
+  const crowded: string[] = [];
+  for (const level of [1, 2, 3]) {
+    for (let i = 0; i < 1_000; i++) {
+      const system = generateStarSystem(i * 7919 + 1, level);
+      const giants = system.planets.filter((planet) => planet.kind === 'gas-giant').length;
+      if (giants > 2) crowded.push(`seed ${system.seed} level ${level}: ${giants}`);
+    }
+  }
+  expect(crowded.slice(0, 10)).toEqual([]);
 });
 
 describe('Icy and Rocky Bodies', () => {
@@ -335,7 +353,8 @@ describe('Star System difficulty levels', { timeout: 60_000 }, () => {
     // Re-pinned for #283: fairness weighs only Hops within the Hop range, so some seeds keep other draws.
     // Re-pinned for #280: a draw is preferred when a Fuel source is In reach after the first Hop.
     // Re-pinned for #298: Icy yields tripled and every Chassis shares one tuning.
-    expect(stringSeed(json)).toBe(52245929);
+    // Re-pinned for #311: at most 2 Gas Giants; the orbits past them hold landable planets.
+    expect(stringSeed(json)).toBe(3988773073);
   });
 
   it('a higher difficulty level raises gravity', () => {

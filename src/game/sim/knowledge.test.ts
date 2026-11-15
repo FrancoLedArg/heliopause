@@ -19,6 +19,7 @@ import {
   CHASSIS_IDS,
   currentBody,
   findBody,
+  firstDetectedBody,
   isDepleted,
   isInHopRange,
   listBodies,
@@ -105,29 +106,27 @@ describe('the opening', () => {
     }
   });
 
+  // Since #311 no Run starts on a Gas Giant's Moon (its two Gas Giants are the outermost planets),
+  // so the rule is checked on a Star System given a Gas Giant's Moon as its Starting Moon.
   it("on a Gas Giant's Moon the first Detected Body is the nearest sibling Moon", () => {
-    const onGasGiant = Array.from({ length: 400 }, (_, i) => startRun(i * 31 + 7, 'scout')).filter(
-      (run) =>
-        findBody(run.starSystem, startingMoon(run.starSystem).planetId)?.kind === 'gas-giant',
-    );
-    expect(onGasGiant.length).toBeGreaterThan(10);
-    for (const run of onGasGiant) {
-      const moon = startingMoon(run.starSystem);
-      const planet = findBody(run.starSystem, moon.planetId);
-      if (planet?.kind !== 'gas-giant') throw new Error('Expected a Gas Giant');
-      expect(bodyKnowledge(run, planet.id)).toBe('surveyed');
-      const [detected] = idsAt(run, 'detected');
-      const siblings = planet.moons.filter((m) => m.id !== moon.id);
-      expect(siblings.map((m) => m.id)).toContain(detected);
-      const distance = (id: string) => {
-        const sibling = siblings.find((m) => m.id === id);
-        if (!sibling) throw new Error(`No sibling ${id}`);
-        return distanceOnOrbits(moon, sibling);
-      };
-      for (const sibling of siblings) {
-        expect(distance(detected ?? '')).toBeLessThanOrEqual(distance(sibling.id));
+    let checked = 0;
+    for (const seed of SEEDS) {
+      const system = startRun(seed, 'scout').starSystem;
+      for (const planet of system.planets) {
+        if (planet.kind !== 'gas-giant' || planet.moons.length < 2) continue;
+        const [moon, ...siblings] = planet.moons;
+        if (!moon) continue;
+        const detected = firstDetectedBody({ ...system, startingMoonId: moon.id });
+        expect(siblings.map((m) => m.id)).toContain(detected.id);
+        const own = siblings.find((m) => m.id === detected.id);
+        if (!own) throw new Error(`No sibling ${detected.id}`);
+        for (const sibling of siblings) {
+          expect(distanceOnOrbits(moon, own)).toBeLessThanOrEqual(distanceOnOrbits(moon, sibling));
+        }
+        checked++;
       }
     }
+    expect(checked).toBeGreaterThan(10);
   });
 
   it('a new Run has not found the Heliopause: only the Radar finds it', () => {

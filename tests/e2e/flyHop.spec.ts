@@ -39,14 +39,16 @@ interface Failure {
 // Found by a scan over seeds and paths. Re-pinned for #247 (was seed 1442), #280 (was seed 46, then
 // seed 4 after the Hop range, #283) and #298: every Chassis now flies alike, so the scout and the
 // hauler can no longer fail differently on one path, and each failure has its own seed.
-/** Seed 70: the scout Crashes on Kionprexror Prime after Rurnoscael and Mema. */
-const CRASH: Failure = {
-  seed: 70,
-  path: ['Kionprexror Prime', 'Rurnoscael', 'Mema'],
-  far: 'Kionprexror Prime',
+// Re-pinned again for #311 (were seeds 70 and 130): the orbits past two Gas Giants hold landable
+// planets, so those Star Systems changed.
+/** Seed 32: the scout Crashes on Xardre after Vonaslaer Prime and Vuhis. */
+const CRASH: Failure = { seed: 32, path: ['Xardre', 'Vonaslaer Prime', 'Vuhis'], far: 'Xardre' };
+/** Seed 3: the hauler Falls Short in the Transfer to Huxhaenio, back from Praxvol Nova. */
+const SHORT: Failure = {
+  seed: 3,
+  path: ['Praxvol Nova', 'Tusquy', 'Huxhaenio', 'Praxvol Nova'],
+  far: 'Huxhaenio',
 };
-/** Seed 130: the hauler Falls Short in the Transfer to Xose after Tiothael, Xose and Saethux. */
-const SHORT: Failure = { seed: 130, path: ['Tiothael', 'Xose', 'Saethux'], far: 'Xose' };
 // Flown with no Cruise events (#250): a Fuel leak on the way would move where it fails.
 const CALM = { schedule: [] } as const;
 
@@ -185,8 +187,9 @@ test('a Hop to the first target plays Takeoff, Transfer and Landing, then lands 
   // Landing on the Icy Moon collected the Run's first Fuel (the report opens once the gathering moment has played):
   // "+N t" beside the Fuel icon, the words in its accessible name. And it says why that is plausible.
   const gain = report.getByRole('img', { name: /^Collected .* t of Fuel/ });
-  await expect(gain).toContainText(/^\+\d+\.\d t$/);
-  await expect(gain.locator('[data-resource="fuel"]')).toBeVisible();
+  // Since #298 the yield can top the Tank, so the left-behind figure may follow it.
+  await expect(gain).toContainText(/^\+\d+\.\d t/);
+  await expect(gain.locator('[data-resource="fuel"]').first()).toBeVisible();
   await expect(report).toContainText('so rockets could refuel on the Moon');
   await expect(page.getByTestId('materials')).toHaveText(String(run.materials));
   await testInfo.attach('arrived-report', {
@@ -427,7 +430,7 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   await outcome.getByRole('button', { name: 'Continue' }).click();
   await expect(outcome.getByTestId('end-of-run-score')).toHaveAttribute(
     'aria-label',
-    'Score: 0 Star Systems escaped, 4 Hops flown',
+    `Score: 0 Star Systems escaped, ${String(SHORT.path.length + 1)} Hops flown`,
   );
   await expect(outcome.getByTestId('end-of-run-best')).toHaveAttribute(
     'aria-label',

@@ -25,11 +25,11 @@ const MARGINAL: Scenario & { readonly near: string } = {
   /** Another Body known on Vordru: Droprel, a sure Hop. */
   near: 'Droprel',
 };
-/** Seed 130: after Tiothael, Xose and Saethux, the way back to Tiothael is Out of reach. */
+/** Seed 3: after Praxvol Nova, Tusquy, Huxhaenio and Praxvol Nova, Huxhaenio is Out of reach (#311). */
 const OUT_OF_REACH: Scenario = {
-  seed: 130,
-  path: ['Tiothael', 'Xose', 'Saethux'],
-  far: 'Tiothael',
+  seed: 3,
+  path: ['Praxvol Nova', 'Tusquy', 'Huxhaenio', 'Praxvol Nova'],
+  far: 'Huxhaenio',
 };
 
 async function openNavChart(page: Page, chassis = 'scout', seed = SEED): Promise<void> {
