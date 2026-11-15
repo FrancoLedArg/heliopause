@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from 'react';
-import { ABOUT, CREDITS, type ContentLink, type CreditEntry } from './aboutContent.ts';
+import { ABOUT, CREDITS, HOW_TO_PLAY, type ContentLink, type CreditEntry } from './aboutContent.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 
@@ -143,6 +143,25 @@ export function CreditsPanel({ onBack }: InfoPanelProps) {
               <CreditItem key={entry.name} entry={entry} />
             ))}
           </ul>
+        </section>
+      ))}
+    </InfoShell>
+  );
+}
+
+/** The rules in eight short steps, in glossary terms. */
+export function HowToPlayPanel({ onBack }: InfoPanelProps) {
+  return (
+    <InfoShell
+      id="how-to-play"
+      title={HOW_TO_PLAY.heading}
+      backLabel={HOW_TO_PLAY.back}
+      onBack={onBack}
+    >
+      {HOW_TO_PLAY.steps.map((step) => (
+        <section key={step.heading}>
+          <h2>{step.heading}</h2>
+          <p>{step.body.join(' ')}</p>
         </section>
       ))}
     </InfoShell>

@@ -159,8 +159,8 @@ body {
 
 .title-menu__panel {
   position: absolute;
-  top: 168px; /* TITLE_PANEL_TOP in game/lib/titleLayout.ts */
-  left: 232px;
+  top: 138px; /* TITLE_PANEL_TOP in game/lib/titleLayout.ts */
+  left: 224px;
 }
 
 .title-menu__panel > .kit-frame {
@@ -168,20 +168,26 @@ body {
   inset: 0;
 }
 
-.title-menu__new-run {
+/* Five buttons, 24px high, 4px apart, in the panel. */
+.title-menu__new-run,
+.title-menu__daily,
+.title-menu__how-to-play,
+.title-menu__about,
+.title-menu__credits {
   position: absolute;
-  top: 14px;
   left: 16px;
 }
 
-.title-menu__hint {
-  position: absolute;
-  top: 41px;
-  left: 0;
-  width: 100%;
-  text-align: center;
-  font: 11px/11px var(--font-pixel-body);
-  color: var(--gm5);
+.title-menu__new-run {
+  top: 12px;
+}
+
+.title-menu__daily {
+  top: 40px;
+}
+
+.title-menu__how-to-play {
+  top: 68px;
 }
 
 .title-menu__best {
@@ -196,6 +202,17 @@ body {
 
 .title-menu__build {
   right: 6px;
+}
+
+.title-menu__daily-best {
+  position: absolute;
+  top: 322px;
+  left: 0;
+  width: 640px;
+  margin: 0;
+  text-align: center;
+  font: 16px/16px var(--font-pixel-body);
+  color: var(--cy3);
 }
 
 /* ---- Landed ---- */
@@ -251,6 +268,17 @@ body {
 
 .top-bar__system {
   color: var(--cy3);
+}
+
+/* The Daily Star System's day, on the label row beside "System N" (clear of the Fuel icon at 210). */
+.top-bar__daily {
+  position: absolute;
+  top: 6px;
+  left: 76px;
+  margin: 0;
+  font: 14px/12px var(--font-pixel-body);
+  white-space: nowrap;
+  color: var(--am3);
 }
 
 .top-bar__fuel-label,
@@ -627,15 +655,11 @@ body {
 }
 
 .title-menu__about {
-  position: absolute;
-  top: 62px;
-  left: 16px;
+  top: 96px;
 }
 
 .title-menu__credits {
-  position: absolute;
-  top: 90px;
-  left: 16px;
+  top: 124px;
 }
 
 /* ---- Landed: Nav Chart button ---- */

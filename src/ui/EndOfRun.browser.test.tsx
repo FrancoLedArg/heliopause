@@ -126,3 +126,51 @@ it('the buttons call their actions, and Tab wraps between them', async () => {
   expect(onLeave).toHaveBeenCalledOnce();
   expect(onNewRun).toHaveBeenCalledOnce();
 });
+
+it('a Daily Run’s screen calls the best row Today’s Daily Best, marks a new one, and still fits', async () => {
+  const run = ended({ kind: 'crashed', reason: LONG_REASON }, 3, 12);
+  const host = await renderUi(
+    <EndOfRun
+      run={run}
+      recorded={{ best: score(run), isNewBest: true, dailyDay: '2026-11-15' }}
+      onNewRun={() => undefined}
+      onLeave={() => undefined}
+    />,
+  );
+  const screen = byTestId(host, 'end-of-run');
+  expect(screen.textContent).toContain('Today’s Daily Best');
+  expect(screen.textContent).not.toContain('Best Score');
+  expect(byTestId(host, 'end-of-run-best').textContent).toBe(
+    '2 Star Systems escaped, 12 Hops flown (new Daily Best)',
+  );
+  const body = screen.querySelector<HTMLElement>('.end-of-run__body');
+  const actions = screen.querySelector<HTMLElement>('.end-of-run__actions');
+  const rule = screen.querySelector<HTMLElement>('.end-of-run__rule');
+  if (!body || !actions || !rule) throw new Error('no body');
+  expect(body.scrollHeight).toBeLessThanOrEqual(body.clientHeight);
+  const slack = body.getBoundingClientRect().bottom - actions.getBoundingClientRect().bottom;
+  expect(slack).toBeGreaterThanOrEqual(8);
+  const gap = actions.getBoundingClientRect().top - rule.getBoundingClientRect().bottom;
+  expect(gap).toBeGreaterThanOrEqual(8);
+  const best = byTestId(host, 'end-of-run-best').getBoundingClientRect();
+  expect(best.right).toBeLessThanOrEqual(screen.getBoundingClientRect().right);
+});
+
+it('a Daily Run that did not beat today’s Daily Best shows it without a new marker', async () => {
+  const run = ended({ kind: 'crashed', reason: 'x' }, 1, 5);
+  const host = await renderUi(
+    <EndOfRun
+      run={run}
+      recorded={{
+        best: { starSystemsEscaped: 4, hopsFlown: 20 },
+        isNewBest: false,
+        dailyDay: '2026-11-15',
+      }}
+      onNewRun={() => undefined}
+      onLeave={() => undefined}
+    />,
+  );
+  expect(byTestId(host, 'end-of-run-best').textContent).toBe(
+    '4 Star Systems escaped, 20 Hops flown',
+  );
+});

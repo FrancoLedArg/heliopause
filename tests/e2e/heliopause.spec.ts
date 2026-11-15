@@ -6,8 +6,11 @@ import {
   launchHop,
   listBodies,
   planHop,
+  runEnd,
+  score,
   startRun,
 } from '../../src/game/sim/index.ts';
+import { formatScore } from '../../src/ui/endOfRunView.ts';
 import { formatPlanDeltaV } from '../../src/ui/format.ts';
 import { JUMP_FLAVOUR_TEXT } from '../../src/ui/jumpFlavour.ts';
 
@@ -37,6 +40,18 @@ const nextMoon = homePlanet(system2.starSystem).moons.find((moon) => {
   return onward.kind === 'planned' && onward.plan.successChance === 1;
 });
 if (!nextMoon) throw new Error(`Seed ${String(SEED)}: no sure Hop on from System 2's Home Planet`);
+
+// ...and where the Run ends in System 2: a Hop to a Body this Spacecraft cannot land on.
+const doomed = listBodies(system2.starSystem).find((body) => {
+  const flown = launchHop(system2, body.id);
+  return flown.kind === 'flown' && flown.flight.outcome.kind === 'crashed';
+});
+if (!doomed) throw new Error(`Seed ${String(SEED)}: System 2 has no Hop that Crashes`);
+const doomedHop = launchHop(system2, doomed.id);
+if (doomedHop.kind !== 'flown') throw new Error('unreachable');
+const finalEnd = runEnd(doomedHop.run);
+if (finalEnd?.kind !== 'crashed') throw new Error('The doomed Hop should end the Run');
+const finalScore = score(doomedHop.run);
 
 /** Steps through the chart until the tooltip shows `name` (a Body, or the Heliopause). */
 async function focusOnChart(page: Page, name: string): Promise<void> {
@@ -171,5 +186,72 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
   await launch(page);
   await expect(page.getByRole('dialog', { name: 'Arrived' })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('system-number')).toHaveText('System 2');
+  expect(errors).toEqual([]);
+});
+
+test('a Run that escaped a Star System ends in the next one with its Score, and New Run starts by keyboard', async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 640, height: 360 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+
+  await page.goto(`/?seed=${String(SEED)}&chassis=scout`);
+  await expect(page.getByRole('button', { name: 'New Run' })).toBeVisible();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('materials')).toHaveText(String(run.materials));
+
+  /** Opens the Nav Chart, targets `name` and launches by keyboard. */
+  const hopTo = async (name: string): Promise<void> => {
+    await page.keyboard.press('m');
+    await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
+    await focusOnChart(page, name);
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('target')).toContainText(name);
+    await launch(page);
+  };
+
+  await hopTo(rocky.name);
+  const arrived = page.getByRole('dialog', { name: 'Arrived' });
+  await expect(arrived).toBeVisible({ timeout: 30_000 });
+  await page.keyboard.press('Enter');
+  await expect(arrived).toBeHidden();
+  await tabTo(page, /^Spacecraft/);
+  await page.keyboard.press('Enter');
+  await tabTo(page, /^Install Jump Drive,/);
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('install-status')).toContainText('Installed Jump Drive');
+  await page.keyboard.press('Escape');
+
+  await hopTo('Heliopause');
+  await expect(page.getByTestId('system-number')).toHaveText('System 2', { timeout: 45_000 });
+  await expect(page.getByRole('button', { name: /^Nav Chart/ })).toBeFocused();
+
+  // The Run ends in System 2: Hop report, Continue, then the End-of-Run screen.
+  await hopTo(doomed.name);
+  const outcome = page.getByRole('alertdialog', { name: 'Crashed' });
+  await expect(outcome).toBeVisible({ timeout: 30_000 });
+  await expect(outcome.getByRole('button', { name: 'Continue' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(outcome.getByTestId('end-of-run-score')).toHaveText(formatScore(finalScore));
+  await expect(outcome.getByTestId('end-of-run-best')).toContainText(
+    `${formatScore(finalScore)} (new Best Score)`,
+  );
+  await testInfo.attach('end-of-run', { body: await page.screenshot(), contentType: 'image/png' });
+
+  // New Run, by keyboard: a fresh Star System 1 with the Chassis from the URL.
+  await expect(outcome.getByRole('button', { name: 'New Run' })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('alertdialog')).toHaveCount(0);
+  await expect(page.getByTestId('system-number')).toHaveText('System 1');
+  await expect(
+    page.getByRole('heading', {
+      name: homePlanet(startRun(SEED + 1, 'scout').starSystem).name,
+      level: 1,
+    }),
+  ).toBeVisible();
   expect(errors).toEqual([]);
 });

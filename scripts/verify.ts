@@ -1,7 +1,10 @@
 import { spawnSync } from 'node:child_process';
 import { parsePort, runSteps, type Step } from './verifyRunner.ts';
 
-const parsed = parsePort(process.argv.slice(2));
+// --quick skips the browser and e2e suites: Builders run it locally, CI runs the full gate on every PR.
+const argv = process.argv.slice(2);
+const quick = argv.includes('--quick');
+const parsed = parsePort(argv.filter((arg) => arg !== '--quick'));
 if (!parsed.ok) {
   console.error(parsed.error);
   process.exit(2);
@@ -9,7 +12,7 @@ if (!parsed.ok) {
 
 const portArgs = parsed.port === undefined ? [] : ['--port', String(parsed.port)];
 
-const steps: Step[] = [
+const allSteps: Step[] = [
   { name: 'typecheck', command: ['pnpm', 'typecheck'] },
   { name: 'lint', command: ['pnpm', 'lint'] },
   { name: 'format:check', command: ['pnpm', 'format:check'] },
@@ -18,6 +21,8 @@ const steps: Step[] = [
   { name: 'build', command: ['pnpm', 'build'] },
   { name: 'e2e', command: ['pnpm', 'test:e2e', ...portArgs] },
 ];
+const slowSteps = new Set(['browser', 'e2e']);
+const steps = quick ? allSteps.filter((step) => !slowSteps.has(step.name)) : allSteps;
 
 const result = runSteps(steps, (step) => {
   console.log(`\n> verify: ${step.name}`);
@@ -29,4 +34,4 @@ if (!result.ok) {
   console.error(`\nverify failed at step: ${result.failed}`);
   process.exit(result.code);
 }
-console.log('\nverify passed');
+console.log(quick ? '\nverify --quick passed (browser and e2e run in CI)' : '\nverify passed');
