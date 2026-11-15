@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { startRun } from '../game/sim/index.ts';
+import { DESTROYED_REASON, startRun } from '../game/sim/index.ts';
 import { describeEndOfRun, formatScore } from './endOfRunView.ts';
 
 const none = { starSystemsEscaped: 0, hopsFlown: 0 };
@@ -46,6 +46,18 @@ describe('the End-of-Run screen text', () => {
       expect(view.reason).toBe(end.reason);
       expect(view.summary.length).toBeGreaterThan(0);
     }
+  });
+
+  it('says in one line that the Engine fire reached the Fuel, with the advice behind Tell me more (#251)', () => {
+    const view = describeEndOfRun(
+      { kind: 'destroyed', reason: DESTROYED_REASON },
+      none,
+      none,
+      false,
+    );
+    expect(view.title).toBe('Destroyed');
+    expect(view.summary).toBe('The Engine fire reached the Fuel.');
+    expect(view.reason).toBe('A Repair started in time would have put it out.');
   });
 
   it('shows the Score and the Best Score', () => {

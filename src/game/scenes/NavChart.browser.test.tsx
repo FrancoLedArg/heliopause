@@ -4,18 +4,24 @@ import { afterEach, expect, it } from 'vitest';
 import { GameUI } from '../../ui/GameUI.tsx';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
-import { startRun, type Run } from '../sim/index.ts';
+import { landing } from '../../ui/landingFixtures.ts';
+import { isInHopRange, startRun, type Run } from '../sim/index.ts';
+import { knowingEverything } from '../sim/testing.ts';
+import type { NavChart } from './NavChart.ts';
 import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
 import { hitTest, toScreen } from './navChartMap.ts';
-import { layoutChart, type ChartState } from './navChartView.ts';
+import { layoutChart, targetStatus, type ChartState } from './navChartView.ts';
 import '../../style.css';
 
 let game: Phaser.Game | undefined;
 let root: Root | undefined;
 let host: HTMLElement | undefined;
 
+const realMatchMedia = window.matchMedia.bind(window);
+
 afterEach(() => {
+  window.matchMedia = realMatchMedia;
   act(() => {
     root?.unmount();
   });
@@ -38,6 +44,7 @@ function nextSceneReady(wanted: SceneKey): Promise<void> {
 /** Mounts the app, lands `run` and opens its Nav Chart, resolving with the chart's first state. */
 async function openChart(
   run: Run,
+  report?: LandedData['report'],
 ): Promise<{ canvas: HTMLCanvasElement; latest: () => ChartState }> {
   host = document.createElement('div');
   document.body.append(host);
@@ -56,7 +63,7 @@ async function openChart(
   game = startGame('nav-chart-test-game');
   await titleReady;
   const landedReady = nextSceneReady(SceneKey.Landed);
-  const data: LandedData = { run };
+  const data: LandedData = report ? { run, report } : { run };
   game.scene.start(SceneKey.Landed, data);
   await landedReady;
   let state: ChartState | undefined;
@@ -135,6 +142,34 @@ it('a drag over a Body pans the map and never selects it; a click then opens its
   expect(latest().view).toEqual(dragged.view);
 });
 
+it.each([123, 7])(
+  'seed %i: a Body out of Hop range is dimmed, named so and cannot be targeted; one in range can',
+  async (seed) => {
+    const run = knowingEverything(startRun(seed, 'scout'));
+    const { latest } = await openChart(run);
+    const layout = layoutChart(run);
+    const out = layout.nodes.find((n) => !isInHopRange(run, n.body.id));
+    const inside = layout.nodes.find((n) => targetStatus(run, n.body.id).valid);
+    if (!out || !inside) throw new Error('seed needs a Body in and a Body out of range');
+    const chart = game?.scene.getScene('NavChart') as NavChart;
+    expect(chart.bodyAlpha(out.body.id)).toBeLessThan(chart.bodyAlpha(inside.body.id) ?? 0);
+    const option = (id: string): HTMLElement | null => document.getElementById(`nav-option-${id}`);
+    await until(() => option(out.body.id) !== null);
+    expect(option(out.body.id)?.textContent).toContain('out of Hop range');
+    expect(option(out.body.id)?.getAttribute('aria-disabled')).toBe('true');
+    expect(option(inside.body.id)?.textContent).not.toContain('out of Hop range');
+
+    EventBus.emit('nav-chart-command', { kind: 'click', id: out.body.id });
+    EventBus.emit('nav-chart-command', { kind: 'plan' });
+    await frames();
+    expect(latest().selectedId).toBeUndefined();
+    EventBus.emit('nav-chart-command', { kind: 'click', id: inside.body.id });
+    EventBus.emit('nav-chart-command', { kind: 'plan' });
+    await frames();
+    expect(latest().selectedId).toBe(inside.body.id);
+  },
+);
+
 interface Layered {
   readonly name: string;
   readonly depth: number;
@@ -157,4 +192,48 @@ it('the starfield sits below every Body, and nothing pings without a new Detecti
   expect(Math.min(...factors)).toBeLessThan(Math.max(...factors));
   expect(Math.max(...factors)).toBeLessThan(1);
   expect(objects.filter((o) => o.name === 'new-blip-ping')).toHaveLength(0);
+});
+
+/** A Run just landed on a Body whose landing Detected another, as the Hop report would carry it. */
+function landedWithDetection(): { run: Run; report: NonNullable<LandedData['report']> } {
+  const { before, flight, run } = landing(123, ['Viormio'], undefined, 0, false);
+  expect(flight.reveal?.detected.length).toBeGreaterThan(0);
+  return { run, report: { before, flight } };
+}
+
+const pings = (): number =>
+  (game?.scene.getScene(SceneKey.NavChart).children.list ?? []).filter(
+    (o) => o.name === 'new-blip-ping',
+  ).length;
+
+it('the new-blip ping plays on the first chart open after a landing that Detected a Body, not on reopening (#313)', async () => {
+  const { run, report } = landedWithDetection();
+  await openChart(run, report);
+  expect(pings()).toBe(report.flight.reveal?.detected.length);
+
+  EventBus.emit('nav-chart-close-requested');
+  await until(() => game?.scene.isActive(SceneKey.NavChart) !== true);
+  EventBus.emit('nav-chart-open-requested');
+  await until(() => game?.scene.isActive(SceneKey.NavChart) === true);
+  await frames();
+  expect(pings()).toBe(0);
+});
+
+it('under reduced motion the star layers stick to the map and nothing pings (#313)', async () => {
+  window.matchMedia = (query: string): MediaQueryList =>
+    ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+    }) as unknown as MediaQueryList;
+  const { run, report } = landedWithDetection();
+  await openChart(run, report);
+  const chart = game?.scene.getScene(SceneKey.NavChart);
+  if (!chart) throw new Error('no chart');
+  const objects = chart.children.list as unknown as Layered[];
+  const layers = objects.filter((o) => o.name === 'starfield');
+  expect(layers.length).toBeGreaterThan(1);
+  for (const layer of layers) expect(layer.scrollFactorX).toBe(1);
+  expect(pings()).toBe(0);
 });

@@ -3,22 +3,15 @@ import { waitForOpening } from './opening.ts';
 import { FAST_CRUISE } from './cruise.ts';
 import { initialChartState, layoutChart } from '../../src/game/scenes/navChartView.ts';
 import { toScreen } from '../../src/game/scenes/navChartMap.ts';
-import {
-  findBody,
-  firstDetectedBody,
-  startingMoon,
-  startRun,
-  type Body,
-} from '../../src/game/sim/index.ts';
+import { firstDetectedBody, startingMoon, startRun, type Body } from '../../src/game/sim/index.ts';
 
-// Re-pinned for #189: seed 123 opens on a Moon of a Gas Giant, so the chart shows the Starting
-// Moon, its Gas Giant (Surveyed, shown as one) and the sibling Moon Comms Detected.
+// Re-pinned for #311 (was seed 123, which opened on a Gas Giant's Moon): no Run starts there any more,
+// and no Gas Giant is known at the start, so the opening chart shows the Starting Moon and the rocky
+// planet it orbits, which Comms Detects. The Gas Giant's "no surface" verdict is pinned in hop.test.ts.
 const SEED = 123;
 const run = startRun(SEED, 'scout');
 const home = startingMoon(run.starSystem);
 const homeMoon = firstDetectedBody(run.starSystem);
-const gasGiant = findBody(run.starSystem, home.planetId);
-if (gasGiant?.kind !== 'gas-giant') throw new Error(`Seed ${SEED} opens on a Gas Giant's Moon`);
 
 const homeName = home.name;
 
@@ -52,12 +45,12 @@ test('the Nav Chart opens over the Landed view, names the Spacecraft Body and cl
   // #193: it opens on the map alone, no card, with where the Spacecraft is named on it.
   await expect(page.getByTestId('inspect')).toHaveCount(0);
   await expect(page.getByText(`${homeName} · you`)).toBeVisible();
-  // Only what the player knows: the Starting Moon, its Gas Giant and the one Body Comms Detected.
+  // Only what the player knows: the Starting Moon and the one Body Comms Detected (its planet).
   // The Heliopause is not on the chart until the Radar finds it (#191).
   await expect(page.getByText('Heliopause', { exact: true })).toHaveCount(0);
   const options = page.getByRole('option');
-  await expect(options).toHaveCount(3);
-  for (const body of [home, gasGiant, homeMoon]) {
+  await expect(options).toHaveCount(2);
+  for (const body of [home, homeMoon]) {
     await expect(page.getByRole('option', { name: new RegExp(`^${body.name},`) })).toBeAttached();
   }
   await testInfo.attach('nav-chart', { body: await page.screenshot(), contentType: 'image/png' });
@@ -122,9 +115,7 @@ test('the Spacecraft and Nav Chart buttons sit side by side right of the locatio
   }
 });
 
-test('from the keyboard: select the first target, and a Gas Giant says why it is not a target', async ({
-  page,
-}, testInfo) => {
+test('from the keyboard: select the first target', async ({ page }, testInfo) => {
   await openNavChart(page);
   await expect(page.getByRole('listbox', { name: 'Bodies in the Star System' })).toBeFocused();
 
@@ -140,23 +131,11 @@ test('from the keyboard: select the first target, and a Gas Giant says why it is
     body: await page.screenshot(),
     contentType: 'image/png',
   });
-
-  await stepTo(page, gasGiant);
-  await expect(page.getByTestId('landable')).toHaveText('No surface');
-  await page.keyboard.press('Enter');
-  await expect(page.getByTestId('verdict')).toContainText('no surface to land on');
-  // The earlier target stays: Escape closes the Gas Giant's card (#193) and the plan is back.
-  await page.keyboard.press('Escape');
-  await expect(page.getByTestId('inspect')).toHaveCount(0);
-  await expect(page.getByTestId('target')).toContainText(homeMoon.name);
-  await testInfo.attach('gas-giant', { body: await page.screenshot(), contentType: 'image/png' });
 });
 
 // Re-pinned for #193: hover only brightens a Body; a click opens its card, "Plan Hop" chooses it,
 // and a click on empty space closes the card. The camera opens centred on the Spacecraft.
-test('with the mouse: a click opens a Body’s card, Plan Hop chooses it, a Gas Giant cannot be', async ({
-  page,
-}) => {
+test('with the mouse: a click opens a Body’s card and Plan Hop chooses it', async ({ page }) => {
   await openNavChart(page);
   const canvas = page.locator('canvas').first();
   const box = await canvas.boundingBox();
@@ -171,18 +150,9 @@ test('with the mouse: a click opens a Body’s card, Plan Hop chooses it, a Gas 
     return { x: box.x + s.x * scale, y: box.y + s.y * scale };
   };
 
-  const giant = at(gasGiant.id);
-  await page.mouse.move(giant.x, giant.y);
-  await expect(page.getByTestId('inspect')).toHaveCount(0);
-  await page.mouse.click(giant.x, giant.y);
-  await expect(page.getByTestId('verdict')).toContainText('no surface to land on');
-  await expect(page.getByRole('button', { name: 'Plan Hop' })).toHaveCount(0);
-
-  // Empty space, under the star's side of the map: the card closes.
-  await page.mouse.click(box.x + 20 * scale, box.y + 300 * scale);
-  await expect(page.getByTestId('inspect')).toHaveCount(0);
-
   const moon = at(homeMoon.id);
+  await page.mouse.move(moon.x, moon.y);
+  await expect(page.getByTestId('inspect')).toHaveCount(0);
   await page.mouse.click(moon.x, moon.y);
   await expect(
     page.getByTestId('inspect').getByRole('heading', { name: homeMoon.name }),
@@ -190,6 +160,11 @@ test('with the mouse: a click opens a Body’s card, Plan Hop chooses it, a Gas 
   await page.getByRole('button', { name: 'Plan Hop' }).click();
   await expect(page.getByTestId('inspect')).toHaveCount(0);
   await expect(page.getByTestId('target')).toContainText(homeMoon.name);
+
+  // Empty space, under the star's side of the map: a card opened there closes again.
+  await page.mouse.click(moon.x, moon.y);
+  await page.mouse.click(box.x + 20 * scale, box.y + 300 * scale);
+  await expect(page.getByTestId('inspect')).toHaveCount(0);
 });
 
 // #193's acceptance: only what the player knows is drawn, a blip is picked, planned and flown, and on
@@ -203,8 +178,8 @@ test('the full-screen chart: pick the blip, plan an Unsurveyed Hop, launch, and 
   await waitForOpening(page);
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
-  // The Starting Moon, its Gas Giant, and one blip with a "?": the Body Comms Detected.
-  await expect(page.getByRole('option')).toHaveCount(3);
+  // The Starting Moon, and one blip with a "?": the Body Comms Detected.
+  await expect(page.getByRole('option')).toHaveCount(2);
   const blips = page.getByTestId('unsurveyed-mark');
   await expect(blips).toHaveCount(1);
   await expect(blips).toHaveAttribute('aria-label', `${homeMoon.name}: Unsurveyed`);
@@ -226,7 +201,7 @@ test('the full-screen chart: pick the blip, plan an Unsurveyed Hop, launch, and 
 
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   // The Body landed on is Surveyed now, and Comms Detected one more: a new blip.
-  await expect(page.getByRole('option')).toHaveCount(4);
+  await expect(page.getByRole('option')).toHaveCount(3);
   await expect(
     page.getByRole('option', { name: new RegExp(`^${homeMoon.name}, .*you are here`) }),
   ).not.toContainText('Unsurveyed');

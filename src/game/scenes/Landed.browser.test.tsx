@@ -33,7 +33,7 @@ import {
 } from '../sim/index.ts';
 import { manifest, type AssetEntry } from '../assets/manifest.ts';
 import { SceneKey } from './keys.ts';
-import { COMMS_PING, SPACECRAFT_ATTRIBUTE, type Landed, type LandedData } from './Landed.ts';
+import { SPACECRAFT_ATTRIBUTE, type Landed, type LandedData } from './Landed.ts';
 import type { Gathering } from './gathering.ts';
 import '../../style.css';
 
@@ -487,13 +487,14 @@ it('under reduced motion the Comms ping is one still ring, gone after a moment',
   );
   const { run, report } = firstLanding();
   const scene = await landOn(run, undefined, report);
-  await until(() => scene.commsPing.length > 0);
+  await until(() => scene.commsPing.length > 0, PING_WAIT_MS);
   expect(scene.commsPing).toHaveLength(1);
   const [ring] = scene.commsPing;
   const scale = ring?.scale;
   await pause(300);
   expect(ring?.scale).toBe(scale);
-  await until(() => scene.commsPing.length === 0, COMMS_PING.stillMs * 3);
+  // The ring goes on the scene clock, which lags real time on a loaded CI runner.
+  await until(() => scene.commsPing.length === 0, PING_WAIT_MS);
 });
 
 /** Every image the drawn Spacecraft is made of: its Chassis art and Component art. */
@@ -685,25 +686,30 @@ function leakingOnTheMoon(): Run {
 
 it('a click on the Damaged part on the Landed view starts its Repair, and no later click on it Rushes it (#250)', async () => {
   const scene = await landOn(leakingOnTheMoon());
-  const rect = scene.spacecraft.componentBounds().get(1);
-  if (!rect) throw new Error('The Tank is drawn');
   const canvas = scene.game.canvas;
   const scale = canvas.getBoundingClientRect().width / GAME_WIDTH;
-  const { scrollX, scrollY } = scene.cameras.main;
-  const at = {
-    x: (rect.x - scrollX + rect.width / 2) * scale,
-    y: (rect.y - scrollY + rect.height / 2) * scale,
+  // The Spacecraft bobs: read where the part is right before each click, so a slow frame cannot
+  // leave a click on the ring's line instead of where it was aimed.
+  const where = (dx: number, dy: number) => {
+    const rect = scene.spacecraft.componentBounds().get(1);
+    if (!rect) throw new Error('The Tank is drawn');
+    const { scrollX, scrollY } = scene.cameras.main;
+    return {
+      x: (rect.x - scrollX + (dx < 0 ? rect.width + dx : dx)) * scale,
+      y: (rect.y - scrollY + (dy < 0 ? rect.height + dy : dy)) * scale,
+    };
+  };
+  const centre = () => {
+    const rect = scene.spacecraft.componentBounds().get(1);
+    if (!rect) throw new Error('The Tank is drawn');
+    return where(rect.width / 2, rect.height / 2);
   };
   const updates: Run[] = [];
   const off = EventBus.on('run-updated', (run) => updates.push(run));
-  await userEvent.click(canvas, { position: at });
-  await userEvent.click(canvas, { position: at });
+  await userEvent.click(canvas, { position: centre() });
+  await userEvent.click(canvas, { position: centre() });
   // A double-click 1 px inside the part's bottom-right corner, where the ring's line runs close by.
-  const corner = {
-    x: (rect.x - scrollX + rect.width - 1) * scale,
-    y: (rect.y - scrollY + rect.height - 1) * scale,
-  };
-  await userEvent.dblClick(canvas, { position: corner });
+  await userEvent.dblClick(canvas, { position: where(-1, -1) });
   off();
   expect(updates).toHaveLength(1);
   const started = updates[0];
@@ -717,8 +723,22 @@ it('under reduced motion a Damaged part shows a steady glow and its badge, and n
   );
   const scene = await landOn(leakingOnTheMoon());
   expect(scene.reducedMotion).toBe(true);
-  expect(scene.marks.shown(1)).toEqual({ glow: true, badge: true, vent: false, ring: false });
-  expect(scene.marks.shown(0)).toEqual({ glow: false, badge: false, vent: false, ring: false });
+  expect(scene.marks.shown(1)).toEqual({
+    glow: true,
+    badge: true,
+    vent: false,
+    flame: false,
+    danger: false,
+    ring: false,
+  });
+  expect(scene.marks.shown(0)).toEqual({
+    glow: false,
+    badge: false,
+    vent: false,
+    flame: false,
+    danger: false,
+    ring: false,
+  });
 });
 
 it('sweeps a Radar ring out from the Spacecraft when one is installed, and says what it found', async () => {

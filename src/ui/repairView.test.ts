@@ -69,4 +69,16 @@ describe('the Repair as the player sees it', () => {
       'Fuel Tank 1: Repairing, 15 s left. Rush for 3 Materials',
     );
   });
+
+  it('the accessible name says a burning Engine is on fire (#251)', () => {
+    const begun = beginHop(opening, target, {
+      schedule: [{ kind: 'engine-fire', tick: 100, slot: 0 }],
+    });
+    if (begun.kind !== 'cruising') throw new Error('Expected a Cruise');
+    const struck = advanceCruise(begun.run, 100);
+    if (struck.kind !== 'cruising') throw new Error('Expected to be cruising');
+    expect(repairName('engine-1', repairState(struck.run, 0))).toBe(
+      'Engine 1: Damaged, on fire. Repair, 40 s',
+    );
+  });
 });

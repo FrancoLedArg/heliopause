@@ -1287,4 +1287,207 @@ describe('the live Cruise (#250)', () => {
     expect(scene.live?.spacecraft.damage[fuelTank]).toBeNull();
     expect(scene.live?.materials).toBeLessThan(materialsBefore);
   });
+
+  it.each([
+    { name: 'hit', hits: true },
+    { name: 'miss', hits: false },
+  ])(
+    'a Debris field that must $name drifts in, and Damages the Tank only on a hit (#252)',
+    async ({ hits }) => {
+      host = document.createElement('div');
+      document.body.append(host);
+      root = createRoot(host);
+      const titleReady = nextSceneReady(SceneKey.Title);
+      act(() => {
+        root?.render(
+          <div className="stage" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }}>
+            <div id="flight-test-game" />
+            <div className="stage__ui">
+              <GameUI />
+            </div>
+          </div>,
+        );
+      });
+      game = startGame('flight-test-game');
+      await titleReady;
+      const run = onHome(startRun(2026, 'scout'));
+      const target = homeMoonId(run);
+      if (target === undefined) throw new Error('No target');
+      const fuelTank = run.spacecraft.slots.findIndex((id) => id === 'fuel-tank-1');
+      const begun = beginHop(run, target, {
+        schedule: [{ kind: 'debris-field', tick: 100, slot: hits ? fuelTank : null }],
+      });
+      if (begun.kind === 'invalid-target') throw new Error('Not a Hop target');
+      const ready = nextSceneReady(SceneKey.Flight);
+      game.scene.start(SceneKey.Flight, flightDataFor(run, begun));
+      await ready;
+      const scene = game.scene.getScene<Flight>(SceneKey.Flight);
+      const cruise = scene.playback.cruise;
+      if (!cruise) throw new Error('Expected a Cruise');
+      const rocksShown = () => scene.rocksShown();
+
+      // Tick 100 is 10 s into the Cruise: 1 s before it the field is already in view, nothing struck.
+      act(() => {
+        scene.seek(cruise.start + 9_000);
+      });
+      expect(rocksShown()).toBeGreaterThan(0);
+      expect(scene.live?.spacecraft.damage[fuelTank]).toBeNull();
+      act(() => {
+        scene.seek(cruise.start + 10_050);
+      });
+      expect(rocksShown()).toBeGreaterThan(0);
+      expect(scene.live?.spacecraft.damage[fuelTank] !== null).toBe(hits);
+      // Long after, the field has drifted off.
+      act(() => {
+        scene.seek(cruise.start + 25_000);
+      });
+      expect(rocksShown()).toBe(0);
+    },
+  );
+});
+
+describe('the solar flare (#253)', () => {
+  async function flareAt(withRadar: boolean) {
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    const titleReady = nextSceneReady(SceneKey.Title);
+    act(() => {
+      root?.render(
+        <div className="stage" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }}>
+          <div id="flight-test-game" />
+          <div className="stage__ui">
+            <GameUI />
+          </div>
+        </div>,
+      );
+    });
+    game = startGame('flight-test-game');
+    await titleReady;
+    let run = onHome(startRun(2026, 'scout'));
+    const free = run.spacecraft.slots.indexOf(null);
+    if (withRadar) {
+      const slots = [...run.spacecraft.slots];
+      slots[free] = 'radar-1';
+      run = { ...run, spacecraft: refit(run.spacecraft, slots) };
+    }
+    const target = homeMoonId(run);
+    if (target === undefined) throw new Error('No target');
+    const begun = beginHop(run, target, {
+      schedule: [{ kind: 'solar-flare', tick: 100, slot: withRadar ? free : null }],
+    });
+    if (begun.kind === 'invalid-target') throw new Error('Not a Hop target');
+    const ready = nextSceneReady(SceneKey.Flight);
+    game.scene.start(SceneKey.Flight, flightDataFor(run, begun));
+    await ready;
+    const scene = game.scene.getScene<Flight>(SceneKey.Flight);
+    const cruise = scene.playback.cruise;
+    if (!cruise) throw new Error('Expected a Cruise');
+    // Tick 100 is 10 s into the Cruise: seek 0.5 s past it, mid-wash.
+    act(() => {
+      scene.seek(cruise.start + 10_500);
+    });
+    return { scene, radar: free };
+  }
+
+  it('washes the screen warm and knocks out the Radar, which flickers', async () => {
+    const { scene, radar } = await flareAt(true);
+    expect(scene.flareWash.visible).toBe(true);
+    expect(scene.flareWash.alpha).toBeGreaterThan(0.1);
+    expect(scene.live?.spacecraft.damage[radar]).toEqual({ repair: null, burning: null });
+    expect(scene.marks.shown(radar).glow).toBe(true);
+  });
+
+  it('plays as a harmless visual without a Radar', async () => {
+    const { scene } = await flareAt(false);
+    expect(scene.flareWash.visible).toBe(true);
+    expect(scene.live?.spacecraft.damage.every((damage) => damage === null)).toBe(true);
+  });
+});
+
+describe('the Engine fire (#251)', () => {
+  /** The game with its UI, flying a first Hop with an Engine fire on tick 100 (10 s in). */
+  async function onFire() {
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    const titleReady = nextSceneReady(SceneKey.Title);
+    act(() => {
+      root?.render(
+        <div className="stage" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }}>
+          <div id="flight-test-game" />
+          <div className="stage__ui">
+            <GameUI />
+          </div>
+        </div>,
+      );
+    });
+    game = startGame('flight-test-game');
+    await titleReady;
+    const run = onHome(startRun(2026, 'scout'));
+    const target = homeMoonId(run);
+    if (target === undefined) throw new Error('No target');
+    const engine = run.spacecraft.slots.findIndex((id) => id === 'engine-1');
+    const begun = beginHop(run, target, {
+      schedule: [{ kind: 'engine-fire', tick: 100, slot: engine }],
+    });
+    if (begun.kind === 'invalid-target') throw new Error('Not a Hop target');
+    const ready = nextSceneReady(SceneKey.Flight);
+    game.scene.start(SceneKey.Flight, flightDataFor(run, begun));
+    await ready;
+    const scene = game.scene.getScene<Flight>(SceneKey.Flight);
+    const cruise = scene.playback.cruise;
+    if (!cruise) throw new Error('Expected a Cruise');
+    return { scene, engine, inCruise: (ms: number) => cruise.start + ms };
+  }
+
+  it('a burning Engine shows flames and a danger arc; starting its Repair puts the fire out', async () => {
+    const { scene, engine, inCruise } = await onFire();
+    act(() => {
+      scene.seek(inCruise(10_050));
+    });
+    expect(scene.marks.shown(engine)).toMatchObject({ flame: true, danger: true, ring: false });
+    act(() => {
+      EventBus.emit('repair-requested', engine);
+    });
+    act(() => {
+      scene.seek(inCruise(12_000));
+    });
+    expect(scene.marks.shown(engine)).toMatchObject({ flame: false, danger: false, ring: true });
+    // Past the 30 s it would have had, the Spacecraft flies on.
+    act(() => {
+      scene.seek(inCruise(45_000));
+    });
+    expect(scene.live?.status.kind).toBe('cruising');
+  });
+
+  it('a fire left alone explodes the Spacecraft, and the Run ends Destroyed', async () => {
+    const { scene, inCruise } = await onFire();
+    let destroyed = false;
+    const off = EventBus.on('hop-destroyed', () => {
+      destroyed = true;
+    });
+    act(() => {
+      scene.seek(inCruise(25_000));
+    });
+    // It caught fire on tick 100: 300 ticks later, on tick 400, it explodes.
+    act(() => {
+      scene.seek(inCruise(40_050));
+    });
+    expect(scene.live).toBeUndefined();
+    expect(scene.ship.visible).toBe(true);
+    act(() => {
+      scene.seek(inCruise(43_000));
+    });
+    off();
+    expect(destroyed).toBe(true);
+    expect(scene.ship.visible).toBe(false);
+    const end = await vi.waitFor(() => {
+      const shown = document.querySelector('[data-testid="end-of-run"]');
+      if (!shown) throw new Error('No End-of-Run screen yet');
+      return shown;
+    });
+    expect(end.querySelector('h2')?.textContent).toBe('Destroyed');
+    expect(end.textContent).toContain('The Engine fire reached the Fuel.');
+  });
 });

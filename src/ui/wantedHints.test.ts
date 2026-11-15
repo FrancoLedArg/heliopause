@@ -43,6 +43,13 @@ describe('which First-Run hints apply', () => {
     expect(wantedHints(moment({ run: found }))).toContain('heliopause-found');
   });
 
+  it('offers the Heliopause hint on the open chart until a target is chosen (#313)', () => {
+    expect(wantedHints(moment({ run: found, chartOpen: true }))).toEqual(['heliopause-found']);
+    expect(wantedHints(moment({ run: found, chartOpen: true, targetChosen: true }))).toEqual([
+      'first-hop-plan',
+    ]);
+  });
+
   it('offers the gathering hint while it is pending, even under the Hop report', () => {
     expect(wantedHints(moment({ gatheredPending: true, reportOpen: true }))).toEqual([
       'first-gathering',

@@ -2,10 +2,12 @@ import { expect, test, type Page } from '@playwright/test';
 import { FAST_CRUISE, NO_CRUISE_EVENTS } from './cruise.ts';
 import { recordShots, shotsSeen } from './shots.ts';
 import {
+  currentBody,
   findBody,
   firstDetectedBody,
   HELIOPAUSE,
   isInHopRange,
+  knownBodies,
   launchHop,
   planHop,
   replay,
@@ -22,11 +24,12 @@ import { JUMP_FLAVOUR_TEXT } from '../../src/ui/jumpFlavour.ts';
 // Spec #15's way out, on one seed, by keyboard alone, since #191 found only by the Radar: the chart
 // opens with no Heliopause; build a Radar, Hop out until it finds the Heliopause, build the Jump
 // Drive, target the Heliopause, Launch, reach it, Jump to Star System 2 and Hop on from its Starting
-// Moon. The route is a careful explorer's (`readyToJump`): seed 411 gets out in 10 Hops, planet by
+// Moon. The route is a careful explorer's (`readyToJump`): seed 418 gets out, planet by
 // planet. Re-pinned for #191 (was seed 28, whose first target paid for the Jump Drive with the
 // Heliopause already found). Re-pinned for #283 (was seed 121's 5 Hops): the Hop range sends that
-// explorer another way, and it no longer gets out.
-const SEED = 411;
+// explorer another way, and it no longer gets out. Re-pinned for #311 (was seed 411): with the orbits
+// past two Gas Giants landable, the wandering in System 2 ended in a Crash, not Stranded.
+const SEED = 418;
 // Flown with no Cruise events (#250), as `readyToJump` flies it: this pins the way out on the Burns.
 const CALM = { schedule: [] } as const;
 const ready = readyToJump(SEED, 'scout');
@@ -75,15 +78,24 @@ if (onward.kind !== 'flown' || onward.run.status.kind !== 'landed') {
   throw new Error(`Seed ${String(SEED)}: the Hop on from System 2's Starting Moon should land`);
 }
 
-// ...and where the Run ends in System 2: from there, a Hop to the Body Comms Detected Falls Short.
-const doomedId = onward.flight.reveal?.detected[0];
-const doomed = doomedId && findBody(system2.starSystem, doomedId);
-if (!doomed) throw new Error(`Seed ${String(SEED)}: Comms should Detect a Body in System 2`);
-const doomedHop = launchHop(onward.run, doomed.id, CALM);
-if (doomedHop.kind !== 'flown') throw new Error('unreachable');
-const finalEnd = runEnd(doomedHop.run);
-if (finalEnd?.kind !== 'fell-short') throw new Error('The doomed Hop should end the Run');
-const finalScore = score(doomedHop.run);
+// ...and where the Run ends in System 2. With every Tank full (#298) no single Hop Falls Short, so
+// the careful route Hops back and forth between the first Body in range until the Run is Stranded.
+const strandingHops: string[] = [];
+let wandering = onward.run;
+while (!runEnd(wandering)) {
+  const here = currentBody(wandering).id;
+  const next = knownBodies(wandering).find(
+    (body) => body.landable && body.id !== here && isInHopRange(wandering, body.id),
+  );
+  if (!next || strandingHops.length > 20) throw new Error('The wandering should end the Run');
+  const hop = launchHop(wandering, next.id, CALM);
+  if (hop.kind !== 'flown') throw new Error('The wandering Hops should fly');
+  strandingHops.push(next.name);
+  wandering = hop.run;
+}
+const finalEnd = runEnd(wandering);
+if (finalEnd?.kind !== 'stranded') throw new Error('The wandering should Strand the Run');
+const finalScore = score(wandering);
 
 /** Steps through the chart until the tooltip shows `name` (a Body, or the Heliopause). */
 async function focusOnChart(page: Page, name: string): Promise<void> {
@@ -308,12 +320,17 @@ test('a Run that escaped a Star System ends in the next one with its Score, and 
   await page.keyboard.press('Enter');
   await expect(onwardReport).toBeHidden();
 
-  // The Run ends in System 2: Hop report, Continue, then the End-of-Run screen.
-  await hopTo(page, doomed.name);
-  const outcome = page.getByRole('alertdialog', { name: 'Fell Short' });
+  // The Run ends in System 2: each Hop but the last gets its report, and the last Strands the Run.
+  const outcome = page.getByRole('alertdialog', { name: 'Stranded' });
+  for (const [index, name] of strandingHops.entries()) {
+    await hopTo(page, name);
+    if (index === strandingHops.length - 1) break;
+    const report = page.getByRole('dialog', { name: 'Arrived' });
+    await expect(report).toBeVisible({ timeout: 30_000 });
+    await page.keyboard.press('Enter');
+    await expect(report).toBeHidden();
+  }
   await expect(outcome).toBeVisible({ timeout: 30_000 });
-  await expect(outcome.getByRole('button', { name: 'Continue' })).toBeFocused();
-  await page.keyboard.press('Enter');
   await expect(outcome.getByTestId('end-of-run-score')).toHaveAttribute(
     'aria-label',
     `Score: ${formatScore(finalScore)}`,

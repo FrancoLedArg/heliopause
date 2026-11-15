@@ -95,7 +95,7 @@ export const STRANDED_ON_LANDING = {
 } as const;
 
 /**
- * Seed 97, back on Risrol after Risrol, Harzo and Violios, with 11 Materials more than it would
+ * Seed 97, on Violios, after Risrol, Harzo and back to Risrol, with 11 Materials more than it would
  * have, landing with 60: only swapping in the level-2 Engine (60) saves the Run, so spending any of
  * them on another Component strands it. With one fewer, the Landing itself strands it. Its own seed
  * since #280/#298 (was `STRANDED_ON_LANDING`'s path with extra Materials): no path strands both in
