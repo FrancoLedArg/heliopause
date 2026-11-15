@@ -240,7 +240,7 @@ for (const where of ['Home Planet', 'Moon'] as const) {
   });
 }
 
-it('paints the stand-in strip for every surface kind: Moon, Rocky and Icy', async () => {
+it('draws a one-colour surface line and an opaque strip for every surface kind: Moon, Rocky and Icy', async () => {
   const scene = await landOn(landedRun());
   const topLeft: number[] = [];
   for (const kind of ['moon', 'rocky', 'icy'] as const) {
@@ -265,4 +265,31 @@ it('paints the stand-in strip for every surface kind: Moon, Rocky and Icy', asyn
     expect(context.getImageData(0, GROUND_HEIGHT - 1, SURFACE_WIDTH, 1).data[3]).toBe(255);
   }
   expect(new Set(topLeft).size).toBe(3);
+});
+
+it('uses the generated ground art for every surface kind, with the mortar kept apart from the stones', async () => {
+  const scene = await landOn(landedRun());
+  for (const kind of ['moon', 'rocky', 'icy'] as const) {
+    // The manifest has the art, so no stand-in is painted.
+    expect(groundTexture(scene, kind)).toBe(`surface_${kind}`);
+    const source = scene.textures.get(`surface_${kind}`).getSourceImage();
+    const canvas = document.createElement('canvas');
+    canvas.width = SURFACE_WIDTH;
+    canvas.height = GROUND_HEIGHT;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('no 2d context');
+    context.drawImage(source as CanvasImageSource, 0, 0);
+    // The strip's bottom row of each course is mortar, one colour; inside a course, that colour
+    // appears only on the stone joints, never on a stone's own pixels.
+    const rgb = (y: number) => {
+      const data = context.getImageData(0, y, SURFACE_WIDTH, 1).data;
+      return Array.from({ length: SURFACE_WIDTH }, (_, x) => data.slice(x * 4, x * 4 + 3).join());
+    };
+    const mortar = rgb(9)[0];
+    expect(new Set(rgb(9)).size).toBe(1);
+    for (const y of [4, 12, 28, 44, 60]) {
+      const joints = rgb(y).filter((c) => c === mortar).length;
+      expect(joints).toBeLessThan(SURFACE_WIDTH * 0.12);
+    }
+  }
 });
