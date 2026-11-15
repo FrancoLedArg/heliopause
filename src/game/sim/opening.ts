@@ -107,6 +107,8 @@ export function startingRun(
       gameHours: 0,
       materials: materials(STARTING_MATERIALS - materialsShort),
       choices: [],
+      science: 0,
+      discoveries: [],
     },
     system,
   );
