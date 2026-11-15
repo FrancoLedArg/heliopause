@@ -1,4 +1,4 @@
-// The words for a Comms reveal (#96): the Comms ping on the Landed view is the visual, and these
+// The words for a Comms or Radar reveal (#96, #191): the Comms ping on the Landed view is the visual, and these
 // words go only to a polite live region, for screen readers.
 import {
   astronomicalUnits,
@@ -21,7 +21,20 @@ export function commsAnnouncement(run: Run, reveal: Reveal): string {
     const away = formatAway(distanceBetween(run.starSystem, here, body));
     return [`Comms Detected a new Body, ${away} away.`];
   });
-  return [surveyed ? `${surveyed.name} Surveyed.` : '', ...found].filter(Boolean).join(' ');
+  return [surveyed ? `${surveyed.name} Surveyed.` : '', ...found, ...radarWords(reveal)]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/** What the Radar's sweep found, in as few words as it takes: the Heliopause above all (#191). */
+function radarWords({ radar }: Reveal): string[] {
+  if (!radar) return [];
+  const count = (n: number) => `${String(n)} ${n === 1 ? 'Body' : 'Bodies'}`;
+  return [
+    radar.detected.length > 0 ? `Radar Detected ${count(radar.detected.length)}.` : '',
+    radar.surveyed.length > 0 ? `Radar Surveyed ${count(radar.surveyed.length)}.` : '',
+    radar.heliopauseFound ? 'Heliopause found.' : '',
+  ];
 }
 
 /** A distance between Bodies: in AU, or in kilometres when it is too short to read in AU (a Moon). */

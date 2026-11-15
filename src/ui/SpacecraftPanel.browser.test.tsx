@@ -245,7 +245,7 @@ async function tabTo(name: RegExp, backwards = false): Promise<void> {
 
 /** Moves focus to a Slot as a keyboard player does: Shift+Tab out to the Slots, then the arrow keys. */
 async function focusSlot(label: RegExp): Promise<void> {
-  for (let step = 0; step < 12; step += 1) {
+  for (let step = 0; step < 16; step += 1) {
     const active = document.activeElement;
     if (label.test(named(active))) return;
     await userEvent.keyboard(
@@ -567,4 +567,20 @@ it('greys out a second Jump Drive, says why in its entry, and refuses it plainly
   expect(byTestId(host, 'install-status').textContent).toBe(
     "Can't install. You already carry a Jump Drive.",
   );
+});
+
+it("lists the Radar at both levels with its icon and a range ring scaled to its level, and its preview's Δv", async () => {
+  const host = await renderUi(<Harness initial={runWith('scout', 25)} />);
+  const rows = [...host.querySelectorAll<HTMLElement>('[data-testid="component-row"]')];
+  const ring = (level: number): number => {
+    const row = rows.find((r) => r.textContent.includes(`Radar ${String(level)}`));
+    const circle = row?.querySelector('[data-testid="radar-ring"] circle');
+    if (!row?.querySelector('[data-component-icon="radar"]') || !circle) {
+      throw new Error(`no Radar ${String(level)} glyph`);
+    }
+    return Number(circle.getAttribute('r'));
+  };
+  expect(ring(2)).toBeGreaterThan(ring(1));
+  await tabTo(/Install Radar, level 1,/);
+  expect(previewText(host)).toMatch(/Δv/);
 });

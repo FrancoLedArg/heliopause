@@ -477,6 +477,18 @@ function withJumpDrive(): Run {
   return result.run;
 }
 
+it('lists no Heliopause until the Radar finds it', async () => {
+  const run = startRun(1, 'lancer');
+  const host = await renderUi(
+    <NavChartPanel
+      run={run}
+      state={{ focusedId: run.starSystem.startingMoonId, selectedId: undefined }}
+    />,
+  );
+  expect(host.querySelector(`#nav-option-${HELIOPAUSE}`)).toBeNull();
+  expect(host.querySelectorAll('[role="option"]')).toHaveLength(run.knowledge.detected.length);
+});
+
 it('says on the chart why the focused Heliopause cannot be the target without a Jump Drive', async () => {
   const host = await renderUi(
     <NavChartPanel

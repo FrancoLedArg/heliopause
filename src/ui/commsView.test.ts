@@ -28,4 +28,20 @@ describe('the Comms announcement', () => {
       /^Comms Detected a new Body, [0-9.,]+ (AU|km) away\.$/,
     );
   });
+
+  it('says what the Radar found, and "Heliopause found" when it finds the way out', () => {
+    const { run, reveal } = firstLanding();
+    const [a, b] = run.knowledge.detected;
+    const said = commsAnnouncement(run, {
+      surveyed: undefined,
+      detected: [],
+      radar: {
+        detected: [a, b].filter((id) => id !== undefined),
+        surveyed: [],
+        heliopauseFound: true,
+      },
+    });
+    expect(said).toBe('Radar Detected 2 Bodies. Heliopause found.');
+    expect(commsAnnouncement(run, { ...reveal, radar: undefined })).not.toMatch(/Radar|Heliopause/);
+  });
 });

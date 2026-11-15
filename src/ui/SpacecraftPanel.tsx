@@ -6,10 +6,12 @@ import {
   install,
   remove,
   SLOT_COUNT,
+  type ComponentId,
   type Run,
   type Slot,
 } from '../game/sim/index.ts';
 import { chassisName, formatDeltaV, formatFuel, formatIsp } from './format.ts';
+import { ComponentIcon } from './componentIcons/ComponentIcon.tsx';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import {
@@ -435,6 +437,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                 {/* What stops it, whatever the Materials, takes the place of what it does. */}
                 {row.unavailable ?? row.effect}
               </p>
+              <RadarGlyph id={row.id} />
               <KitButton
                 width={64}
                 className="spacecraft-panel__install"
@@ -478,6 +481,28 @@ function firstAffordable(rows: readonly PanelRow[]): PanelRow['id'] {
   const first = rows.find((row) => row.affordable) ?? rows[0];
   if (!first) throw new Error('The catalogue is empty');
   return first.id;
+}
+
+/** The Radar's ring at its largest level, in pixels: a level's ring is scaled to its range. */
+const RADAR_RING_MAX = 9;
+
+/**
+ * A Radar's reach at a glance (#191): its icon, and a ring scaled to its range beside it, so the
+ * levels compare without reading. Nothing for any other Component; the effect line says it in words.
+ */
+function RadarGlyph({ id }: { id: ComponentId }) {
+  const component = COMPONENTS[id];
+  if (component.kind !== 'radar') return null;
+  const radius = Math.round((component.range / COMPONENTS['radar-2'].range) * RADAR_RING_MAX);
+  return (
+    <span className="spacecraft-panel__row-glyph" aria-hidden="true">
+      <ComponentIcon kind="radar" />
+      <svg width={20} height={20} viewBox="0 0 20 20" data-testid="radar-ring">
+        <circle cx={10} cy={10} r={radius} fill="none" stroke="var(--cy3)" strokeDasharray="2 1" />
+        <circle cx={10} cy={10} r={1} fill="var(--cy3)" />
+      </svg>
+    </span>
+  );
 }
 
 interface SlotButtonProps {
