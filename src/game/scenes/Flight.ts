@@ -280,7 +280,7 @@ export class Flight extends Scene {
     this.shadow = this.add.ellipse(
       SHIP_PLACEMENT.x,
       SHIP_PLACEMENT.baseY + SHIP_SHADOW.dy,
-      shadowWidth(this.before.spacecraft.chassisId),
+      shadowWidth(this.before.spacecraft.chassisId, this.before.spacecraft.slots),
       SHIP_SHADOW.height,
       paletteNumber('void'),
       0.45,
@@ -416,8 +416,8 @@ export class Flight extends Scene {
    * engine's nozzles to the nose. Where the Jump Drive's glow builds and its trail starts.
    */
   private hullCentre(at: Point): Point {
-    const { chassisId } = this.before.spacecraft;
-    const exits = spacecraftNozzles(chassisId, 'flight').map(({ exit }) => exit);
+    const { chassisId, slots } = this.before.spacecraft;
+    const exits = spacecraftNozzles(chassisId, 'flight', slots).map(({ exit }) => exit);
     const rear = {
       x: exits.reduce((sum, exit) => sum + exit.x, 0) / exits.length,
       y: exits.reduce((sum, exit) => sum + exit.y, 0) / exits.length,
@@ -818,9 +818,9 @@ export class Flight extends Scene {
   }
 
   private buildShip(): void {
-    const { chassisId } = this.before.spacecraft;
+    const { chassisId, slots } = this.before.spacecraft;
     const plumes = (pose: ShipPose): Plume[] =>
-      spacecraftNozzles(chassisId, pose).map(({ kind, exit }) => ({
+      spacecraftNozzles(chassisId, pose, slots).map(({ kind, exit }) => ({
         kind,
         image: hasAsset('fx_thruster')
           ? this.add
@@ -834,7 +834,7 @@ export class Flight extends Scene {
               .setAngle(PLUME_ANGLE[pose] - 90),
       }));
     this.plumes = { standing: plumes('standing'), flight: plumes('flight') };
-    const ship = addSpacecraftArt(this, chassisId);
+    const ship = addSpacecraftArt(this, chassisId, slots);
     this.shipArt = ship.show;
     this.ship = this.add.container(SHIP_PLACEMENT.x, SHIP_PLACEMENT.baseY, [
       ...this.plumes.standing.map((plume) => plume.image),

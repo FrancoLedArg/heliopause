@@ -4,12 +4,21 @@ import { EventBus } from '../EventBus.ts';
 import { install, launchHop, remove, type HopFlight, type Run } from '../sim/index.ts';
 import { SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
 import { SceneKey } from './keys.ts';
+import type { Point } from './chassisArt.ts';
 import type { FlightData } from './Flight.ts';
 import type { NavChartData } from './NavChart.ts';
 import { createLandedAmbient, type LandedAmbient } from './landedAmbient.ts';
 import { buildLandscape, LAYER_X, SKY_X } from './landscape.ts';
 import { onLeaveRun } from './leaveRun.ts';
-import { addSpacecraftArt, shadowWidth, spacecraftNozzles } from './spacecraftArt.ts';
+import {
+  addSpacecraftArt,
+  shadowWidth,
+  spacecraftNozzles,
+  type SpacecraftArt,
+} from './spacecraftArt.ts';
+
+/** The game root's attribute listing the drawn Spacecraft's pieces and Component bounds (a test hook). */
+export const SPACECRAFT_ATTRIBUTE = 'data-spacecraft';
 
 export interface LandedData {
   /** The Run to show: the Spacecraft landed on its current Body. */
@@ -34,6 +43,9 @@ export class Landed extends Scene {
   reducedMotion = false;
   /** The ambient life: tests use it to seek the drift to a chosen moment. */
   ambient!: LandedAmbient;
+  /** The drawn Spacecraft, composed from its Chassis art and Component art. */
+  spacecraft!: SpacecraftArt;
+  private shadow!: GameObjects.Ellipse;
 
   constructor() {
     super(SceneKey.Landed);
@@ -106,9 +118,7 @@ export class Landed extends Scene {
       rest: { sky: SKY_X, layer: LAYER_X, ship: SHIP_PLACEMENT.x },
       starfield: landscape.starfield,
       setShipLights: ship.setLights,
-      nozzles: spacecraftNozzles(this.run.spacecraft.chassisId, 'standing').map(
-        (nozzle) => nozzle.exit,
-      ),
+      nozzles: this.standingNozzles(),
       dustColor: landscape.dustColor,
       seed: this.run.seed,
     });
@@ -148,8 +158,33 @@ export class Landed extends Scene {
   /** An install or a removal changed the Run: it may have left the Spacecraft Stranded. */
   private changed(run: Run): void {
     this.run = run;
+    this.redrawShip();
     if (run.status.kind === 'ended') EventBus.emit('run-stranded', run);
     else EventBus.emit('run-updated', run);
+  }
+
+  /** Where the standing Spacecraft's engines idle: every nozzle exit of its art. */
+  private standingNozzles(): Point[] {
+    const { chassisId, slots } = this.run.spacecraft;
+    return spacecraftNozzles(chassisId, 'standing', slots).map((nozzle) => nozzle.exit);
+  }
+
+  /** The Components changed: the drawn Spacecraft, its shadow and its engine glow follow at once. */
+  private redrawShip(): void {
+    const { chassisId, slots } = this.run.spacecraft;
+    this.spacecraft.setSlots(slots);
+    this.shadow.setSize(shadowWidth(chassisId, slots), SHIP_SHADOW.height);
+    this.ambient.setNozzles(this.standingNozzles());
+    this.publishShip();
+  }
+
+  /** Lists the drawn Spacecraft on the game root, for tests to read what is drawn. */
+  private publishShip(): void {
+    const { pieces, components } = this.spacecraft.drawn();
+    this.game.canvas.parentElement?.setAttribute(
+      SPACECRAFT_ATTRIBUTE,
+      JSON.stringify({ chassisId: this.run.spacecraft.chassisId, pieces, components }),
+    );
   }
 
   /** The whole Spacecraft standing in the foreground, with its shadow. */
@@ -158,19 +193,24 @@ export class Landed extends Scene {
     setLights: (on: boolean) => void;
   } {
     const container = this.add.container(SHIP_PLACEMENT.x, SHIP_PLACEMENT.baseY);
-    const { chassisId } = this.run.spacecraft;
-    container.add(
-      this.add.ellipse(
-        0,
-        SHIP_SHADOW.dy,
-        shadowWidth(chassisId),
-        SHIP_SHADOW.height,
-        paletteNumber('void'),
-        0.45,
-      ),
+    const { chassisId, slots } = this.run.spacecraft;
+    this.shadow = this.add.ellipse(
+      0,
+      SHIP_SHADOW.dy,
+      shadowWidth(chassisId, slots),
+      SHIP_SHADOW.height,
+      paletteNumber('void'),
+      0.45,
     );
-    const art = addSpacecraftArt(this, chassisId);
+    container.add(this.shadow);
+    const art = addSpacecraftArt(this, chassisId, slots);
+    this.spacecraft = art;
     container.add([...art.objects]);
+    this.publishShip();
+    const unpublish = (): void => {
+      this.game.canvas.parentElement?.removeAttribute(SPACECRAFT_ATTRIBUTE);
+    };
+    this.events.once(Scenes.Events.SHUTDOWN, unpublish);
     return {
       container,
       setLights: (on) => {

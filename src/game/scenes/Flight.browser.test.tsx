@@ -24,7 +24,8 @@ import {
 } from '../sim/index.ts';
 import type { Flight, FlightData } from './Flight.ts';
 import type { Landed } from './Landed.ts';
-import { FLIGHT_ANGLE, nozzles, turn, type ShipPose } from './chassisArt.ts';
+import { FLIGHT_ANGLE, turn, type ShipPose } from './chassisArt.ts';
+import { composeSpacecraft } from './spacecraftComposition.ts';
 import { SHIP_PLACEMENT } from './landedView.ts';
 import { flightPlayback } from './flightPlayback.ts';
 import type { JumpStage } from './jumpPlayback.ts';
@@ -538,7 +539,7 @@ it.each(CHASSIS_IDS)(
     expect(frame.groundTop).toBe(SHIP_PLACEMENT.baseY);
     // Upright on its fins or legs, in the same standing pose the Landed view opens on.
     expect(frame.shipAngle).toBe(0);
-    expect(frame.pose).toBe('landed');
+    expect(frame.pose).toBe('chassis.landed');
     expect(hullOf(view.layers.ship).frame.name).toBe(frame.pose);
   },
 );
@@ -565,6 +566,12 @@ function shownPlumes(scene: Flight): { x: number; y: number; angle: number }[] {
     });
 }
 
+/** The nozzles of the Spacecraft that flies, as its composition draws them in a pose. */
+function nozzlesOf(data: FlightData, pose: ShipPose) {
+  const { chassisId, slots } = data.before.spacecraft;
+  return composeSpacecraft(chassisId, slots, pose === 'flight' ? 'flight' : 'landed').nozzles;
+}
+
 const PLUME_MOMENTS = [
   { name: 'rising off the ground', burn: 'takeoff', progress: 0.3, pose: 'standing' },
   { name: 'tipping toward its heading', burn: 'takeoff', progress: 0.61, pose: 'standing' },
@@ -576,11 +583,11 @@ const PLUME_MOMENTS = [
 it.each(CHASSIS_IDS)(
   'the %s fires one plume from every nozzle exit, down while standing and rearward in flight',
   async (chassis) => {
-    const { scene } = await fly(chassis);
+    const { scene, data } = await fly(chassis);
     for (const moment of PLUME_MOMENTS) {
       scene.seek(momentOf(scene, moment.burn, moment.progress));
       const { x, y, angle } = scene.ship;
-      const expected = nozzles(chassis, moment.pose).map((nozzle) => {
+      const expected = nozzlesOf(data, moment.pose).map((nozzle) => {
         const at = turn(nozzle.exit, angle);
         return { x: x + at.x, y: y + at.y };
       });
@@ -600,11 +607,14 @@ it.each(CHASSIS_IDS)(
   },
 );
 
-/** The Chassis art in a ship's container (the plumes and glow left out). */
+/** The Chassis art in a ship's container, inside the drawn Spacecraft (the plumes, glow and Component art left out). */
 function hullOf(ship: GameObjects.Container): GameObjects.Image {
-  const hull = ship.list.find(
+  const art = ship.list.flatMap((child) =>
+    child instanceof GameObjects.Container ? child.list : [child],
+  );
+  const hull = art.find(
     (child): child is GameObjects.Image =>
-      child instanceof GameObjects.Image && child.texture.key.startsWith('chassis_'),
+      child instanceof GameObjects.Image && child.frame.name.startsWith('chassis.'),
   );
   if (!hull) throw new Error('no Chassis art on the ship');
   return hull;
@@ -641,7 +651,7 @@ it.each(CHASSIS_IDS)(
 it.each(CHASSIS_IDS)(
   'the %s trails sparks from each of its rear nozzles in turn',
   async (chassis) => {
-    const { scene } = await fly(chassis);
+    const { scene, data } = await fly(chassis);
     scene.seek(momentOf(scene, 'transfer', 0.3));
     const sparks = emitters(scene).find((e) => e.texture.key === 'fx_spark');
     if (!sparks) throw new Error('no spark emitter');
@@ -649,7 +659,7 @@ it.each(CHASSIS_IDS)(
     sparks.onParticleEmit((p) => born.push({ x: sparks.x + p.x, y: sparks.y + p.y }));
     await act(() => wait(600));
     const { x, y, angle } = scene.ship;
-    const exits = nozzles(chassis, 'flight').map((nozzle) => {
+    const exits = nozzlesOf(data, 'flight').map((nozzle) => {
       const at = turn(nozzle.exit, angle);
       return { x: x + at.x, y: y + at.y };
     });
