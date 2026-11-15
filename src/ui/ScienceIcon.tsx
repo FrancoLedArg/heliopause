@@ -1,17 +1,19 @@
+import { imageUrl } from '../game/assets/manifest.ts';
+
 /**
- * Science's icon: a primitive stand-in (a four-point spark) until its art lands (asset request from
- * #318). Presentational: the readout or the card beside it carries the words.
+ * Science's icon: the 16×16 pixel-art flask. Presentational: the readout or the card beside it carries
+ * the words, so the image is hidden from assistive tech. Drawn crisp at any size.
  */
 export function ScienceIcon({ size = 16, className }: { size?: number; className?: string }) {
   return (
-    <svg
+    <img
+      src={imageUrl('res_science')}
+      alt=""
       width={size}
       height={size}
-      viewBox="0 0 16 16"
       aria-hidden="true"
+      style={{ imageRendering: 'pixelated' }}
       className={className ? `science-icon ${className}` : 'science-icon'}
-    >
-      <path d="M8 0 L10 6 L16 8 L10 10 L8 16 L6 10 L0 8 L6 6 Z" fill="var(--wh3)" />
-    </svg>
+    />
   );
 }
