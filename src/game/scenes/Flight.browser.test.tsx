@@ -485,3 +485,26 @@ it.each(CHASSIS_IDS)(
     }
   },
 );
+
+it.each(CHASSIS_IDS)(
+  'the %s trails sparks from each of its rear nozzles in turn',
+  async (chassis) => {
+    const { scene } = await fly(chassis);
+    scene.seek(momentOf(scene, 'transfer', 0.3));
+    const sparks = emitters(scene).find((e) => e.texture.key === 'fx_spark');
+    if (!sparks) throw new Error('no spark emitter');
+    const born: { x: number; y: number }[] = [];
+    sparks.onParticleEmit((p) => born.push({ x: sparks.x + p.x, y: sparks.y + p.y }));
+    await act(() => wait(600));
+    const { x, y, angle } = scene.ship;
+    const exits = nozzles(chassis, 'flight').map((nozzle) => {
+      const at = turn(nozzle.exit, angle);
+      return { x: x + at.x, y: y + at.y };
+    });
+    const near = (a: { x: number; y: number }, b: { x: number; y: number }): boolean =>
+      Math.hypot(a.x - b.x, a.y - b.y) < 0.5;
+    expect(born.length).toBeGreaterThan(0);
+    for (const spark of born) expect(exits.some((exit) => near(exit, spark))).toBe(true);
+    for (const exit of exits) expect(born.some((spark) => near(exit, spark))).toBe(true);
+  },
+);
