@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { firstTarget, heliopauseFound, landedOn, withDeltaV, withJumpDrive } from './testing.ts';
+import {
+  firstTarget,
+  heliopauseFound,
+  heliopauseInRange,
+  landedOn,
+  withDeltaV,
+  withJumpDrive,
+} from './testing.ts';
 import {
   assessStranding,
   bodyKnowledge,
@@ -250,7 +257,8 @@ describe('Stranded and the Jump', () => {
     const run = startRun(2026, 'scout');
     const target = firstTarget(run);
     // Fuel for any Hop, a Jump Drive aboard, and no Body known but the one it stands on.
-    const rich = withDeltaV(withJumpDrive(landedOn(run, target.id)), 100_000);
+    // The planets beyond taken out, so the Heliopause is within the Hop range (#283).
+    const rich = heliopauseInRange(withDeltaV(withJumpDrive(landedOn(run, target.id)), 100_000));
     const unfound = {
       ...rich,
       knowledge: { detected: [target.id], surveyed: [target.id], heliopauseFound: false },

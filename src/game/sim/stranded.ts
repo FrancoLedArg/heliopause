@@ -2,6 +2,7 @@
 // Spacecraft could still install, remove or Repair (a Rush paid from the Materials on hand), and the warning while a change could still save the Run.
 import type { ComponentId } from './catalogue.ts';
 import { formatDeltaV, HELIOPAUSE, leastDeltaV, planHop, type HopTarget } from './hop.ts';
+import { isInHopRange } from './hopRange.ts';
 import { installRefusal, withInstalled, type Outfit } from './install.ts';
 import { rushCost } from './cruise.ts';
 import { removalRefusal, withRemoved } from './remove.ts';
@@ -62,13 +63,13 @@ export function assertNotEnded(run: Run): void {
 function assess(run: Run): Stranding {
   // Only targets the player knows of count: a Body Comms has not Detected, or the Heliopause before
   // it is found, could not save a Run the player has no way to know it is in (#96).
+  // Nor does a target past the Hop range (#283): no build can reach it from here.
   const from = currentBody(run);
   const bodies = knownBodies(run).flatMap((body) =>
-    body.landable && body.id !== from.id ? [body.id] : [],
+    body.landable && body.id !== from.id && isInHopRange(run, body.id) ? [body.id] : [],
   );
-  const targets: readonly HopTarget[] = run.knowledge.heliopauseFound
-    ? [...bodies, HELIOPAUSE]
-    : bodies;
+  const heliopause = run.knowledge.heliopauseFound && isInHopRange(run, HELIOPAUSE);
+  const targets: readonly HopTarget[] = heliopause ? [...bodies, HELIOPAUSE] : bodies;
   if (targets.some((target) => chance(run, target) > 0)) return CLEAR;
 
   // No Hop as built. A plan's Burns, and so the least Δv that gives it any chance, do not depend on
@@ -77,7 +78,7 @@ function assess(run: Run): Stranding {
   const designs = buildable(run);
   const withJumpDrive = designs.find((design) => carriesJumpDrive(design.spacecraft));
   const heliopauseNeed =
-    withJumpDrive && run.knowledge.heliopauseFound
+    withJumpDrive && heliopause
       ? need({ ...run, spacecraft: withJumpDrive.spacecraft }, HELIOPAUSE)
       : Infinity;
 

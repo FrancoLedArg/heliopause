@@ -9,6 +9,7 @@ import {
   findBody,
   flyHop,
   HELIOPAUSE,
+  isInHopRange,
   install,
   listBodies,
   materials,
@@ -137,9 +138,13 @@ describe('the Radar', () => {
       expect(removed.run.knowledge).toEqual(swept.knowledge);
       // ...and a landing with no Radar aboard takes nothing away either.
       const known = removed.run.knowledge.detected.find(
-        (id) => id !== outermost.id && findBody(run.starSystem, id)?.landable,
+        (id) =>
+          id !== outermost.id &&
+          findBody(run.starSystem, id)?.landable &&
+          isInHopRange(removed.run, id),
       );
-      if (!known) throw new Error('The Radar Detected a landable Body');
+      // A Body in the Hop range to land on next, when the Radar Detected one (#283).
+      if (!known) continue;
       const after = landOn(removed.run, known);
       expect(after.knowledge.heliopauseFound).toBe(true);
       for (const id of swept.knowledge.surveyed) expect(bodyKnowledge(after, id)).toBe('surveyed');
@@ -164,23 +169,26 @@ describe('the Radar balance', () => {
   /**
    * The Hops a Run takes from the Starting Moon to the Heliopause, played by a model player: it
    * builds a level-1 Radar before its first Hop, then always Hops to the nearest Body it knows of
-   * and has not landed on that lies no nearer the star (falling back to any it knows), until the
-   * Radar finds the Heliopause, and then Hops there. Every Hop counts, along a band as well as out
-   * from it: each is a step of the way out. Fuel is never short, so the count measures the map's
+   * within the Hop range (#283) and has not landed on that lies no nearer the star (falling back to
+   * any it knows, then back out through one it has landed on), until the Radar finds the Heliopause
+   * and it is within the Hop range, and then Hops there. Every Hop counts, along a band as well as
+   * out from it: each is a step of the way out. Fuel is never short, so the count measures the map's
    * scale against the Radar's range, not the Δv balance.
    */
   function hopsToHeliopause(seed: number): number {
     let run = withRadar(startRun(seed, 'scout'), 'radar-1');
     const visited = new Set<BodyId>([currentBody(run).id]);
     for (let hops = 0; hops < 100; hops += 1) {
-      if (run.knowledge.heliopauseFound) return hops + 1;
+      if (run.knowledge.heliopauseFound && isInHopRange(run, HELIOPAUSE)) return hops + 1;
       const here = currentBody(run);
-      const options = run.knowledge.detected.flatMap((id) => {
+      const known = run.knowledge.detected.flatMap((id) => {
         const body = findBody(run.starSystem, id);
-        return body?.landable && !visited.has(id) ? [body] : [];
+        return body?.landable && isInHopRange(run, id) ? [body] : [];
       });
+      const options = known.filter((body) => !visited.has(body.id));
       const outward = options.filter((body) => body.distanceFromStar >= here.distanceFromStar);
-      const [next] = (outward.length > 0 ? outward : options).sort(
+      const back = known.filter((body) => body.distanceFromStar > here.distanceFromStar);
+      const [next] = (outward.length > 0 ? outward : options.length > 0 ? options : back).sort(
         (a, b) =>
           distanceBetween(run.starSystem, here, a) - distanceBetween(run.starSystem, here, b),
       );
