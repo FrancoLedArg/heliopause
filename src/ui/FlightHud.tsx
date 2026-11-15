@@ -19,6 +19,7 @@ import { FuelGauge } from './FuelGauge.tsx';
 import { HopReport } from './HopReport.tsx';
 import { SystemsLights } from './SystemsLights.tsx';
 import { JUMP_FLAVOUR_TEXT } from './jumpFlavour.ts';
+import { missionGoals } from './missionTrackerView.ts';
 import { TopBar } from './TopBar.tsx';
 import './FlightHud.css';
 
@@ -114,6 +115,7 @@ export function FlightHud({
       <>
         <TopBar
           systemNumber={starSystemNumber(before)}
+          goals={missionGoals(before)}
           systemName={before.starSystem.name}
           fuel={fuel}
           fuelCapacity={before.spacecraft.fuelCapacity}
@@ -153,6 +155,7 @@ export function FlightHud({
     <>
       <TopBar
         systemNumber={starSystemNumber(before)}
+        goals={missionGoals(before)}
         systemName={before.starSystem.name}
         fuel={fuel}
         fuelCapacity={before.spacecraft.fuelCapacity}

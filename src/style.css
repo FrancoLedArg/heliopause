@@ -240,11 +240,11 @@ body {
 }
 
 .top-bar__dv-icon {
-  left: 330px;
+  left: 300px;
 }
 
 .top-bar__materials-icon {
-  left: 450px;
+  left: 406px;
 }
 
 /* The readout a gathering moment fills: its icon swells and glows as each icon lands (shape, not just colour). */
@@ -314,7 +314,7 @@ body {
 
 .top-bar__dv-label,
 .top-bar__dv {
-  left: 366px;
+  left: 336px;
 }
 
 .top-bar__dv {
@@ -323,11 +323,88 @@ body {
 
 .top-bar__materials-label,
 .top-bar__materials {
-  left: 486px;
+  left: 442px;
 }
 
 .top-bar__materials {
   color: var(--gr3);
+}
+
+/* The mission tracker: three goal icons in a chain at the bar's right end, past the speaker controls. */
+.mission-tracker {
+  position: absolute;
+  top: 12px;
+  left: 518px;
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mission-tracker__step {
+  display: flex;
+  align-items: center;
+}
+
+.mission-tracker__link {
+  width: 3px;
+  height: 2px;
+  background: #5d7184;
+}
+
+.mission-tracker__link--lit {
+  background: var(--cy3);
+}
+
+.mission-tracker__goal {
+  position: relative;
+  display: block;
+  width: 12px;
+  height: 12px;
+}
+
+.mission-tracker__goal svg {
+  display: block;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.mission-tracker__goal--dim {
+  color: #8aa0b4;
+}
+
+/* Lit: filled, bright and glowing; unlit stays a hollow outline, so colour is never the only cue. */
+.mission-tracker__goal--lit {
+  color: var(--cy3);
+  filter: drop-shadow(0 0 3px var(--cy3));
+}
+
+.mission-tracker__goal--lit svg {
+  fill: currentcolor;
+}
+
+/* The tooltip, on hover or focus, right-aligned under the icon so it stays inside the screen. */
+.mission-tracker__goal::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: 20px;
+  right: -8px;
+  z-index: 10;
+  display: none;
+  padding: 2px 5px;
+  font: 14px/12px var(--font-pixel-body);
+  white-space: nowrap;
+  color: var(--cy3);
+  background: #05080ccc;
+  border: 1px solid var(--cy3);
+  filter: none;
+}
+
+.mission-tracker__goal:is(:hover, :focus-visible)::after {
+  display: block;
 }
 
 .landed-plate {
@@ -766,7 +843,7 @@ body {
 .top-bar__fuel-bar {
   top: 33px;
   left: 246px;
-  width: 76px;
+  width: 50px;
   height: 5px;
 }
 
@@ -1141,7 +1218,7 @@ body {
 /* In the top bar, on the value row between the Materials and the Menu button: the bare icon, no button frame. */
 .music-controls--bar {
   top: 19px;
-  left: 532px;
+  left: 494px;
 }
 
 .music-controls--bar > .music-controls__button {
