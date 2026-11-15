@@ -31,7 +31,7 @@ Almost all art is AI-generated pixel art (the exceptions are marked below; see `
 
 - **Browser favicon** (`public/favicon.svg`, issue #102): a 16×16 pixel-art ringed planet in the kit's palette, drawn by an AI agent (Claude) from `docs/design/sprites/gen_favicon.py`. It only appears in the tab of the game page, whose permanent "AI-generated art" label covers it like every other generated sprite.
 
-As the rules require, every game screen shows a visible "AI-generated art" watermark. No audio or fonts are AI-generated so far; any that are will be listed here.
+As the rules require, every game screen shows a visible "AI-generated art and music" watermark. No audio or fonts are AI-generated so far; any that are will be listed here.
 
 ## NASA branding
 
