@@ -185,12 +185,12 @@
 
 .spacecraft-panel__figures {
   left: 0;
-  top: 116px;
+  top: 114px;
   width: 228px;
   margin: 0;
   display: grid;
   grid-template-columns: 1fr auto;
-  row-gap: 3px;
+  row-gap: 2px;
   font: 12px/12px var(--font-pixel-body);
 }
 
@@ -204,28 +204,76 @@
   text-align: right;
 }
 
-/* The before-you-pay preview (#109) goes here; for now, what the highlighted Component is for. */
+/* The before-you-pay preview: dry mass, Fuel capacity and Δv before → after, then one lesson line. */
 .spacecraft-panel__preview {
   left: 0;
-  top: 164px;
+  top: 156px;
   width: 228px;
-  height: 78px;
+  height: 88px;
 }
 
 .spacecraft-panel__preview > * {
   position: absolute;
   left: 0;
   width: 228px;
+  margin: 0;
 }
 
 .spacecraft-panel__preview > .spacecraft-panel__label {
   top: 0;
 }
 
-.spacecraft-panel__about {
-  top: 14px;
+.spacecraft-panel__forecast {
+  top: 12px;
+  display: grid;
+  row-gap: 1px;
   font: 12px/12px var(--font-pixel-body);
+}
+
+.spacecraft-panel__forecast-line {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+}
+
+.spacecraft-panel__forecast dt {
+  color: var(--gm5);
+}
+
+.spacecraft-panel__forecast dd {
+  margin: 0;
   color: var(--wh2);
+}
+
+.spacecraft-panel__change {
+  margin-left: 6px;
+  color: var(--gm6);
+}
+
+/* Δv: its change is a line of its own, a word as well as a colour. */
+.spacecraft-panel__change--up,
+.spacecraft-panel__change--down,
+.spacecraft-panel__change--same {
+  display: block;
+  margin-left: 0;
+}
+
+.spacecraft-panel__change--down {
+  color: var(--am3);
+}
+
+.spacecraft-panel__change--up {
+  color: var(--gr3);
+}
+
+.spacecraft-panel__note {
+  top: 63px;
+  font: 12px/12px var(--font-pixel-body);
+  color: var(--wh3);
+}
+
+/* With no figures to show, the sentence takes the top of the block. */
+.spacecraft-panel .spacecraft-panel__note--first {
+  top: 0;
 }
 
 /* ---- Catalogue ---- */
@@ -343,13 +391,13 @@
   top: 218px;
 }
 
-/* ---- Remove: the question sits over the figures, above the About spot ---- */
+/* ---- Remove: the question sits over the figures, above the preview ---- */
 
 .spacecraft-panel__confirm {
   left: 0;
-  top: 58px;
+  top: 56px;
   width: 228px;
-  height: 102px;
+  height: 100px;
   box-sizing: border-box;
   border: 1px solid var(--am3);
   background: var(--ink);
@@ -369,7 +417,7 @@
 .spacecraft-panel__confirm-buttons {
   position: absolute;
   left: 6px;
-  top: 70px;
+  top: 68px;
   width: 214px;
   height: 24px;
   display: flex;

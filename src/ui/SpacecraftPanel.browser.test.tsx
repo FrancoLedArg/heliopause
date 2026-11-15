@@ -4,6 +4,7 @@ import { afterEach, expect, it } from 'vitest';
 import { EventBus } from '../game/EventBus.ts';
 import {
   CHASSIS_IDS,
+  COMPONENT_IDS,
   COMPONENTS,
   install,
   materials,
@@ -14,6 +15,7 @@ import {
 } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { SpacecraftPanel } from './SpacecraftPanel.tsx';
+import { componentLabel } from './spacecraftPanelView.ts';
 
 afterEach(cleanUp);
 
@@ -225,22 +227,39 @@ function press(el: HTMLElement): void {
   });
 }
 
-/** Chooses a Slot as a keyboard player would, so Tab leaves from it. */
-function chooseSlot(host: HTMLElement, label: RegExp): void {
-  const slot = slotRadio(host, label);
-  press(slot);
-  slot.focus();
+function named(el: Element | null): string {
+  return el?.getAttribute('aria-label') ?? el?.textContent ?? '';
+}
+
+/** Presses Tab (or Shift+Tab) until the focused control's name matches, with no pointer involved. */
+async function tabTo(name: RegExp, backwards = false): Promise<void> {
+  for (let step = 0; step < 40; step += 1) {
+    if (name.test(named(document.activeElement))) return;
+    await userEvent.keyboard(backwards ? '{Shift>}{Tab}{/Shift}' : '{Tab}');
+  }
+  throw new Error(`Tab never reached ${String(name)}`);
+}
+
+/** Moves focus to a Slot as a keyboard player does: Shift+Tab out to the Slots, then the arrow keys. */
+async function focusSlot(label: RegExp): Promise<void> {
+  for (let step = 0; step < 12; step += 1) {
+    const active = document.activeElement;
+    if (label.test(named(active))) return;
+    await userEvent.keyboard(
+      active?.getAttribute('role') === 'radio' ? '{ArrowRight}' : '{Shift>}{Tab}{/Shift}',
+    );
+  }
+  throw new Error(`No way by keyboard to ${String(label)}`);
 }
 
 it('removes a Component by keyboard alone, asks first, and Materials rise by half its cost', async () => {
   const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
   const stock = (): string => byTestId(host, 'install-target').textContent;
-  act(() => {
-    installButton(host, /Install Fuel Tank, level 1/).click();
-  });
+  await tabTo(/Install Fuel Tank, level 1/);
+  await userEvent.keyboard('{Enter}');
   expect(stock()).toContain('5 Materials in stock');
   // Slot 3 now holds the Tank. Focus it and press Remove with the keyboard.
-  chooseSlot(host, /^Slot 3, Fuel Tank/);
+  await focusSlot(/^Slot 3, Fuel Tank/);
   await userEvent.keyboard('{Tab}');
   expect(document.activeElement?.textContent).toBe('Remove');
   await userEvent.keyboard('{Enter}');
@@ -261,10 +280,9 @@ it('removes a Component by keyboard alone, asks first, and Materials rise by hal
 
 it('Escape on the confirm step keeps the Component and leaves the panel open', async () => {
   const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
-  act(() => {
-    installButton(host, /Install Fuel Tank, level 1/).click();
-  });
-  chooseSlot(host, /^Slot 3, Fuel Tank/);
+  await tabTo(/Install Fuel Tank, level 1/);
+  await userEvent.keyboard('{Enter}');
+  await focusSlot(/^Slot 3, Fuel Tank/);
   await userEvent.keyboard('{Tab}{Enter}{Escape}');
   expect(host.querySelector('[data-testid="remove-confirm"]')).toBeNull();
   expect(byTestId(host, 'slot-caption').textContent).toContain('Fuel Tank, level 1');
@@ -272,9 +290,45 @@ it('Escape on the confirm step keeps the Component and leaves the panel open', a
   expect(document.activeElement?.textContent).toBe('Remove');
 });
 
+it('Escape cancels an open remove question even when focus has left the confirm step', async () => {
+  const closed: string[] = [];
+  const host = await renderUi(
+    <SpacecraftPanel
+      run={fullRun(['engine-1', 'fuel-tank-1', 'fuel-tank-1', null])}
+      onClose={() => {
+        closed.push('closed');
+      }}
+    />,
+  );
+  await focusSlot(/^Slot 3, Fuel Tank/);
+  await userEvent.keyboard('{Tab}{Enter}');
+  expect(host.querySelector('[data-testid="remove-confirm"]')).not.toBeNull();
+  // Shift+Tab leaves the confirm step for the Remove button, then Escape answers the question.
+  await userEvent.keyboard('{Shift>}{Tab}{/Shift}');
+  expect(document.activeElement?.closest('[data-testid="remove-confirm"]')).toBeNull();
+  await userEvent.keyboard('{Escape}');
+  expect(host.querySelector('[data-testid="remove-confirm"]')).toBeNull();
+  expect(closed).toEqual([]);
+  // With nothing asked, the next Escape closes the panel.
+  await userEvent.keyboard('{Escape}');
+  expect(closed).toEqual(['closed']);
+});
+
+it('clears the old outcome line when it asks about a removal', async () => {
+  const host = await renderUi(
+    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', null])} />,
+  );
+  await tabTo(/Install Drill, level 2/);
+  await userEvent.keyboard('{Enter}');
+  expect(byTestId(host, 'install-status').textContent).toContain("Can't install");
+  await focusSlot(/^Slot 3, Drill/);
+  await userEvent.keyboard('{Tab}{Enter}');
+  expect(byTestId(host, 'install-status').textContent).toBe('');
+});
+
 it('refuses the last Engine and the last Fuel Tank in words, without asking', async () => {
   const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
-  chooseSlot(host, /^Slot 1, Engine/);
+  await focusSlot(/^Slot 1, Engine/);
   await userEvent.keyboard('{Tab}{Enter}');
   expect(byTestId(host, 'install-status').textContent).toBe(
     "Can't remove. It is your last Engine, and without one you cannot fly.",
@@ -350,4 +404,94 @@ it('keeps the Fuel-loss warning and its buttons inside the panel, with room to s
   expect(
     buttons.getBoundingClientRect().top - range.getBoundingClientRect().bottom,
   ).toBeGreaterThanOrEqual(24);
+});
+
+function previewText(host: HTMLElement): string {
+  return byTestId(host, 'install-preview').textContent;
+}
+
+it('previews a Fuel Tank dropping Δv, in words, when its Install button is focused and before paying', async () => {
+  const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
+  await tabTo(/Install Fuel Tank, level 1/);
+  const text = previewText(host);
+  expect(text).toContain('Install Fuel Tank 1');
+  expect(text).toContain('22.1 km/s → 19.0 km/s');
+  expect(text).toContain('Drops 3.1 km/s');
+  expect(text).toContain('starts empty');
+  // Nothing was paid: the Materials and the Δv in the figures are as they were.
+  expect(byTestId(host, 'install-target').textContent).toContain('25 Materials in stock');
+  expect(byTestId(host, 'panel-delta-v').textContent).toBe('22.1 km/s');
+});
+
+it('previews the removal of the Component in the chosen Slot, and says why when it cannot be removed', async () => {
+  const host = await renderUi(
+    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', null])} />,
+  );
+  await focusSlot(/^Slot 3, Drill/);
+  expect(previewText(host)).toContain('Remove Drill 1');
+  expect(previewText(host)).toContain('−0.8 t');
+  await focusSlot(/^Slot 1, Engine/);
+  expect(previewText(host)).toContain('last Engine');
+  expect(host.querySelector('[data-testid="preview-line"]')).toBeNull();
+});
+
+// The longest previews on every Chassis: each catalogue entry as an install, each Component as a
+// removal. The text keeps 16 px inside its box and the block keeps 8 px above the panel's bottom,
+// since VT323 and Silkscreen differ between machines.
+it.each(CHASSIS_IDS)(
+  'keeps every preview inside its box, with room to spare (%s)',
+  async (chassis) => {
+    const base = startRun(2026, chassis);
+    const spacecraft = refit(base.spacecraft, ['engine-2', 'fuel-tank-2', 'fuel-tank-1', null]);
+    const run: Run = { ...base, spacecraft: { ...spacecraft, fuelMass: spacecraft.fuelCapacity } };
+    const host = await renderUi(<Harness initial={run} />);
+    const panel = host.querySelector<HTMLElement>('.spacecraft-panel')?.getBoundingClientRect();
+    const box = byTestId(host, 'install-preview');
+    const check = (): void => {
+      const area = box.getBoundingClientRect();
+      expect(box.scrollHeight).toBeLessThanOrEqual(box.clientHeight);
+      expect(area.bottom).toBeLessThanOrEqual((panel?.bottom ?? 0) - 8);
+      for (const el of box.querySelectorAll<HTMLElement>('*')) {
+        expect(el.scrollWidth, el.className).toBeLessThanOrEqual(el.clientWidth);
+        // Only the elements that hold text themselves: a container's range is its whole box.
+        if ([...el.childNodes].some((node) => node.nodeType !== Node.TEXT_NODE)) continue;
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const text = range.getBoundingClientRect();
+        if (text.width === 0) continue;
+        // A sentence may wrap, in at most two lines; the figures keep to one line each.
+        if (el.classList.contains('spacecraft-panel__note')) {
+          expect(text.height, el.className).toBeLessThanOrEqual(24);
+        } else {
+          expect(text.right, el.className).toBeLessThanOrEqual(area.right - 16);
+        }
+        expect(text.bottom, el.className).toBeLessThanOrEqual(area.bottom - 8);
+      }
+      // It stays clear of the figures above it.
+      const figures = host.querySelector<HTMLElement>('.spacecraft-panel__figures');
+      expect(area.top).toBeGreaterThanOrEqual(figures?.getBoundingClientRect().bottom ?? 0);
+    };
+    for (const id of COMPONENT_IDS) {
+      await tabTo(new RegExp(`Install ${componentLabel(id)},`));
+      check();
+      await userEvent.keyboard('{Tab}');
+    }
+    for (const slot of [
+      /^Slot 1, Engine/,
+      /^Slot 2, Fuel Tank/,
+      /^Slot 3, Fuel Tank/,
+      /^Slot 4, empty/,
+    ]) {
+      await focusSlot(slot);
+      check();
+    }
+  },
+);
+
+it('shows no figures, only a sentence, when every Slot is full and a catalogue entry is focused', async () => {
+  const host = await renderUi(
+    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', 'drill-1'])} />,
+  );
+  await tabTo(/Install Engine, level 2/);
+  expect(previewText(host)).toContain('Every Slot is full');
 });

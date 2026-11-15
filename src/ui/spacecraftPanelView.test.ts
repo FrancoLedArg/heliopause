@@ -13,6 +13,7 @@ import {
 } from '../game/sim/index.ts';
 import {
   describeEffect,
+  describePreview,
   describeRefusal,
   describeRemoval,
   describeRemoveRefusal,
@@ -198,5 +199,49 @@ describe('removing a Component is explained in words', () => {
     expect(
       describeRemoval({ slot: 3, held: 'drill-1', refund: materials(12), fuelLost: kilograms(0) }),
     ).toBe('Remove Drill, level 1 from Slot 4? You get 12 Materials back.');
+  });
+});
+
+describe('the preview before you pay', () => {
+  const scout = startRun(123, 'scout').spacecraft;
+
+  it('shows a Fuel Tank dropping Δv, in words as well as the numbers', () => {
+    const preview = describePreview(scout, { kind: 'install', component: 'fuel-tank-1' });
+    const dv = preview?.lines.find((line) => line.label === 'Δv');
+    expect(preview?.heading).toBe('Install Fuel Tank 1');
+    expect(dv).toEqual({
+      label: 'Δv',
+      before: '22.1 km/s',
+      after: '19.0 km/s',
+      change: 'Drops 3.1 km/s',
+      trend: 'down',
+    });
+    expect(preview?.note).toContain('starts empty');
+  });
+
+  it('shows the mass and Fuel capacity as before → after with the difference', () => {
+    const preview = describePreview(scout, { kind: 'install', component: 'fuel-tank-1' });
+    expect(preview?.lines.slice(0, 2)).toEqual([
+      { label: 'Dry mass', before: '4.0 t', after: '5.5 t', change: '+1.5 t', trend: 'up' },
+      { label: 'Fuel cap.', before: '21.0 t', after: '42.0 t', change: '+21.0 t', trend: 'up' },
+    ]);
+  });
+
+  it('says no change when a figure does not move, and says a removal lowers mass', () => {
+    const drill = describePreview(scout, { kind: 'install', component: 'drill-1' });
+    expect(drill?.lines[1]?.change).toBe('No change');
+    expect(drill?.note).toBe('');
+    const removal = describePreview(refit(scout, ['engine-1', 'fuel-tank-1', 'drill-1', null]), {
+      kind: 'remove',
+      slot: 2,
+    });
+    expect(removal?.heading).toBe('Remove Drill 1');
+    expect(removal?.lines[0]?.change).toBe('−0.8 t');
+    expect(removal?.lines[2]?.trend).toBe('up');
+  });
+
+  it('has nothing to preview with no empty Slot to install into', () => {
+    const full = refit(scout, ['engine-1', 'fuel-tank-1', 'drill-1', 'drill-1']);
+    expect(describePreview(full, { kind: 'install', component: 'drill-1' })).toBeUndefined();
   });
 });

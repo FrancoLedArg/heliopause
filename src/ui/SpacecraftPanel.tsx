@@ -14,6 +14,7 @@ import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import {
   componentLabel,
+  describePreview,
   describeRefusal,
   describeRemoval,
   describeRemoveRefusal,
@@ -33,7 +34,7 @@ const SLOT_CODES = { engine: 'ENG', 'fuel-tank': 'TANK', drill: 'DRL' } as const
 
 /** What the last install or removal attempt said; `undefined` before the first one. */
 interface Outcome {
-  readonly kind: 'installed' | 'refused';
+  readonly kind: 'installed' | 'removed' | 'refused';
   readonly text: string;
 }
 
@@ -45,9 +46,13 @@ interface SpacecraftPanelProps {
 
 /**
  * The Spacecraft panel: the 4 Slots, the Mass bar and figures, and the catalogue, where each
- * Component can be installed by paying its Materials. Modal: it covers the Landed view, takes Tab,
- * and closes on Escape. Installing sends the request to the Landed scene, which owns the Run and
- * answers with the changed Run, so the Hop plan and the top bar follow at once.
+ * Component can be installed by paying its Materials and the one in the chosen Slot removed for
+ * half its cost back (after a yes or no). Before the player pays or confirms, a preview shows the
+ * dry mass, Fuel capacity and Δv the change would give, for the catalogue entry they focus or hover
+ * and for the installed Component they choose. Modal: it covers the Landed view, takes Tab, and
+ * closes on Escape (which first answers an open remove question with no). Installing and removing
+ * send the request to the Landed scene, which owns the Run and answers with the changed Run, so the
+ * Hop plan and the top bar follow at once.
  */
 export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   const titleId = useId();
@@ -55,9 +60,12 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   const captionId = useId();
   const { spacecraft } = run;
   const rows = panelRows(run);
-
   const [selected, setSelected] = useState(() => Math.max(0, spacecraft.slots.indexOf(null)));
+  const held = spacecraft.slots[selected] ?? null;
+
   const [aboutId, setAboutId] = useState<PanelRow['id']>(() => firstAffordable(rows));
+  // What the preview is about: the catalogue entry last focused or hovered, or the chosen Slot's Component.
+  const [previewing, setPreviewing] = useState<'catalogue' | 'slot'>('catalogue');
   const [outcome, setOutcome] = useState<Outcome | undefined>(undefined);
   // The Slot whose removal is waiting for a yes or no; `undefined` when nothing is asked.
   const [confirming, setConfirming] = useState<number | undefined>(undefined);
@@ -73,18 +81,24 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Escape closes from anywhere. preventDefault keeps it from also opening the Menu under the panel.
+  // Escape answers an open remove question with no, wherever focus is, and otherwise closes the
+  // panel. preventDefault keeps it from also opening the Menu under the panel.
   useEffect(() => {
     const onKey = (event: globalThis.KeyboardEvent): void => {
       if (event.key !== 'Escape' || event.defaultPrevented) return;
       event.preventDefault();
-      onClose();
+      if (confirming === undefined) {
+        onClose();
+      } else {
+        setConfirming(undefined);
+        removeRef.current?.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, [onClose, confirming]);
 
   // Modal: Tab goes round the panel and never leaves it.
   const onPanelKey = (event: KeyboardEvent<HTMLElement>): void => {
@@ -107,6 +121,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   const choose = (index: number): void => {
     setSelected(index);
     setConfirming(undefined);
+    setPreviewing('slot');
   };
   const selectSlot = (index: number): void => {
     choose(index);
@@ -146,16 +161,17 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
       });
       return;
     }
+    setOutcome(undefined);
+    setPreviewing('slot');
     setConfirming(selected);
   };
   const confirmRemoval = (): void => {
-    const held = spacecraft.slots[selected];
     const result = remove(run, selected);
-    if (result.kind === 'refused' || !held) return;
+    if (result.kind === 'refused' || held === null) return;
     EventBus.emit('component-remove-requested', selected);
     setConfirming(undefined);
     setOutcome({
-      kind: 'installed',
+      kind: 'removed',
       text: `Removed ${componentLabel(held)} from Slot ${String(selected + 1)}. Refunded ${String(result.refund)} Materials.`,
     });
     removeRef.current?.focus();
@@ -164,12 +180,6 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
     setConfirming(undefined);
     removeRef.current?.focus();
   };
-  const onConfirmKey = (event: KeyboardEvent<HTMLElement>): void => {
-    if (event.key !== 'Escape') return;
-    // Escape answers the question only; the panel stays open.
-    event.preventDefault();
-    cancelRemoval();
-  };
 
   // Asking moves the keyboard to Keep, the safe answer.
   useEffect(() => {
@@ -177,11 +187,29 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   }, [confirming]);
 
   const target = installTarget(spacecraft.slots, selected);
-  const pending = confirming === selected ? remove(run, selected) : undefined;
-  const pendingHeld = spacecraft.slots[selected];
+  const removal = held === null ? undefined : remove(run, selected);
+  const pending = confirming === selected ? removal : undefined;
   const bar = massBar(spacecraft);
-  const heldBySelected = spacecraft.slots[selected] ?? null;
-  const about = rows.find((row) => row.id === aboutId);
+  // The chosen Slot's Component is previewed as removed (or why it cannot be); otherwise the
+  // catalogue entry as installed.
+  const previewingRemoval = previewing === 'slot' && removal !== undefined;
+  const forecast =
+    previewingRemoval && removal.kind === 'refused'
+      ? undefined
+      : describePreview(
+          spacecraft,
+          previewingRemoval
+            ? { kind: 'remove', slot: selected }
+            : {
+                kind: 'install',
+                component: aboutId,
+                ...(target === undefined ? {} : { slot: target }),
+              },
+        );
+  const noForecast =
+    previewingRemoval && removal.kind === 'refused'
+      ? describeRemoveRefusal(removal.reason)
+      : 'Every Slot is full: remove a Component first.';
 
   return (
     <section
@@ -240,23 +268,22 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
           Escape closes.
         </p>
         <p id={captionId} className="spacecraft-panel__slot-caption" data-testid="slot-caption">
-          {heldBySelected === null
+          {held === null
             ? `Slot ${String(selected + 1)} is empty.`
-            : `Slot ${String(selected + 1)}: ${componentLabel(heldBySelected)}.`}
+            : `Slot ${String(selected + 1)}: ${componentLabel(held)}.`}
         </p>
 
-        {pending?.kind === 'removed' && pendingHeld && (
+        {pending?.kind === 'removed' && held !== null && (
           <div
             className="spacecraft-panel__confirm"
             role="group"
             aria-label="Confirm removal"
             data-testid="remove-confirm"
-            onKeyDown={onConfirmKey}
           >
             <p role="alert" className="spacecraft-panel__confirm-text">
               {describeRemoval({
                 slot: selected,
-                held: pendingHeld,
+                held,
                 refund: pending.refund,
                 fuelLost: pending.fuelLost,
               })}
@@ -311,13 +338,40 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
           <dd data-testid="panel-delta-v">{formatDeltaV(availableDeltaV(spacecraft))}</dd>
         </dl>
 
-        {/*
-          The spot for the before-you-pay preview (#109): the Hop plan's figures with and without the
-          highlighted Component. Until then it says what the highlighted Component is for.
-        */}
         <div className="spacecraft-panel__preview" data-testid="install-preview">
-          <h2 className="spacecraft-panel__label">About {about ? componentLabel(about.id) : ''}</h2>
-          <p className="spacecraft-panel__about">{about?.explanation}</p>
+          {forecast ? (
+            <>
+              <h2 className="spacecraft-panel__label">{forecast.heading}</h2>
+              <dl className="spacecraft-panel__forecast">
+                {forecast.lines.map((line) => (
+                  <div
+                    key={line.label}
+                    className={`spacecraft-panel__forecast-line spacecraft-panel__forecast-line--${line.trend}`}
+                    data-testid="preview-line"
+                  >
+                    <dt>{line.label}</dt>
+                    <dd>
+                      <span>
+                        {line.before} → {line.after}
+                      </span>
+                      <span
+                        className={
+                          line.label === 'Δv'
+                            ? `spacecraft-panel__change spacecraft-panel__change--${line.trend}`
+                            : 'spacecraft-panel__change'
+                        }
+                      >
+                        {line.label === 'Δv' ? line.change : `(${line.change})`}
+                      </span>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="spacecraft-panel__note">{forecast.note}</p>
+            </>
+          ) : (
+            <p className="spacecraft-panel__note spacecraft-panel__note--first">{noForecast}</p>
+          )}
         </div>
       </div>
 
@@ -342,6 +396,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
               data-testid="component-row"
               onMouseEnter={() => {
                 setAboutId(row.id);
+                setPreviewing('catalogue');
               }}
             >
               <p className="spacecraft-panel__row-head">
@@ -371,6 +426,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                 aria-describedby={`${titleId}-effect-${row.id}`}
                 onFocus={() => {
                   setAboutId(row.id);
+                  setPreviewing('catalogue');
                 }}
                 onClick={() => {
                   tryInstall(row);
