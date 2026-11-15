@@ -215,7 +215,8 @@ export function readyToJump(seed: number, chassisId: ChassisId): Run | undefined
       (a, b) => distanceBetween(run.starSystem, here, a) - distanceBetween(run.starSystem, here, b),
     );
     if (!next) return undefined;
-    const flown = launchHop(run, next.id);
+    // With no Cruise events (#250): the explorer's route pins the Burns, and replays with `events: []`.
+    const flown = launchHop(run, next.id, { schedule: [] });
     if (flown.kind !== 'flown') return undefined;
     run = flown.run;
     visited.add(next.id);

@@ -65,8 +65,11 @@ function fittedWith(from: Run, slots: readonly Slot[]): Run {
  * Seed 44's Scout after Hopping to Rahiocu, Quutyrvex-4 and Vilthioqui, `extra` Materials added at the
  * start: a Run that only swapping in the level-2 Engine (60 Materials) could save, each plan sure yet
  * the last Arriving Stranded as built. Re-pinned for #283 (was seed 27's Dryli, Siolmel, Teskae and
- * Dryli): the Hop range keeps Teskae out of reach from Siolmel.
+ * Dryli): the Hop range keeps Teskae out of reach from Siolmel. Flown with no Cruise events (#250
+ * turned the Fuel leak on): this pins Stranded on the Burns alone.
  */
+const NO_EVENTS = { events: [] } as const;
+
 function backOnVilthioqui(extra: number): Run {
   let run = startRun(44, 'scout');
   // Stranded follows the plans the player sees (#190): every Body but the three flown to is Surveyed,
@@ -83,7 +86,7 @@ function backOnVilthioqui(extra: number): Run {
   for (const name of flownTo) {
     const body = listBodies(run.starSystem).find((b) => b.name === name);
     if (!body) throw new Error(`Seed 44 has no ${name}`);
-    const landed = launchHop(run, body.id);
+    const landed = launchHop(run, body.id, NO_EVENTS);
     if (landed.kind !== 'flown' || landed.flight.outcome.kind !== 'arrived') {
       throw new Error(`Seed 44: the Hop to ${name} should Arrive`);
     }
@@ -330,7 +333,8 @@ describe('the simulation settles Stranded itself', () => {
     const onKorli = landedOn(r, origin.id);
     const start = withDeltaV(onKorli, plan(onKorli, body.id).totalEstimate * 1.1001);
     expect(plan(start, body.id).successChance).toBe(1);
-    const flown = launchHop(start, body.id);
+    // Flown with no Cruise events (#250 turned the Fuel leak on): Stranded here is the Burns' doing.
+    const flown = launchHop(start, body.id, NO_EVENTS);
     if (flown.kind !== 'flown') throw new Error('expected a Hop');
     expect(flown.flight.outcome).toEqual({ kind: 'arrived' });
     expect(flown.run.status).toEqual({
@@ -367,26 +371,29 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('a replayed Run ends Stranded where the game did, and takes no choice after it', () => {
+    // Flown with no Cruise events (#250): this pins Stranded on the Burns alone.
     // Seed 1, played as the player sees it (every Body Unsurveyed until landed on): the fifth Hop
     // strands it. Re-pinned for #283 (was seed 4's four Hops): the Hop range keeps Prumal out of reach.
     let run = startRun(1, 'scout');
     for (const name of ['Prinu-3', 'Vunzae', 'Talryx Minor', 'Sionprynio', 'Sylpryl']) {
       const body = listBodies(run.starSystem).find((b) => b.name === name);
       if (!body) throw new Error(`Seed 1 has no ${name}`);
-      const flown = launchHop(run, body.id);
+      const flown = launchHop(run, body.id, NO_EVENTS);
       if (flown.kind !== 'flown') throw new Error(`Seed 1: no Hop to ${name}`);
       run = flown.run;
     }
     expect(run.status).toMatchObject(stranded);
-    const replayed = replay(1, 'scout', run.choices);
+    const replayed = replay(1, 'scout', run.choices, NO_EVENTS);
     expect(replayed).toMatchObject({ kind: 'replayed', end: { kind: 'stranded' } });
     if (replayed.kind !== 'replayed') return;
     expect(replayed.run.status).toEqual(run.status);
     // A choice made after the end is refused.
-    const after = replay(1, 'scout', [
-      ...run.choices,
-      { kind: 'install', slot: 2, componentId: 'drill-1' },
-    ]);
+    const after = replay(
+      1,
+      'scout',
+      [...run.choices, { kind: 'install', slot: 2, componentId: 'drill-1' }],
+      NO_EVENTS,
+    );
     expect(after).toMatchObject({ kind: 'rejected', at: 5 });
   });
 

@@ -369,3 +369,42 @@
   top: 76px;
   left: 0;
 }
+
+/* A Damaged Component's light (#250): a red lamp, a button that starts its Repair. */
+.systems-lights__light--damaged {
+  pointer-events: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.systems-lights__light--damaged .systems-lights__lamp {
+  border-color: var(--rd4);
+  background: var(--rd3);
+  box-shadow: 0 0 4px var(--rd3);
+}
+
+.systems-lights__light--damaged .systems-lights__icon {
+  filter: drop-shadow(0 0 1px var(--rd3));
+}
+
+/* While Repaired, a cyan ring fills round the red lamp. */
+.systems-lights__light--repairing .systems-lights__lamp {
+  width: 10px;
+  height: 10px;
+  border: 0;
+  box-shadow: none;
+  background:
+    radial-gradient(circle, var(--rd3) 30%, transparent 36%),
+    conic-gradient(var(--cy3) var(--repair), var(--gm3) var(--repair));
+}
+
+.systems-lights__light--damaged:focus-visible {
+  outline: 1px solid var(--cy4);
+  outline-offset: 1px;
+}
+
+.systems-lights__light--damaged[aria-disabled='true'] {
+  cursor: default;
+}

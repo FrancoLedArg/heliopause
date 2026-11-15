@@ -101,9 +101,9 @@ export const GATHERING_TIMING = {
 
 /**
  * The centre of each top-bar readout's icon in the 640×360 stage: where the flying icons land. The top
- * bar sits at (8, 6) with its 32 px icons at x 210 and 450, 4 px down (`style.css`, `.top-bar__*-icon`).
+ * bar sits at (8, 6) with its 32 px icons at x 210 and 406, 4 px down (`style.css`, `.top-bar__*-icon`).
  */
 export const READOUT_ICON: Record<GatheredResource, { readonly x: number; readonly y: number }> = {
   fuel: { x: 8 + 210 + 16, y: 6 + 4 + 16 },
-  materials: { x: 8 + 450 + 16, y: 6 + 4 + 16 },
+  materials: { x: 8 + 406 + 16, y: 6 + 4 + 16 },
 };

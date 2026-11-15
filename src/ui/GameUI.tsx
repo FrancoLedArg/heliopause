@@ -32,6 +32,7 @@ import { NavChartPanel } from './NavChartPanel.tsx';
 import { SpacecraftPanel } from './SpacecraftPanel.tsx';
 import { RunMenu } from './RunMenu.tsx';
 import { TitleMenu, type TitleButton } from './TitleMenu.tsx';
+import { missionGoals } from './missionTrackerView.ts';
 import { TopBar } from './TopBar.tsx';
 
 /** The device clock, read each time so a test's fake clock applies. */
@@ -78,6 +79,8 @@ export function GameUI() {
         before: Run;
         flight: HopFlight;
         moment?: FlightMoment;
+        /** The Run in its Cruise while the Cruise runs (#250). */
+        live?: Run | undefined;
         /** What follows the playback once it is over. */
         after?: FlightAfter;
       }
@@ -261,6 +264,18 @@ export function GameUI() {
       EventBus.on('hop-flight-moment', (moment) => {
         setFlight((now) => now && { ...now, moment });
       }),
+      // The Cruise runs live (#250): its Damage and Repairs, then the Hop as it really ended.
+      EventBus.on('cruise-updated', (live) => {
+        setFlight((now) => now && { ...now, live });
+      }),
+      EventBus.on('hop-flight-settled', (settled) => {
+        setFlight((now) => now && { ...now, flight: settled, live: undefined });
+      }),
+      // A Cruise event drops the fast-forward, so the player always has the time to react (#210).
+      EventBus.on('cruise-event-struck', () => {
+        fastForwardRef.current = false;
+        setFastForward(false);
+      }),
       EventBus.on('hop-failed', (_failed, ended) => {
         // The Run is over: its Score is recorded here, once, whatever the end screen does after.
         const recorded = recordEnd(ended, dailyRef.current);
@@ -420,6 +435,7 @@ export function GameUI() {
         <>
           <TopBar
             systemNumber={starSystemNumber(stranded.run)}
+            goals={missionGoals(stranded.run)}
             systemName={stranded.run.starSystem.name}
             fuel={stranded.run.spacecraft.fuelMass}
             fuelCapacity={stranded.run.spacecraft.fuelCapacity}
@@ -462,7 +478,9 @@ export function GameUI() {
       {scene === SceneKey.Landed &&
         run !== undefined &&
         stranded === undefined &&
-        chart !== undefined && <NavChartPanel run={run} state={chart} />}
+        chart !== undefined && (
+          <NavChartPanel run={run} state={chart} daily={daily !== undefined} />
+        )}
       {scene === SceneKey.Landed &&
         run !== undefined &&
         stranded === undefined &&
@@ -500,6 +518,7 @@ export function GameUI() {
           dailyDay={flight.after?.kind === 'ended' ? flight.after.recorded.dailyDay : daily}
           fast={fastForward}
           onFastChange={changeFastForward}
+          live={flight.live}
         />
       )}
       <p className="hud-tag ai-label">AI-generated art and music</p>
