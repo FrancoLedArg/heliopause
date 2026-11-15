@@ -15,6 +15,13 @@ import {
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { HopReport } from './HopReport.tsx';
 import { expectTextBudget, visibleSentences } from './textBudget.ts';
+import { heliopauseFound } from '../game/sim/testing.ts';
+
+/**
+ * The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target, and
+ * only within the Hop range (#283).
+ */
+const found = heliopauseFound;
 
 afterEach(cleanUp);
 
@@ -92,7 +99,7 @@ it('the worst report with a Drill fits with room to spare: ice line, left-behind
 function heliopauseHop(share: number): [Run, HopFlight] {
   for (let seed = 1; seed < 200; seed++) {
     const start = startRun(seed, 'lancer');
-    const built = install({ ...start, materials: materials(100) }, 2, 'jump-drive');
+    const built = install(found({ ...start, materials: materials(100) }), 2, 'jump-drive');
     if (built.kind !== 'installed') throw new Error('Expected an install');
     const { spacecraft } = built.run;
     const run = {
@@ -141,9 +148,10 @@ const reports: [string, () => [Run, HopFlight]][] = [
       return [before, hop(before, 'Praerionrio Prime').flight];
     },
   ],
-  ['Fell Short', () => halfFuelledHop('fell-short', 'hauler')],
+  // A fifth of the Fuel since #283: within the Hop range, half still reaches every Body.
+  ['Fell Short', () => halfFuelledHop('fell-short', 'hauler', 0.2)],
   // 0.45 of the Fuel, not half, is what Crashes from there (as in hopReportView.test.ts).
-  ['Crashed', () => halfFuelledHop('crashed', 'scout', 0.45)],
+  ['Crashed', () => halfFuelledHop('crashed', 'scout', 0.3)],
   ['the Heliopause', () => heliopauseHop(1)],
 ];
 

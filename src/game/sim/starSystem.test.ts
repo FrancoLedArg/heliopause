@@ -178,7 +178,7 @@ describe('Star System generation', () => {
     const system = generateStarSystem(123);
     const pinned = JSON.parse(
       // Re-pinned for #189: generation keeps the first draw with a fair opening on its Starting Moon.
-      '["Tothaexprae","planet-4-moon-3","95.561119",[["planet-1","Mioquoxdru","0.434101","3.682326","3.929378","4559.460"],["planet-1-moon-1","Draeldri","0.434101","3.751611","0.145221","291.269"],["planet-1-moon-2","Draeprer","0.434101","1.871768","1.007471","1546.378"],["planet-2","Tiosli","1.129603","5.613642","4.036287","4680.390"],["planet-2-moon-1","Hulxu","1.129603","3.164405","1.764707","2648.627"],["planet-2-moon-2","Ruxi","1.129603","3.516488","0.474599","770.718"],["planet-3","Quyzi Prime","6.338748","3.402418","9.287885","22859.528"],["planet-3-moon-1","Tyquesion","6.338748","0.564942","1.218963","1854.230"],["planet-3-moon-2","Zulthix-2","6.338748","1.548380","1.078617","1649.940"],["planet-3-moon-3","Thuri","6.338748","3.148021","0.317604","542.193"],["planet-3-moon-4","Venke","6.338748","5.224049","0.692915","1088.504"],["planet-4","Viosprixzul","8.208549","6.019771","10.320600","25599.091"],["planet-4-moon-1","Viormio","8.208549","4.047939","1.244971","1892.088"],["planet-4-moon-2","Thyhae","8.208549","5.446103","1.168266","1780.434"],["planet-4-moon-3","Hyrzethion","8.208549","4.218566","0.212536","389.254"],["planet-5","Caexisu","12.556880","1.667084","16.331792","41545.448"],["planet-5-moon-1","Mesprursin","12.556880","0.576598","0.364335","610.215"],["planet-5-moon-2","Maerprondro Nova","12.556880","1.518801","0.271552","475.159"],["planet-6","Raexthanho","18.627722","5.859746","20.504913","52615.812"],["planet-6-moon-1","Relhoxry","18.627722","0.845263","1.058425","1620.547"],["planet-6-moon-2","Thakyxy","18.627722","1.127325","1.112827","1699.736"],["planet-7","Narsexdros","23.252931","4.579620","12.472028","31306.352"],["planet-7-moon-1","Rexsio","23.252931","5.402485","1.215491","1849.176"],["planet-7-moon-2","Niovy","23.252931","3.856455","1.174568","1789.608"],["planet-7-moon-3","Xydraes","23.252931","3.337050","0.137052","279.378"],["planet-7-moon-4","Xezix","23.252931","4.000847","1.399849","2117.531"]]]',
+      '["Tothaexprae","planet-4-moon-3","28.484496",[["planet-1","Mioquoxdru","0.434101","3.682326","3.929378","4559.460"],["planet-1-moon-1","Draeldri","0.434101","3.751611","0.145221","291.269"],["planet-1-moon-2","Draeprer","0.434101","1.871768","1.007471","1546.378"],["planet-2","Tiosli","1.129603","5.613642","4.036287","4680.390"],["planet-2-moon-1","Hulxu","1.129603","3.164405","1.764707","2648.627"],["planet-2-moon-2","Ruxi","1.129603","3.516488","0.474599","770.718"],["planet-3","Quyzi Prime","6.338748","3.402418","9.287885","22859.528"],["planet-3-moon-1","Tyquesion","6.338748","0.564942","1.218963","1854.230"],["planet-3-moon-2","Zulthix-2","6.338748","1.548380","1.078617","1649.940"],["planet-3-moon-3","Thuri","6.338748","3.148021","0.317604","542.193"],["planet-3-moon-4","Venke","6.338748","5.224049","0.692915","1088.504"],["planet-4","Viosprixzul","8.208549","6.019771","10.320600","25599.091"],["planet-4-moon-1","Viormio","8.208549","4.047939","1.244971","1892.088"],["planet-4-moon-2","Thyhae","8.208549","5.446103","1.168266","1780.434"],["planet-4-moon-3","Hyrzethion","8.208549","4.218566","0.212536","389.254"],["planet-5","Caexisu","12.556880","1.667084","16.331792","41545.448"],["planet-5-moon-1","Mesprursin","12.556880","0.576598","0.364335","610.215"],["planet-5-moon-2","Maerprondro Nova","12.556880","1.518801","0.271552","475.159"],["planet-6","Raexthanho","18.627722","5.859746","20.504913","52615.812"],["planet-6-moon-1","Relhoxry","18.627722","0.845263","1.058425","1620.547"],["planet-6-moon-2","Thakyxy","18.627722","1.127325","1.112827","1699.736"],["planet-7","Narsexdros","23.252931","4.579620","12.472028","31306.352"],["planet-7-moon-1","Rexsio","23.252931","5.402485","1.215491","1849.176"],["planet-7-moon-2","Niovy","23.252931","3.856455","1.174568","1789.608"],["planet-7-moon-3","Xydraes","23.252931","3.337050","0.137052","279.378"],["planet-7-moon-4","Xezix","23.252931","4.000847","1.399849","2117.531"]]]',
     ) as unknown;
     expect([
       system.name,
@@ -302,7 +302,7 @@ describe('a fair opening (#96), with no early dead ends (#188)', () => {
             if (isDepleted(run, body.id) || body.baseYield <= 0) return false;
             const knowing = { ...run, knowledge: { ...run.knowledge, detected: [body.id] } };
             const plan = planHop(knowing, body.id);
-            return plan.kind === 'planned' && plan.plan.successChance > 0;
+            return plan.kind === 'planned' && plan.plan.successChance >= 0.7;
           });
           if (!lifeline)
             found.push(`seed ${system.seed} level ${level} ${chassis}: none from ${here}`);
@@ -337,8 +337,10 @@ describe('Star System difficulty levels', { timeout: 60_000 }, () => {
     );
     // Re-pinned for #189: the Starting Moon replaces the Home Planet, and generation checks its opening.
     // Re-pinned for #247: the Chassis Isp rose, so more draws open fairly and some seeds settle sooner.
-    // Re-pinned for #280: a draw is redrawn when no Fuel source is In reach after the first Hop.
-    expect(stringSeed(json)).toBe(4188208228);
+    // Re-pinned for #191: the Heliopause lies just past the outermost planet, where the Radar finds it.
+    // Re-pinned for #283: fairness weighs only Hops within the Hop range, so some seeds keep other draws.
+    // Re-pinned for #280: a draw is preferred when a Fuel source is In reach after the first Hop.
+    expect(stringSeed(json)).toBe(516314147);
   });
 
   it('a higher difficulty level raises gravity', () => {

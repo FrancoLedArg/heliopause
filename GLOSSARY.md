@@ -152,6 +152,10 @@ _Avoid_: Money, budget, credits, scrap
 One planned trip of the Spacecraft from the Body it is on to another Body or to the Heliopause, played out after the player commits to it.
 _Avoid_: Jump, mission, trip, turn
 
+**Hop range**:
+How far one Hop can go: to the planet the Spacecraft is at, or the planet on either side of it, or any of their Moons. The Heliopause is in range only from the outermost planet or its Moons, so the way out is planet by planet.
+_Avoid_: Reach (that is the Success Chance verdict), jump range
+
 **Burn**:
 One engine firing within a Hop: Takeoff from the current Body, Transfer through space, or Landing on the target.
 _Avoid_: Phase, maneuver, stage
@@ -165,7 +169,7 @@ The probability, shown before launch, that the Spacecraft's Fuel covers the actu
 _Avoid_: Odds, risk, probability
 
 **In reach**:
-A Body a Hop from where the Spacecraft is landed reaches with a Success Chance above 0%, with the Fuel on board.
+A Body within the Hop range whose Hop plan, as the player sees it, has a Success Chance of at least 70% with the Fuel on board. Below that a Hop is Marginal, and at 0% Out of reach.
 _Avoid_: Reachable, in range
 
 **Fuel source**:

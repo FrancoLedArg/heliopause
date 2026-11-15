@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { firstTarget, landedOn, withDeltaV, withJumpDrive } from './testing.ts';
+import {
+  firstTarget,
+  heliopauseFound,
+  heliopauseInRange,
+  landedOn,
+  withDeltaV,
+  withJumpDrive,
+} from './testing.ts';
 import {
   assessStranding,
   bodyKnowledge,
@@ -12,6 +19,7 @@ import {
   currentBody,
   findBody,
   isDepleted,
+  isInHopRange,
   listBodies,
   STARTING_MATERIALS,
   startingMoon,
@@ -121,9 +129,8 @@ describe('the opening', () => {
     }
   });
 
-  it('until the Radar (#191) can find it, the Heliopause is found from the start', () => {
-    // Without this no Run could escape: the Radar is the only other way to find the Heliopause.
-    expect(startRun(2026, 'scout').knowledge.heliopauseFound).toBe(true);
+  it('a new Run has not found the Heliopause: only the Radar finds it', () => {
+    for (const seed of SEEDS) expect(startRun(seed, 'scout').knowledge.heliopauseFound).toBe(false);
   });
 
   it('every Chassis starts on the same Starting Moon knowing the same Bodies', () => {
@@ -149,14 +156,14 @@ function arrive(run: Run, target: string): ReturnType<typeof flyHop> {
 
 /**
  * Whether `body` is a Fuel source In reach of the landed Run: an Icy Body with Fuel left that a Hop
- * reaches with some Success Chance, whether or not Comms has Detected it yet.
+ * shows In reach (at least 70%, #190), whether or not Comms has Detected it yet.
  */
 function isFuelSourceInReach(run: Run, body: Body): boolean {
   if (!body.landable || body.composition !== 'icy' || body.baseYield <= 0) return false;
   if (isDepleted(run, body.id) || body.id === currentBody(run).id) return false;
   const knowing = { ...run, knowledge: { ...run.knowledge, detected: [body.id] } };
   const planned = planHop(knowing, body.id);
-  return planned.kind === 'planned' && planned.plan.successChance > 0;
+  return planned.kind === 'planned' && planned.plan.successChance >= 0.7;
 }
 
 describe('landing and Comms', () => {
@@ -230,7 +237,9 @@ describe('landing and Comms', () => {
             )
             .sort((a, b) => auBetween(run, target, a) - auBetween(run, target, b));
           const source = undetected.find((b) => isFuelSourceInReach(after, b));
-          const expected = !knewSource && source ? source : undetected[0];
+          // Otherwise the nearest within the Hop range, when any is left there (#283).
+          const inRange = undetected.filter((b) => isInHopRange(after, b.id));
+          const expected = !knewSource && source ? source : (inRange[0] ?? undetected[0]);
           if (!knewSource && source) lifelines++;
           else plain++;
           expect(flight.reveal?.detected).toEqual(expected ? [expected.id] : []);
@@ -285,12 +294,11 @@ describe('landing and Comms', () => {
 
   it('the Heliopause is no Hop target until it is found', () => {
     const run = withJumpDrive(startRun(2026, 'scout'));
-    const unfound = { ...run, knowledge: { ...run.knowledge, heliopauseFound: false } };
-    expect(planHop(unfound, HELIOPAUSE)).toMatchObject({
+    expect(planHop(run, HELIOPAUSE)).toMatchObject({
       kind: 'invalid-target',
       reason: 'not-found',
     });
-    expect(planHop(run, HELIOPAUSE).kind).toBe('planned');
+    expect(planHop(heliopauseFound(run), HELIOPAUSE).kind).toBe('planned');
   });
 });
 
@@ -313,7 +321,8 @@ describe('Stranded and the Jump', () => {
     const run = startRun(2026, 'scout');
     const target = firstTarget(run);
     // Fuel for any Hop, a Jump Drive aboard, and no Body known but the one it stands on.
-    const rich = withDeltaV(withJumpDrive(landedOn(run, target.id)), 100_000);
+    // The planets beyond taken out, so the Heliopause is within the Hop range (#283).
+    const rich = heliopauseInRange(withDeltaV(withJumpDrive(landedOn(run, target.id)), 100_000));
     const unfound = {
       ...rich,
       knowledge: { detected: [target.id], surveyed: [target.id], heliopauseFound: false },
@@ -324,7 +333,7 @@ describe('Stranded and the Jump', () => {
   });
 
   it('a Jump arrives on a Starting Moon knowing nothing but the opening', () => {
-    const run = withJumpDrive(startRun(2026, 'lancer'));
+    const run = heliopauseFound(withJumpDrive(startRun(2026, 'lancer')));
     const launched = launchHop(run, HELIOPAUSE);
     if (launched.kind !== 'flown') throw new Error(launched.why);
     const after = launched.run;
@@ -333,6 +342,8 @@ describe('Stranded and the Jump', () => {
     expect(after.status).toEqual({ kind: 'landed', bodyId: moon.id });
     expect(idsAt(after, 'detected')).toHaveLength(1);
     expect(bodyKnowledge(after, moon.id)).toBe('surveyed');
+    // The new Heliopause is not found: the Radar must find it again.
+    expect(after.knowledge.heliopauseFound).toBe(false);
     // The new Starting Moon gave up its yield on arrival, as at Run start.
     expect(after.depleted).toEqual([moon.id]);
     expect(after.startingYield.kind).not.toBe('depleted');

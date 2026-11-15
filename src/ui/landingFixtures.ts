@@ -29,9 +29,24 @@ export function landing(
   path: readonly string[],
   fit?: ComponentId,
   extraMaterials = 0,
+  preSurvey = true,
 ): Landing {
   const start = startRun(seed, 'scout');
-  let run: Run = { ...start, materials: materials(start.materials + extraMaterials) };
+  // Stranded follows the plans the player sees (#190): every Body off the path is pre-Surveyed, so
+  // its plan is the real one and the fixtures strand (or warn) as they did before Unsurveyed plans.
+  const surveyed = [
+    ...start.knowledge.surveyed,
+    ...(preSurvey
+      ? listBodies(start.starSystem)
+          .filter(({ name }) => !path.includes(name))
+          .map(({ id }) => id)
+      : []),
+  ];
+  let run: Run = {
+    ...start,
+    materials: materials(start.materials + extraMaterials),
+    knowledge: { ...start.knowledge, surveyed },
+  };
   if (fit) {
     const fitted = install(run, 2, fit);
     if (fitted.kind !== 'installed') throw new Error(`Seed ${String(seed)}: cannot fit ${fit}`);
@@ -53,37 +68,35 @@ export function landing(
 }
 
 /**
- * Seed 111 with a level-1 Drill, on Malsaer again after Malsaer and Susrox: no Hop as built, but
- * removing the Drill saves the Run. Re-pinned for #189 (was seed 45's Mavar, then seed 11 before a
- * Rocky opening stopped adding Materials over a New Run's), for #247 (was seed 15's Pripro): the
- * Chassis Isp rose 30%, so seed 15's Run has a Hop there, and for #280 (was seed 156's Rymoquox):
- * Comms now Detects a Fuel source In reach first, so Rymoquox is never Detected.
+ * Seed 7 with a level-1 Drill, landed on Sekiox by way of Rasprux, Rynlior and Prioxquiol (re-pinned
+ * for #280, was seed 105's Verpry): no Hop as built,
+ * but removing the Drill saves the Run, with every Body Unsurveyed until landed on as in real play
+ * (pass `preSurvey` false). Re-pinned for #190 (was seed 156's Rymoquox): Stranded and the warning
+ * follow the plans the player sees, and the old route only warned with its other Bodies Surveyed.
  */
 export const SAVE_BY_REMOVING = {
-  seed: 111,
-  path: ['Malsaer', 'Susrox', 'Malsaer'],
+  seed: 7,
+  path: ['Rasprux', 'Rynlior', 'Prioxquiol', 'Sekiox'],
   fit: 'drill-1',
 } as const;
 
 /**
- * Seed 10, back on Lanpraen after Lanpraen, Dryslansu and Salsyr: the last Hop's plan is sure, and
- * no change to the Spacecraft could give any Hop a chance. Re-pinned for #189 (was seed 305's
- * Lyquin): Runs open on a Starting Moon and Hop only to Bodies Comms Detected. Re-pinned for #247
- * (was seed 12's Laquun): the Chassis Isp rose 30%, so that Run is no longer Stranded. Re-pinned for
- * #280 (was seed 27's Dryli): Comms now Detects a Fuel source In reach first, so Siolmel is never
- * Detected.
+ * Seed 5, back on Ryvynsio after Driovae, Ryvynsio and Cyxxaer-7 (re-pinned for #280, was seed 27's
+ * Dryli): the last Hop's plan is sure, and no change
+ * to the Spacecraft could give any Hop a chance. Re-pinned for #189 (was seed 305's Lyquin): Runs
+ * open on a Starting Moon and Hop only to Bodies Comms Detected. Re-pinned for #247 (was seed 12's
+ * Laquun): the Chassis Isp rose 30%, so that Run is no longer Stranded.
  */
 export const STRANDED_ON_LANDING = {
-  seed: 10,
-  path: ['Lanpraen', 'Dryslansu', 'Salsyr', 'Lanpraen'],
+  seed: 5,
+  path: ['Driovae', 'Ryvynsio', 'Cyxxaer-7', 'Ryvynsio'],
 } as const;
 
 /**
- * Seed 10's same path with 15 Materials more than it would have, landing with 60: only swapping in
- * the level-2 Engine (60) saves the Run, so spending any of them on another Component strands it.
- * With one fewer, the Landing itself strands it. Re-pinned for #189 (was seed 57's Vekyr) and #280
- * (was seed 27's, with 1 more).
+ * Seed 5's same path with 23 Materials more than it would have, landing with 60: only swapping in the
+ * level-2 Engine (60) saves the Run, so spending any of them on another Component strands it.
+ * Without it, the Landing itself strands it. Re-pinned for #189 (was seed 57's Vekyr).
  */
 export function saveByRefitting(): Run {
-  return landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path, undefined, 15).run;
+  return landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path, undefined, 23).run;
 }

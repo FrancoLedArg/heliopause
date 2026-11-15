@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../lib/rng.ts';
+import { DIFFICULTY_TUNING, difficultyFactor } from './data.ts';
 import {
   astronomicalUnits,
   availableDeltaV,
@@ -10,7 +11,14 @@ import {
   metersPerSecond,
   metersPerSecondSquared,
   planHop,
+  reachVerdict,
+  UNSURVEYED,
+  kilograms,
+  assessStranding,
+  HELIOPAUSE,
+  isInHopRange,
   startRun,
+  generateSystem,
   type BodyId,
   type HopFlight,
   type Run,
@@ -85,7 +93,12 @@ describe('Burn estimates', () => {
       const target = innerPlanet(start).moons[0];
       if (!target) throw new Error('The innermost planet has a Moon');
       const origins = listBodies(start.starSystem)
-        .filter((body) => body.landable && body.id !== target.id)
+        .filter(
+          (body) =>
+            body.landable &&
+            body.id !== target.id &&
+            isInHopRange(landedOn(start, body.id), target.id),
+        )
         .sort((a, b) => a.surfaceGravity - b.surfaceGravity);
       const takeoffs = origins.map(
         (body) => plan(landedOn(start, body.id), target.id).estimates.takeoff,
@@ -502,5 +515,133 @@ describe('launching a Hop', () => {
       kind: 'invalid-target',
       reason: 'current-body',
     });
+  });
+});
+
+describe('an Unsurveyed Hop (#190)', () => {
+  const target = innerMoon(run);
+  const unsurveyedKnowledge = {
+    ...run.knowledge,
+    surveyed: run.knowledge.surveyed.filter((id) => id !== target.id),
+  };
+  // Fuel for a little over the Surveyed plan's estimate, so its odds sit in the middle.
+  const tight = withDeltaV(run, plan(run, target.id).totalEstimate * 1.05);
+  const tightUnsurveyed: Run = { ...tight, knowledge: unsurveyedKnowledge };
+
+  it('an Unsurveyed plan has a lower Success Chance than the same Hop Surveyed', () => {
+    const surveyed = plan(tight, target.id);
+    const unsurveyed = plan(tightUnsurveyed, target.id);
+    expect(surveyed.unsurveyed).toBe(false);
+    expect(unsurveyed.unsurveyed).toBe(true);
+    expect(unsurveyed.estimates.landing).toBeGreaterThan(surveyed.estimates.landing);
+    expect(unsurveyed.successChance).toBeLessThan(surveyed.successChance);
+  });
+
+  it('the flight uses the real values: the same Hop flies the same either way', () => {
+    const actuals = (r: Run) =>
+      flyHop(r, plan(r, target.id), createRng(7)).flight.burns.map((burn) =>
+        burn.status === 'completed' ? burn.actual : undefined,
+      );
+    expect(actuals(tightUnsurveyed)).toEqual(actuals(tight));
+  });
+});
+
+describe('the reach verdict (#190)', () => {
+  it('is In reach from 70%, Out of reach at exactly 0%, and Marginal in between', () => {
+    expect(reachVerdict({ successChance: 1 })).toBe('in-reach');
+    expect(reachVerdict({ successChance: 0.7 })).toBe('in-reach');
+    expect(reachVerdict({ successChance: 0.69 })).toBe('marginal');
+    expect(reachVerdict({ successChance: 0.02 })).toBe('marginal');
+    expect(reachVerdict({ successChance: 1e-9 })).toBe('marginal');
+    expect(reachVerdict({ successChance: 0 })).toBe('out-of-reach');
+  });
+});
+
+describe('what the player sees and what is real (#190)', () => {
+  const SEEDS_SWEPT = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+
+  const LEVELS = [1, 2, 3, 4, 5, 6];
+  /** A Run of a seed in Star System number `level`, standing on its innermost planet. */
+  const atLevel = (seed: number, level: number): Run =>
+    onInnerPlanet({
+      ...startRun(seed, 'scout'),
+      starSystemNumber: level,
+      starSystem: generateSystem(seed, level),
+    });
+
+  it('every landable Body of a Star System has a real escape velocity within the Unsurveyed plan range, at every level', () => {
+    for (const level of LEVELS) {
+      const factor = difficultyFactor(DIFFICULTY_TUNING.gravity, level);
+      for (const seed of SEEDS_SWEPT) {
+        for (const body of listBodies(generateSystem(seed, level))) {
+          if (!body.landable) continue;
+          const kind = body.kind;
+          expect(body.escapeVelocity).toBeLessThanOrEqual(
+            UNSURVEYED.cautiousEscapeVelocity[kind] * factor + 1e-9,
+          );
+          expect(body.escapeVelocity).toBeGreaterThanOrEqual(
+            UNSURVEYED.leastEscapeVelocity[kind] * factor - 1e-9,
+          );
+        }
+      }
+    }
+  });
+
+  it('an Unsurveyed plan reads 0% only when the real Hop has no chance', () => {
+    for (const [seed, level] of SEEDS_SWEPT.flatMap((s) => LEVELS.map((l) => [s, l] as const))) {
+      const start = atLevel(seed, level);
+      const from = start.status.kind === 'landed' ? start.status.bodyId : '';
+      for (const body of listBodies(start.starSystem)) {
+        if (!body.landable || body.id === from) continue;
+        for (const share of [0.02, 0.05, 0.1, 0.2, 0.35, 0.5, 0.75, 1]) {
+          const fuelled = {
+            ...start,
+            spacecraft: {
+              ...start.spacecraft,
+              fuelMass: kilograms(start.spacecraft.fuelCapacity * share),
+            },
+          };
+          const shown = planHop(
+            {
+              ...fuelled,
+              knowledge: {
+                ...fuelled.knowledge,
+                surveyed: fuelled.knowledge.surveyed.filter((id) => id !== body.id),
+              },
+            },
+            body.id,
+          );
+          const real = planHop(fuelled, body.id);
+          if (shown.kind !== 'planned' || real.kind !== 'planned') continue;
+          if (shown.plan.successChance === 0) expect(real.plan.successChance).toBe(0);
+          expect(shown.plan.estimates.landing).toBeGreaterThanOrEqual(real.plan.estimates.landing);
+          expect(shown.plan.bestCase).toBeLessThanOrEqual(real.plan.bestCase);
+        }
+      }
+    }
+  });
+
+  it('a Run is Stranded only when every plan the player sees reads 0%', () => {
+    for (const seed of SEEDS_SWEPT) {
+      const start = startRun(seed, 'scout');
+      for (const share of [0.01, 0.02, 0.03, 0.05, 0.1, 0.2, 0.5, 1]) {
+        const run = {
+          ...start,
+          spacecraft: {
+            ...start.spacecraft,
+            fuelMass: kilograms(start.spacecraft.fuelCapacity * share),
+          },
+        };
+        if (assessStranding(run).kind !== 'stranded') continue;
+        const targets = [
+          ...run.knowledge.detected,
+          ...(run.knowledge.heliopauseFound ? [HELIOPAUSE] : []),
+        ];
+        for (const target of targets) {
+          const shown = planHop(run, target);
+          if (shown.kind === 'planned') expect(shown.plan.successChance).toBe(0);
+        }
+      }
+    }
   });
 });

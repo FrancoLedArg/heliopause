@@ -140,14 +140,14 @@ describe.each(CHASSIS_IDS)(
 
 /**
  * Whether `body` is a Fuel source In reach of the landed Run: an Icy Body with Fuel left that a Hop
- * reaches with some Success Chance, Detected or not.
+ * shows In reach (at least 70%, #190), Detected or not.
  */
 function fuelSourceInReach(run: Run, body: Body): boolean {
   if (!body.landable || body.composition !== 'icy' || body.baseYield <= 0) return false;
   if (isDepleted(run, body.id) || body.id === currentBody(run).id) return false;
   const knowing = { ...run, knowledge: { ...run.knowledge, detected: [body.id] } };
   const planned = planHop(knowing, body.id);
-  return planned.kind === 'planned' && planned.plan.successChance > 0;
+  return planned.kind === 'planned' && planned.plan.successChance >= 0.7;
 }
 
 /** After one landing: whether a Fuel source is Detected and In reach, and whether one is In reach at all. */

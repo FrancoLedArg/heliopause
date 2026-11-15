@@ -78,8 +78,8 @@ it('a Run Stranded on Landing goes straight to the End-of-Run screen with the St
     // Re-pinned for #189: seed 12, back on Laquun (was seed 305's Lyquin); for #247: seed 27, back on
     // Dryli (seed 12's Run no longer strands once the Isp rose 30%); for #280: seed 10, back on
     // Lanpraen (Comms Detects a Fuel source first, so seed 27's Siolmel is never Detected).
-    'However you change its Components, your Spacecraft has at most 4.7 km/s of Δv, and the ' +
-      'cheapest Hop needs 5.2 km/s.',
+    'However you change its Components, your Spacecraft has at most 4.3 km/s of Δv, and the ' +
+      'cheapest Hop needs 4.8 km/s.',
   );
   expect(find(ui, 'end-of-run-score')?.getAttribute('aria-label')).toBe(
     'Score: 0 Star Systems escaped, 4 Hops flown',

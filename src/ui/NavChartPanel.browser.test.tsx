@@ -18,6 +18,13 @@ import {
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
 import { expectTextBudget } from './textBudget.ts';
+import { heliopauseFound } from '../game/sim/testing.ts';
+
+/**
+ * The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target, and
+ * only within the Hop range (#283).
+ */
+const found = heliopauseFound;
 
 afterEach(cleanUp);
 
@@ -99,15 +106,16 @@ it.each([
 // zero with its stronger warning) must keep every gauge and line inside the plan area, above the
 // buttons, with its details open as well as closed, and the Δv help under the chart must fit the frame.
 // Re-pinned for #189: from seed 123's innermost planet a half-fuelled Spacecraft is short of Rexsio
-// (was Sircer, from the Home Planet).
+// (was Sircer, from the Home Planet). Re-pinned for #283: Rexsio is past the Hop range, so a fifth of
+// the Fuel falls short of Tiosli.
 it.each(['scout', 'hauler'] as const)(
-  'keeps the whole Hop plan above Cancel and Launch, open or closed, and the Δv help inside the frame (%s, seed 123 Rexsio, half the Fuel)',
+  'keeps the whole Hop plan above Cancel and Launch, open or closed, and the Δv help inside the frame (%s, seed 123 Tiosli, a fifth of the Fuel)',
   async (chassis) => {
     const full = newRun(123, chassis);
-    const fuelMass = kilograms(full.spacecraft.fuelMass / 2);
+    const fuelMass = kilograms(full.spacecraft.fuelMass / 5);
     const run = { ...full, spacecraft: { ...full.spacecraft, fuelMass } };
-    const far = listBodies(run.starSystem).find((b) => b.name === 'Rexsio');
-    if (!far) throw new Error('seed 123 has no Rexsio');
+    const far = listBodies(run.starSystem).find((b) => b.name === 'Tiosli');
+    if (!far) throw new Error('seed 123 has no Tiosli');
     const host = await renderUi(
       <NavChartPanel run={run} state={{ focusedId: far.id, selectedId: far.id }} />,
     );
@@ -204,6 +212,13 @@ function opening(run: Run): { home: Planet; moon: Body } {
   return { home, moon };
 }
 
+/** The same Run stood beside `moon`, on its planet or a sibling Moon: within the Hop range (#283). */
+function besideMoon(run: Run, home: Planet, moon: Body): Run {
+  const stand = home.landable ? home : home.moons.find((m) => m.id !== moon.id);
+  if (!stand) throw new Error('No Body beside the Moon');
+  return { ...run, status: { kind: 'landed', bodyId: stand.id } };
+}
+
 // The tallest the side panel gets: a 21-character target name (two lines, so the plan moves down) with
 // the strongest warning (a Margin below zero, here from almost no Fuel). Baselines differ by platform,
 // so the last line keeps real room inside the plan and the plan stays clear of the buttons.
@@ -216,11 +231,15 @@ it('keeps the tallest plan, with a 21-character target and a Margin warning, cle
       ? { ...planet, moons: planet.moons.map((m) => (m.id === moon.id ? { ...m, name } : m)) }
       : planet,
   );
-  const run = {
-    ...base,
-    starSystem: { ...base.starSystem, planets },
-    spacecraft: { ...base.spacecraft, fuelMass: kilograms(1) },
-  };
+  const run = besideMoon(
+    {
+      ...base,
+      starSystem: { ...base.starSystem, planets },
+      spacecraft: { ...base.spacecraft, fuelMass: kilograms(1) },
+    },
+    home,
+    moon,
+  );
   const host = await renderUi(
     <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
   );
@@ -407,12 +426,16 @@ it('keeps the tallest plan, 21-character target, Margin warning and Depleted, cl
       ? { ...planet, moons: planet.moons.map((m) => (m.id === moon.id ? { ...m, name } : m)) }
       : planet,
   );
-  const run = {
-    ...base,
-    starSystem: { ...base.starSystem, planets },
-    spacecraft: { ...base.spacecraft, fuelMass: kilograms(1) },
-    depleted: [moon.id],
-  };
+  const run = besideMoon(
+    {
+      ...base,
+      starSystem: { ...base.starSystem, planets },
+      spacecraft: { ...base.spacecraft, fuelMass: kilograms(1) },
+      depleted: [moon.id],
+    },
+    home,
+    moon,
+  );
   const host = await renderUi(
     <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
   );
@@ -463,15 +486,31 @@ it('names Depleted in the screen-reader entry for the Body', async () => {
 
 /** A lancer on seed 1 with a Jump Drive installed: the Heliopause is within its reach. */
 function withJumpDrive(): Run {
-  const result = install({ ...newRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+  const result = install(
+    found({ ...newRun(1, 'lancer'), materials: materials(100) }),
+    2,
+    'jump-drive',
+  );
   if (result.kind !== 'installed') throw new Error('Expected an install');
   return result.run;
 }
 
+it('lists no Heliopause until the Radar finds it', async () => {
+  const run = startRun(1, 'lancer');
+  const host = await renderUi(
+    <NavChartPanel
+      run={run}
+      state={{ focusedId: run.starSystem.startingMoonId, selectedId: undefined }}
+    />,
+  );
+  expect(host.querySelector(`#nav-option-${HELIOPAUSE}`)).toBeNull();
+  expect(host.querySelectorAll('[role="option"]')).toHaveLength(run.knowledge.detected.length);
+});
+
 it('says on the chart why the focused Heliopause cannot be the target without a Jump Drive', async () => {
   const host = await renderUi(
     <NavChartPanel
-      run={newRun(1, 'lancer')}
+      run={found(newRun(1, 'lancer'))}
       state={{ focusedId: HELIOPAUSE, selectedId: undefined }}
     />,
   );
@@ -586,12 +625,12 @@ it('opens the Hop plan details by keyboard: each Burn with its reason, and the m
 it('the text-budget helper passes on the Hop plan, in every state, and on the chart under it', async () => {
   const scout = newRun(123, 'scout');
   const full = newRun(123, 'hauler');
-  // Half-fuelled, the hauler is short of Rexsio (see the fit test above).
+  // With a fifth of its Fuel, the hauler is short of Tiosli (see the fit test above).
   const hauler = {
     ...full,
-    spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 2) },
+    spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 5) },
   };
-  const sircer = listBodies(scout.starSystem).find((b) => b.name === 'Rexsio');
+  const sircer = listBodies(scout.starSystem).find((b) => b.name === 'Tiosli');
   // The landable Body with the lowest Success Chance from the innermost planet.
   const far = listBodies(scout.starSystem)
     .flatMap((body) => {
@@ -708,4 +747,58 @@ it('the yield icon fits inside the card and the target block', async () => {
   };
   within(byTestId(byTestId(host, 'inspect'), 'resource-icon'), byTestId(host, 'inspect'));
   within(byTestId(byTestId(host, 'target'), 'resource-icon'), byTestId(host, 'target'));
+});
+
+/** A New Run's first Hop target, with that target Surveyed or not. */
+function surveyedRun(surveyed: boolean): { run: Run; target: Body } {
+  const base = newRun(123, 'scout');
+  const here = base.status.kind === 'landed' ? base.status.bodyId : '';
+  const target = listBodies(base.starSystem).find((b) => b.landable && b.id !== here);
+  if (!target) throw new Error('no target');
+  const knowledge = {
+    ...base.knowledge,
+    surveyed: surveyed
+      ? base.knowledge.surveyed
+      : base.knowledge.surveyed.filter((id) => id !== target.id),
+  };
+  return { run: { ...base, knowledge }, target };
+}
+
+it('flags an Unsurveyed target with a badge and shows the reach verdict, both with accessible names (#190)', async () => {
+  const { run, target } = surveyedRun(false);
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: target.id, selectedId: target.id }} />,
+  );
+  expect(byTestId(host, 'plan-unsurveyed').getAttribute('aria-label')).toBe('Unsurveyed');
+  expect(byTestId(host, 'plan-warning').getAttribute('aria-label')).toMatch(/^Reach: /);
+  expect(byTestId(host, 'target-reach').getAttribute('aria-label')).toMatch(/^Reach: /);
+  expectTextBudget(byTestId(host, 'hop-plan'));
+});
+
+it('shows no Unsurveyed badge for a Surveyed target (#190)', async () => {
+  const { run, target } = surveyedRun(true);
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: target.id, selectedId: target.id }} />,
+  );
+  expect(host.querySelector('[data-testid="plan-unsurveyed"]')).toBeNull();
+  expect(byTestId(host, 'target-reach').getAttribute('aria-label')).toMatch(/^Reach: /);
+});
+
+it('fits the badge and the verdict inside the plan at 640x360 (#190)', async () => {
+  const { run, target } = surveyedRun(false);
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: target.id, selectedId: target.id }} />,
+  );
+  const plan = byTestId(host, 'hop-plan').getBoundingClientRect();
+  const frame = host.querySelector<HTMLElement>('.nav-chart__panel')?.getBoundingClientRect();
+  for (const id of ['plan-unsurveyed', 'plan-warning', 'plan-success']) {
+    const box = byTestId(host, id).getBoundingClientRect();
+    expect(box.right).toBeLessThanOrEqual(plan.right);
+    expect(box.left).toBeGreaterThanOrEqual(plan.left);
+    expect(box.bottom).toBeLessThanOrEqual(frame?.bottom ?? plan.bottom);
+  }
+  const reach = byTestId(host, 'target-reach').getBoundingClientRect();
+  const card = byTestId(host, 'target').getBoundingClientRect();
+  expect(reach.right).toBeLessThanOrEqual(card.right);
+  expect(reach.left).toBeGreaterThanOrEqual(card.left);
 });

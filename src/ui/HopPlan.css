@@ -114,11 +114,30 @@
 }
 
 .hop-plan__warning {
+  display: flex;
+  align-items: center;
+  gap: 3px;
   height: 11px;
   line-height: 11px;
   white-space: nowrap;
   overflow: hidden;
   color: var(--am3);
+}
+
+.hop-plan__warning--in-reach {
+  color: var(--gr3);
+}
+
+.hop-plan__warning--out-of-reach {
+  color: var(--rd3);
+}
+
+.hop-plan__unsurveyed {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--am3);
+  white-space: nowrap;
 }
 
 .hop-plan__more {

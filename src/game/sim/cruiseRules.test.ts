@@ -29,7 +29,7 @@ import {
   type ScheduledEvent,
 } from './index.ts';
 import { withDetected } from './generation.ts';
-import { onInnerPlanet, withDeltaV, withJumpDrive } from './testing.ts';
+import { heliopauseInRange, onInnerPlanet, withDeltaV, withJumpDrive } from './testing.ts';
 
 const SEEDS = Array.from({ length: 500 }, (_, i) => i * 104_729 + 7);
 const ENGINE = 0;
@@ -290,7 +290,7 @@ describe('Repair and Rush', () => {
   });
 
   it('Damage survives a Jump', () => {
-    const ready = withDeltaV(withJumpDrive(onInnerPlanet(opening)), 200_000);
+    const ready = withDeltaV(withJumpDrive(heliopauseInRange(onInnerPlanet(opening))), 200_000);
     const result = flown(cruising(ready, HELIOPAUSE, [leakAt(1_100)]));
     expect(result.run.starSystemNumber).toBe(2);
     expect(damaged(result.run, FUEL_TANK)).toBe(true);
@@ -313,9 +313,9 @@ describe('Repair and Rush', () => {
     const hit = flown(cruising(opening, firstHop, [engineHitAt(1_100)])).run;
     const needs = knownBodies(hit).flatMap((body) => {
       const planned = body.landable && body.id !== firstHop ? planHop(hit, body.id) : undefined;
-      return planned?.kind === 'planned' ? [planned.plan.totalEstimate * 0.9] : [];
+      return planned?.kind === 'planned' ? [planned.plan.bestCase] : [];
     });
-    // Just short of any chance with the Damaged Engine; Repaired, it gives 1 / 0.85 times as much.
+    // Just short of any chance (a plan's best case, as the player sees it, #190) with the Damaged Engine; Repaired, it gives 1 / 0.85 times as much.
     const short = { ...withDeltaV(hit, Math.min(...needs) - 1), materials: materials(50) };
     expect(assessStranding(short)).toEqual({
       kind: 'warning',

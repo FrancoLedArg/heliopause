@@ -4,6 +4,8 @@
 import { kilometersToAu } from './data.ts';
 import { isFuelSource } from './gather.ts';
 import type { Run } from './run.ts';
+import { withinHopRange } from './hopRange.ts';
+import { radarReach } from './spacecraft.ts';
 import {
   findBody,
   listBodies,
@@ -42,17 +44,63 @@ export interface Reveal {
   readonly surveyed: BodyId | undefined;
   /** The Bodies Comms Detected after the landing, nearest first; empty when none was left to find. */
   readonly detected: readonly BodyId[];
+  /** What the Radar's sweep on landing taught; `undefined` with no Radar aboard. */
+  readonly radar: RadarSweep | undefined;
+}
+
+/** What one Radar sweep taught the player: only what it did not know before. */
+export interface RadarSweep {
+  /** The Bodies it Detected that were unknown. */
+  readonly detected: readonly BodyId[];
+  /** The Bodies a level-2 Radar Surveyed that were not Surveyed. */
+  readonly surveyed: readonly BodyId[];
+  /** Whether this sweep found the Heliopause. */
+  readonly heliopauseFound: boolean;
 }
 
 /** Whether `body` is In reach of the landed Run (hop.ts's `isInReach`, passed in to keep the modules apart). */
 export type InReach = (run: Run, body: LandableBody) => boolean;
 
 /**
- * What landing on `bodyId` teaches: the Body is Surveyed (only that Body), then Comms Detects the
- * nearest landable Body not yet Detected, measured from the Spacecraft. The Fuel lifeline (#280)
- * comes first: when no Fuel source (an Icy Body with Fuel left) is Detected and In reach, Comms
- * Detects the nearest one that is In reach instead, if there is one. Gas Giants are never Comms'
- * pick. The Run's status is the caller's.
+ * The Radar's sweep from the Body the Spacecraft is on, at each landing and when a Radar is installed:
+ * every Body within its range of the Spacecraft is Detected, and with a level-2 Radar Surveyed too.
+ * The Heliopause is found when the Spacecraft's distance from the star plus the range reaches it:
+ * the only way to find it. Nothing is forgotten. `sweep` is `undefined` with no Radar aboard or off
+ * a Body, and `run` is then `run` itself.
+ */
+export function radarSweep(run: Run): {
+  readonly run: Run;
+  readonly sweep: RadarSweep | undefined;
+} {
+  const reach = radarReach(run.spacecraft);
+  if (!reach || run.status.kind !== 'landed') return { run, sweep: undefined };
+  const system = run.starSystem;
+  const here = findBody(system, run.status.bodyId);
+  if (!here) throw new Error(`Run is landed on ${run.status.bodyId}, which is not in the system`);
+  const known = run.knowledge;
+  const inRange = listBodies(system).filter(
+    (body) => distanceBetween(system, here, body) <= reach.range,
+  );
+  const detected = inRange.filter((body) => !known.detected.includes(body.id)).map((b) => b.id);
+  const surveyed = reach.surveys
+    ? inRange.filter((body) => !known.surveyed.includes(body.id)).map((b) => b.id)
+    : [];
+  const heliopauseFound =
+    !known.heliopauseFound && here.distanceFromStar + reach.range >= system.heliopauseRadius;
+  const knowledge: Knowledge = {
+    detected: [...known.detected, ...detected],
+    surveyed: [...known.surveyed, ...surveyed],
+    heliopauseFound: known.heliopauseFound || heliopauseFound,
+  };
+  return { run: { ...run, knowledge }, sweep: { detected, surveyed, heliopauseFound } };
+}
+
+/**
+ * What landing on `bodyId` teaches: the Body is Surveyed (only that Body), a Radar aboard sweeps
+ * (see `radarSweep`), then Comms Detects the nearest landable Body not yet Detected, measured from the
+ * Spacecraft. The Fuel lifeline (#280) comes first: when no Fuel source (an Icy Body with Fuel left)
+ * is Detected and In reach, Comms Detects the nearest one that is In reach instead, if there is one.
+ * Gas Giants are never Comms' pick. The Run must be landed on `bodyId`.
  */
 export function revealOnLanding(
   run: Run,
@@ -63,29 +111,36 @@ export function revealOnLanding(
   if (!body?.landable) throw new Error(`${bodyId} is not a Body the Spacecraft can land on`);
   const known = run.knowledge;
   const wasSurveyed = known.surveyed.includes(body.id);
-  const learned: Knowledge = {
-    ...known,
-    detected: known.detected.includes(body.id) ? known.detected : [...known.detected, body.id],
-    surveyed: wasSurveyed ? known.surveyed : [...known.surveyed, body.id],
-  };
+  const swept = radarSweep({
+    ...run,
+    knowledge: {
+      ...known,
+      detected: known.detected.includes(body.id) ? known.detected : [...known.detected, body.id],
+      surveyed: wasSurveyed ? known.surveyed : [...known.surveyed, body.id],
+    },
+  });
+  const learned = swept.run.knowledge;
   const lifeline = (candidate: LandableBody) =>
-    candidate.id !== body.id && isFuelSource(run, candidate) && inReach(run, candidate);
-  const knowsLifeline = knownBodies({ ...run, knowledge: learned }).some(
-    (known) => known.landable && lifeline(known),
-  );
+    candidate.id !== body.id && isFuelSource(run, candidate) && inReach(swept.run, candidate);
+  const knowsLifeline = knownBodies(swept.run).some((known) => known.landable && lifeline(known));
   const next =
     (knowsLifeline ? undefined : nearestUndetected(run.starSystem, learned, body, lifeline)) ??
     nearestUndetected(run.starSystem, learned, body);
   const knowledge = next ? { ...learned, detected: [...learned.detected, next.id] } : learned;
   return {
-    run: { ...run, knowledge },
-    reveal: { surveyed: wasSurveyed ? undefined : body.id, detected: next ? [next.id] : [] },
+    run: { ...swept.run, knowledge },
+    reveal: {
+      surveyed: wasSurveyed ? undefined : body.id,
+      detected: next ? [next.id] : [],
+      radar: swept.sweep,
+    },
   };
 }
 
 /**
- * The landable Body nearest to `from` that the player has not Detected, among those `accepts` takes;
- * ties go to the first listed.
+ * The landable Body nearest to `from` that the player has not Detected, among those `accepts` takes,
+ * within the Hop range when any is left there (#283), so Comms always points at a Hop the Spacecraft
+ * can make; ties go to the first listed.
  */
 export function nearestUndetected(
   system: StarSystem,
@@ -93,9 +148,13 @@ export function nearestUndetected(
   from: Body,
   accepts: (body: LandableBody) => boolean = () => true,
 ): LandableBody | undefined {
+  const undetected = listBodies(system).filter(
+    (body): body is LandableBody =>
+      body.landable && !knowledge.detected.includes(body.id) && accepts(body),
+  );
+  const inRange = undetected.filter((body) => withinHopRange(system, from, body));
   let nearest: { body: LandableBody; distance: number } | undefined;
-  for (const body of listBodies(system)) {
-    if (!body.landable || knowledge.detected.includes(body.id) || !accepts(body)) continue;
+  for (const body of inRange.length > 0 ? inRange : undetected) {
     const distance = distanceBetween(system, from, body);
     if (!nearest || distance < nearest.distance) nearest = { body, distance };
   }

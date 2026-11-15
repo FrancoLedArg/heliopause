@@ -6,6 +6,7 @@ import {
   firstDetectedBody,
   flyHop,
   HELIOPAUSE,
+  isInHopRange,
   install,
   kilograms,
   listBodies,
@@ -25,6 +26,13 @@ import {
   formatDeltaVKmS,
 } from './format.ts';
 import { describeHopPlan, LOW_SUCCESS_BELOW } from './hopPlanView.ts';
+import { heliopauseFound } from '../game/sim/testing.ts';
+
+/**
+ * The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target, and
+ * only within the Hop range (#283).
+ */
+const found = heliopauseFound;
 
 const mps = metersPerSecond;
 const run: Run = startRun(123, 'scout');
@@ -60,7 +68,7 @@ describe('a Hop plan to a Depleted Body', () => {
 });
 
 describe('a Hop plan to the Heliopause', () => {
-  const withDrive = install({ ...run, materials: materials(100) }, 2, 'jump-drive');
+  const withDrive = install(found({ ...run, materials: materials(100) }), 2, 'jump-drive');
   if (withDrive.kind !== 'installed') throw new Error('Expected an install');
   const ready = withDrive.run;
   const planned = planHop(ready, HELIOPAUSE);
@@ -122,9 +130,10 @@ describe('the Hop plan as the player reads it', () => {
 
   it('flags a low Success Chance in words, and not a high one', () => {
     // Re-pinned for #188: a full scout reaches every Body of seed 123 for sure, so half its Fuel.
+    // Re-pinned for #283: a fifth, as half still reaches every Body within the Hop range for sure.
     const half: Run = onInnerPlanet({
       ...run,
-      spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 2) },
+      spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 5) },
     });
     const chances: number[] = [];
     for (const body of listBodies(half.starSystem)) {
@@ -132,7 +141,7 @@ describe('the Hop plan as the player reads it', () => {
       if (result.kind !== 'planned') continue;
       const view = describeHopPlan(half, result.plan);
       expect(view.low).toBe(result.plan.successChance < LOW_SUCCESS_BELOW);
-      expect(view.warning !== undefined).toBe(view.low);
+      expect(view.reach.kind !== 'in-reach').toBe(view.low);
       chances.push(result.plan.successChance);
     }
     expect(Math.min(...chances)).toBeLessThan(Math.max(...chances));
@@ -150,10 +159,14 @@ describe('the Hop plan as the player reads it', () => {
   });
 
   it('gives each Burn a reason drawn from the Bodies involved', () => {
-    // Re-pinned for #189: Rexsio, a Gas Giant's Moon far out, stands in for Sircer.
+    // Re-pinned for #189: Rexsio, a Gas Giant's Moon far out, stands in for Sircer. Re-pinned for
+    // #283: the farthest Body of another planet within the Hop range stands in for Rexsio.
     const knowing = knowingAll(run);
-    const far = listBodies(run.starSystem).find((b) => b.name === 'Rexsio');
     const here = currentBody(run);
+    const far = listBodies(run.starSystem)
+      .filter((b) => b.landable && b.distanceFromStar !== here.distanceFromStar)
+      .filter((b) => isInHopRange(knowing, b.id))
+      .sort((a, b) => b.distanceFromStar - a.distanceFromStar)[0];
     if (!far) throw new Error('seed 123 setup');
     const view = describeHopPlan(knowing, planFor(far.id, knowing));
     const [takeoff, transfer, landing] = view.burns.map((b) => b.reason);
@@ -226,15 +239,16 @@ describe('the Hop plan as the player reads it', () => {
 
   it('gives the same percentage as the why text for a hauler Hop on seed 123 that is short', () => {
     // Re-pinned for #189: from the innermost planet, a half-fuelled hauler's Hop to Rexsio is short.
-    // #247's Isp leaves it less short.
+    // #247's Isp leaves it less short. Re-pinned for #283: Rexsio is past the Hop range, so a hauler
+    // with a fifth of its Fuel plans for Tiosli.
     const full = onInnerPlanet(startRun(123, 'hauler'));
     const hauler: Run = {
       ...full,
-      spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 2) },
+      spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 5) },
     };
-    const rexsio = listBodies(hauler.starSystem).find((body) => body.name === 'Rexsio');
-    if (!rexsio) throw new Error('seed 123 has no Rexsio');
-    expect(describeHopPlan(hauler, planFor(rexsio.id, hauler)).margin).toBe('−2.9 km/s (14%)');
+    const tiosli = listBodies(hauler.starSystem).find((body) => body.name === 'Tiosli');
+    if (!tiosli) throw new Error('seed 123 has no Tiosli');
+    expect(describeHopPlan(hauler, planFor(tiosli.id, hauler)).margin).toBe('−5.0 km/s (34%)');
   });
 
   it('drops the percentage once the Margin is as big as the estimate', () => {
@@ -247,19 +261,38 @@ describe('the Hop plan as the player reads it', () => {
     expect(view.margin).toBe('+7.9 km/s');
   });
 
-  it('warns more strongly when the Fuel cannot cover even the estimate than when the chance is low', () => {
+  it('says Unsurveyed for a Body not Surveyed, and not for one that is', () => {
+    const unsurveyed: Run = {
+      ...run,
+      knowledge: {
+        ...run.knowledge,
+        surveyed: run.knowledge.surveyed.filter((id) => id !== moon.id),
+      },
+    };
+    const view = describeHopPlan(unsurveyed, planFor(moon.id, unsurveyed));
+    expect(view.unsurveyed).toBe(true);
+    expect(view.summary).toContain('Unsurveyed');
+    const surveyed = knowingAll(run);
+    expect(describeHopPlan(surveyed, planFor(moon.id, surveyed)).unsurveyed).toBe(false);
+  });
+
+  it('shows the reach verdict as a shape and a short word, harsher when the Fuel cannot cover the estimate', () => {
     const plan = planFor(moon.id);
     const low = describeHopPlan(run, { ...plan, margin: mps(100), successChance: 0.5 });
-    const short = describeHopPlan(run, { ...plan, margin: mps(-100), successChance: 0.02 });
-    expect(low.warning).toBe('Low chance: may run dry');
-    expect(short.warning).toBe('Not enough Δv for this Hop');
+    const short = describeHopPlan(run, { ...plan, margin: mps(-100), successChance: 0 });
+    expect(low.reach).toMatchObject({ word: 'Marginal', frame: 'badge_warning' });
+    expect(short.reach).toMatchObject({
+      word: 'Out of reach',
+      frame: 'badge_alert',
+      label: 'Reach: Out of reach',
+    });
     expect(short.low).toBe(true);
   });
 
   it('summarises the plan in one sentence for a screen reader', () => {
     const view = describeHopPlan(run, planFor(moon.id));
     expect(view.summary).toBe(
-      `Hop plan for ${moon.name}: needs ${view.needed}, you have ${view.available}, success chance ${view.successChance}.`,
+      `Hop plan for ${moon.name} (Unsurveyed): needs ${view.needed}, you have ${view.available}, success chance ${view.successChance}, ${view.reach.word}.`,
     );
   });
 });
@@ -269,9 +302,11 @@ describe('the Hop plan’s Fuel gauge', () => {
   const onEstimate: Rng = { next: () => 0.5, int: (min) => min };
 
   it("the plan's Fuel after the Hop matches the simulation's estimate", () => {
-    const plan = planFor(moon.id);
-    const { flight } = flyHop(run, plan, onEstimate);
-    const fuel = describeHopPlan(run, plan).fuel;
+    // Surveyed, so the plan's estimates are the Body's real ones.
+    const surveyed = knowingAll(run);
+    const plan = planFor(moon.id, surveyed);
+    const { flight } = flyHop(surveyed, plan, onEstimate);
+    const fuel = describeHopPlan(surveyed, plan).fuel;
     expect(fuel.after).toBeCloseTo(flight.fuelRemaining);
     expect(fuel.afterText).toBe(formatFuel(flight.fuelRemaining));
     // A full scout Tank: 21.0 t now, and the gauge's chunk is the Fuel the Hop burns.

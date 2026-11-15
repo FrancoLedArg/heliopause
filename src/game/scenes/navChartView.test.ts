@@ -38,6 +38,7 @@ import {
   targetStatus,
   type Direction,
 } from './navChartView.ts';
+import { heliopauseInRange } from '../sim/testing.ts';
 
 /** A New Run as the player starts it: on its Starting Moon, knowing only the opening. */
 const freshRun = (seed: number): Run => startRun(seed, 'scout');
@@ -57,6 +58,12 @@ const newRun = (seed: number): Run => {
     knowledge: { detected: ids, surveyed: ids, heliopauseFound: true },
   };
 };
+/** The Heliopause's mark on a chart whose Run has found it. */
+function markOf(layout: ChartLayout): NonNullable<ChartLayout['heliopause']> {
+  if (!layout.heliopause) throw new Error('The Heliopause is not found on this chart');
+  return layout.heliopause;
+}
+
 const SEEDS = Array.from({ length: 150 }, (_, i) => i + 1);
 
 /** The innermost planet's nearest Moon. */
@@ -222,11 +229,14 @@ describe('choosing a Hop target on the Nav Chart', () => {
   it('accepts a Moon of a Gas Giant, and the Moon of the Home Planet', () => {
     let checked = 0;
     for (const seed of SEEDS) {
-      const run = newRun(seed);
-      const giantMoon = run.starSystem.planets
-        .filter((p) => p.kind === 'gas-giant')
-        .flatMap((p) => p.moons)[0];
-      if (giantMoon) {
+      const full = newRun(seed);
+      const { planets } = full.starSystem;
+      const giant = planets.findIndex((p) => p.kind === 'gas-giant');
+      const giantMoon = planets[giant]?.moons[0];
+      const before = planets[giant - 1];
+      if (giantMoon && before) {
+        // Stood on the planet before it, so the Moon is within the Hop range (#283).
+        const run: Run = { ...full, status: { kind: 'landed', bodyId: before.id } };
         expect(targetStatus(run, giantMoon.id)).toEqual({ valid: true });
         checked += 1;
       }
@@ -298,6 +308,20 @@ describe('moving between Bodies with the arrow keys', () => {
 });
 
 describe('the Heliopause on the Nav Chart', () => {
+  it('is not on the chart until the Radar finds it: no ring mark, no focus stop and no label', () => {
+    for (const seed of SEEDS.slice(0, 20)) {
+      const run = freshRun(seed);
+      const layout = layoutChart(run);
+      expect(layout.heliopause).toBeUndefined();
+      const here = homeMoon(run).id;
+      let id: HopTarget = here;
+      for (let step = 0; step < 10; step += 1) id = stepFocus(layout, id, 1);
+      expect(id).not.toBe(HELIOPAUSE);
+      const context: LabelContext = { hereId: here, focusedId: here, targetId: undefined };
+      expect(placeLabels(layout, context).filter((l) => l.kind === 'heliopause')).toEqual([]);
+    }
+  });
+
   /** The Run with a Jump Drive installed. */
   const withJumpDrive = (run: Run): Run => {
     const result = install({ ...run, materials: materials(100) }, 2, 'jump-drive');
@@ -308,7 +332,7 @@ describe('the Heliopause on the Nav Chart', () => {
   it('marks the Heliopause on its ring, on the chart and clear of every Body', () => {
     for (const seed of SEEDS) {
       const layout = layoutFor(seed);
-      const mark = layout.heliopause;
+      const mark = markOf(layout);
       expect(mark.x - mark.radius - BRACKET_GAP, `seed ${seed}`).toBeGreaterThanOrEqual(0);
       expect(mark.x + mark.radius + BRACKET_GAP).toBeLessThanOrEqual(CHART.width);
       expect(mark.y - mark.radius - BRACKET_GAP).toBeGreaterThanOrEqual(0);
@@ -321,7 +345,8 @@ describe('the Heliopause on the Nav Chart', () => {
     }
     // Where its ring crosses the chart, the mark sits on it.
     const layout = layoutFor(9);
-    const { star, heliopause } = layout;
+    const { star } = layout;
+    const heliopause = markOf(layout);
     expect(Math.hypot(heliopause.x - star.x, heliopause.y - star.y)).toBeCloseTo(
       layout.heliopauseRadius,
       -1,
@@ -329,7 +354,7 @@ describe('the Heliopause on the Nav Chart', () => {
   });
 
   it('says why the Heliopause cannot be the target without a Jump Drive', () => {
-    const run = newRun(5);
+    const run = heliopauseInRange(newRun(5));
     const status = targetStatus(run, HELIOPAUSE);
     expect(status).toMatchObject({ valid: false, reason: 'no-jump-drive' });
     expect(status.valid ? '' : status.why).toMatch(/Jump Drive/);
@@ -337,7 +362,7 @@ describe('the Heliopause on the Nav Chart', () => {
   });
 
   it('Enter on the focused Heliopause makes it the target only with a Jump Drive', () => {
-    const run = newRun(5);
+    const run = heliopauseInRange(newRun(5));
     const layout = layoutChart(run);
     const focused = chartReducer(run, layout, initialChartState(run), {
       kind: 'focus',
@@ -355,7 +380,7 @@ describe('the Heliopause on the Nav Chart', () => {
     for (const seed of SEEDS.slice(0, 40)) {
       const run = newRun(seed);
       const layout = layoutFor(seed);
-      const mark = layout.heliopause;
+      const mark = markOf(layout);
       for (const targetId of [undefined, HELIOPAUSE]) {
         const context = { hereId: currentBody(run).id, targetId, focusedId: HELIOPAUSE };
         const labels = placeLabels(layout, context);
@@ -391,7 +416,7 @@ describe('the Heliopause on the Nav Chart', () => {
         }
         if (!insideChart(edge.box)) problems.push(`${where}: off the chart`);
         problems.push(...farLabels({ where, layout, context, labels: [edge] }));
-        if (touchesCircle(edge.box, layout.heliopause)) problems.push(`${where}: on its mark`);
+        if (touchesCircle(edge.box, markOf(layout))) problems.push(`${where}: on its mark`);
         for (const n of [...layout.nodes, layout.star]) {
           if (touchesCircle(edge.box, n)) problems.push(`${where}: on a Body`);
         }
@@ -631,7 +656,7 @@ function farLabels({ where, layout, labels }: ChartCase): string[] {
       );
       const fromRing = Math.min(...inside);
       // Hanging just inside its ring, or, where the ring has no room, beside its mark.
-      const fromMark = edgeDistance(label.box, layout.heliopause);
+      const fromMark = edgeDistance(label.box, markOf(layout));
       if ((fromRing > 8 || fromRing < 0) && fromMark > 8) {
         problems.push(
           `${where}: Heliopause ${fromRing} px from its ring, ${fromMark} from its mark`,
@@ -662,15 +687,16 @@ describe('Body labels on the Nav Chart', () => {
   });
 
   // Re-pinned for #189 (was seed 292's Zarla-2) and #247 (was seed 155's Vutho): generation changed.
-  // Seed 86 is the fullest 7-planet chart of the first 400 (29 Bodies), its far Moon Prota the target.
-  it('keep off every Body even on a chart too full to label well (seed 86, Prota as the target)', () => {
-    const run = newRun(86);
-    const layout = layoutFor(86);
+  // Re-pinned for #283 (was seed 86's Prota): fairness within the Hop range keeps another draw for 86.
+  // Seed 256 is the fullest 7-planet chart of the first 400 (29 Bodies), its far Moon Zaerlaemor the target.
+  it('keep off every Body even on a chart too full to label well (seed 256, Zaerlaemor as the target)', () => {
+    const run = newRun(256);
+    const layout = layoutFor(256);
     const target = layout.nodes.find((n) => n.body.id === 'planet-7-moon-3');
-    if (!target) throw new Error('seed 86 has no planet-7-moon-3');
+    if (!target) throw new Error('seed 256 has no planet-7-moon-3');
     const problems = layout.nodes.flatMap((n) =>
       labelClashes(
-        chartCase(86, {
+        chartCase(256, {
           hereId: currentBody(run).id,
           targetId: target.body.id,
           focusedId: n.body.id,
@@ -782,9 +808,10 @@ describe('the Body tooltip', () => {
   /**
    * Charts with no clear spot anywhere (#247's generation): a Gas Giant in focus mid-right, its
    * 95 px why too tall for the room above or below it, and the left full of kept marks. There the
-   * tooltip falls back to hiding the fewest kept things: one label, never a Body.
+   * tooltip falls back to hiding the fewest kept things: one label, never a Body. Re-pinned for #280
+   * (was seed 142's Xaezio): generation prefers a draw with a Fuel source In reach after Hop 1.
    */
-  const NO_CLEAR_SPOT = ['seed 117, focus Rupro Minor', 'seed 142, focus Xaezio'];
+  const NO_CLEAR_SPOT = ['seed 44, focus Quaehix', 'seed 117, focus Rupro Minor'];
 
   /** What a tooltip covers that it must keep in view. */
   const tooltipProblems = ({ where, layout, context, labels, box }: TooltipCase): string[] => {

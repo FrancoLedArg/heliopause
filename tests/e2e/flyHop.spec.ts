@@ -28,15 +28,16 @@ if (moonHop.kind !== 'flown' || moonHop.flight.outcome.kind !== 'arrived') {
   throw new Error(`Seed ${SEED}: the Hop to ${homeMoon.name} should Arrive`);
 }
 
-// A failure needs a long way out: on seed 4, the first target Ludran, back to the Starting Moon
-// Ruquir-9, Ludran again, then Prumal. The scout Crashes on Prumal at a 20% chance and the hauler
+// A failure needs a long way out: on seed 17, the first target Quunquae, back to the Starting Moon
+// Mioszio, Quunquae again, then Ziontur. The scout Crashes on Ziontur and the hauler
 // Falls Short (found by a scan over seeds and paths). Re-pinned for #247 (was seed 1442's Thosny
 // then Korxel): the Chassis Isp rose 30%, so no second Hop fails. Re-pinned for #280 (was seed 46's
-// Voprin, Quioxevex, Rioquunlaen and Maethu): Comms now Detects a Fuel source In reach first.
-const FAIL_SEED = 4;
+// Voprin, Quioxevex, Rioquunlaen and Maethu, then seed 4's Prumal after the Hop range, #283): Comms
+// now Detects a Fuel source In reach first.
+const FAIL_SEED = 17;
 /** The Hops that Arrive on the way, every Chassis alike; the first is the first target. */
-const PATH = ['Ludran', 'Ruquir-9', 'Ludran'] as const;
-const FAR = 'Prumal';
+const PATH = ['Quunquae', 'Mioszio', 'Quunquae'] as const;
+const FAR = 'Ziontur';
 
 /** The last Hop of `chassis` on the failure seed, to FAR, as the simulation settles it. */
 function lastHop(chassis: 'scout' | 'hauler'): { before: Run; why: string } {
@@ -370,7 +371,7 @@ test('after a failed Hop, New Run starts a different Star System on its Starting
 
   // The address bar follows the Run being played.
   await expect(page).toHaveURL(new RegExp(`seed=${String(FAIL_SEED + 1)}`));
-  // `?seed=4` moves on to 5 for the next Run, so the Starting Moon is a different one.
+  // `?seed=17` moves on to 18 for the next Run, so the Starting Moon is a different one.
   const nextHome = startingMoon(generateStarSystem(FAIL_SEED + 1));
   expect(nextHome.name).not.toBe(startingMoon(generateStarSystem(FAIL_SEED)).name);
   await expect(page.getByRole('heading', { name: nextHome.name, level: 1 })).toBeVisible();

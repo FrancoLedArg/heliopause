@@ -10,10 +10,20 @@ import {
   type ScheduledEvent,
   type StruckEvent,
 } from './cruise.ts';
-import { CRUISE_TUNING, DISPERSION, SOURCED_CONSTANTS, type CruiseEventKind } from './data.ts';
+import {
+  CRUISE_TUNING,
+  DIFFICULTY_TUNING,
+  difficultyFactor,
+  DISPERSION,
+  REACH_VERDICT,
+  SOURCED_CONSTANTS,
+  UNSURVEYED,
+  type CruiseEventKind,
+} from './data.ts';
 import { collectYield, type Collection } from './gather.ts';
+import { isInHopRange } from './hopRange.ts';
 import { jump } from './jump.ts';
-import { revealOnLanding, type Reveal } from './knowledge.ts';
+import { bodyKnowledge, revealOnLanding, type Reveal } from './knowledge.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
 import { endIfStranded } from './stranded.ts';
 import {
@@ -60,6 +70,8 @@ interface HopPlanBase {
   readonly availableDeltaV: MetersPerSecond;
   /** Available Δv minus the total estimate; negative when the Fuel cannot cover even the estimate. */
   readonly margin: MetersPerSecond;
+  /** The Δv below which the plan has no chance: every Burn at its best case. */
+  readonly bestCase: MetersPerSecond;
   /**
    * The probability, from 0 to 1, that the Fuel covers the actual Δv of every Burn under the
    * dispersion rule. Exact, so the same plan always shows the same Success Chance.
@@ -71,6 +83,11 @@ interface HopPlanBase {
 export interface BodyHopPlan extends HopPlanBase {
   readonly destination: 'body';
   readonly toId: BodyId;
+  /**
+   * True when the target is not Surveyed: the Landing estimate is then a cautious one, with a wider
+   * dispersion, while the flight uses the Body's real values.
+   */
+  readonly unsurveyed: boolean;
   /** The estimated Δv of each Burn. */
   readonly estimates: Readonly<Record<Burn, MetersPerSecond>>;
 }
@@ -107,7 +124,14 @@ export function plannedBurns(plan: HopPlan): readonly PlannedBurn[] {
  * Heliopause before it is found, are not on the chart: only a forged choice could name them.
  */
 export type InvalidTargetReason =
-  'no-surface' | 'current-body' | 'no-jump-drive' | 'not-detected' | 'not-found';
+  'no-surface' | 'current-body' | 'no-jump-drive' | 'not-detected' | 'not-found' | 'out-of-range';
+
+/** Why a target past the Hop range cannot be chosen: one line, the chart shows the rest (#283). */
+const OUT_OF_RANGE = {
+  kind: 'invalid-target',
+  reason: 'out-of-range',
+  why: 'Out of Hop range.',
+} as const;
 
 /** Planning a Hop either works out a plan, or explains why the target cannot be chosen. */
 export type HopPlanResult<P extends HopPlan = HopPlan> =
@@ -129,6 +153,19 @@ export function planHop(run: Run, target: typeof HELIOPAUSE): HopPlanResult<Heli
 export function planHop(run: Run, target: HopTarget): HopPlanResult;
 export function planHop(run: Run, target: HopTarget): HopPlanResult {
   return target === HELIOPAUSE ? planToHeliopause(run) : planToBody(run, target);
+}
+
+/**
+ * `planHop` at the Body's real values, as if it were Surveyed: for the rules that weigh what is
+ * possible (fairness of a Star System, Stranded), which must not depend on what the player knows.
+ */
+export function planHopAtRealValues(run: Run, target: HopTarget): HopPlanResult {
+  if (target === HELIOPAUSE || run.knowledge.surveyed.includes(target)) return planHop(run, target);
+  const { knowledge } = run;
+  return planHop(
+    { ...run, knowledge: { ...knowledge, surveyed: [...knowledge.surveyed, target] } },
+    target,
+  );
 }
 
 function planToBody(run: Run, targetId: BodyId): HopPlanResult<BodyHopPlan> {
@@ -156,10 +193,12 @@ function planToBody(run: Run, targetId: BodyId): HopPlanResult<BodyHopPlan> {
       why: `The Spacecraft is already on ${target.name}.`,
     };
   }
+  if (!isInHopRange(run, target.id)) return OUT_OF_RANGE;
+  const unsurveyed = bodyKnowledge(run, target.id) !== 'surveyed';
   const estimates = {
     takeoff: surfaceBurn(from),
     transfer: transferBurn(run.starSystem, from, target),
-    landing: surfaceBurn(target),
+    landing: unsurveyed ? cautiousLandingBurn(run, target) : surfaceBurn(target),
   };
   return {
     kind: 'planned',
@@ -167,8 +206,20 @@ function planToBody(run: Run, targetId: BodyId): HopPlanResult<BodyHopPlan> {
       destination: 'body',
       fromId: from.id,
       toId: target.id,
+      unsurveyed,
       estimates,
-      ...odds(run, Object.values(estimates)),
+      ...odds(
+        run,
+        BURNS.map((burn) =>
+          unsurveyed && burn === 'landing'
+            ? {
+                estimate: estimates.landing,
+                max: UNSURVEYED.landingMax,
+                best: leastLandingBurn(run, target) * DISPERSION.min,
+              }
+            : evenBurn(estimates[burn]),
+        ),
+      ),
     },
   };
 }
@@ -186,6 +237,7 @@ function planToHeliopause(run: Run): HopPlanResult<HeliopauseHopPlan> {
       why: 'The Heliopause has not been found yet: the Spacecraft does not know where it is.',
     };
   }
+  if (!isInHopRange(run, HELIOPAUSE)) return OUT_OF_RANGE;
   if (!carriesJumpDrive(run.spacecraft)) {
     return {
       kind: 'invalid-target',
@@ -204,30 +256,61 @@ function planToHeliopause(run: Run): HopPlanResult<HeliopauseHopPlan> {
       fromId: from.id,
       toId: HELIOPAUSE,
       estimates,
-      ...odds(run, Object.values(estimates)),
+      ...odds(run, Object.values(estimates).map(evenBurn)),
     },
   };
 }
 
 /** What the Spacecraft's Fuel makes of a Hop's Burn estimates: their total, the Margin and the Success Chance. */
-function odds(run: Run, estimates: readonly MetersPerSecond[]): Omit<HopPlanBase, 'fromId'> {
-  const totalEstimate = metersPerSecond(estimates.reduce((sum, estimate) => sum + estimate, 0));
+function odds(run: Run, burns: readonly EstimatedBurn[]): Omit<HopPlanBase, 'fromId'> {
+  const totalEstimate = metersPerSecond(burns.reduce((sum, burn) => sum + burn.estimate, 0));
   const available = availableDeltaV(run.spacecraft);
+  const bestCase = metersPerSecond(
+    totalEstimate * DISPERSION.min - burns.reduce((sum, burn) => sum + lowerBest(burn), 0),
+  );
   return {
     totalEstimate,
     availableDeltaV: available,
     margin: metersPerSecond(available - totalEstimate),
-    successChance: successChance(estimates, available, leastDeltaV({ totalEstimate })),
+    bestCase,
+    successChance: successChance(burns, available, bestCase),
   };
 }
+
+/**
+ * The least Δv that makes a plan certain: every Burn at the top of its dispersion, wider for the
+ * Landing of an Unsurveyed plan. A hair over, so rounding never leaves it short of certain.
+ */
+export function certainDeltaV(plan: HopPlan): MetersPerSecond {
+  const total = plannedBurns(plan).reduce((sum, { burn, estimate }) => {
+    const unsurveyedLanding = plan.destination === 'body' && plan.unsurveyed && burn === 'landing';
+    return sum + estimate * (unsurveyedLanding ? UNSURVEYED.landingMax : DISPERSION.max);
+  }, 0);
+  return metersPerSecond(total * (1 + 1e-9));
+}
+
+/** A Burn's estimate, the top of its dispersion, and the Δv of its best case. */
+interface EstimatedBurn {
+  readonly estimate: MetersPerSecond;
+  readonly max: number;
+  readonly best: number;
+}
+
+/** A Burn whose estimate is as sure as its dispersion: best and worst case are the usual ones. */
+function evenBurn(estimate: MetersPerSecond): EstimatedBurn {
+  return { estimate, max: DISPERSION.max, best: estimate * DISPERSION.min };
+}
+
+/** How far below `estimate × DISPERSION.min` a Burn's best case lies: 0 unless it is an Unsurveyed Landing. */
+const lowerBest = ({ estimate, best }: EstimatedBurn): number => estimate * DISPERSION.min - best;
 
 /**
  * The least Δv that gives a plan any Success Chance: every Burn at the best case of the dispersion.
  * A plan's Success Chance is above 0% exactly when the Fuel gives more than this. It depends on the
  * Burns alone, so it holds for any Spacecraft flying the same Hop.
  */
-export function leastDeltaV(plan: Pick<HopPlan, 'totalEstimate'>): MetersPerSecond {
-  return metersPerSecond(plan.totalEstimate * DISPERSION.min);
+export function leastDeltaV(plan: Pick<HopPlan, 'bestCase'>): MetersPerSecond {
+  return plan.bestCase;
 }
 
 /** What happened to one Burn of a flown Hop. */
@@ -523,7 +606,9 @@ function arrive(run: Run, departure: Departure, cruise: Cruise): FlownHop {
 
   if (plan.destination === 'body' && departure.landingFactor !== null) {
     const estimated = plan.estimates.landing;
-    const actual = metersPerSecond(estimated * departure.landingFactor);
+    // An Unsurveyed Landing was planned cautiously; it is flown at the Body's real cost.
+    const real = target?.landable ? surfaceBurn(target) : estimated;
+    const actual = metersPerSecond(real * departure.landingFactor);
     if (actual <= remaining) {
       remaining = metersPerSecond(remaining - actual);
       fuelRemaining = unchanged ? fuelLeft(remaining) : fuelLeft(actual);
@@ -736,15 +821,16 @@ function marginPhrase(plan: HopPlan): string {
 }
 
 /**
- * Whether `body` is In reach of the landed Run: a Hop to it has a Success Chance above 0% with the
- * Fuel on board, whether or not Comms has Detected it yet.
+ * Whether `body` is In reach of the landed Run: within the Hop range, and the plan the player would
+ * see for it once Detected has the In reach verdict (#190) with the Fuel on board. An Unsurveyed Body
+ * is planned with its cautious Landing, as the chart shows it.
  */
 export function isInReach(run: Run, body: LandableBody): boolean {
   const knowing = run.knowledge.detected.includes(body.id)
     ? run
     : { ...run, knowledge: { ...run.knowledge, detected: [...run.knowledge.detected, body.id] } };
   const planned = planToBody(knowing, body.id);
-  return planned.kind === 'planned' && planned.plan.successChance > 0;
+  return planned.kind === 'planned' && reachVerdict(planned.plan) === 'in-reach';
 }
 
 /**
@@ -772,15 +858,16 @@ function percent(share: number): number {
  * factor drawn uniformly from the dispersion range. In closed form: the slack above the best case
  * must exceed a sum of independent uniforms on [0, wᵢ] (wᵢ the spread of Burn i), whose CDF is
  * Σ over subsets S of (−1)^|S| · max(0, x − Σ_S wⱼ)ⁿ / (n! · Π wᵢ). `bestCase` is the plan's
- * `leastDeltaV`, so the two agree on when a Hop has no chance at all.
+ * the sum of every Burn at its best case, so a Hop has a chance exactly when the Fuel gives more.
  */
 function successChance(
-  estimates: readonly number[],
+  burns: readonly EstimatedBurn[],
   available: number,
   bestCase: MetersPerSecond,
 ): number {
-  const spread = DISPERSION.max - DISPERSION.min;
-  const widths = estimates.map((estimate) => estimate * spread).filter((width) => width > 0);
+  const widths = burns
+    .map((burn) => burn.estimate * (burn.max - DISPERSION.min) + lowerBest(burn))
+    .filter((width) => width > 0);
   const slack = available - bestCase;
   if (slack >= widths.reduce((sum, width) => sum + width, 0)) return 1;
   if (slack <= 0) return 0;
@@ -810,9 +897,14 @@ function successChance(
  * Landing is Takeoff in reverse.
  */
 function surfaceBurn(body: LandableBody): MetersPerSecond {
+  return escapeBurn(body.escapeVelocity);
+}
+
+/** A Burn to or from a surface with this escape velocity (see `surfaceBurn`). */
+function escapeBurn(escapeVelocity: MetersPerSecond): MetersPerSecond {
   const perEscapeVelocity =
     SOURCED_CONSTANTS.marsAscentDeltaV.value / SOURCED_CONSTANTS.marsEscapeVelocity.value;
-  return metersPerSecond(perEscapeVelocity * body.escapeVelocity);
+  return metersPerSecond(perEscapeVelocity * escapeVelocity);
 }
 
 /**
@@ -904,4 +996,34 @@ function gravitationalParameter(planet: Planet): number {
 /** In metres: a Moon's orbit, or the planet's own low orbit. */
 function orbitAroundPlanet(planet: Planet, body: Body): number {
   return body.kind === 'moon' ? body.distanceFromPlanet * 1_000 : planetRadius(planet);
+}
+
+/** How far a Hop is within reach of the Fuel on board: from its Success Chance, thresholds in `REACH_VERDICT`. */
+export type ReachVerdict = 'in-reach' | 'marginal' | 'out-of-reach';
+
+export function reachVerdict(plan: Pick<HopPlan, 'successChance'>): ReachVerdict {
+  if (plan.successChance >= REACH_VERDICT.inReach) return 'in-reach';
+  return plan.successChance > 0 ? 'marginal' : 'out-of-reach';
+}
+
+/**
+ * The Landing Burn a plan assumes for a Body that is not Surveyed: for the high end of the escape
+ * velocity a landable Body of its kind can have, since its real gravity is not yet known. The range
+ * is scaled by the Star System's gravity factor, which is public: gravity grows with the level.
+ */
+function cautiousLandingBurn(run: Run, target: LandableBody): MetersPerSecond {
+  return escapeBurn(
+    metersPerSecond(UNSURVEYED.cautiousEscapeVelocity[target.kind] * gravityFactor(run)),
+  );
+}
+
+function gravityFactor(run: Run): number {
+  return difficultyFactor(DIFFICULTY_TUNING.gravity, run.starSystemNumber);
+}
+
+/** The Landing Burn at the low end of that, before dispersion: the plan's best case. */
+function leastLandingBurn(run: Run, target: LandableBody): MetersPerSecond {
+  return escapeBurn(
+    metersPerSecond(UNSURVEYED.leastEscapeVelocity[target.kind] * gravityFactor(run)),
+  );
 }
