@@ -7,7 +7,8 @@ import { firstDetectedBody, startRun } from '../../src/game/sim/index.ts';
 // a few landings to find. On seed 179, after the first target Hehaequan, then Dryspraes Tau and
 // Querrelys, the way back to the Starting Moon, Thylthiolhiol, is far: a lancer reaches it at a low
 // chance with some Margin, a hauler cannot reach it at all. Re-pinned for #247 (was seed 1442's
-// Korxel, seen from Thosny): the Chassis Isp rose 30%, so a lancer makes that Hop for sure.
+// Korxel, seen from Thosny): the Chassis Isp rose 30%, so a lancer makes that Hop for sure. The
+// scout cannot reach it at all: the hauler could not either until #231 gave it a second Fuel Tank.
 const SEED = 179;
 const run = startRun(SEED, 'scout');
 const homeMoon = firstDetectedBody(run.starSystem);
@@ -164,7 +165,7 @@ test('a Margin below zero is signed and warned about more strongly than a low ch
 }) => {
   // Three Hops of playback on a loaded machine.
   test.setTimeout(120_000);
-  await openNavChartAfterPath(page, 'hauler');
+  await openNavChartAfterPath(page, 'scout');
   await target(page, FAR);
   await expect(page.getByTestId('plan-margin')).toHaveText(/^−\d+\.\d{1,2} km\/s \(\d+%\)$/);
   await expect(page.getByTestId('plan-warning')).toHaveText('Not enough Δv for this Hop');

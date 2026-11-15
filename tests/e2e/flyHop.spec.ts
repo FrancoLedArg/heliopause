@@ -27,14 +27,16 @@ if (moonHop.kind !== 'flown' || moonHop.flight.outcome.kind !== 'arrived') {
   throw new Error(`Seed ${SEED}: the Hop to ${homeMoon.name} should Arrive`);
 }
 
-// A failure needs a long way out: on seed 46, the first target Voprin, then Quioxevex and
-// Rioquunlaen, then back to the Starting Moon, Maethu. The scout Crashes on Maethu at a 23% chance
-// and the hauler Falls Short in the Transfer (found by a scan over seeds and paths). Re-pinned for
-// #247 (was seed 1442's Thosny then Korxel): the Chassis Isp rose 30%, so no second Hop fails.
-const FAIL_SEED = 46;
+// A failure needs a long way out: on seed 3, the first target Quyrmil Rho, then Thunan and
+// Siosthyry Tau, then back to Quyrmil Rho. The hauler Crashes there and the scout Falls Short in the
+// Transfer (found by a scan over seeds and paths). Re-pinned for #247 (was seed 1442's Thosny then
+// Korxel): the Chassis Isp rose 30%, so no second Hop fails. Re-pinned for #231 (was seed 46's
+// Maethu, the scout Crashing and the hauler Falling Short): the Hauler's second Fuel Tank gives it
+// the most Δv, so it can no longer fall short where the scout gets as far as the Landing.
+const FAIL_SEED = 3;
 /** The Hops that Arrive on the way, every Chassis alike; the first is the first target. */
-const PATH = ['Voprin', 'Quioxevex', 'Rioquunlaen'] as const;
-const FAR = 'Maethu';
+const PATH = ['Quyrmil Rho', 'Thunan', 'Siosthyry Tau'] as const;
+const FAR = 'Quyrmil Rho';
 
 /** The last Hop of `chassis` on the failure seed, to FAR, as the simulation settles it. */
 function lastHop(chassis: 'scout' | 'hauler'): { before: Run; why: string } {
@@ -57,8 +59,8 @@ function lastHop(chassis: 'scout' | 'hauler'): { before: Run; why: string } {
   if (last.kind !== 'flown') throw new Error('unreachable');
   return { before, why: last.flight.why };
 }
-const crashFlight = lastHop('scout');
-const shortFlight = lastHop('hauler');
+const crashFlight = lastHop('hauler');
+const shortFlight = lastHop('scout');
 
 async function openNavChart(page: Page, seed = SEED): Promise<void> {
   await page.goto(`/?seed=${String(seed)}&chassis=scout&${FAST_CRUISE}`);
@@ -89,9 +91,9 @@ async function hopAndLand(page: Page, name: string): Promise<void> {
   await expect(report).toBeHidden();
 }
 
-/** The failure seed's scout, Landed at the end of PATH, with the Nav Chart open on FAR's Hop. */
+/** The failure seed's hauler, Landed at the end of PATH, with the Nav Chart open on FAR's Hop. */
 async function onTheWayToFail(page: Page): Promise<void> {
-  await page.goto(`/?seed=${String(FAIL_SEED)}&chassis=scout&${FAST_CRUISE}`);
+  await page.goto(`/?seed=${String(FAIL_SEED)}&chassis=hauler&${FAST_CRUISE}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await waitForOpening(page);
   for (const name of PATH) await hopAndLand(page, name);
@@ -402,8 +404,7 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   await page.goto(`/?seed=${String(FAIL_SEED)}&${FAST_CRUISE}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await expect(page.getByRole('radio', { name: /Scout/ })).toBeFocused();
-  await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('radio', { name: /Hauler/ })).toBeChecked();
+  await expect(page.getByRole('radio', { name: /Scout/ })).toBeChecked();
   await page.getByRole('button', { name: 'Launch' }).click();
   for (const name of PATH) await hopAndLand(page, name);
   await page.getByRole('button', { name: /Nav Chart/ }).click();
@@ -435,7 +436,7 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   await outcome.getByRole('button', { name: 'New Run' }).click();
   await expect(page.getByRole('heading', { name: 'Choose a Chassis' })).toBeVisible();
   // The picker starts on the Chassis just flown.
-  await expect(page.getByRole('radio', { name: /Hauler/ })).toBeChecked();
+  await expect(page.getByRole('radio', { name: /Scout/ })).toBeChecked();
   await testInfo.attach('picker-after-failure', {
     body: await page.screenshot(),
     contentType: 'image/png',
@@ -444,9 +445,9 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   await page.getByRole('button', { name: 'Back' }).click();
   await expect(outcome.getByRole('button', { name: 'New Run' })).toBeFocused();
   await outcome.getByRole('button', { name: 'New Run' }).click();
-  // The picker starts on the Hauler just flown; one step on is the Lancer.
+  // The picker starts on the Scout just flown; one step on is the Hauler.
   await page.keyboard.press('ArrowRight');
-  await expect(page.getByRole('radio', { name: /Lancer/ })).toBeChecked();
+  await expect(page.getByRole('radio', { name: /Hauler/ })).toBeChecked();
   await page.getByRole('button', { name: 'Launch' }).click();
   const nextHome = startingMoon(generateStarSystem(FAIL_SEED + 1));
   await expect(page.getByRole('heading', { name: nextHome.name, level: 1 })).toBeVisible();

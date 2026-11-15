@@ -99,8 +99,9 @@ test('the picker shows each Chassis and its numbers, and picking by keyboard sta
   await expect(picker.getByRole('radio')).toHaveCount(3);
   await expect(picker.getByText('Dry mass')).toHaveCount(3);
   await expect(picker.getByText('4.0 t', { exact: true })).toBeVisible();
-  await expect(picker.getByText('15.0 t', { exact: true })).toBeVisible();
-  await expect(picker.getByText('66.0 t', { exact: true })).toBeVisible();
+  // The Hauler's two Fuel Tanks (#231): 16.5 t dry, 132 t of Fuel.
+  await expect(picker.getByText('16.5 t', { exact: true })).toBeVisible();
+  await expect(picker.getByText('132.0 t', { exact: true })).toBeVisible();
   await expect(picker.getByText('Selected')).toHaveCount(1);
   await expect(picker.getByText(/More mass, less/)).toBeVisible();
   await testInfo.attach('picker', { body: await page.screenshot(), contentType: 'image/png' });
@@ -119,9 +120,10 @@ test('the picker shows each Chassis and its numbers, and picking by keyboard sta
   await expect(page.getByRole('button', { name: 'Launch' })).toBeFocused();
   await page.keyboard.press('Enter');
 
-  await expect(page.getByTestId('fuel')).toHaveText('66.0 t');
-  // Hauler: 1575 s Isp (#247), 15 t dry + 66 t Fuel: 1575 × 9.80665 × ln(81 / 15) is about 26.0 km/s.
-  await expect(page.getByTestId('delta-v')).toHaveText('26.0 km/s');
+  await expect(page.getByTestId('fuel')).toHaveText('132.0 t');
+  // Hauler: 1575 s Isp (#247), two Fuel Tanks (#231), 16.5 t dry + 132 t Fuel:
+  // 1575 × 9.80665 × ln(148.5 / 16.5) is about 33.9 km/s.
+  await expect(page.getByTestId('delta-v')).toHaveText('33.9 km/s');
 });
 
 test('Back from the picker returns focus to New Run', async ({ page }) => {
