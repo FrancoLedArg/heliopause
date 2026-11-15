@@ -17,6 +17,21 @@ export { CHOICE_LOG_VERSION, parseChoiceLog, storedChoiceLog } from './choiceLog
 export type { Choice, ChoiceLog, StoredChoiceLog } from './choiceLog.ts';
 export { collectYield, isDepleted } from './gather.ts';
 export type { Collection, Landing } from './gather.ts';
+export {
+  bodyDiscoveryCount,
+  discoveriesOn,
+  DISCOVERIES,
+  DISCOVERY_IDS,
+  SCIENCE_BY_INSTRUMENT,
+} from './discoveries.ts';
+export type {
+  Discovery,
+  DiscoveryBodyType,
+  DiscoveryId,
+  DiscoveryReveal,
+  InstrumentId,
+  MadeDiscovery,
+} from './discoveries.ts';
 export { install, standingRefusal } from './install.ts';
 export type { InstallRefusal, InstallResult, StandingRefusal } from './install.ts';
 export { preview } from './preview.ts';

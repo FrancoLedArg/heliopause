@@ -1,4 +1,5 @@
 import { COMPONENTS, type ComponentKind } from '../game/sim/catalogue.ts';
+import { DISCOVERIES, DISCOVERY_IDS } from '../game/sim/discoveries.ts';
 import { SLOT_COUNT } from '../game/sim/spacecraft.ts';
 
 /**
@@ -208,6 +209,14 @@ export const CREDITS: {
           },
         },
       ],
+    },
+    {
+      // The NASA pages each Discovery retells (#318), with the place of the real find.
+      heading: 'Discoveries (the real finds behind them)',
+      entries: DISCOVERY_IDS.map((id) => {
+        const { name, place, source } = DISCOVERIES[id];
+        return ref(name, place, source);
+      }),
     },
     {
       heading: 'References (the sources behind the game data)',

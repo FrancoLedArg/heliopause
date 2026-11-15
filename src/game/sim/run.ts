@@ -1,5 +1,6 @@
 import type { ChoiceLog } from './choiceLog.ts';
 import type { Cruise } from './cruise.ts';
+import type { MadeDiscovery } from './discoveries.ts';
 import type { Departure } from './hop.ts';
 import type { ChassisId } from './data.ts';
 import type { Collection } from './gather.ts';
@@ -72,6 +73,10 @@ export interface Run {
    * System (a New Run, or the Jump's arrival): the Landed view plays it as it opens.
    */
   readonly startingYield: Collection;
+  /** The Science the Run has earned (#318): each Discovery gives it once per Star System. */
+  readonly science: number;
+  /** The Discoveries the Run has made, in order, with the Body and Star System of each. */
+  readonly discoveries: readonly MadeDiscovery[];
 }
 
 /**

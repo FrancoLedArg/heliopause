@@ -13,6 +13,7 @@ import {
   score,
   starSystemNumber,
   type ChassisId,
+  type DiscoveryReveal,
   type HopFlight,
   type Run,
   type Score,
@@ -28,6 +29,7 @@ import { FirstRunHint } from './FirstRunHint.tsx';
 import { EndOfRun, type RecordedScore } from './EndOfRun.tsx';
 import { formatFuel } from './format.ts';
 import { FlightHud, type FlightAfter } from './FlightHud.tsx';
+import { DiscoveryCard } from './DiscoveryCard.tsx';
 import { HopReport } from './HopReport.tsx';
 import { LandedPanels } from './LandedPanels.tsx';
 import { AboutPanel, CreditsPanel, HowToPlayPanel } from './InfoPanels.tsx';
@@ -100,6 +102,8 @@ export function GameUI() {
   const [arrival, setArrival] = useState<{ before: Run; flight: HopFlight } | undefined>(undefined);
   // What Comms just revealed, in words for the polite live region; the ping on the Landed view is the visual.
   const [comms, setComms] = useState('');
+  /** The Discovery cards still to show (#318), the first on screen. */
+  const [discoveryQueue, setDiscoveryQueue] = useState<readonly DiscoveryReveal[]>([]);
   // The gathering moment playing in the Landed view, and where its readout has counted to; the
   // Hop report waits until it ends.
   const [gathering, setGathering] = useState<
@@ -178,6 +182,7 @@ export function GameUI() {
       EventBus.on('run-started', (started) => {
         setRun(started);
         setComms('');
+        setDiscoveryQueue([]);
         setArrival(undefined);
         setGathering(undefined);
         setGathered('');
@@ -220,6 +225,15 @@ export function GameUI() {
     () =>
       EventBus.on('hop-arrived', (before, hop) => {
         setArrival({ before, flight: hop });
+        // What the Instruments revealed on landing: shown after the Hop report, one card at a time.
+        setDiscoveryQueue(hop.discoveries);
+      }),
+    [],
+  );
+  useEffect(
+    () =>
+      EventBus.on('discoveries-revealed', (_run, revealed) => {
+        setDiscoveryQueue((queue) => [...queue, ...revealed]);
       }),
     [],
   );
@@ -533,6 +547,23 @@ export function GameUI() {
             flight={arrival.flight}
             actions={[{ label: 'Continue', onClick: dismissArrival, primary: true }]}
             onEscape={dismissArrival}
+          />
+        )}
+      {scene === SceneKey.Landed &&
+        run !== undefined &&
+        stranded === undefined &&
+        arrival === undefined &&
+        gathering === undefined &&
+        !spacecraftOpen &&
+        discoveryQueue[0] !== undefined && (
+          <DiscoveryCard
+            key={discoveryQueue.length}
+            reveal={discoveryQueue[0]}
+            starSystem={run.starSystem}
+            waiting={discoveryQueue.length - 1}
+            onContinue={() => {
+              setDiscoveryQueue((queue) => queue.slice(1));
+            }}
           />
         )}
       {scene === SceneKey.Landed &&

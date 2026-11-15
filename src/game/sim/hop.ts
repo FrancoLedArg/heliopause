@@ -22,6 +22,7 @@ import {
   type CruiseEventKind,
 } from './data.ts';
 import { collectYield, type Collection } from './gather.ts';
+import { revealDiscoveries, type DiscoveryReveal } from './discoveries.ts';
 import { isInHopRange } from './hopRange.ts';
 import { jump } from './jump.ts';
 import { bodyKnowledge, distanceBetween, revealOnLanding, type Reveal } from './knowledge.ts';
@@ -367,6 +368,8 @@ export interface HopFlight {
   readonly collection: Collection | null;
   /** What landing on the target taught the player; `null` when the Hop did not land on a Body. */
   readonly reveal: Reveal | null;
+  /** What the Instruments revealed on landing (#318); empty when the Hop did not land on a Body. */
+  readonly discoveries: readonly DiscoveryReveal[];
   readonly deltaVRemaining: MetersPerSecond;
   /** The Cruise events that struck, in order; empty when the Hop Fell Short before the Cruise. */
   readonly cruiseEvents: readonly StruckEvent[];
@@ -471,6 +474,7 @@ function depart(
       fuelRemaining: kilograms(0),
       collection: null,
       reveal: null,
+      discoveries: [],
       deltaVRemaining: remaining,
       cruiseEvents: [],
       fuelLost: kilograms(0),
@@ -647,6 +651,7 @@ function arrive(run: Run, departure: Departure, cruise: Cruise): FlownHop {
     fuelRemaining,
     collection: null,
     reveal: null,
+    discoveries: [],
     deltaVRemaining: remaining,
     cruiseEvents: cruise.struck,
     fuelLost: cruise.fuelLost,
@@ -674,10 +679,17 @@ function arrive(run: Run, departure: Departure, cruise: Cruise): FlownHop {
       const landed = collectYield(settled({ kind: 'landed', bodyId: target.id }), target.id);
       // The landing Surveys the target, then Comms Detects one more Body.
       const learned = revealOnLanding(landed.run, target.id, isInReach);
+      // After the yield, the Instruments aboard reveal what they can on the Body (#318).
+      const found = revealDiscoveries(learned.run, target.id);
       // Stranded is judged after the Cruise, on the Spacecraft as it landed.
       return deepFreeze({
-        flight: { ...flight, collection: landed.collection, reveal: learned.reveal },
-        run: endIfStranded(learned.run),
+        flight: {
+          ...flight,
+          collection: landed.collection,
+          reveal: learned.reveal,
+          discoveries: found.revealed,
+        },
+        run: endIfStranded(found.run),
       });
     }
   }

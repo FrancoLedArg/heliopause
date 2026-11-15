@@ -1032,3 +1032,24 @@ it('an Unsurveyed Body’s card hides its type, gravity and resources; its plan 
   );
   expect(byTestId(plan, 'dv-bar').getAttribute('aria-label')).toMatch(/Landing is a guess/);
 });
+
+it('keeps the Discovery pips clear of the Body name on the card, even the longest name (#318)', async () => {
+  const { run, body } = longBody();
+  const host = await renderUi(<Panel run={run} focusedId={body.id} selectedId={undefined} />);
+  const pips = byTestId(host, 'discovery-pips').getBoundingClientRect();
+  const name = host.querySelector<HTMLElement>('.nav-chart__tip-name');
+  if (!name) throw new Error('missing name');
+  const range = document.createRange();
+  range.selectNodeContents(name);
+  for (const line of range.getClientRects()) {
+    const apart =
+      line.right <= pips.left ||
+      pips.right <= line.left ||
+      line.bottom <= pips.top ||
+      pips.bottom <= line.top;
+    expect(apart).toBe(true);
+  }
+  const frame = byTestId(host, 'inspect').getBoundingClientRect();
+  expect(pips.right).toBeLessThanOrEqual(frame.right);
+  expect(pips.width).toBeLessThan(30);
+});

@@ -292,6 +292,20 @@ body {
   color: var(--cy3);
 }
 
+/* The Run's Science (#318): a chip hanging under the bar's Materials column, so the bar's own row stays as it was. */
+.top-bar__science {
+  top: 42px;
+  left: 436px;
+  padding: 1px 6px;
+  border: 1px solid var(--gm3);
+  background: var(--gm1);
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  margin: 0;
+  color: var(--wh3);
+}
+
 /* The Daily Star System's day, on the label row beside "System N" (clear of the Fuel icon at 210). */
 .top-bar__daily {
   position: absolute;
@@ -1077,12 +1091,41 @@ body {
   margin: 0;
 }
 
+/* A Surveyed Body's Discoveries (#318): pips on the name row's right end; filled = found (shape, not just colour). */
+.nav-chart__tooltip > .nav-chart__pips {
+  position: absolute;
+  top: 6px;
+  left: auto;
+  right: 8px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 2px;
+  margin: 0;
+}
+
+.nav-chart__pip {
+  width: 6px;
+  height: 6px;
+  box-sizing: border-box;
+  border: 1px solid var(--wh3);
+  transform: rotate(45deg);
+}
+
+.nav-chart__pip--found {
+  background: var(--wh3);
+}
+
 .nav-chart__tip-name {
   top: 6px;
   font: 8px/8px var(--font-pixel);
   text-transform: uppercase;
   color: var(--cy3);
   overflow-wrap: anywhere;
+}
+
+/* The name keeps clear of the Discovery pips beside it (#318). */
+.nav-chart__tooltip:has(> .nav-chart__pips) > .nav-chart__tip-name {
+  right: 26px;
 }
 
 /* The Body type wraps onto a second line rather than clip (the tooltip grows a line; the lines under it move down 9 px). */
