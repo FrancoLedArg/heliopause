@@ -1,4 +1,6 @@
 import type { ChoiceLog } from './choiceLog.ts';
+import type { Cruise } from './cruise.ts';
+import type { Departure } from './hop.ts';
 import type { ChassisId } from './data.ts';
 import type { Collection } from './gather.ts';
 import { generateStarSystem } from './generation.ts';
@@ -24,14 +26,18 @@ import type { Materials } from './units.ts';
 export type RunEnd =
   | { readonly kind: 'fell-short'; readonly reason: string }
   | { readonly kind: 'crashed'; readonly reason: string }
-  | { readonly kind: 'stranded'; readonly reason: string; readonly bodyId: BodyId };
+  | { readonly kind: 'stranded'; readonly reason: string; readonly bodyId: BodyId }
+  /** An Engine fire left without a Repair reached the Fuel in the Cruise (#210). */
+  | { readonly kind: 'destroyed'; readonly reason: string };
 
 /**
- * Where the Run stands: landed on a Body and free to plan a Hop, or ended by a failed Hop. A Hop
- * that reaches the Heliopause Jumps straight on and lands on the next Starting Moon.
+ * Where the Run stands: landed on a Body and free to plan a Hop, cruising between the Transfer and
+ * the Landing of a Hop (#210), or ended. A Hop that reaches the Heliopause Jumps straight on and
+ * lands on the next Starting Moon.
  */
 export type RunStatus =
   | { readonly kind: 'landed'; readonly bodyId: BodyId }
+  | { readonly kind: 'cruising'; readonly cruise: Cruise; readonly departure: Departure }
   | { readonly kind: 'ended'; readonly end: RunEnd };
 
 /** One attempt from a fresh start. Replays identically from its seed. */
@@ -76,9 +82,10 @@ export function startRun(seed: Seed, chassisId: ChassisId): Run {
   return deepFreeze(startingRun(generateSystem(seed, 1), chassisId, 1, seed));
 }
 
-/** The Body the Spacecraft is landed on. Throws for a Run that has ended: it is on no Body. */
+/** The Body the Spacecraft is landed on. Throws for a Run that is cruising or has ended: it is on no Body. */
 export function currentBody(run: Run): LandableBody {
   if (run.status.kind === 'ended') throw new Error(`Run ${run.seed} has ended`);
+  if (run.status.kind === 'cruising') throw new Error(`Run ${run.seed} is cruising`);
   const body = findBody(run.starSystem, run.status.bodyId);
   if (!body?.landable) {
     throw new Error(`Run is landed on ${run.status.bodyId}, which is not a landable Body`);
