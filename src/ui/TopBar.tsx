@@ -1,6 +1,7 @@
 import type { Kilograms, Materials, MetersPerSecond } from '../game/sim/index.ts';
 import { imageUrl } from '../game/assets/manifest.ts';
 import { formatDeltaVKmS, formatFuel } from './format.ts';
+import { FuelGauge } from './FuelGauge.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 
 const BAR_WIDTH = 624;
@@ -11,6 +12,8 @@ interface TopBarProps {
   systemNumber: number;
   systemName: string;
   fuel: Kilograms;
+  /** What the tanks hold when full: the Fuel bar's full length. */
+  fuelCapacity: Kilograms;
   deltaV: MetersPerSecond;
   materials: Materials;
   /** The UTC day of the Daily Star System being played, `YYYY-MM-DD`; `undefined` for any other Run. */
@@ -26,6 +29,7 @@ export function TopBar({
   systemNumber,
   systemName,
   fuel,
+  fuelCapacity,
   deltaV,
   materials,
   dailyDay,
@@ -51,6 +55,13 @@ export function TopBar({
       <p className="top-bar__value top-bar__fuel" data-testid="fuel">
         {formatFuel(fuel)}
       </p>
+      <FuelGauge
+        fuel={fuel}
+        capacity={fuelCapacity}
+        shape="bar"
+        testId="fuel-bar"
+        className="top-bar__fuel-bar"
+      />
       <KitFrame frame="res_delta_v" className="top-bar__icon top-bar__dv-icon" />
       <p className="top-bar__label top-bar__dv-label">Δv available</p>
       <p className="top-bar__value top-bar__dv" data-testid="delta-v">
