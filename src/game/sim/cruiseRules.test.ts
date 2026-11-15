@@ -96,13 +96,13 @@ describe('the three-part Hop', () => {
     expect(flown(begun.run).run).toEqual(launched.kind === 'flown' && launched.run);
   });
 
-  it('a real Run has a Fuel leak in its first Cruise (#250)', () => {
+  it('a real Run has a Fuel leak or a Debris field in its first Cruise (#250, #252)', () => {
     const begun = beginHop(opening, firstHop);
     if (begun.kind !== 'cruising' || begun.run.status.kind !== 'cruising')
       throw new Error('Expected a Cruise');
     const kinds = begun.run.status.cruise.schedule.map((event) => event.kind);
     expect(kinds.length).toBeGreaterThanOrEqual(1);
-    expect(kinds.every((kind) => kind === 'fuel-leak')).toBe(true);
+    expect(kinds.every((kind) => kind === 'fuel-leak' || kind === 'debris-field')).toBe(true);
   });
 
   it('a Hop that Fell Short has no Cruise', () => {
@@ -149,6 +149,18 @@ describe('Damage', () => {
     expect(after.spacecraft.fuelMass).toBe(before.spacecraft.fuelMass);
     const ratio = availableDeltaV(after.spacecraft) / availableDeltaV(before.spacecraft);
     expect(ratio).toBeCloseTo(0.85, 9);
+  });
+
+  it('a Debris field that misses Damages nothing, and one that hits Damages only its Component', () => {
+    const miss = at(
+      cruising(opening, firstHop, [{ kind: 'debris-field', tick: 50, slot: null }]),
+      60,
+    );
+    expect(miss.spacecraft.damage.every((slotDamage) => slotDamage === null)).toBe(true);
+    const hit = at(cruising(opening, firstHop, [engineHitAt(50)]), 60);
+    expect(hit.spacecraft.damage.map((slotDamage) => slotDamage !== null)).toEqual(
+      opening.spacecraft.slots.map((_, slot) => slot === ENGINE),
+    );
   });
 
   it('an event never hits a Component that is already Damaged', () => {
