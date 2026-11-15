@@ -109,6 +109,14 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   });
   await page.keyboard.press('Escape');
   await expect(panel).toBeHidden();
+  // The Drill is drawn on the Spacecraft, and named in its text alternative.
+  await expect(page.locator('[data-spacecraft]')).toHaveAttribute(
+    'data-spacecraft',
+    /"drill-1\.0\.front"/,
+  );
+  await expect(page.getByTestId('spacecraft-alt')).toHaveText(
+    'Scout: Engine 1, Fuel Tank 1, Drill 1',
+  );
 
   // 4. The Hop plan shows the changed Δv.
   await page.keyboard.press('m');

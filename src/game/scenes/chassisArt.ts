@@ -13,29 +13,14 @@ export interface Point {
   readonly y: number;
 }
 
-/** One frame of a Chassis' atlas: its size, and where the centre of the base sits inside it. */
+/** One frame of the drawn Spacecraft: its size, and where the centre of the base sits inside it. */
 export interface FrameGeometry {
   readonly width: number;
   readonly height: number;
   readonly pivot: Point;
 }
 
-/**
- * The Chassis art's data, written by the sprite generator (`docs/design/sprites/gen_sprites.py`)
- * beside the atlases: nothing here is typed in by hand, so a new ship only needs a regeneration.
- */
-const CHASSIS = art.chassis;
-
-/** How far the flight pose is turned clockwise from upright: the Transfer's heading, up and to the right (°). */
-export const FLIGHT_ANGLE: number = art.flightAngle;
-
-/** The size of a frame, and where its origin (the centre of the Spacecraft's base) sits in it. */
-export function frameGeometry(chassisId: ChassisId, frame: ShipFrame): FrameGeometry {
-  const { w, h, pivot } = CHASSIS[chassisId].frames[frame];
-  return { width: w, height: h, pivot };
-}
-
-/** A nozzle of the main engine, or of a side propulsor (nacelle or booster). */
+/** A nozzle of an Engine, or of a side propulsor (nacelle or booster) of the Chassis art. */
 export type NozzleKind = 'main' | 'side';
 
 /** One nozzle the Spacecraft fires from: what kind it is, and where its exit sits from the centre of the base. */
@@ -44,18 +29,58 @@ export interface Nozzle {
   readonly exit: Point;
 }
 
-/** Every nozzle of a pose, side propulsors first, then the main engine: Takeoff, Landing and the Transfer fire them all. */
-export function nozzles(chassisId: ChassisId, pose: ShipPose): readonly Nozzle[] {
-  const { side, main } = CHASSIS[chassisId].nozzles[pose];
-  const of =
-    (kind: NozzleKind) =>
-    (exit: Point): Nozzle => ({ kind, exit });
-  return [...side.map(of('side')), ...main.map(of('main'))];
+/** One piece of art in one pose, as the generator wrote it: its box and points from the centre of the base. */
+export interface PoseArt {
+  readonly rect: { readonly x: number; readonly y: number; readonly w: number; readonly h: number };
+  readonly nozzles: readonly Point[];
+  readonly lamps: readonly Point[];
+  readonly anchors: { readonly vent?: Point };
 }
 
-/** Every nozzle exit (side propulsors, then the main engine) in a pose. */
-export function nozzleExits(chassisId: ChassisId, pose: ShipPose): readonly Point[] {
-  return nozzles(chassisId, pose).map((nozzle) => nozzle.exit);
+/** One piece of art (the Chassis art, or one layer of a Component art at one mount point) in both poses. */
+export type PieceArt = Readonly<Record<ShipPose, PoseArt>>;
+
+/** Everything the generator drew for one Chassis. */
+export interface ChassisArtData {
+  readonly frames: Readonly<
+    Record<ShipFrame, { readonly w: number; readonly h: number; readonly pivot: Point }>
+  >;
+  readonly chassis: PieceArt;
+  /** Per Component id, per mount point, its art's layers. */
+  readonly components: Readonly<
+    Partial<Record<string, readonly Readonly<Partial<Record<'back' | 'front', PieceArt>>>[]>>
+  >;
+}
+
+/**
+ * The Spacecraft art's data, written by the sprite generator (`docs/design/sprites/gen_ships.py`)
+ * beside the atlases: nothing here is typed in by hand, so new art only needs a regeneration.
+ */
+const DATA: {
+  readonly flightAngle: number;
+  readonly chassis: Readonly<Record<ChassisId, ChassisArtData>>;
+} = art;
+
+/** How far the flight pose is turned clockwise from upright: the Transfer's heading, up and to the right (°). */
+export const FLIGHT_ANGLE: number = DATA.flightAngle;
+
+/** Everything the generator drew for the Chassis: read by the composition (`spacecraftComposition.ts`). */
+export function chassisArtData(chassisId: ChassisId): ChassisArtData {
+  return DATA.chassis[chassisId];
+}
+
+/** The pose a frame is drawn in. */
+export function poseOf(frame: ShipFrame): ShipPose {
+  return frame === 'flight' ? 'flight' : 'standing';
+}
+
+/**
+ * The size of a frame of the drawn Spacecraft, and where its origin (the centre of the base) sits
+ * in it: the box every piece of this Chassis's art fits in, whatever is installed.
+ */
+export function frameGeometry(chassisId: ChassisId, frame: ShipFrame): FrameGeometry {
+  const { w, h, pivot } = DATA.chassis[chassisId].frames[frame];
+  return { width: w, height: h, pivot };
 }
 
 /** A point turned clockwise on the screen about the origin (`degrees`), as Phaser's `angle` turns an object. */

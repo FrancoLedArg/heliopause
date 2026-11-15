@@ -7,6 +7,7 @@ import {
   install,
   kilograms,
   materials,
+  newSpacecraft,
   refit,
   startRun,
   type Slot,
@@ -17,6 +18,7 @@ import {
   describeRefusal,
   describeRemoval,
   describeRemoveRefusal,
+  describeSpacecraft,
   installTarget,
   massBar,
   panelRows,
@@ -310,5 +312,22 @@ describe('the Jump Drive in the panel', () => {
     );
     // Every other Component stays on offer.
     expect(panelRows(result.run).filter((r) => r.unavailable !== undefined)).toHaveLength(1);
+  });
+});
+
+describe('the drawn Spacecraft’s text alternative', () => {
+  it('names the Chassis and every installed Component, counting repeats', () => {
+    const hauler = refit(newSpacecraft('hauler'), [
+      'engine-1',
+      'fuel-tank-1',
+      'fuel-tank-1',
+      'drill-2',
+    ]);
+    expect(describeSpacecraft(hauler)).toBe('Hauler: Engine 1, Fuel Tank 1 ×2, Drill 2');
+  });
+
+  it('skips empty Slots and names the Jump Drive without a level', () => {
+    const lancer = refit(newSpacecraft('lancer'), ['engine-2', null, 'fuel-tank-1', 'jump-drive']);
+    expect(describeSpacecraft(lancer)).toBe('Lancer: Engine 2, Fuel Tank 1, Jump Drive');
   });
 });

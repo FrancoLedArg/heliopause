@@ -6,7 +6,6 @@ import { prefersReducedMotion } from '../lib/motion.ts';
 import { chooseCruiseSpeed } from '../lib/cruiseSpeed.ts';
 import { createRng } from '../lib/rng.ts';
 import { findBody, listBodies, type BodyId, type HopFlight, type Run } from '../sim/index.ts';
-import { componentLayout, type Rect } from './componentBounds.ts';
 import {
   advancePlayback,
   CRUISE_BOOST_MS,
@@ -50,7 +49,9 @@ import {
   shadowWidth,
   spacecraftNozzles,
   type ShipFrame,
+  type SpacecraftArt,
 } from './spacecraftArt.ts';
+import type { Rect } from './spacecraftComposition.ts';
 import { generateStars } from './starfield.ts';
 import {
   CRASH_FALL_MS,
@@ -308,6 +309,8 @@ export class Flight extends Scene {
   /** The Spacecraft with its plumes; tests read where it rests. */
   ship!: GameObjects.Container;
   private shipArt!: (frame: ShipFrame) => void;
+  /** The drawn Spacecraft's Components: where each sits on screen. */
+  private shipParts!: Pick<SpacecraftArt, 'componentBounds' | 'anchor'>;
   /** The glow at each downward nozzle's exit, in the ship's container. */
   private nozzleGlows: readonly GameObjects.Image[] = [];
   /** One plume per nozzle in each pose: down from the standing ship, back along the heading in flight. */
@@ -329,8 +332,6 @@ export class Flight extends Scene {
   private glint!: GameObjects.Image;
   /** The attitude thruster's puff, on the Spacecraft; `undefined` under reduced motion. */
   private vent: GameObjects.Image | undefined;
-  /** The frame the Spacecraft is drawn in now: the Component layout follows it. */
-  private shipFrame: ShipFrame = 'landed';
   private stage: 'departure' | 'arrival' | 'space' | undefined;
   private streaks: {
     readonly line: GameObjects.Rectangle;
@@ -354,7 +355,6 @@ export class Flight extends Scene {
     this.finished = false;
     this.held = false;
     this.fast = false;
-    this.shipFrame = 'landed';
     this.streaks = [];
     this.starLayers = [];
     this.played = new Set();
@@ -390,7 +390,7 @@ export class Flight extends Scene {
     this.shadow = this.add.ellipse(
       SHIP_PLACEMENT.x,
       SHIP_PLACEMENT.baseY + SHIP_SHADOW.dy,
-      shadowWidth(this.before.spacecraft.chassisId),
+      shadowWidth(this.before.spacecraft.chassisId, this.before.spacecraft.slots),
       SHIP_SHADOW.height,
       paletteNumber('void'),
       0.45,
@@ -465,29 +465,13 @@ export class Flight extends Scene {
 
   /**
    * Each installed Component's rectangle on the screen, keyed by its Slot: what Cruise events (#210)
-   * hit-test a click against. #233 backs it with the composed Spacecraft's own `componentBounds()`.
+   * hit-test a click against. In the Cruise the Spacecraft flies big, so each is large enough to click.
    */
   componentBounds(): ReadonlyMap<number, Rect> {
-    const matrix = this.ship.getWorldTransformMatrix();
     const { scrollX, scrollY } = this.cameras.main;
     const out = new Map<number, Rect>();
-    for (const [slot, rect] of componentLayout(this.before.spacecraft.slots, this.shipFrame)) {
-      const corners = [
-        [rect.x, rect.y],
-        [rect.x + rect.width, rect.y],
-        [rect.x, rect.y + rect.height],
-        [rect.x + rect.width, rect.y + rect.height],
-      ].map(([x = 0, y = 0]) => matrix.transformPoint(x, y));
-      const xs = corners.map((p) => p.x - scrollX);
-      const ys = corners.map((p) => p.y - scrollY);
-      const left = Math.min(...xs);
-      const top = Math.min(...ys);
-      out.set(slot, {
-        x: left,
-        y: top,
-        width: Math.max(...xs) - left,
-        height: Math.max(...ys) - top,
-      });
+    for (const [slot, rect] of this.shipParts.componentBounds()) {
+      out.set(slot, { ...rect, x: rect.x - scrollX, y: rect.y - scrollY });
     }
     return out;
   }
@@ -571,8 +555,8 @@ export class Flight extends Scene {
    * engine's nozzles to the nose. Where the Jump Drive's glow builds and its trail starts.
    */
   private hullCentre(at: Point): Point {
-    const { chassisId } = this.before.spacecraft;
-    const exits = spacecraftNozzles(chassisId, 'flight').map(({ exit }) => exit);
+    const { chassisId, slots } = this.before.spacecraft;
+    const exits = spacecraftNozzles(chassisId, 'flight', slots).map(({ exit }) => exit);
     const rear = {
       x: exits.reduce((sum, exit) => sum + exit.x, 0) / exits.length,
       y: exits.reduce((sum, exit) => sum + exit.y, 0) / exits.length,
@@ -656,7 +640,7 @@ export class Flight extends Scene {
       CRUISE.bob.px * wave(CRUISE.bob, 1) +
       drifting * 0.008;
     const angle = CRUISE.tilt.degrees * wave(CRUISE.tilt, 2) + Math.min(drifting * 0.002, 4);
-    this.showShip('flight');
+    this.shipArt('flight');
     this.ship.setScale(CRUISE.scale).setPosition(Math.round(x), Math.round(y)).setAngle(angle);
     this.thrust(0, firing);
     this.fx?.exhaust(firing, this.flightNozzles(this.ship.x, this.ship.y, angle));
@@ -767,7 +751,7 @@ export class Flight extends Scene {
   private vertical(shot: VerticalShot, firing: boolean, ms: number): void {
     const x = SHIP_PLACEMENT.x;
     const y = Math.round(SHIP_PLACEMENT.baseY - shot.altitude);
-    this.showShip('landed');
+    this.shipArt('landed');
     this.ship.setScale(1).setPosition(x, y).setAngle(0);
     this.thrust(firing ? shot.plume : 0, false);
     // The camera rides a step behind it, rumbling (never under reduced motion).
@@ -863,12 +847,6 @@ export class Flight extends Scene {
       const at = turn({ x: image.x, y: image.y }, angle);
       return { x: x + k * at.x, y: y + k * at.y };
     });
-  }
-
-  /** Draws the Spacecraft in `frame`; the Component layout follows it. */
-  private showShip(frame: ShipFrame): void {
-    this.shipFrame = frame;
-    this.shipArt(frame);
   }
 
   /** Fires every downward nozzle of the standing pose `stretch` long (0 is off), and the rearward ones of the flight pose while `rear`. */
@@ -1148,10 +1126,10 @@ export class Flight extends Scene {
   }
 
   private buildShip(): void {
-    const { chassisId } = this.before.spacecraft;
+    const { chassisId, slots } = this.before.spacecraft;
     const plumes = (pose: ShipPose): Plume[] => {
       const art = plumeArt(pose);
-      return spacecraftNozzles(chassisId, pose).map(({ kind, exit }) => ({
+      return spacecraftNozzles(chassisId, pose, slots).map(({ kind, exit }) => ({
         kind,
         art,
         image: art
@@ -1190,8 +1168,9 @@ export class Flight extends Scene {
         .setVisible(false),
     );
     this.nozzleGlows = nozzleGlows;
-    const ship = addSpacecraftArt(this, chassisId);
+    const ship = addSpacecraftArt(this, chassisId, slots);
     this.shipArt = ship.show;
+    this.shipParts = ship;
     // The attitude thrusters' puff (the generated vent spray once the manifest has it). Not under reduced motion.
     this.vent =
       this.pace === 'full'
