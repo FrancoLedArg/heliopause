@@ -1285,3 +1285,90 @@ describe('the live Cruise (#250)', () => {
     expect(scene.live?.materials).toBeLessThan(materialsBefore);
   });
 });
+
+describe('the Engine fire (#251)', () => {
+  /** The game with its UI, flying a first Hop with an Engine fire on tick 100 (10 s in). */
+  async function onFire() {
+    host = document.createElement('div');
+    document.body.append(host);
+    root = createRoot(host);
+    const titleReady = nextSceneReady(SceneKey.Title);
+    act(() => {
+      root?.render(
+        <div className="stage" style={{ width: GAME_WIDTH, height: GAME_HEIGHT }}>
+          <div id="flight-test-game" />
+          <div className="stage__ui">
+            <GameUI />
+          </div>
+        </div>,
+      );
+    });
+    game = startGame('flight-test-game');
+    await titleReady;
+    const run = onHome(startRun(2026, 'scout'));
+    const target = homeMoonId(run);
+    if (target === undefined) throw new Error('No target');
+    const engine = run.spacecraft.slots.findIndex((id) => id === 'engine-1');
+    const begun = beginHop(run, target, {
+      schedule: [{ kind: 'engine-fire', tick: 100, slot: engine }],
+    });
+    if (begun.kind === 'invalid-target') throw new Error('Not a Hop target');
+    const ready = nextSceneReady(SceneKey.Flight);
+    game.scene.start(SceneKey.Flight, flightDataFor(run, begun));
+    await ready;
+    const scene = game.scene.getScene<Flight>(SceneKey.Flight);
+    const cruise = scene.playback.cruise;
+    if (!cruise) throw new Error('Expected a Cruise');
+    return { scene, engine, inCruise: (ms: number) => cruise.start + ms };
+  }
+
+  it('a burning Engine shows flames and a danger arc; starting its Repair puts the fire out', async () => {
+    const { scene, engine, inCruise } = await onFire();
+    act(() => {
+      scene.seek(inCruise(10_050));
+    });
+    expect(scene.marks.shown(engine)).toMatchObject({ flame: true, danger: true, ring: false });
+    act(() => {
+      EventBus.emit('repair-requested', engine);
+    });
+    act(() => {
+      scene.seek(inCruise(12_000));
+    });
+    expect(scene.marks.shown(engine)).toMatchObject({ flame: false, danger: false, ring: true });
+    // Past the 30 s it would have had, the Spacecraft flies on.
+    act(() => {
+      scene.seek(inCruise(45_000));
+    });
+    expect(scene.live?.status.kind).toBe('cruising');
+  });
+
+  it('a fire left alone explodes the Spacecraft, and the Run ends Destroyed', async () => {
+    const { scene, inCruise } = await onFire();
+    let destroyed = false;
+    const off = EventBus.on('hop-destroyed', () => {
+      destroyed = true;
+    });
+    act(() => {
+      scene.seek(inCruise(25_000));
+    });
+    // It caught fire on tick 100: 300 ticks later, on tick 400, it explodes.
+    act(() => {
+      scene.seek(inCruise(40_050));
+    });
+    expect(scene.live).toBeUndefined();
+    expect(scene.ship.visible).toBe(true);
+    act(() => {
+      scene.seek(inCruise(43_000));
+    });
+    off();
+    expect(destroyed).toBe(true);
+    expect(scene.ship.visible).toBe(false);
+    const end = await vi.waitFor(() => {
+      const shown = document.querySelector('[data-testid="end-of-run"]');
+      if (!shown) throw new Error('No End-of-Run screen yet');
+      return shown;
+    });
+    expect(end.querySelector('h2')?.textContent).toBe('Destroyed');
+    expect(end.textContent).toContain('The Engine fire reached the Fuel.');
+  });
+});

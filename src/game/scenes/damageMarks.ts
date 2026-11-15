@@ -1,12 +1,13 @@
 // The Damage drawn on the Spacecraft (#210, #250), shown, not told: a red glow and the kit's alert
-// badge on a Damaged Component, Fuel venting from a leaking Tank, and while it is Repaired a ring
+// badge on a Damaged Component, Fuel venting from a leaking Tank, flames and a closing danger arc on
+// a burning Engine (#251), and while it is Repaired a ring
 // filling round it with the Rush price beside it (a Materials icon and a number). Pooled per Slot,
 // built once per scene run: posing them allocates nothing per frame.
 import { BlendModes, type GameObjects, type Scene } from 'phaser';
 import { paletteCss, paletteNumber } from '../../ui/kit/palette.ts';
 import { repairState } from '../../ui/repairView.ts';
 import { hasAsset } from '../assets/manifest.ts';
-import { COMPONENTS, SLOT_COUNT, type Run } from '../sim/index.ts';
+import { COMPONENTS, CRUISE_TUNING, SLOT_COUNT, type Run } from '../sim/index.ts';
 import { glowTexture } from './flightEffects.ts';
 import type { Rect } from './spacecraftComposition.ts';
 
@@ -30,12 +31,25 @@ const MARK = {
   priceHeight: 12,
   /** How far a click may land outside a Component, or off the ring's line, and still hit it. */
   hitSlop: 4,
+  /**
+   * A burning Engine's flames (#251): each frame this long, drawn this big as the fire starts and
+   * growing by `flameGrowth` as its 30 s run out. The danger arc closes round the part this far
+   * outside the Repair ring, this thick.
+   */
+  flameFrameMs: 90,
+  flameFrames: 4,
+  flameScale: 1.2,
+  flameGrowth: 1.4,
+  dangerGap: 3,
+  dangerWidth: 2,
 } as const;
 
 interface SlotMarks {
   readonly glow: GameObjects.Image;
   readonly badge: GameObjects.Image | undefined;
   readonly vent: GameObjects.Image;
+  readonly flame: GameObjects.Image;
+  readonly danger: GameObjects.Graphics;
   readonly ring: GameObjects.Graphics;
   readonly icon: GameObjects.Image;
   readonly price: GameObjects.Text;
@@ -53,6 +67,8 @@ export interface DamageMarks {
     readonly glow: boolean;
     readonly badge: boolean;
     readonly vent: boolean;
+    readonly flame: boolean;
+    readonly danger: boolean;
     readonly ring: boolean;
   };
 }
@@ -104,6 +120,17 @@ export function createDamageMarks(scene: Scene, calm: boolean): DamageMarks {
     )
       .setOrigin(0.5, 1)
       .setVisible(false),
+    flame: (hasAsset('fx_flame')
+      ? scene.add.image(0, 0, 'fx_flame', 'flicker_0')
+      : scene.add
+          .image(0, 0, glowTexture(scene))
+          .setDisplaySize(10, 16)
+          .setTint(paletteNumber('am3'))
+    )
+      .setOrigin(0.5, 1)
+      .setBlendMode(BlendModes.ADD)
+      .setVisible(false),
+    danger: scene.add.graphics().setVisible(false),
     ring: scene.add.graphics().setVisible(false),
     icon: scene.add
       .image(0, 0, 'res_materials')
@@ -123,6 +150,8 @@ export function createDamageMarks(scene: Scene, calm: boolean): DamageMarks {
     slot.glow.setVisible(false);
     slot.badge?.setVisible(false);
     slot.vent.setVisible(false);
+    slot.flame.setVisible(false);
+    slot.danger.setVisible(false);
     slot.ring.setVisible(false);
     slot.icon.setVisible(false);
     slot.price.setVisible(false);
@@ -138,6 +167,8 @@ export function createDamageMarks(scene: Scene, calm: boolean): DamageMarks {
         glow: slot?.glow.visible ?? false,
         badge: slot?.badge?.visible ?? false,
         vent: slot?.vent.visible ?? false,
+        flame: slot?.flame.visible ?? false,
+        danger: slot?.danger.visible ?? false,
         ring: slot?.ring.visible ?? false,
       };
     },
@@ -168,6 +199,31 @@ export function createDamageMarks(scene: Scene, calm: boolean): DamageMarks {
           const frame = Math.floor(ms / MARK.ventFrameMs) % MARK.ventFrames;
           if (slot.vent.texture.key === 'fx_vent') slot.vent.setFrame(`spray_${String(frame)}`);
           else slot.vent.setAlpha(1 - frame / MARK.ventFrames / 2);
+        }
+
+        // A burning Engine (#251): flames that grow, and a red arc closing round it, as its 30 s
+        // run out. Under reduced motion only the arc, filling steadily. A Repair puts both out.
+        const burning = run.spacecraft.damage[index]?.burning ?? null;
+        const danger = burning === null ? 0 : Math.min(1, burning / CRUISE_TUNING.fireTicks);
+        slot.flame.setVisible(burning !== null && !calm);
+        if (burning !== null && !calm) {
+          const frame = Math.floor(ms / MARK.flameFrameMs) % MARK.flameFrames;
+          if (slot.flame.texture.key === 'fx_flame')
+            slot.flame.setFrame(`flicker_${String(frame)}`);
+          slot.flame
+            .setPosition(cx, cy + rect.height / 4)
+            .setScale(MARK.flameScale * (1 + MARK.flameGrowth * danger))
+            .setAlpha(0.8 + 0.2 * Math.sin((ms / MARK.flameFrameMs) * Math.PI));
+        }
+        slot.danger.setVisible(burning !== null);
+        if (burning !== null) {
+          const top = -Math.PI / 2;
+          slot.danger
+            .clear()
+            .lineStyle(MARK.dangerWidth, paletteNumber('rd3'), 1)
+            .beginPath()
+            .arc(cx, cy, radius + MARK.dangerGap, top, top + 2 * Math.PI * danger)
+            .strokePath();
         }
 
         // While Repaired: the ring fills round the part, and the Rush price waits beside it.
