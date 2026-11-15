@@ -438,7 +438,8 @@ def moon(kind, size=12):
         k = ramp_pick(ramp, l, cuts)
         hx, hy = g.cell(x, y)
         if kind == 2 and hash01(hx, hy, 5) < 0.18 and l > 0.3:
-            return "gr3" if hash01(hx, hy, 6) < 0.3 else "am1"
+            # A green fleck is one pixel at native size, but a 21 px mint block on the Approach art.
+            return "gr3" if hash01(hx, hy, 6) < 0.3 and g.f == 1 else "am1"
         if kind in (0, 3) and hash01(hx, hy, 11 + kind) < 0.14 and l > 0.25:
             return ramp[max(0, ramp.index(k) - 1)]
         if kind == 1 and abs(nx - ny * 0.6) < 0.1 and l > 0.3:
