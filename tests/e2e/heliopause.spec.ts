@@ -21,9 +21,11 @@ import { JUMP_FLAVOUR_TEXT } from '../../src/ui/jumpFlavour.ts';
 // Spec #15's way out, on one seed, by keyboard alone, since #191 found only by the Radar: the chart
 // opens with no Heliopause; build a Radar, Hop out until it finds the Heliopause, build the Jump
 // Drive, target the Heliopause, Launch, reach it, Jump to Star System 2 and Hop on from its Starting
-// Moon. The route is a careful explorer's (`readyToJump`): seed 121 gets out in 5 Hops. Re-pinned for
-// #191 (was seed 28, whose first target paid for the Jump Drive with the Heliopause already found).
-const SEED = 121;
+// Moon. The route is a careful explorer's (`readyToJump`): seed 136 gets out in 8 Hops, gathering on
+// after the Radar finds the Heliopause until it can pay for the Jump Drive. Re-pinned for #191 (was
+// seed 28, whose first target paid for the Jump Drive with the Heliopause already found). Re-pinned
+// for #231 (was seed 121): the Hauler's two-Tank start and the Radar (#276) redraw seed 121 with no way out.
+const SEED = 136;
 const ready = readyToJump(SEED, 'scout');
 if (!ready) throw new Error(`Seed ${String(SEED)} should have a way out`);
 const run = startRun(SEED, 'scout');
@@ -121,9 +123,9 @@ async function hopTo(page: Page, name: string): Promise<void> {
   await launch(page);
 }
 
-/** Hops out along the route, through each Hop's report, until the Radar has found the Heliopause. */
-async function exploreUntilFound(page: Page): Promise<void> {
-  for (const hop of hops.slice(0, firstFind + 1)) {
+/** Hops along these Hops of the route, through each Hop's report. */
+async function hopAlong(page: Page, along: typeof hops): Promise<void> {
+  for (const hop of along) {
     await hopTo(page, hop.name);
     const arrived = page.getByRole('dialog', { name: 'Arrived' });
     await expect(arrived).toBeVisible({ timeout: 30_000 });
@@ -158,8 +160,10 @@ test('build a Radar to find the Heliopause, then a Jump Drive, reach it by keybo
 
   // 2. Build a level-1 Radar from the Materials a New Run has, and Hop out until it finds the Heliopause.
   await installByKeyboard(page, /^Install Radar, level 1,/, 'Radar');
-  await exploreUntilFound(page);
+  await hopAlong(page, hops.slice(0, firstFind + 1));
   await expect(page.getByTestId('comms-announcement')).toContainText('Heliopause found');
+  // Then on, as the explorer does, until the Materials pay for the Jump Drive.
+  await hopAlong(page, hops.slice(firstFind + 1));
 
   // 3. Now on the chart, it says why it cannot be the target without a Jump Drive, and Enter does nothing.
   await page.keyboard.press('m');
@@ -253,7 +257,7 @@ test('a Run that escaped a Star System ends in the next one with its Score, and 
   await expect(page.getByTestId('materials')).toHaveText(String(run.materials));
 
   await installByKeyboard(page, /^Install Radar, level 1,/, 'Radar');
-  await exploreUntilFound(page);
+  await hopAlong(page, hops);
   await installByKeyboard(page, /^Install Jump Drive,/, 'Jump Drive');
 
   await hopTo(page, 'Heliopause');
