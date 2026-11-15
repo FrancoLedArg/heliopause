@@ -28,31 +28,32 @@ function phaserPlayer(game: Game): Player {
  * Fetches and decodes one track at a time, after the title is up, so the several MB never delay the
  * first paint. A file that is missing or cannot be decoded is skipped: that music plays silence.
  */
-async function loadTracks(game: Game, onLoaded: () => void): Promise<void> {
+export async function loadTracks(
+  game: Game,
+  onLoaded: () => void,
+  signal: AbortSignal,
+  files: readonly { file: string; url: string }[] = audioFiles(),
+): Promise<void> {
   const manager = game.sound;
   if (!(manager instanceof Sound.WebAudioSoundManager)) return;
-  for (const { file, url } of audioFiles()) {
+  // A function, so the checks after each await are not narrowed away: the signal changes meanwhile.
+  const aborted = (): boolean => signal.aborted;
+  for (const { file, url } of files) {
+    if (aborted()) return;
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal });
       const type = response.headers.get('content-type') ?? '';
       if (!response.ok || type.includes('text/html')) continue;
       const data = await response.arrayBuffer();
-      await new Promise<void>((resolve) => {
-        const done = (): void => {
-          manager.off(Sound.Events.DECODED, onDecoded);
-          resolve();
-        };
-        const onDecoded = (key: string): void => {
-          if (key === file) done();
-        };
-        manager.on(Sound.Events.DECODED, onDecoded);
-        manager.decodeAudio(file, data);
-        // A file that fails to decode never fires DECODED: do not wait on it for long.
-        setTimeout(done, 20000);
-      });
+      if (aborted()) return;
+      // Decoded through the audio context, not the sound manager's callback API: once `signal`
+      // aborts (the game is destroyed) nothing is left that could touch the torn-down cache.
+      const buffer = await manager.context.decodeAudioData(data);
+      if (aborted()) return;
+      game.cache.audio.add(file, buffer);
       onLoaded();
     } catch {
-      // Offline or blocked: this music is silence.
+      // Offline, blocked, aborted or undecodable: this music is silence.
     }
   }
 }
@@ -64,14 +65,19 @@ async function loadTracks(game: Game, onLoaded: () => void): Promise<void> {
 export function bindMusic(game: Game, target: Music = music): void {
   target.attach(phaserPlayer(game));
   let loading = false;
+  const loadAbort = new AbortController();
   const offs = [
     EventBus.on('scene-ready', (key) => {
       target.setScene(key);
       if (key === SceneKey.Title && !loading) {
         loading = true;
-        void loadTracks(game, () => {
-          target.refresh();
-        });
+        void loadTracks(
+          game,
+          () => {
+            target.refresh();
+          },
+          loadAbort.signal,
+        );
       }
     }),
     EventBus.on('nav-chart-state', (state) => {
@@ -98,10 +104,12 @@ export function bindMusic(game: Game, target: Music = music): void {
   };
   game.events.on(Core.Events.PRE_STEP, onStep);
   game.events.once(Core.Events.DESTROY, () => {
+    loadAbort.abort();
     for (const off of offs) off();
     game.events.off(Core.Events.PRE_STEP, onStep);
+    // Detach first: clearing the overlays reconciles, and must not reach the dying sound manager.
+    target.detach();
     target.setApproach(false);
     target.setCruiseEvent(false);
-    target.detach();
   });
 }

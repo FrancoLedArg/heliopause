@@ -21,6 +21,7 @@ const bar = (
     systemNumber={12}
     systemName="Quydril Prime Longname"
     fuel={kilograms(1234)}
+    fuelCapacity={kilograms(5000)}
     deltaV={metersPerSecond(9876)}
     materials={materials(100)}
     dailyDay="2026-11-15"
