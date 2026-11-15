@@ -49,7 +49,8 @@ test('Esc leaves a panel and keeps the opener focused; links open in a new tab',
 test('About opens by keyboard and Esc returns focus to it', async ({ page }) => {
   await page.goto('/?seed=5');
   await expect(page.getByRole('button', { name: 'New Run' })).toBeVisible();
-  // New Run, then How to play (the disabled Daily button is skipped), then About.
+  // New Run, then Daily Star System, then How to play, then About.
+  await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');

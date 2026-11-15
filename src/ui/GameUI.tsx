@@ -4,6 +4,8 @@ import { chooseUrlChassis } from '../game/lib/runChassis.ts';
 import { chooseRunSeed } from '../game/lib/runSeed.ts';
 import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
 import { readBestScore, recordScore } from '../game/lib/bestScore.ts';
+import { readDailyBest, recordDailyRun } from '../game/lib/dailyBest.ts';
+import { dailySeed, utcDay } from '../game/lib/dailyStarSystem.ts';
 import {
   availableDeltaV,
   score,
@@ -28,6 +30,17 @@ import { RunMenu } from './RunMenu.tsx';
 import { TitleMenu, type TitleButton } from './TitleMenu.tsx';
 import { TopBar } from './TopBar.tsx';
 
+/** The device clock, read each time so a test's fake clock applies. */
+const deviceClock = (): number => Date.now();
+
+/** A Run ended: its Score is recorded, once. A Daily Run (`day` is its day) also counts toward the Best Score. */
+function recordEnd(ended: Run, day: string | undefined): RecordedScore {
+  const best = recordScore(score(ended));
+  if (day === undefined) return best;
+  const kept = recordDailyRun(day, ended, BUILD_INFO);
+  return { best: kept.best.score, isNewBest: kept.isNewBest, dailyDay: day };
+}
+
 /**
  * The DOM layer over the canvas, in native 640×360 pixels. Shows the panels for whichever scene
  * Phaser reports on screen, plus the permanent AI-art watermark (ADR 0004).
@@ -38,6 +51,17 @@ export function GameUI() {
   const [run, setRun] = useState<Run | undefined>(undefined);
   // The Best Score on this device, read each time the title comes up.
   const [bestScore, setBestScore] = useState<Score | undefined>(undefined);
+  // Today's UTC day and the Daily Best for it, read each time the title comes up.
+  const [today, setToday] = useState(() => utcDay(deviceClock));
+  const [dailyBest, setDailyBest] = useState<Score | undefined>(undefined);
+  // The day of the Daily Star System the current (or next) Run is for; `undefined` for a New Run. A Run
+  // counts for the day it started, so the day is fixed here when the Daily action is chosen.
+  const [daily, setDailyState] = useState<string | undefined>(undefined);
+  const dailyRef = useRef<string | undefined>(undefined);
+  const setDaily = (day: string | undefined): void => {
+    dailyRef.current = day;
+    setDailyState(day);
+  };
   const [picking, setPicking] = useState(false);
   const [info, setInfo] = useState<'how-to-play' | 'about' | 'credits' | undefined>(undefined);
   // The title button to focus when the menu comes back from the screen it opened.
@@ -89,6 +113,10 @@ export function GameUI() {
         }
         if (key === SceneKey.Title) {
           setBestScore(readBestScore());
+          const day = utcDay(deviceClock);
+          setToday(day);
+          setDailyBest(readDailyBest(day)?.score);
+          setDaily(undefined);
           setRunSeed(undefined);
           setRun(undefined);
           setInfo(undefined);
@@ -133,7 +161,7 @@ export function GameUI() {
     () =>
       EventBus.on('run-stranded', (ended) => {
         // The Run is over: its Score is recorded here, once, as for a failed Hop.
-        setStranded({ run: ended, recorded: recordScore(score(ended)) });
+        setStranded({ run: ended, recorded: recordEnd(ended, dailyRef.current) });
         // Stranded on arrival after a Jump: the end comes up out of the Jump's black too.
         setFadingIn(afterJump.current);
         afterJump.current = false;
@@ -161,7 +189,7 @@ export function GameUI() {
       }),
       EventBus.on('hop-failed', (_failed, ended) => {
         // The Run is over: its Score is recorded here, once, whatever the end screen does after.
-        const recorded = recordScore(score(ended));
+        const recorded = recordEnd(ended, dailyRef.current);
         setFlight(
           (now) =>
             now && { ...now, after: { kind: 'ended', run: ended, recorded, step: 'report' } },
@@ -215,7 +243,13 @@ export function GameUI() {
   const launch = (chassisId: ChassisId): void => {
     // After a Run that was played, a New Run is a different Star System even from a seeded URL.
     const afterRun = scene === SceneKey.Flight || stranded !== undefined;
-    const seed = chooseRunSeed(window.location.search, Math.random, afterRun ? runSeed : undefined);
+    // The Daily Star System's seed comes from its day alone: a `?seed` in the URL is ignored.
+    // (Read from the ref: a URL `?chassis=` launches in the same click that chose the Daily.)
+    const day = dailyRef.current;
+    const seed =
+      day === undefined
+        ? chooseRunSeed(window.location.search, Math.random, afterRun ? runSeed : undefined)
+        : dailySeed(day);
     setRunSeed(seed);
     setLaunching(true);
     afterFailure.current = afterRun;
@@ -226,6 +260,17 @@ export function GameUI() {
 
   // A `?chassis=` in the URL makes the choice for the player, so tests and bug reports skip the picker.
   const startNewRun = (): void => {
+    setDaily(undefined);
+    openPicker();
+  };
+
+  // The Daily Star System: today's UTC day, then the Chassis picker like a New Run.
+  const startDaily = (): void => {
+    setDaily(utcDay(deviceClock));
+    openPicker();
+  };
+
+  const openPicker = (): void => {
     const fromUrl = chooseUrlChassis(window.location.search);
     if (fromUrl === undefined) setPicking(true);
     else launch(fromUrl);
@@ -261,6 +306,7 @@ export function GameUI() {
         <TitleMenu
           starting={launching}
           onNewRun={startNewRun}
+          onDaily={startDaily}
           onHowToPlay={() => {
             setInfo('how-to-play');
           }}
@@ -271,6 +317,8 @@ export function GameUI() {
             setInfo('credits');
           }}
           best={bestScore}
+          today={today}
+          dailyBest={dailyBest}
           focus={focus}
         />
       )}
@@ -287,7 +335,8 @@ export function GameUI() {
             onLaunch={launch}
             onBack={() => {
               setPicking(false);
-              setFocus('new-run');
+              setFocus(daily === undefined ? 'new-run' : 'daily');
+              setDaily(undefined);
             }}
           />
         )}
@@ -299,6 +348,7 @@ export function GameUI() {
             fuel={stranded.run.spacecraft.fuelMass}
             deltaV={availableDeltaV(stranded.run.spacecraft)}
             materials={stranded.run.materials}
+            dailyDay={stranded.recorded.dailyDay}
           />
           <EndOfRun
             run={stranded.run}
@@ -315,6 +365,7 @@ export function GameUI() {
           spacecraftOpen={spacecraftOpen}
           onOpenSpacecraft={openSpacecraft}
           focusRequest={navFocus}
+          dailyDay={daily}
         />
       )}
       {scene === SceneKey.Landed &&
@@ -360,6 +411,7 @@ export function GameUI() {
           }}
           onNewRun={startNewRun}
           onLeave={leaveRun}
+          dailyDay={flight.after?.kind === 'ended' ? flight.after.recorded.dailyDay : daily}
         />
       )}
       <p className="hud-tag ai-label">AI-generated art</p>

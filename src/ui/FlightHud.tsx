@@ -65,6 +65,8 @@ interface FlightHudProps {
   /** New Run after a failure: asks for a Chassis, then a new Star System. */
   onNewRun: () => void;
   onLeave: () => void;
+  /** The UTC day of the Daily Star System being played; `undefined` for any other Run. */
+  dailyDay?: string | undefined;
 }
 
 /**
@@ -80,6 +82,7 @@ export function FlightHud({
   onContinue,
   onNewRun,
   onLeave,
+  dailyDay,
 }: FlightHudProps) {
   const view = describeFlight(before, flight, moment);
   const fuel = moment?.fuel ?? flight.fuelAtLaunch;
@@ -119,6 +122,7 @@ export function FlightHud({
           fuel={fuel}
           deltaV={deltaV}
           materials={before.materials}
+          dailyDay={dailyDay}
         />
         {after.step === 'end' ? (
           <EndOfRun
@@ -156,6 +160,7 @@ export function FlightHud({
         fuel={fuel}
         deltaV={deltaV}
         materials={before.materials}
+        dailyDay={dailyDay}
       />
 
       <section className="phase-strip" aria-label="Hop progress" data-testid="phase-strip">

@@ -29,6 +29,9 @@ it('the title menu shows five actions in order, fitting 640x360 beside the Best 
       <TitleMenu
         starting={false}
         onNewRun={noop}
+        onDaily={noop}
+        today="2026-11-15"
+        dailyBest={{ starSystemsEscaped: 12, hopsFlown: 120 }}
         onHowToPlay={noop}
         onAbout={noop}
         onCredits={noop}
@@ -40,12 +43,12 @@ it('the title menu shows five actions in order, fitting 640x360 beside the Best 
   const buttons = [...host.querySelectorAll<HTMLButtonElement>('.title-menu__panel button')];
   expect(buttons.map((b) => b.textContent)).toEqual([
     'New Run',
-    'Daily: coming soon',
+    'Daily Star System',
     'How to play',
     'About',
     'Credits & References',
   ]);
-  expect(buttons.map((b) => b.disabled)).toEqual([false, true, false, false, false]);
+  expect(buttons.map((b) => b.disabled)).toEqual([false, false, false, false, false]);
 
   const panel = part(host, '.title-menu__panel').getBoundingClientRect();
   expect(panel.top).toBe(TITLE_PANEL_TOP);
@@ -64,6 +67,19 @@ it('the title menu shows five actions in order, fitting 640x360 beside the Best 
   }
 
   const best = part(host, '[data-testid="title-best-score"]');
+  const daily = part(host, '[data-testid="title-daily-best"]');
+  expect(daily.textContent).toBe(
+    'Daily Star System 2026-11-15 UTC: 12 Star Systems escaped, 120 Hops flown',
+  );
+  expect(inside(daily.getBoundingClientRect())).toBe(true);
+  expect(apart(daily.getBoundingClientRect(), best.getBoundingClientRect())).toBe(true);
+  expect(apart(daily.getBoundingClientRect(), panel)).toBe(true);
+  expect(
+    apart(daily.getBoundingClientRect(), part(host, '.ai-label').getBoundingClientRect()),
+  ).toBe(true);
+  expect(
+    apart(daily.getBoundingClientRect(), part(host, '.title-menu__build').getBoundingClientRect()),
+  ).toBe(true);
   const aiLabel = part(host, '.ai-label');
   expect(inside(best.getBoundingClientRect())).toBe(true);
   expect(apart(best.getBoundingClientRect(), panel)).toBe(true);
@@ -90,4 +106,21 @@ it('How to play renders in the shell with its eight steps, no sideways overflow 
   expect(body.scrollWidth).toBeLessThanOrEqual(body.clientWidth);
   expect(apart(label.getBoundingClientRect(), plate.getBoundingClientRect())).toBe(true);
   expect(getComputedStyle(label).visibility).toBe('visible');
+});
+
+it('the Daily line reads "not played yet" before a Daily Run has been finished', async () => {
+  const host = await renderUi(
+    <TitleMenu
+      starting={false}
+      onNewRun={noop}
+      onDaily={noop}
+      onHowToPlay={noop}
+      onAbout={noop}
+      onCredits={noop}
+      today="2026-11-15"
+    />,
+  );
+  expect(part(host, '[data-testid="title-daily-best"]').textContent).toBe(
+    'Daily Star System 2026-11-15 UTC: not played yet',
+  );
 });

@@ -13,16 +13,30 @@ interface TopBarProps {
   fuel: Kilograms;
   deltaV: MetersPerSecond;
   materials: Materials;
+  /** The UTC day of the Daily Star System being played, `YYYY-MM-DD`; `undefined` for any other Run. */
+  dailyDay?: string | undefined;
 }
 
-/** The top bar over every in-Run screen: the Star System, the Fuel on board, the Δv it provides and the Materials in stock. */
-export function TopBar({ systemNumber, systemName, fuel, deltaV, materials }: TopBarProps) {
+/** The top bar over every in-Run screen: the Star System (and, in a Daily Run, its day), the Fuel on board, the Δv it provides and the Materials in stock. */
+export function TopBar({
+  systemNumber,
+  systemName,
+  fuel,
+  deltaV,
+  materials,
+  dailyDay,
+}: TopBarProps) {
   return (
     <header className="top-bar" style={{ width: BAR_WIDTH, height: BAR_HEIGHT }}>
       <KitFrame frame="panel_holo" width={BAR_WIDTH} height={BAR_HEIGHT} />
       <p className="top-bar__label top-bar__system-label" data-testid="system-number">
         System {systemNumber}
       </p>
+      {dailyDay !== undefined && (
+        <p className="top-bar__daily" data-testid="daily-tag">
+          Daily {dailyDay} UTC
+        </p>
+      )}
       <p className="top-bar__value top-bar__system">{systemName}</p>
       <KitFrame frame="res_fuel" className="top-bar__icon top-bar__fuel-icon" />
       <p className="top-bar__label top-bar__fuel-label">Fuel</p>
