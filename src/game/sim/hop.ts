@@ -12,6 +12,8 @@ import {
 } from './cruise.ts';
 import {
   CRUISE_TUNING,
+  DIFFICULTY_TUNING,
+  difficultyFactor,
   DISPERSION,
   REACH_VERDICT,
   SOURCED_CONSTANTS,
@@ -187,7 +189,7 @@ function planToBody(run: Run, targetId: BodyId): HopPlanResult<BodyHopPlan> {
   const estimates = {
     takeoff: surfaceBurn(from),
     transfer: transferBurn(run.starSystem, from, target),
-    landing: unsurveyed ? cautiousLandingBurn(target) : surfaceBurn(target),
+    landing: unsurveyed ? cautiousLandingBurn(run, target) : surfaceBurn(target),
   };
   return {
     kind: 'planned',
@@ -204,7 +206,7 @@ function planToBody(run: Run, targetId: BodyId): HopPlanResult<BodyHopPlan> {
             ? {
                 estimate: estimates.landing,
                 max: UNSURVEYED.landingMax,
-                best: leastLandingBurn(target) * DISPERSION.min,
+                best: leastLandingBurn(run, target) * DISPERSION.min,
               }
             : evenBurn(estimates[burn]),
         ),
@@ -983,13 +985,22 @@ export function reachVerdict(plan: Pick<HopPlan, 'successChance'>): ReachVerdict
 
 /**
  * The Landing Burn a plan assumes for a Body that is not Surveyed: for the high end of the escape
- * velocity a landable Body of its kind can have, since its real gravity is not yet known.
+ * velocity a landable Body of its kind can have, since its real gravity is not yet known. The range
+ * is scaled by the Star System's gravity factor, which is public: gravity grows with the level.
  */
-function cautiousLandingBurn(target: LandableBody): MetersPerSecond {
-  return escapeBurn(UNSURVEYED.cautiousEscapeVelocity[target.kind]);
+function cautiousLandingBurn(run: Run, target: LandableBody): MetersPerSecond {
+  return escapeBurn(
+    metersPerSecond(UNSURVEYED.cautiousEscapeVelocity[target.kind] * gravityFactor(run)),
+  );
+}
+
+function gravityFactor(run: Run): number {
+  return difficultyFactor(DIFFICULTY_TUNING.gravity, run.starSystemNumber);
 }
 
 /** The Landing Burn at the low end of that, before dispersion: the plan's best case. */
-function leastLandingBurn(target: LandableBody): MetersPerSecond {
-  return escapeBurn(UNSURVEYED.leastEscapeVelocity[target.kind]);
+function leastLandingBurn(run: Run, target: LandableBody): MetersPerSecond {
+  return escapeBurn(
+    metersPerSecond(UNSURVEYED.leastEscapeVelocity[target.kind] * gravityFactor(run)),
+  );
 }
