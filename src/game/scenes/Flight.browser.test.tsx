@@ -12,6 +12,7 @@ import {
   HELIOPAUSE,
   homePlanet,
   install,
+  kilograms,
   launchHop,
   listBodies,
   materials,
@@ -408,6 +409,11 @@ it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clea
           launched.flight.outcome.burn === 'transfer'
         );
       })?.id,
+    // Re-pinned for #188: no first Hop of a full hauler on seed 123 falls short now; half its Fuel.
+    (run) => ({
+      ...run,
+      spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 2) },
+    }),
   );
   expect(data.flight.outcome.kind).toBe('fell-short');
   await failed;

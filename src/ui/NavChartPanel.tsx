@@ -34,6 +34,8 @@ import {
 } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { ResourceIcon } from './ResourceIcon.tsx';
+import { yieldIcon, type YieldIcon } from './yieldIcon.ts';
 import { DELTA_V_EXPLANATION, describeHopPlan } from './hopPlanView.ts';
 import { Disclosure, DisclosurePanel, HelpToggle } from './Disclosure.tsx';
 import { HopPlan } from './HopPlan.tsx';
@@ -119,6 +121,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
     planned?.kind === 'planned' && hasTarget ? describeHopPlan(run, planned.plan) : undefined;
 
   // A long target name wraps onto a second line, so the target block is taller and the plan moves down.
+  const targetYield = target ? yieldIcon(run, target) : undefined;
   const longTarget = target !== undefined && target.name.length > LONG_TARGET_NAME;
 
   const chartRef = useRef<HTMLDivElement>(null);
@@ -173,7 +176,8 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
     const words = [bodyFullLabel(run, body)];
     if (body.id === here.id) words.push('you are here');
     if (!body.landable) words.push('no surface');
-    if (isDepleted(run, body.id)) words.push('Depleted, yields nothing');
+    const icon = yieldIcon(run, body);
+    if (icon) words.push(icon.name);
     if (body.id === target?.id) words.push('target');
     return words.join(', ');
   };
@@ -281,7 +285,15 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
           className={`nav-chart__badge ${inspect.badge.ok ? 'nav-chart__badge--ok' : 'nav-chart__badge--warn'}`}
           data-testid="landable"
         >
-          <KitFrame frame={inspect.badge.frame} />
+          {inspect.yield ? (
+            <ResourceIcon
+              resource={inspect.yield.resource}
+              depleted={inspect.yield.depleted}
+              className="resource-icon--inline"
+            />
+          ) : (
+            <KitFrame frame={inspect.badge.frame} />
+          )}
           {inspect.badge.text}
           {inspect.badge.note && (
             <span data-testid="tip-composition">{` · ${inspect.badge.note}`}</span>
@@ -325,12 +337,12 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
             >
               {isDepleted(run, target.id) ? (
                 <>
-                  <KitFrame frame="badge_warning" />
+                  <TargetYield icon={targetYield} fallback="badge_warning" />
                   <span data-testid="target-composition">Depleted · no yield</span>
                 </>
               ) : (
                 <>
-                  <KitFrame frame="badge_ok" />
+                  <TargetYield icon={targetYield} fallback="badge_ok" />
                   Landable
                   <span data-testid="target-composition">{` · ${bodyStatusLabel(run, target)}`}</span>
                 </>
@@ -411,11 +423,32 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
   );
 }
 
+/** The Hop plan target's yield icon in place of the badge's check mark; the kit badge if it has none. */
+function TargetYield({
+  icon,
+  fallback,
+}: {
+  icon: YieldIcon | undefined;
+  fallback: 'badge_ok' | 'badge_warning';
+}) {
+  return icon ? (
+    <ResourceIcon
+      resource={icon.resource}
+      depleted={icon.depleted}
+      className="resource-icon--inline"
+    />
+  ) : (
+    <KitFrame frame={fallback} />
+  );
+}
+
 /** What the tooltip says about the focused Body or the Heliopause. */
 interface Inspected {
   readonly name: string;
   readonly kind: string;
   readonly fact: string;
+  /** What the Body yields, if it can be landed on. */
+  readonly yield: YieldIcon | undefined;
   /** A kit badge and its words (never colour alone): `ok` reads green, otherwise amber. */
   readonly badge: {
     readonly frame: 'badge_ok' | 'badge_warning' | 'badge_lock';
@@ -431,6 +464,7 @@ function inspectBody(run: Run, body: Body): Inspected {
     name: body.name,
     kind: bodyTypeLabel(run, body),
     fact: `${formatGravity(body.surfaceGravity)} · ${formatDistanceAu(body.distanceFromStar)}`,
+    yield: yieldIcon(run, body),
     badge: {
       frame: !body.landable ? 'badge_lock' : depleted ? 'badge_warning' : 'badge_ok',
       ok: body.landable && !depleted,
@@ -447,6 +481,7 @@ function inspectHeliopause(run: Run): Inspected {
     name: 'Heliopause',
     kind: 'Star System edge',
     fact: `${formatDistanceAu(run.starSystem.heliopauseRadius)} from the star`,
+    yield: undefined,
     badge: {
       frame: ready ? 'badge_ok' : 'badge_lock',
       ok: ready,

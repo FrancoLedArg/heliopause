@@ -25,7 +25,7 @@ The randomly chosen Moon where the Spacecraft is marooned at the start of each S
 _Avoid_: Start, spawn, Earth
 
 **Stranded**:
-A Run's end when no Hop could have any Success Chance, even after removing every removable Component.
+A Run's end when no Hop could have any Success Chance, whatever Components the Spacecraft could still install or remove. Generation keeps it out of the opening: no Hop the plan shows at 100% from the start leads straight into it.
 _Avoid_: Stuck, softlock
 
 **Score**:

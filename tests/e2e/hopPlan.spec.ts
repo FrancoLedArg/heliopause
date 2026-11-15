@@ -1,7 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { listBodies, planHop, startRun } from '../../src/game/sim/index.ts';
 
-const SEED = 123;
+// Re-pinned for #188 (was 123): since generation changed, few seeds have a Body a new scout
+// reaches at a low chance yet with some Margin, and a new hauler cannot reach.
+const SEED = 305;
 const run = startRun(SEED, 'scout');
 const home = run.starSystem.planets.find((p) => p.id === run.starSystem.homePlanetId);
 const homeMoon = home?.moons[0];
@@ -99,8 +101,9 @@ test('a far Body has a lower Success Chance, flagged in words when low; Cancel c
   const farPercent = await percentOf(page);
   expect(far.chance).toBeLessThan(moonChance);
   expect(farPercent).toBeLessThan(moonPercent);
-  // Seed 123's Thakyxy is 66% for the scout: below the low-chance line, with a thin Margin.
-  expect(far.body.name).toBe('Thakyxy');
+  // Seed 305's Virys is 69.7% for the scout (shown as 70%): below the low-chance line, with a
+  // thin Margin.
+  expect(far.body.name).toBe('Virys');
   await expect(page.getByTestId('plan-warning')).toHaveText('Low chance: may run dry');
   await expect(page.getByTestId('plan-margin')).toHaveText(/^\+\d+\.\d km\/s \(\d+%\)$/);
   await testInfo.attach('hop-plan-far', {
@@ -144,8 +147,8 @@ test('a Margin below zero is signed and warned about more strongly than a low ch
   page,
 }) => {
   await openNavChart(page, 'hauler');
-  await target(page, 'Thakyxy');
+  await target(page, 'Virys');
   await expect(page.getByTestId('plan-margin')).toHaveText(/^−\d+\.\d km\/s \(\d+%\)$/);
   await expect(page.getByTestId('plan-warning')).toHaveText('Not enough Δv for this Hop');
-  await expect(page.getByTestId('plan-success')).toContainText('2%');
+  await expect(page.getByTestId('plan-success')).toContainText('5%');
 });

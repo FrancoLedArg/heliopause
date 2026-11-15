@@ -939,7 +939,46 @@ body {
   color: var(--wh3);
 }
 
-/* Depleted ends the kind row, in amber (and in words, so not by colour alone). */
-.landed-plate__depleted {
-  color: var(--am3);
+/* The Fuel and Materials icons (ResourceIcon): a Depleted one is dimmed and struck through. */
+.resource-icon {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  vertical-align: middle;
+}
+
+.resource-icon > .kit-frame,
+.resource-icon__image {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.resource-icon--depleted > .kit-frame,
+.resource-icon--depleted > .resource-icon__image {
+  opacity: 0.4;
+}
+
+.resource-icon--depleted::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  top: 50%;
+  height: 2px;
+  background: var(--am3);
+  box-shadow:
+    0 -1px 0 var(--void),
+    0 1px 0 var(--void);
+  transform: rotate(-45deg);
+}
+
+/* In a one-line badge or a plate row the 16 px icon is taller than the text, so it hangs out evenly. */
+.resource-icon--inline {
+  margin: -4px 0;
+}
+
+.landed-plate__kind {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }

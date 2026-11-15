@@ -109,11 +109,16 @@ describe('the Hop plan as the player reads it', () => {
   });
 
   it('flags a low Success Chance in words, and not a high one', () => {
+    // Re-pinned for #188: a full scout reaches every Body of seed 123 for sure, so half its Fuel.
+    const half: Run = {
+      ...run,
+      spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 2) },
+    };
     const chances: number[] = [];
-    for (const body of listBodies(run.starSystem)) {
-      const result = planHop(run, body.id);
+    for (const body of listBodies(half.starSystem)) {
+      const result = planHop(half, body.id);
       if (result.kind !== 'planned') continue;
-      const view = describeHopPlan(run, result.plan);
+      const view = describeHopPlan(half, result.plan);
       expect(view.low).toBe(result.plan.successChance < LOW_SUCCESS_BELOW);
       expect(view.warning !== undefined).toBe(view.low);
       chances.push(result.plan.successChance);
@@ -133,7 +138,8 @@ describe('the Hop plan as the player reads it', () => {
   });
 
   it('gives each Burn a reason drawn from the Bodies involved', () => {
-    const far = listBodies(run.starSystem).find((b) => b.name === 'Thakyxy');
+    // Re-pinned for #188: Sircer, a Gas Giant's Moon far out, stands in for Thakyxy.
+    const far = listBodies(run.starSystem).find((b) => b.name === 'Sircer');
     const here = currentBody(run);
     if (!far) throw new Error('seed 123 setup');
     const view = describeHopPlan(run, planFor(far.id));
@@ -170,9 +176,9 @@ describe('the Hop plan as the player reads it', () => {
     for (const text of [...view.burns.map((b) => b.estimate), view.needed, view.available]) {
       expect(text).toMatch(/^\d+\.\d km\/s$/);
     }
-    // Seed 123's Moon: Takeoff 5,638, Transfer 1,938, Landing 243 m/s.
-    expect(view.burns.map((b) => b.estimate)).toEqual(['5.6 km/s', '1.9 km/s', '0.2 km/s']);
-    expect(view.needed).toBe('7.8 km/s');
+    // Seed 123's Moon: Takeoff 3,612, Transfer 1,248, Landing 1,104 m/s.
+    expect(view.burns.map((b) => b.estimate)).toEqual(['3.6 km/s', '1.2 km/s', '1.1 km/s']);
+    expect(view.needed).toBe('6.0 km/s');
   });
 
   it('shows the Margin as a whole percent of the available Δv, with its sign', () => {
@@ -185,10 +191,15 @@ describe('the Hop plan as the player reads it', () => {
   });
 
   it('gives the same percentage as the why text for a hauler Hop on seed 123 that is short', () => {
-    const hauler = startRun(123, 'hauler');
-    const viormio = listBodies(hauler.starSystem).find((body) => body.name === 'Viormio');
-    if (!viormio) throw new Error('seed 123 has no Viormio');
-    expect(describeHopPlan(hauler, planFor(viormio.id, hauler)).margin).toBe('−1.3 km/s (6%)');
+    // Re-pinned for #188: a half-fuelled hauler's Hop to Sircer is short (was a full one to Viormio).
+    const full = startRun(123, 'hauler');
+    const hauler: Run = {
+      ...full,
+      spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 2) },
+    };
+    const sircer = listBodies(hauler.starSystem).find((body) => body.name === 'Sircer');
+    if (!sircer) throw new Error('seed 123 has no Sircer');
+    expect(describeHopPlan(hauler, planFor(sircer.id, hauler)).margin).toBe('−1.8 km/s (11%)');
   });
 
   it('drops the percentage once the Margin is as big as the estimate', () => {

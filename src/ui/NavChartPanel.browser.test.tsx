@@ -7,6 +7,7 @@ import {
   kilograms,
   listBodies,
   materials,
+  planHop,
   startRun,
   type BodyId,
   type HopTarget,
@@ -55,12 +56,14 @@ async function showFocused(seed: number, focusedId: string): Promise<HTMLElement
   return byTestId(host, 'inspect');
 }
 
-// Seed 2024's Milos is the one the review saw overflow; seed 533's has the longest reason in 3000 seeds.
+// Seed 2024's Gas Giants were the ones the review saw overflow; seed 1008's Quaessaxthaex Prime has
+// the longest reason in 3000 seeds. Re-pinned for #188: the same seeds' Gas Giants under the new
+// generation, and seed 1008 for seed 533's Priosprysmur Minor.
 it.each([
-  [2024, 'planet-4', 'Milos'],
-  [12, 'planet-5', 'Xiolvonzae Minor'],
-  [533, 'planet-5', 'Priosprysmur Minor'],
-  [2024, 'planet-3', 'Zymir'],
+  [2024, 'planet-4', 'Cele'],
+  [12, 'planet-5', 'Dryxquur-9'],
+  [1008, 'planet-3', 'Quaessaxthaex Prime'],
+  [2024, 'planet-5', 'Hicyn'],
 ])('fits the reason inside the tooltip frame (seed %i, %s)', async (seed, id, name) => {
   const tooltip = await showFocused(seed, id);
   const verdict = tooltip.querySelector<HTMLElement>('[data-testid="verdict"]');
@@ -77,12 +80,16 @@ it.each([
 // The Hop plan is the densest block on the panel. Its longest states (a low chance, and a Margin below
 // zero with its stronger warning) must keep every gauge and line inside the plan area, above the
 // buttons, with its details open as well as closed, and the Δv help under the chart must fit the frame.
+// Re-pinned for #188: a full Spacecraft is no longer short of any Body on seed 123, so it sets off
+// half-fuelled for Sircer (was a full one for Thakyxy).
 it.each(['scout', 'hauler'] as const)(
-  'keeps the whole Hop plan above Cancel and Launch, open or closed, and the Δv help inside the frame (%s, seed 123 Thakyxy)',
+  'keeps the whole Hop plan above Cancel and Launch, open or closed, and the Δv help inside the frame (%s, seed 123 Sircer, half the Fuel)',
   async (chassis) => {
-    const run = startRun(123, chassis);
-    const far = listBodies(run.starSystem).find((b) => b.name === 'Thakyxy');
-    if (!far) throw new Error('seed 123 has no Thakyxy');
+    const full = startRun(123, chassis);
+    const fuelMass = kilograms(full.spacecraft.fuelMass / 2);
+    const run = { ...full, spacecraft: { ...full.spacecraft, fuelMass } };
+    const far = listBodies(run.starSystem).find((b) => b.name === 'Sircer');
+    if (!far) throw new Error('seed 123 has no Sircer');
     const host = await renderUi(
       <NavChartPanel run={run} state={{ focusedId: far.id, selectedId: far.id }} />,
     );
@@ -219,12 +226,12 @@ it('keeps the tallest plan, with a 21-character target and a Margin warning, cle
   );
 });
 
-// Seed 4171 has the longest names in 20,000 seeds: Thirthiothux Minor (18 characters), a Moon of
-// Praespraethaen Prime (20).
+// Seed 10540 has the longest Moon name in 20,000 seeds: Drioldrionlael Minor (20 characters), a Moon
+// of Tioraevel Rho. Re-pinned for #188 (was seed 4171's Thirthiothux Minor).
 // Every line a name or subtitle appears on must show it whole, inside its frame, with slack for the
 // fonts CI draws, which are a little wider than the ones on a dev machine.
 const SLACK = 6;
-const [LONG_SEED, LONG_NAME, LONG_PARENT] = [4171, 'Thirthiothux Minor', 'Praespraethaen Prime'];
+const [LONG_SEED, LONG_NAME, LONG_PARENT] = [10540, 'Drioldrionlael Minor', 'Tioraevel Rho'];
 
 /** Where the drawn text of a block ends, not the block's own box (which fills its container). */
 function textRight(el: HTMLElement): number {
@@ -505,15 +512,15 @@ it('leads the Hop plan with Success Chance, then the Δv bar, then the Fuel gaug
   const top = (id: string): number => byTestId(host, id).getBoundingClientRect().top;
   expect(top('plan-success')).toBeLessThan(top('dv-bar'));
   expect(top('dv-bar')).toBeLessThan(top('plan-fuel'));
-  // Seed 123's Moon: 7.8 of 22.1 km/s, and the bar's segments, gap and words agree.
+  // Seed 123's Moon: 6.0 of 22.1 km/s, and the bar's segments, gap and words agree.
   const bar = byTestId(host, 'dv-bar');
   expect(bar.getAttribute('role')).toBe('img');
   expect(bar.getAttribute('aria-label')).toBe(
-    'Δv: Takeoff 5.6 km/s, Transfer 1.9 km/s, Landing 0.2 km/s. Needs 7.8 of 22.1 km/s, Margin +14.3 km/s.',
+    'Δv: Takeoff 3.6 km/s, Transfer 1.2 km/s, Landing 1.1 km/s. Needs 6.0 of 22.1 km/s, Margin +16.1 km/s.',
   );
-  expect(byTestId(host, 'plan-needed').textContent).toBe('7.8');
+  expect(byTestId(host, 'plan-needed').textContent).toBe('6.0');
   expect(byTestId(host, 'plan-available').textContent).toBe('22.1 km/s');
-  expect(byTestId(host, 'plan-margin').textContent).toBe('+14.3 km/s');
+  expect(byTestId(host, 'plan-margin').textContent).toBe('+16.1 km/s');
   const fuel = byTestId(host, 'plan-fuel');
   expect(fuel.getAttribute('role')).toBe('img');
   expect(fuel.getAttribute('aria-label')).toMatch(/^Fuel: 21\.0 t now, \d+\.\d t after the Hop\.$/);
@@ -553,15 +560,27 @@ it('opens the Hop plan details by keyboard: each Burn with its reason, and the m
 
 it('the text-budget helper passes on the Hop plan, in every state, and on the chart under it', async () => {
   const scout = startRun(123, 'scout');
-  const hauler = startRun(123, 'hauler');
-  const far = listBodies(scout.starSystem).find((b) => b.name === 'Thakyxy');
+  const full = startRun(123, 'hauler');
+  // Half-fuelled, the hauler is short of Sircer (see the fit test above).
+  const hauler = {
+    ...full,
+    spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 2) },
+  };
+  const sircer = listBodies(scout.starSystem).find((b) => b.name === 'Sircer');
+  // The landable Body with the lowest Success Chance from the Home Planet.
+  const far = listBodies(scout.starSystem)
+    .flatMap((body) => {
+      const result = planHop(scout, body.id);
+      return result.kind === 'planned' ? [{ body, chance: result.plan.successChance }] : [];
+    })
+    .sort((a, b) => a.chance - b.chance)[0]?.body;
   const moon = homePlanet(scout.starSystem).moons[0];
-  if (!far || !moon) throw new Error('seed 123 setup');
+  if (!far || !moon || !sircer) throw new Error('seed 123 setup');
   const states: [Run, HopTarget | undefined][] = [
     [scout, undefined],
     [scout, moon.id],
     [scout, far.id],
-    [hauler, far.id],
+    [hauler, sircer.id],
     [{ ...scout, depleted: [moon.id] }, moon.id],
     [withJumpDrive(), HELIOPAUSE],
   ];
@@ -601,4 +620,67 @@ it('opens the Δv help under the chart with the "?" in its header, by keyboard',
   );
   expect(byTestId(host, 'plan-explain').checkVisibility()).toBe(true);
   expectTextBudget(byTestId(host, 'plan-explain'));
+});
+
+// Show, don't tell (#219): the Body's card and the Hop plan's target carry the yield icon, with its words.
+it('every yield icon on the card and the Hop plan target has its accessible name, and a Gas Giant has none', async () => {
+  const run = startRun(123, 'scout');
+  const bodies = listBodies(run.starSystem);
+  const landable = bodies.find((b) => b.landable && b.id !== run.starSystem.homePlanetId);
+  const gas = bodies.find((b) => b.kind === 'gas-giant');
+  if (!landable?.landable || !gas)
+    throw new Error('seed 123 needs a landable Body and a Gas Giant');
+  const names = (host: HTMLElement): (string | null)[] =>
+    [...host.querySelectorAll('[data-testid="resource-icon"]')].map((el) =>
+      el.getAttribute('aria-label'),
+    );
+
+  const expected = landable.composition === 'icy' ? 'yields Fuel' : 'yields Materials';
+  const withTarget = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: landable.id, selectedId: landable.id }} />,
+  );
+  // One on the card (tooltip), one on the target.
+  expect(names(withTarget)).toEqual([expected, expected]);
+  expect(byTestId(byTestId(withTarget, 'inspect'), 'resource-icon').getAttribute('role')).toBe(
+    'img',
+  );
+  expect(names(byTestId(withTarget, 'target'))).toEqual([expected]);
+  cleanUp();
+
+  const depleted = await renderUi(
+    <NavChartPanel
+      run={{ ...run, depleted: [landable.id] }}
+      state={{ focusedId: landable.id, selectedId: landable.id }}
+    />,
+  );
+  expect(names(depleted)).toEqual(['Depleted, yields nothing', 'Depleted, yields nothing']);
+  cleanUp();
+
+  const giant = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: gas.id, selectedId: undefined }} />,
+  );
+  expect(names(giant)).toEqual([]);
+});
+
+it('the yield icon fits inside the card and the target block', async () => {
+  // The landable Body with the longest name, so the fit holds whatever the generator draws.
+  const run = startRun(4171, 'scout');
+  const body = listBodies(run.starSystem)
+    .filter((b) => b.landable && b.id !== run.starSystem.homePlanetId)
+    .reduce<ReturnType<typeof listBodies>[number] | undefined>(
+      (longest, b) => (longest && longest.name.length >= b.name.length ? longest : b),
+      undefined,
+    );
+  if (!body) throw new Error('seed 4171 has no landable Body');
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: body.id, selectedId: body.id }} />,
+  );
+  const within = (inner: HTMLElement, outer: HTMLElement): void => {
+    const [i, o] = [inner.getBoundingClientRect(), outer.getBoundingClientRect()];
+    expect(i.left).toBeGreaterThanOrEqual(o.left);
+    expect(i.right).toBeLessThanOrEqual(o.right);
+    expect(i.bottom).toBeLessThanOrEqual(o.bottom);
+  };
+  within(byTestId(byTestId(host, 'inspect'), 'resource-icon'), byTestId(host, 'inspect'));
+  within(byTestId(byTestId(host, 'target'), 'resource-icon'), byTestId(host, 'target'));
 });

@@ -45,17 +45,24 @@ export function landing(
   return { before, flight: flown.flight, run: flown.run };
 }
 
-/** Seed 1 with a level-1 Drill, landed on Korli: no Hop as built, but removing the Drill saves the Run. */
-export const SAVE_BY_REMOVING = { seed: 1, body: 'Korli', fit: 'drill-1' } as const;
-
-/** Seed 2, landed on Quydril after a sure Hop: no change to the Spacecraft could give any Hop a chance. */
-export const STRANDED_ON_LANDING = { seed: 2, body: 'Quydril' } as const;
+/**
+ * Seed 45 with a level-1 Drill, landed on Mavar: no Hop as built, but removing the Drill saves the
+ * Run. Re-pinned for #188 (was seed 1's Korli).
+ */
+export const SAVE_BY_REMOVING = { seed: 45, body: 'Mavar', fit: 'drill-1' } as const;
 
 /**
- * Seed 7, landed on Quiolxaexis with 7 Materials more than it would have (60, not 53): only
- * swapping in the level-2 Engine (60) saves the Run, so spending any of them on another Component
- * strands it. Without the 7, the Landing itself strands it.
+ * Seed 305, landed on Lyquin after a 99% Hop: no change to the Spacecraft could give any Hop a
+ * chance. Re-pinned for #188 (was seed 2's sure Hop to Quydril): no sure Hop from the start strands
+ * a new Spacecraft now.
+ */
+export const STRANDED_ON_LANDING = { seed: 305, body: 'Lyquin' } as const;
+
+/**
+ * Seed 57, landed on Vekyr with 15 Materials more than it would have (60, not 45): only swapping in
+ * the level-2 Engine (60) saves the Run, so spending any of them on another Component strands it.
+ * Without the 15, the Landing itself strands it. Re-pinned for #188 (was seed 7's Quiolxaexis).
  */
 export function saveByRefitting(): Run {
-  return landing(7, 'Quiolxaexis', undefined, 7).run;
+  return landing(57, 'Vekyr', undefined, 15).run;
 }

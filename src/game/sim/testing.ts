@@ -1,14 +1,21 @@
 // Test fixtures for the simulation's own tests. Not part of the module's public interface: the UI
 // never imports this file.
 import {
+  assessStranding,
   availableDeltaV,
+  currentBody,
+  flyHop,
   homePlanet,
   install,
   kilograms,
   listBodies,
   materials,
+  newSpacecraft,
   planHop,
+  STARTING_MATERIALS,
   type Body,
+  type ChassisId,
+  type StarSystem,
   type BodyHopPlan,
   type BodyId,
   type HELIOPAUSE,
@@ -73,6 +80,48 @@ export function farLandables(from: Run): Body[] {
   return listBodies(from.starSystem).filter(
     (body) => body.landable && body.id !== home.id && !home.moons.some((m) => m.id === body.id),
   );
+}
+
+/** The Run a Chassis's new Spacecraft starts in this Star System: landed on its Home Planet, full. */
+export function startingRun(system: StarSystem, chassisId: ChassisId, level: number): Run {
+  return {
+    seed: system.seed,
+    starSystemNumber: level,
+    starSystem: system,
+    spacecraft: newSpacecraft(chassisId),
+    status: { kind: 'landed', bodyId: system.homePlanetId },
+    hopsFlown: 0,
+    materials: STARTING_MATERIALS,
+    depleted: [],
+    choices: [],
+  };
+}
+
+/** Every Burn at its estimate: the dispersion factor drawn is exactly 1. */
+const AT_ESTIMATE = { next: () => 0.5, int: (min: number) => min };
+
+/**
+ * The early dead ends of a Star System for one Chassis (#188): the Bodies a Hop from the start
+ * reaches at a 100% Success Chance where, having Arrived at the estimate and collected the yield,
+ * the Spacecraft is Stranded (no Hop could have any Success Chance, whatever it installs or
+ * removes). Generation must leave none. #96 extends this when the Starting Moon replaces the Home
+ * Planet: `start` is where a Chassis's new Spacecraft begins.
+ */
+export function earlyDeadEnds(
+  system: StarSystem,
+  chassisId: ChassisId,
+  level: number,
+  start: Run = startingRun(system, chassisId, level),
+): Body[] {
+  return listBodies(system).filter((body) => {
+    if (!body.landable || body.id === currentBody(start).id) return false;
+    const planned = planHop(start, body.id);
+    if (planned.kind !== 'planned' || planned.plan.successChance < 1) return false;
+    // A Hop that Arrives Stranded ends the Run there (`endIfStranded`); any other is judged as it stands.
+    const { run } = flyHop(start, planned.plan, AT_ESTIMATE);
+    if (run.status.kind === 'ended') return run.status.end.kind === 'stranded';
+    return assessStranding(run).kind === 'stranded';
+  });
 }
 
 /** The same Run with a Jump Drive in its first empty Slot, its Materials as they were. */
