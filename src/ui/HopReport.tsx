@@ -4,6 +4,7 @@ import { trapTab } from './focusTrap.ts';
 import { describeReport } from './hopReportView.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { ResourceIcon } from './ResourceIcon.tsx';
 import './HopReport.css';
 
 const PANEL = { width: 392, height: 226 } as const;
@@ -27,7 +28,7 @@ interface HopReportProps {
 
 /**
  * The Hop report, set beside the scene of what happened: the outcome in words, each Burn's estimate
- * against its actual Δv, the Margin left and the simulation's why. Outcome is always text; colour only
+ * against its actual Δv, the Margin left, an icon row of what landing gathered and the simulation's why. Outcome is always text; colour only
  * backs it up. Focus goes to the primary action when the report opens.
  */
 export function HopReport({ before, flight, actions, onEscape }: HopReportProps) {
@@ -91,10 +92,36 @@ export function HopReport({ before, flight, actions, onEscape }: HopReportProps)
         <p className="hop-report__margin" data-testid="hop-report-margin">
           {view.margin}
         </p>
-        {view.collected !== undefined && (
-          <p className="hop-report__collected" data-testid="hop-report-collected">
-            {view.collected}
-          </p>
+        {view.gains.length > 0 && (
+          <ul className="hop-report__gains" aria-label="Gathered" data-testid="hop-report-gains">
+            {view.gains.map((gain) => (
+              <li key={gain.resource} className="hop-report__gain">
+                {/* One picture for assistive technology: the words are its name, the parts are presentational. */}
+                <span
+                  role="img"
+                  aria-label={gain.name}
+                  className={`hop-report__gain-figure hop-report__gain-figure--${gain.resource}`}
+                  data-testid="hop-report-gain"
+                >
+                  <ResourceIcon resource={gain.resource} testId="hop-report-gain-icon" />
+                  <span className="hop-report__gain-amount">{gain.amount}</span>
+                  {gain.drill !== undefined && (
+                    <span className="hop-report__gain-drill">{gain.drill}</span>
+                  )}
+                  {gain.leftBehind !== undefined && (
+                    <span className="hop-report__gain-spill" data-testid="hop-report-spill">
+                      <ResourceIcon
+                        resource={gain.resource}
+                        size={12}
+                        testId="hop-report-spill-icon"
+                      />
+                      {gain.leftBehind}
+                    </span>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
         {view.note !== undefined && <p className="hop-report__note">{view.note}</p>}
         <p id="hop-report-why" className="hop-report__why">

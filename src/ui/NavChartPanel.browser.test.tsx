@@ -515,9 +515,15 @@ it('every yield icon on the card and the Hop plan target has its accessible name
 });
 
 it('the yield icon fits inside the card and the target block', async () => {
+  // The landable Body with the longest name, so the fit holds whatever the generator draws.
   const run = startRun(4171, 'scout');
-  const body = listBodies(run.starSystem).find((b) => b.name === 'Thirthiothux Minor');
-  if (!body) throw new Error('seed 4171 has no Thirthiothux Minor');
+  const body = listBodies(run.starSystem)
+    .filter((b) => b.landable && b.id !== run.starSystem.homePlanetId)
+    .reduce<ReturnType<typeof listBodies>[number] | undefined>(
+      (longest, b) => (longest && longest.name.length >= b.name.length ? longest : b),
+      undefined,
+    );
+  if (!body) throw new Error('seed 4171 has no landable Body');
   const host = await renderUi(
     <NavChartPanel run={run} state={{ focusedId: body.id, selectedId: body.id }} />,
   );

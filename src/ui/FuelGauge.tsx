@@ -28,11 +28,11 @@ export function FuelGauge({ fuel, capacity, shape, testId, className }: FuelGaug
       aria-valuemax={Math.round(capacity)}
       aria-valuenow={Math.round(fuel)}
       aria-valuetext={`${formatFuel(fuel)} of ${formatFuel(capacity)}`}
-      className={['fuel-gauge', `fuel-gauge--${shape}`, className ?? ''].filter(Boolean).join(' ')}
+      className={['fuel-meter', `fuel-meter--${shape}`, className ?? ''].filter(Boolean).join(' ')}
       data-testid={testId}
     >
       <div
-        className="fuel-gauge__fill"
+        className="fuel-meter__fill"
         data-testid={`${testId}-fill`}
         data-share={share}
         style={fill}

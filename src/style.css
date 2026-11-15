@@ -247,6 +247,28 @@ body {
   left: 450px;
 }
 
+/* The readout a gathering moment fills: its icon swells and glows as each icon lands (shape, not just colour). */
+.top-bar__icon--filling {
+  animation: top-bar-filling 250ms ease-out infinite alternate;
+}
+
+@keyframes top-bar-filling {
+  from {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  to {
+    transform: scale(1.25);
+    filter: brightness(1.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .top-bar__icon--filling {
+    animation: none;
+  }
+}
+
 .top-bar__label {
   position: absolute;
   top: 9px;
@@ -673,7 +695,7 @@ body {
 
 /* ---- Fuel gauge (shared): an amber fill in a gunmetal trough ---- */
 
-.fuel-gauge {
+.fuel-meter {
   position: absolute;
   box-sizing: border-box;
   border: 1px solid var(--gm4);
@@ -681,19 +703,19 @@ body {
   overflow: hidden;
 }
 
-.fuel-gauge__fill {
+.fuel-meter__fill {
   position: absolute;
   background: var(--am3);
   box-shadow: inset 0 0 0 1px var(--am4);
 }
 
-.fuel-gauge--bar .fuel-gauge__fill {
+.fuel-meter--bar .fuel-meter__fill {
   left: 0;
   top: 0;
   bottom: 0;
 }
 
-.fuel-gauge--tank .fuel-gauge__fill {
+.fuel-meter--tank .fuel-meter__fill {
   left: 0;
   right: 0;
   bottom: 0;
@@ -707,12 +729,31 @@ body {
   height: 5px;
 }
 
-/* Beside the Spacecraft: left of its sweep (x 425–625, y 170–302), above the buttons (y 322). */
-.landed-fuel-gauge {
-  top: 190px;
-  left: 396px;
-  width: 12px;
-  height: 108px;
+/* The tank by the Spacecraft: Fuel icon on top, a gunmetal tank with quarter ticks below (shape, not colour, says "tank"). */
+.landed-fuel-tank {
+  position: absolute;
+}
+
+.landed-fuel-tank__icon {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.landed-fuel-meter {
+  left: 2px;
+  right: 2px;
+  bottom: 0;
+  height: 72px;
+  border-radius: 3px;
+  border-width: 2px;
+}
+
+.landed-fuel-meter::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(to bottom, transparent 0 16px, var(--gm2) 16px 17px);
 }
 
 /* Left of the Nav Chart button, in the same row: right of the location plate (ends x 296), below the sweep. */
