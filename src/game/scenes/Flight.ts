@@ -1,4 +1,4 @@
-import { Scene, Scenes, type GameObjects, type Tweens } from 'phaser';
+import { BlendModes, Scene, Scenes, type GameObjects, type Tweens } from 'phaser';
 import { paletteNumber, type PaletteColor } from '../../ui/kit/palette.ts';
 import { hasAsset } from '../assets/manifest.ts';
 import { EventBus } from '../EventBus.ts';
@@ -7,6 +7,7 @@ import { createRng } from '../lib/rng.ts';
 import {
   CHASSIS_IDS,
   findBody,
+  jump,
   type BodyId,
   type Burn,
   type HopFlight,
@@ -20,6 +21,7 @@ import {
   type Pace,
 } from './flightPlayback.ts';
 import { anchorFx } from './groundAnchor.ts';
+import { jumpPlayback, type JumpPlayback, type JumpStage } from './jumpPlayback.ts';
 import { createFlightEffects, type FlightEffects } from './flightEffects.ts';
 import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
@@ -53,7 +55,7 @@ export interface FlightData {
   readonly before: Run;
   /** The Hop as the simulation flew it: the outcome is already settled. */
   readonly flight: HopFlight;
-  /** The Run after the Hop: landed on the target, or ended. */
+  /** The Run after the Hop: landed on the target, at the Heliopause (the Jump follows), or ended. */
   readonly after: Run;
 }
 
@@ -152,14 +154,26 @@ const DEBRIS_COUNT = 14;
 /** Where a Spacecraft that Fell Short in the Transfer drifts to, right of the report. */
 const DRIFT_REST = { x: 470, y: 160 } as const;
 
+/**
+ * The Jump moment (presentation tuning): the Jump Drive's glow round the Spacecraft at full charge
+ * (px), how far the firing flings the Spacecraft along its heading (px), and how bright the flash is.
+ */
+const JUMP_GLOW_RADIUS = 40;
+const JUMP_THROW = 760;
+const JUMP_FLASH_ALPHA = 0.85;
+
 const STREAK_COUNT = 34;
 /** Speed streaks run against the direction of travel: down and to the left. */
 const STREAK_ANGLE = Math.atan2(0.42, -1);
+/** The direction of travel through space, a unit vector: up and to the right. */
+const HEADING = { x: -Math.cos(STREAK_ANGLE), y: -Math.sin(STREAK_ANGLE) } as const;
 const SPACE_STARS = 160;
 
 /**
  * Hop playback: the camera stays on the Spacecraft through every Burn (a Hop to the Heliopause has
- * no Landing: it ends in space, the Heliopause ahead). Takeoff hovers up off the
+ * no Landing: it ends in space, the Heliopause ahead, and the Jump follows: the Jump Drive charges
+ * and fires, the screen goes dark behind the flavour text, and the Landed view of the next Home
+ * Planet comes up out of the black). Takeoff hovers up off the
  * departure Body on downward thrust, tilts and boosts away; the Transfer crosses space at a 3/4 view,
  * the departure Body shrinking and the target growing; Landing hovers down onto the target, flat on its
  * legs, ending on exactly the Landed view's composition. One clock drives everything from the
@@ -179,6 +193,22 @@ export class Flight extends Scene {
   private fx: FlightEffects | undefined;
   /** Where the playback is (ms from Launch). */
   playbackMs = 0;
+  /** The Jump moment after a Hop that reached the Heliopause; `undefined` for any other Hop. */
+  jump: JumpPlayback | undefined;
+  /** ms from Launch to the hand-off: the Hop's playback, then the Jump's. */
+  duration = 0;
+  /** How dark the screen is during the Jump, 0 (clear) to 1 (black). */
+  darkness = 0;
+  /** The Run in the next Star System, once the Jump has carried the Spacecraft there. */
+  private arrived: Run | undefined;
+  private jumpStage: JumpStage | undefined;
+  /** The Jump Drive's glow, its trail, the flash as it fires, and the black the Jump ends on. */
+  private jumpFx!: {
+    readonly glow: GameObjects.Ellipse;
+    readonly trail: GameObjects.Rectangle;
+    readonly flash: GameObjects.Rectangle;
+    readonly veil: GameObjects.Rectangle;
+  };
 
   /** The colour of the dust and smoke puffs on the departure and arrival grounds (none at the Heliopause). */
   private puffColors!: {
@@ -227,11 +257,18 @@ export class Flight extends Scene {
     this.lastMoment = undefined;
     this.stage = undefined;
     this.playbackMs = 0;
+    this.jumpStage = undefined;
+    this.darkness = 0;
   }
 
   create(): void {
     this.pace = prefersReducedMotion() ? 'reduced' : 'full';
     this.playback = flightPlayback(this.before.spacecraft, this.flight, this.pace);
+    // The Jump always succeeds once the Heliopause is reached: settled here, before it plays.
+    const reached = this.flight.outcome.kind === 'reached-heliopause';
+    this.jump = reached ? jumpPlayback(this.pace) : undefined;
+    this.arrived = reached ? jump(this.after) : undefined;
+    this.duration = this.playback.duration + (this.jump?.duration ?? 0);
 
     const { layers: departure, puffColor: departurePuff } = this.buildGround(this.before);
     const { plan } = this.flight;
@@ -258,19 +295,23 @@ export class Flight extends Scene {
       space: [space],
     };
     this.fx = this.pace === 'full' ? createFlightEffects(this) : undefined;
+    this.jumpFx = this.buildJumpFx();
     this.buildShip();
+    // Over everything the scene draws: the Jump's flash and the black it ends on.
+    this.jumpFx.flash.setDepth(1);
+    this.jumpFx.veil.setDepth(2);
 
     this.clock = this.tweens.addCounter({
       from: 0,
-      to: this.playback.duration,
-      duration: this.playback.duration,
+      to: this.duration,
+      duration: this.duration,
       ease: 'Linear',
       onUpdate: (tween) => {
         this.render(tween.getValue() ?? 0);
       },
       onComplete: () => {
         // The last update already finished the Hop; posing again would undo where a failure left the ship.
-        if (!this.finished) this.render(this.playback.duration);
+        if (!this.finished) this.render(this.duration);
       },
     });
 
@@ -306,6 +347,11 @@ export class Flight extends Scene {
 
   private render(ms: number): void {
     this.playbackMs = ms;
+    if (this.jump && ms > this.playback.duration) {
+      this.renderJump(this.jump, ms - this.playback.duration);
+      return;
+    }
+    this.showJump(undefined, 0, 0);
     const moment = this.playback.at(ms);
     // Poses freeze where the engine cut out; what follows is the aftermath of a failed Burn.
     const stopped = Math.min(ms, this.playback.stopsAt);
@@ -325,7 +371,92 @@ export class Flight extends Scene {
         break;
     }
     this.report(moment);
+    // A Hop that reached the Heliopause goes on into the Jump: that ends the playback instead.
+    if (moment.ended && !this.jump) this.finish();
+  }
+
+  /**
+   * The Jump, `ms` after the Hop's playback ended: the end of the Transfer holds, the Heliopause
+   * ahead, while the Jump Drive charges round the Spacecraft and fires it away along its heading
+   * with a flash; then the screen goes dark behind the flavour text. Under reduced motion it is only
+   * the fade.
+   */
+  private renderJump(playback: JumpPlayback, ms: number): void {
+    const moment = playback.at(ms);
+    if (moment.stage !== this.jumpStage) {
+      this.jumpStage = moment.stage;
+      EventBus.emit('jump-stage', moment.stage);
+    }
+    this.showStage('transfer');
+    this.transfer(1, false, this.playback.duration + ms * 0.15);
+    const rest = { x: this.ship.x, y: this.ship.y };
+    const hull = this.hullCentre(rest);
+    switch (moment.stage) {
+      case 'charge':
+        this.showJump(hull, smooth(moment.progress), 0);
+        break;
+      case 'fire': {
+        const flung = JUMP_THROW * moment.progress ** 2;
+        const dx = Math.round(HEADING.x * flung);
+        const dy = Math.round(HEADING.y * flung);
+        this.ship.setPosition(rest.x + dx, rest.y + dy);
+        this.thrust(false, true, 1);
+        this.fx?.exhaust(true, this.flightNozzles(rest.x + dx, rest.y + dy, 0));
+        this.showJump(hull, 1 - moment.progress, 0, { x: hull.x + dx, y: hull.y + dy });
+        this.jumpFx.flash.setAlpha(JUMP_FLASH_ALPHA * clamp01(1 - moment.progress / 0.5));
+        break;
+      }
+      case 'dark':
+        // Gone through the Heliopause; under reduced motion it never moved, and the black covers it.
+        if (this.pace === 'full') this.ship.setPosition(rest.x + HEADING.x * JUMP_THROW, rest.y);
+        this.showJump(undefined, 0, moment.darkness);
+        break;
+    }
     if (moment.ended) this.finish();
+  }
+
+  /**
+   * The middle of the flying Spacecraft whose base is at `at`: halfway along its heading from the
+   * engine's nozzles to the nose. Where the Jump Drive's glow builds and its trail starts.
+   */
+  private hullCentre(at: Point): Point {
+    const { chassisId } = this.before.spacecraft;
+    const exits = spacecraftNozzles(chassisId, 'flight').map(({ exit }) => exit);
+    const rear = {
+      x: exits.reduce((sum, exit) => sum + exit.x, 0) / exits.length,
+      y: exits.reduce((sum, exit) => sum + exit.y, 0) / exits.length,
+    };
+    const { width, pivot } = frameGeometry(chassisId, 'flight');
+    const along = (width - pivot.x - rear.x) / 2 / HEADING.x;
+    return { x: at.x + rear.x + HEADING.x * along, y: at.y + rear.y + HEADING.y * along };
+  }
+
+  /**
+   * Poses the Jump's effects: the glow round the Spacecraft's hull at `at`, built up to `charge`
+   * (0 to 1), the trail from `at` to where the firing has `flung` it, and the black at `darkness`.
+   */
+  private showJump(at: Point | undefined, charge: number, darkness: number, flung?: Point): void {
+    const { glow, trail, flash, veil } = this.jumpFx;
+    this.darkness = darkness;
+    veil.setAlpha(darkness).setVisible(darkness > 0);
+    flash.setAlpha(0);
+    glow.setVisible(at !== undefined && charge > 0);
+    trail.setVisible(at !== undefined && flung !== undefined);
+    if (!at) return;
+    // The glow pulses as it builds.
+    const pulse = 1 + 0.08 * Math.sin(this.playbackMs / 45);
+    const radius = Math.max(1, JUMP_GLOW_RADIUS * charge * pulse);
+    glow
+      .setPosition(at.x, at.y)
+      .setSize(radius * 2, radius * 2)
+      .setAlpha(0.2 + 0.4 * charge);
+    if (flung) {
+      const length = Math.hypot(flung.x - at.x, flung.y - at.y);
+      trail
+        .setPosition(at.x, at.y)
+        .setSize(Math.max(1, length), 3)
+        .setRotation(Math.atan2(HEADING.y, HEADING.x));
+    }
   }
 
   private takeoff(progress: number, thrusting: boolean, aftermath: number): void {
@@ -517,9 +648,8 @@ export class Flight extends Scene {
 
   /**
    * Arrived goes on to the Landed view of the target, with the Fuel left and the report beside it.
-   * Reaching the Heliopause holds on the Spacecraft at the edge of the Star System and hands over to
-   * its report (the Jump, #157, takes over from there). A failure ends the Run: the scene stays on
-   * its aftermath (drifting or crashed) behind the report.
+   * Reaching the Heliopause ends with the Jump, on the Landed view of the next Home Planet. A failure
+   * ends the Run: the scene stays on its aftermath (drifting or crashed) behind the report.
    */
   private finish(): void {
     if (this.finished) return;
@@ -534,10 +664,13 @@ export class Flight extends Scene {
         this.scene.start(SceneKey.Landed, data);
         return;
       }
-      case 'reached-heliopause':
-        // The Run waits at the edge of the Star System; the Jump (#157) takes over from here.
-        EventBus.emit('hop-reached-heliopause', this.flight);
+      case 'reached-heliopause': {
+        // The Jump has played: on to the Landed view of the next Home Planet, up out of the black.
+        if (!this.arrived) throw new Error('A Hop that reached the Heliopause Jumps');
+        const data: LandedData = { run: this.arrived, afterJump: true };
+        this.scene.start(SceneKey.Landed, data);
         return;
+      }
       case 'crashed':
         this.scatterDebris();
         EventBus.emit('hop-failed', this.flight, this.after);
@@ -667,6 +800,26 @@ export class Flight extends Scene {
       }
     }
     return space;
+  }
+
+  /** The Jump's effects, hidden until it plays. */
+  private buildJumpFx(): Flight['jumpFx'] {
+    const glow = this.add
+      .ellipse(0, 0, 2, 2, paletteNumber('vi3'))
+      .setBlendMode(BlendModes.ADD)
+      .setVisible(false);
+    const trail = this.add
+      .rectangle(0, 0, 1, 3, paletteNumber('vi4'), 0.8)
+      .setOrigin(0, 0.5)
+      .setBlendMode(BlendModes.ADD)
+      .setVisible(false);
+    const screen = (color: PaletteColor): GameObjects.Rectangle =>
+      this.add
+        .rectangle(0, 0, SCREEN_WIDTH, 360, paletteNumber(color))
+        .setOrigin(0)
+        .setScrollFactor(0)
+        .setAlpha(0);
+    return { glow, trail, flash: screen('vi4'), veil: screen('void').setVisible(false) };
   }
 
   private buildShip(): void {

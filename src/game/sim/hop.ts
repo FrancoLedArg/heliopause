@@ -210,8 +210,8 @@ export type BurnResult =
 export type HopOutcome =
   | { readonly kind: 'arrived' }
   /**
-   * The Transfer carried the Spacecraft out to the Heliopause. The Jump (#157) follows it; until then
-   * the Run waits there.
+   * The Transfer carried the Spacecraft out to the Heliopause. The Jump (`jump`) follows it, and
+   * until then the Run waits there.
    */
   | { readonly kind: 'reached-heliopause' }
   /** Fuel ran out during Takeoff or Transfer. */

@@ -62,6 +62,8 @@ export function GameUI() {
   const [navFocus, setNavFocus] = useState(0);
   // The next Landed view follows a New Run launched from a failure's report.
   const afterFailure = useRef(false);
+  // The next Landed view follows the Jump, on the next Star System's Home Planet.
+  const afterJump = useRef(false);
 
   // Set when the player leaves a Run, so the title they land on takes focus like after the picker's Back.
   const leftRun = useRef(false);
@@ -96,8 +98,10 @@ export function GameUI() {
         setRun(started);
         setArrival(undefined);
         setFlight(undefined);
-        if (afterFailure.current) {
+        // After a New Run from a failure, or the Jump, the way on is the Nav Chart.
+        if (afterFailure.current || afterJump.current) {
           afterFailure.current = false;
+          afterJump.current = false;
           setNavFocus((n) => n + 1);
         }
       }),
@@ -135,9 +139,10 @@ export function GameUI() {
             now && { ...now, after: { kind: 'ended', run: ended, recorded, step: 'report' } },
         );
       }),
-      EventBus.on('hop-reached-heliopause', () => {
-        // No Score: the Run is not over, the Jump (#157) takes over from here.
-        setFlight((now) => now && { ...now, after: { kind: 'reached-heliopause' } });
+      EventBus.on('jump-stage', (stage) => {
+        // No Score: the Run is not over, it goes on in the next Star System.
+        afterJump.current = true;
+        setFlight((now) => now && { ...now, after: { kind: 'jumping', stage } });
       }),
     ];
     return () => {

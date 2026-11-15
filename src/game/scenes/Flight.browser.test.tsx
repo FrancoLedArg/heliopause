@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { GameObjects } from 'phaser';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GameUI } from '../../ui/GameUI.tsx';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
@@ -12,13 +12,13 @@ import {
   HELIOPAUSE,
   homePlanet,
   install,
+  jump,
   launchHop,
   listBodies,
   materials,
   startRun,
   type BodyId,
   type ChassisId,
-  type HopFlight,
   type HopTarget,
   type Run,
 } from '../sim/index.ts';
@@ -27,6 +27,9 @@ import type { Landed } from './Landed.ts';
 import { FLIGHT_ANGLE, nozzles, turn, type ShipPose } from './chassisArt.ts';
 import { SHIP_PLACEMENT } from './landedView.ts';
 import { flightPlayback } from './flightPlayback.ts';
+import type { JumpStage } from './jumpPlayback.ts';
+import { readBestScore } from '../lib/bestScore.ts';
+import { JUMP_FLAVOUR_TEXT } from '../../ui/jumpFlavour.ts';
 import { SceneKey } from './keys.ts';
 import '../../style.css';
 
@@ -182,9 +185,9 @@ function readyForTheHeliopause(): Run {
   return result.run;
 }
 
-it('a Hop to the Heliopause plays Takeoff and Transfer with the Spacecraft in view, then hands over to its report', async () => {
-  const reached: HopFlight[] = [];
-  const off = EventBus.on('hop-reached-heliopause', (flight) => reached.push(flight));
+it('a Hop to the Heliopause plays Takeoff and Transfer with the Spacecraft in view, then the Jump', async () => {
+  const stages: JumpStage[] = [];
+  const off = EventBus.on('jump-stage', (stage) => stages.push(stage));
   const { scene, data } = await fly('lancer', () => HELIOPAUSE, readyForTheHeliopause);
   expect(data.flight.outcome.kind).toBe('reached-heliopause');
   expect(scene.layers.arrival).toBeUndefined();
@@ -209,23 +212,84 @@ it('a Hop to the Heliopause plays Takeoff and Transfer with the Spacecraft in vi
     expect(y).toBeLessThan(GAME_HEIGHT);
     expect(scene.toBody.visible).toBe(true);
   }
-
-  scene.seek(scene.playback.duration);
+  // The Jump Drive charges with the Spacecraft still in view, the Heliopause ahead.
+  scene.seek(scene.playback.duration + 400);
   await act(frame);
+  expect(stages).toEqual(['charge']);
+  expect(scene.ship.visible).toBe(true);
+  expect(scene.toBody.visible).toBe(true);
   off();
-  expect(reached).toEqual([data.flight]);
-  // The Flight stays on screen behind the placeholder report: no Landed view follows.
-  expect(game?.scene.isActive(SceneKey.Flight)).toBe(true);
-  expect(game?.scene.isActive(SceneKey.Landed)).toBe(false);
-  const report = document.querySelector<HTMLElement>('[data-testid="hop-report"]');
-  expect(report?.getAttribute('aria-labelledby')).toBe('hop-report-title');
-  // Not a failure: the Run is not over.
-  expect(report?.getAttribute('role')).toBe('dialog');
-  expect(report?.textContent).not.toContain('Run over');
-  expect(document.getElementById('hop-report-title')?.textContent).toBe('Reached the Heliopause');
-  expect(report?.textContent).not.toContain('Landing');
-  // Its one way on takes focus, ready for the keyboard.
-  expect(document.activeElement?.textContent).toBe('Back to title');
+});
+
+/** The ms of the Flight's whole playback (the Hop, then the Jump) at which the Jump is `stage`, `progress` through. */
+function jumpAt(scene: Flight, stage: JumpStage, progress: number): number {
+  const moment = scene.jump;
+  if (!moment) throw new Error('No Jump follows this Hop');
+  for (let t = 0; t <= moment.duration; t += 5) {
+    const at = moment.at(t);
+    if (at.stage === stage && at.progress >= progress) return scene.playback.duration + t;
+  }
+  throw new Error(`no ${stage} at ${String(progress)}`);
+}
+
+describe.each(['full', 'reduced'] as const)('the Jump, at %s motion', (pace) => {
+  it('goes dark behind the flavour text, then ends on the Landed view of the next Home Planet', async () => {
+    if (pace === 'reduced') {
+      vi.spyOn(window, 'matchMedia').mockImplementation(
+        (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
+      );
+    }
+    window.localStorage.clear();
+    const stages: JumpStage[] = [];
+    const offStage = EventBus.on('jump-stage', (stage) => stages.push(stage));
+    const { scene, data } = await fly('lancer', () => HELIOPAUSE, readyForTheHeliopause);
+
+    // At full motion the Jump Drive charges and fires first; the HUD gives way to the flash.
+    if (pace === 'full') {
+      scene.seek(jumpAt(scene, 'charge', 0.5));
+      scene.seek(jumpAt(scene, 'fire', 0.3));
+      await act(frame);
+      expect(document.querySelector('[data-testid="flight-log"]')).toBeNull();
+    }
+    // Dark: only the flavour text is on screen, over the black.
+    scene.seek(jumpAt(scene, 'dark', 0.9));
+    await act(frame);
+    expect(stages).toEqual(pace === 'full' ? ['charge', 'fire', 'dark'] : ['dark']);
+    const caption = document.querySelector('[data-testid="jump-caption"]');
+    expect(caption?.textContent).toBe(JUMP_FLAVOUR_TEXT);
+    expect(document.querySelector('[data-testid="flight-log"]')).toBeNull();
+    expect(document.querySelector('[data-testid="phase-strip"]')).toBeNull();
+    expect(scene.darkness).toBe(1);
+
+    // The hand-off: the Landed view of the next Home Planet, the top bar on System 2.
+    const runs: Run[] = [];
+    const offRun = EventBus.on('run-started', (run) => runs.push(run));
+    const landed = nextSceneReady(SceneKey.Landed);
+    scene.seek(scene.duration);
+    await landed;
+    await act(frame);
+    offRun();
+    offStage();
+    expect(runs).toEqual([jump(data.after)]);
+    expect(document.querySelector('[data-testid="system-number"]')?.textContent).toBe('System 2');
+    expect(document.querySelector('[data-testid="jump-caption"]')).toBeNull();
+    // Not an Arrived Hop: no report, and the way on (the Nav Chart) takes focus.
+    expect(document.querySelector('[data-testid="hop-report"]')).toBeNull();
+    expect(document.activeElement?.textContent).toMatch(/Nav Chart/);
+    // No Score is recorded: the Run goes on.
+    expect(readBestScore()).toBeUndefined();
+
+    // The Landed view's own composition, as a New Run on that Body opens on: nothing jumps into place.
+    const view = game?.scene.getScene<Landed>(SceneKey.Landed);
+    if (!view) throw new Error('no Landed view');
+    expect(view.cameras.main.scrollX).toBe(0);
+    expect(view.cameras.main.scrollY).toBe(0);
+    expect(view.layers.ground.y).toBe(SHIP_PLACEMENT.baseY);
+    expect(view.layers.ship.x).toBe(SHIP_PLACEMENT.x);
+    expect(view.layers.ship.y).toBe(SHIP_PLACEMENT.baseY);
+    // Out of the black, the way the Jump went into it.
+    expect(view.cameras.main.fadeEffect.isRunning).toBe(true);
+  });
 });
 
 const wait = (ms: number): Promise<void> =>

@@ -1,31 +1,42 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   HELIOPAUSE,
+  homePlanet,
   install,
+  jump,
   launchHop,
   listBodies,
   planHop,
   startRun,
 } from '../../src/game/sim/index.ts';
 import { formatPlanDeltaV } from '../../src/ui/format.ts';
+import { JUMP_FLAVOUR_TEXT } from '../../src/ui/jumpFlavour.ts';
 
 // Spec #15's way out, on one seed, by keyboard alone: the Heliopause says it needs a Jump Drive;
-// gather Materials on a Rocky Body, build the Jump Drive, target the Heliopause, Launch, reach it.
-const SEED = 5;
+// gather Materials on a Rocky Body, build the Jump Drive, target the Heliopause, Launch, reach it,
+// Jump to Star System 2 and Hop on from its Home Planet.
+const SEED = 35;
 const run = startRun(SEED, 'scout');
-const rocky = listBodies(run.starSystem).find((body) => body.name === 'Kylsuxcul');
-if (!rocky) throw new Error(`Seed ${String(SEED)} has no Kylsuxcul`);
+const rocky = listBodies(run.starSystem).find((body) => body.name === 'Tisquul');
+if (!rocky) throw new Error(`Seed ${String(SEED)} has no Tisquul`);
 const gathered = launchHop(run, rocky.id);
 if (gathered.kind !== 'flown' || gathered.flight.outcome.kind !== 'arrived') {
   throw new Error(`Seed ${String(SEED)}: the Hop to ${rocky.name} should Arrive`);
 }
 const built = install(gathered.run, gathered.run.spacecraft.slots.indexOf(null), 'jump-drive');
-if (built.kind !== 'installed') throw new Error('Kylsuxcul should pay for the Jump Drive');
+if (built.kind !== 'installed') throw new Error('Tisquul should pay for the Jump Drive');
 const planned = planHop(built.run, HELIOPAUSE);
 const escape = launchHop(built.run, HELIOPAUSE);
 if (planned.kind !== 'planned' || escape.kind !== 'flown') throw new Error('Expected a plan');
 if (escape.flight.outcome.kind !== 'reached-heliopause') {
   throw new Error(`Seed ${String(SEED)}: the Hop to the Heliopause should reach it`);
+}
+const system2 = jump(escape.run);
+const nextMoon = homePlanet(system2.starSystem).moons[0];
+if (!nextMoon) throw new Error('The Home Planet has a Moon');
+const onward = launchHop(system2, nextMoon.id);
+if (onward.kind !== 'flown' || onward.flight.outcome.kind !== 'arrived') {
+  throw new Error(`Seed ${String(SEED)}: the Hop to ${nextMoon.name} in System 2 should Arrive`);
 }
 
 /** Steps through the chart until the tooltip shows `name` (a Body, or the Heliopause). */
@@ -59,7 +70,7 @@ async function launch(page: Page): Promise<void> {
   await page.keyboard.press('Enter');
 }
 
-test('build a Jump Drive, target the Heliopause by keyboard and reach it', async ({
+test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and Hop on', async ({
   page,
 }, testInfo) => {
   test.setTimeout(90_000);
@@ -131,18 +142,33 @@ test('build a Jump Drive, target the Heliopause by keyboard and reach it', async
     contentType: 'image/png',
   });
 
-  // 5. Launch: Takeoff and Transfer play, then the placeholder report says the Heliopause was reached.
+  // 5. Launch: Takeoff and Transfer play, then the Jump: the flavour text over the black.
   await launch(page);
   const strip = page.getByTestId('phase-strip');
   await expect(strip).toBeVisible();
   await expect(strip).not.toContainText('Landing');
-  const reached = page.getByRole('dialog', { name: 'Reached the Heliopause' });
-  await expect(reached).toBeVisible({ timeout: 30_000 });
-  await expect(reached).not.toContainText('Landing');
-  await expect(page.getByRole('button', { name: 'Back to title' })).toBeFocused();
-  await testInfo.attach('reached-the-heliopause', {
+  const caption = page.getByTestId('jump-caption');
+  await expect(caption).toHaveText(JUMP_FLAVOUR_TEXT, { timeout: 30_000 });
+  await testInfo.attach('the-jump', { body: await page.screenshot(), contentType: 'image/png' });
+
+  // 6. The Landed view of System 2's Home Planet: the Jump Drive burnt out, Materials kept.
+  await expect(page.getByTestId('system-number')).toHaveText('System 2', { timeout: 15_000 });
+  await expect(caption).toBeHidden();
+  await expect(page.getByTestId('materials')).toHaveText(String(system2.materials));
+  await expect(page.getByRole('button', { name: /^Nav Chart/ })).toBeFocused();
+  await testInfo.attach('star-system-2', {
     body: await page.screenshot(),
     contentType: 'image/png',
   });
+
+  // 7. Hop on in System 2, to its Home Planet's Moon.
+  await page.keyboard.press('m');
+  await expect(chart).toBeVisible();
+  await focusOnChart(page, nextMoon.name);
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('target')).toContainText(nextMoon.name);
+  await launch(page);
+  await expect(page.getByRole('dialog', { name: 'Arrived' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId('system-number')).toHaveText('System 2');
   expect(errors).toEqual([]);
 });

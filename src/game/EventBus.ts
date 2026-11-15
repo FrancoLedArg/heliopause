@@ -2,6 +2,7 @@ import { Events } from 'phaser';
 import type { SceneKey } from './scenes/keys.ts';
 import type { ChartCommand, ChartState } from './scenes/navChartView.ts';
 import type { FlightMoment, Pace } from './scenes/flightPlayback.ts';
+import type { JumpStage } from './scenes/jumpPlayback.ts';
 import type { ChassisId, ComponentId, HopFlight, HopTarget, Run, Seed } from './sim/index.ts';
 
 /** Events crossing the React <-> Phaser boundary. Add an entry here before emitting a new event. */
@@ -67,10 +68,11 @@ export interface GameEvents {
    */
   'hop-failed': [flight: HopFlight, ended: Run];
   /**
-   * Phaser -> React: the playback of a Hop that reached the Heliopause is over; the Spacecraft holds
-   * at the edge of the Star System. For now its report is a placeholder: the Jump (#157) takes over here.
+   * Phaser -> React: the playback of a Hop that reached the Heliopause is over and the Jump moment
+   * plays, one stage at a time (sent once as each stage begins). Once `dark`, the HUD gives way to
+   * the flavour text; the Landed view of the next Home Planet follows with its own `run-started`.
    */
-  'hop-reached-heliopause': [flight: HopFlight];
+  'jump-stage': [stage: JumpStage];
   /**
    * Phaser -> React: the Landed view on the new Body follows an Arrived Hop, so its report is shown beside
    * it (sent after the Landed view's `run-started`, before its `scene-ready`). `before` is the Run at Launch.
