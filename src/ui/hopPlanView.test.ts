@@ -17,7 +17,6 @@ import {
 } from '../game/sim/index.ts';
 import type { Rng } from '../game/lib/rng.ts';
 import {
-  formatDeltaV,
   formatDistanceAu,
   formatFuel,
   formatGravity,
@@ -171,7 +170,7 @@ describe('the Hop plan as the player reads it', () => {
   it('km/s formatting matches the top bar', () => {
     const view = describeHopPlan(run, planFor(moon.id));
     // The top bar reads the same Spacecraft's Δv: 22,105 m/s is 22.1 km/s in both.
-    expect(view.available).toBe(formatDeltaV(availableDeltaV(run.spacecraft)));
+    expect(view.available).toBe(formatDeltaVKmS(availableDeltaV(run.spacecraft)));
     expect(view.available).toBe('22.1 km/s');
     for (const text of [...view.burns.map((b) => b.estimate), view.needed, view.available]) {
       expect(text).toMatch(/^\d+\.\d km\/s$/);
@@ -179,6 +178,13 @@ describe('the Hop plan as the player reads it', () => {
     // Seed 123's Moon: Takeoff 3,612, Transfer 1,248, Landing 1,104 m/s.
     expect(view.burns.map((b) => b.estimate)).toEqual(['3.6 km/s', '1.2 km/s', '1.1 km/s']);
     expect(view.needed).toBe('6.0 km/s');
+
+    // Below 10 km/s too: a scout with 3.14 t of Fuel has 1230 s × g0 × ln(7.14 / 4) ≈ 6,989 m/s,
+    // which the top bar and the plan both read as 7.0 km/s.
+    const low: Run = { ...run, spacecraft: { ...run.spacecraft, fuelMass: kilograms(3140) } };
+    const lowView = describeHopPlan(low, planFor(moon.id, low));
+    expect(lowView.available).toBe(formatDeltaVKmS(availableDeltaV(low.spacecraft)));
+    expect(lowView.available).toBe('7.0 km/s');
   });
 
   it('shows the Margin as a whole percent of the available Δv, with its sign', () => {
@@ -186,7 +192,9 @@ describe('the Hop plan as the player reads it', () => {
     // Needed 7,000 m/s: +420 is 6%, and a shortfall of 1,400 is 20%.
     const at = (margin: number) =>
       describeHopPlan(run, { ...plan, totalEstimate: mps(7000), margin: mps(margin) }).margin;
-    expect(at(420)).toBe('+0.4 km/s (6%)');
+    expect(at(420)).toBe('+0.42 km/s (6%)');
+    // Under 1 km/s it keeps two decimals, so a thin Margin never reads as +0.0.
+    expect(at(46)).toBe('+0.05 km/s (1%)');
     expect(at(-1400)).toBe('−1.4 km/s (20%)');
   });
 

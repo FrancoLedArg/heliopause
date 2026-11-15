@@ -58,12 +58,12 @@ test('the Hop plan for the Home Planet Moon shows Success Chance, a Δv bar of t
   // One Δv bar, in km/s like the top bar, with a segment for each Burn and the Margin as the gap.
   const bar = page.getByRole('img', { name: /^Δv: / });
   await expect(bar).toHaveAccessibleName(
-    /^Δv: Takeoff \d+\.\d km\/s, Transfer \d+\.\d km\/s, Landing \d+\.\d km\/s\. Needs \d+\.\d of 22\.1 km\/s, Margin \+\d+\.\d km\/s\.$/,
+    /^Δv: Takeoff \d+\.\d{1,2} km\/s, Transfer \d+\.\d{1,2} km\/s, Landing \d+\.\d{1,2} km\/s\. Needs \d+\.\d{1,2} of 22\.1 km\/s, Margin \+\d+\.\d{1,2} km\/s\.$/,
   );
   await expect(page.getByTestId('plan-available')).toHaveText('22.1 km/s');
   await expect(page.getByTestId('delta-v')).toHaveText('22.1 km/s');
   // The Margin is bigger than the estimate, so it shows plain Δv, with no percentage.
-  await expect(page.getByTestId('plan-margin')).toHaveText(/^\+\d+\.\d km\/s$/);
+  await expect(page.getByTestId('plan-margin')).toHaveText(/^\+\d+\.\d{1,2} km\/s$/);
   await expect(page.getByRole('img', { name: /^Fuel: 21\.0 t now, / })).toBeVisible();
   // The Δv help is behind the "?" in the chart's title bar.
   await expect(page.getByTestId('plan-explain')).toBeHidden();
@@ -105,7 +105,7 @@ test('a far Body has a lower Success Chance, flagged in words when low; Cancel c
   // thin Margin.
   expect(far.body.name).toBe('Virys');
   await expect(page.getByTestId('plan-warning')).toHaveText('Low chance: may run dry');
-  await expect(page.getByTestId('plan-margin')).toHaveText(/^\+\d+\.\d km\/s \(\d+%\)$/);
+  await expect(page.getByTestId('plan-margin')).toHaveText(/^\+\d+\.\d{1,2} km\/s \(\d+%\)$/);
   await testInfo.attach('hop-plan-far', {
     body: await page.screenshot(),
     contentType: 'image/png',
@@ -148,7 +148,7 @@ test('a Margin below zero is signed and warned about more strongly than a low ch
 }) => {
   await openNavChart(page, 'hauler');
   await target(page, 'Virys');
-  await expect(page.getByTestId('plan-margin')).toHaveText(/^−\d+\.\d km\/s \(\d+%\)$/);
+  await expect(page.getByTestId('plan-margin')).toHaveText(/^−\d+\.\d{1,2} km\/s \(\d+%\)$/);
   await expect(page.getByTestId('plan-warning')).toHaveText('Not enough Δv for this Hop');
   await expect(page.getByTestId('plan-success')).toContainText('5%');
 });

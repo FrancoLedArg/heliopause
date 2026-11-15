@@ -61,14 +61,20 @@ export function formatDeltaV(deltaV: MetersPerSecond | undefined, unit?: 'm/s' |
     : `${WHOLE.format(deltaV)} m/s`;
 }
 
-/** Δv in km/s to one decimal, as the top bar shows it: the Hop plan's unit at every size. */
-export function formatDeltaVKmS(deltaV: MetersPerSecond): string {
-  return `${kmPerSecondFigure(deltaV)} km/s`;
+/** Below this a km/s figure keeps two decimals, so a thin Margin never reads as 0.0 (presentation). */
+const TWO_DECIMALS_BELOW = 995;
+
+/**
+ * Δv in km/s at every size, as the top bar and the Hop plan both show it: one decimal, or two under
+ * 1 km/s; a dash while the Δv is not yet known.
+ */
+export function formatDeltaVKmS(deltaV: MetersPerSecond | undefined): string {
+  return deltaV === undefined ? '—' : `${kmPerSecondFigure(deltaV)} km/s`;
 }
 
 /** The number of a km/s Δv without its unit, for a pair that shares one: "7.8 of 22.1 km/s". */
 export function kmPerSecondFigure(deltaV: MetersPerSecond): string {
-  return (deltaV / 1000).toFixed(1);
+  return (deltaV / 1000).toFixed(Math.abs(deltaV) < TWO_DECIMALS_BELOW ? 2 : 1);
 }
 
 /** Δv in whole m/s, so the Flight log's and the Hop report's Burns add up by eye. */

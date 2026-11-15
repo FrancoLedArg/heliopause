@@ -68,7 +68,7 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   await expect(newRun).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('delta-v')).toHaveText(
-    formatDeltaV(availableDeltaV(run.spacecraft)),
+    formatDeltaVKmS(availableDeltaV(run.spacecraft)),
   );
 
   // 2. Open the Spacecraft panel by keyboard.
