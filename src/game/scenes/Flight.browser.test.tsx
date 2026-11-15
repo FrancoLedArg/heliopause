@@ -1127,7 +1127,9 @@ it.each(CHASSIS_IDS)(
     if (!sparks) throw new Error('no spark emitter');
     const born: { x: number; y: number }[] = [];
     sparks.onParticleEmit((p) => born.push({ x: sparks.x + p.x, y: sparks.y + p.y }));
-    await act(() => wait(600));
+    // Hold the loop and step the scene (clock and particles) in fixed frames: 600 ms of emission.
+    scene.game.loop.sleep();
+    for (let time = 0; time < 600; time += 16) scene.sys.step(time, 16);
     const { x, y, angle, scaleX: k } = scene.ship;
     const exits = nozzlesOf(data, 'flight').map((nozzle) => {
       const at = turn(nozzle.exit, angle);

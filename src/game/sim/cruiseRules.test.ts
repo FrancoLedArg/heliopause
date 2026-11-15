@@ -195,7 +195,7 @@ describe('Damage', () => {
           const knowing = withDetected(start, body);
           const planned = planHop(knowing, body.id);
           if (planned.kind !== 'planned' || planned.plan.successChance < 1) continue;
-          const calm = launchHop(knowing, body.id);
+          const calm = launchHop(knowing, body.id, { schedule: [] });
           if (calm.kind !== 'flown' || calm.run.status.kind !== 'landed') continue;
           const begun = beginHop(knowing, body.id, { events: CRUISE_EVENT_KINDS });
           if (begun.kind !== 'cruising') throw new Error(`Seed ${String(seed)}: no Cruise`);
