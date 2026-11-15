@@ -1,5 +1,7 @@
+import { DayDial } from './DayDial.tsx';
 import { DeltaVBar } from './DeltaVBar.tsx';
 import { Disclosure, DisclosurePanel, TellMeMoreToggle } from './Disclosure.tsx';
+import { timeOfDayWords } from '../game/sim/index.ts';
 import type { HopPlanFuel, HopPlanView } from './hopPlanView.ts';
 import { KitFrame } from './kit/KitFrame.tsx';
 import './HopPlan.css';
@@ -53,6 +55,16 @@ function Plan({ view }: { view: HopPlanView }) {
         data-testid="plan-success"
       >
         <span className="hop-plan__label">Success</span>
+        {view.arrival && (
+          <DayDial
+            className="hop-plan__arrival"
+            fraction={view.arrival.fraction}
+            day={timeOfDayWords(view.arrival.fraction) !== 'night'}
+            label={view.arrival.label}
+            size={18}
+            testId="plan-arrival"
+          />
+        )}
         {view.unsurveyed && <UnsurveyedBadge />}
         <KitFrame frame={view.low ? 'badge_warning' : 'badge_ok'} />
         <span className="hop-plan__chance">{view.successChance}</span>

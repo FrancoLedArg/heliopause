@@ -145,6 +145,10 @@
       "file": "sprites/res_materials.png"
     },
     {
+      "key": "res_science",
+      "file": "sprites/res_science.png"
+    },
+    {
       "key": "spacecraft",
       "file": "sprites/spacecraft.png"
     },
