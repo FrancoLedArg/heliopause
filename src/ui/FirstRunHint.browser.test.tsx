@@ -59,6 +59,29 @@ it('shows one short line over the Nav Chart button, announced politely, and Esc 
   expect(readSeenHints().has('first-landing')).toBe(true);
 });
 
+it('points the Heliopause hint at its mark on the open chart, below it (#313)', async () => {
+  const spot = { x: 400, y: 120 };
+  const host = await renderUi(
+    <div className="game-ui" style={{ width: 640, height: 360, position: 'relative' }}>
+      <div className="landed-nav-button">
+        <button type="button">Nav Chart (M)</button>
+      </div>
+      <FirstRunHint
+        wanted={['heliopause-found']}
+        seen={new Set()}
+        onDismiss={() => undefined}
+        heliopauseSpot={spot}
+      />
+    </div>,
+  );
+  const callout = await shown(host);
+  const frame = host.querySelector('.game-ui')?.getBoundingClientRect();
+  const box = callout.getBoundingClientRect();
+  const scale = (frame?.width ?? 640) / 640;
+  expect(box.top - (frame?.top ?? 0)).toBeGreaterThanOrEqual(spot.y * scale);
+  expect(box.left + box.width / 2 - (frame?.left ?? 0)).toBeCloseTo(spot.x * scale, 0);
+});
+
 it('does not come back after a reload once dismissed', async () => {
   let host = await renderUi(<Landed />);
   await shown(host);
