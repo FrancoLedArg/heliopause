@@ -24,8 +24,13 @@ import type {
 /** Which surface art a Body gets: key `surface_<kind>`, the one ground strip. */
 export type SurfaceKind = 'rocky' | 'moon' | 'icy';
 
-/** Only the surfaces the sim can produce today. Icy arrives with icy Bodies. */
+/**
+ * The ground follows the Body's composition, so the label and the ground never disagree: an Icy
+ * Body gets the Icy ground, a Rocky Planet the amber Rocky ground, and a Rocky Moon the grey Moon
+ * ground (rock, but bare regolith, so a Moon still looks like a Moon).
+ */
 export function surfaceKind(body: LandableBody): SurfaceKind {
+  if (body.composition === 'icy') return 'icy';
   return body.kind === 'moon' ? 'moon' : 'rocky';
 }
 
