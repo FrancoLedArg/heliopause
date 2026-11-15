@@ -204,6 +204,17 @@ body {
   right: 6px;
 }
 
+.title-menu__daily-best {
+  position: absolute;
+  top: 322px;
+  left: 0;
+  width: 640px;
+  margin: 0;
+  text-align: center;
+  font: 16px/16px var(--font-pixel-body);
+  color: var(--cy3);
+}
+
 /* ---- Landed ---- */
 
 .top-bar {
@@ -257,6 +268,17 @@ body {
 
 .top-bar__system {
   color: var(--cy3);
+}
+
+/* The Daily Star System's day, on the label row beside "System N" (clear of the Fuel icon at 210). */
+.top-bar__daily {
+  position: absolute;
+  top: 6px;
+  left: 76px;
+  margin: 0;
+  font: 14px/12px var(--font-pixel-body);
+  white-space: nowrap;
+  color: var(--am3);
 }
 
 .top-bar__fuel-label,

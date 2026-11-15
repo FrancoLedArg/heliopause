@@ -20,7 +20,7 @@ export function browserStorage(): ScoreStorage | null {
   }
 }
 
-function isScore(value: unknown): value is Score {
+export function isScore(value: unknown): value is Score {
   if (typeof value !== 'object' || value === null) return false;
   const { starSystemsEscaped: escaped, hopsFlown: hops } = value as Record<string, unknown>;
   return (

@@ -49,4 +49,16 @@ describe('the End-of-Run screen text', () => {
   it('says so, in words, when the Run set the Best Score', () => {
     expect(describeEndOfRun({ kind: 'crashed', reason: 'x' }, none, none, true).newBest).toBe(true);
   });
+
+  it('names the Best Score row for a New Run, and Today’s Daily Best for a Daily Run', () => {
+    const end = { kind: 'crashed', reason: 'x' } as const;
+    const best = { starSystemsEscaped: 1, hopsFlown: 4 };
+    const normal = describeEndOfRun(end, none, best, true);
+    expect(normal.bestLabel).toBe('Best Score');
+    expect(normal.newBestMarker).toBe('new Best Score');
+    const daily = describeEndOfRun(end, none, best, true, true);
+    expect(daily.bestLabel).toBe('Today’s Daily Best');
+    expect(daily.newBestMarker).toBe('new Daily Best');
+    expect(daily.best).toBe('1 Star System escaped, 4 Hops flown');
+  });
 });
