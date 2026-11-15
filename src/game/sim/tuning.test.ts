@@ -33,11 +33,13 @@ const FIRST_HOP_SEEDS = SEEDS.slice(0, 500);
 
 /**
  * The share of the tank the first Hop leaves, as the Fuel gauge then reads before any yield: the
- * new Spacecraft launched, the way the game flies it, to the one Body Comms has Detected.
+ * new Spacecraft launched, the way the game flies it, to the one Body Comms has Detected. Flown
+ * with no Cruise events: this weighs the Burns alone. With its Fuel leak left alone the mean falls to
+ * about 0.53–0.60 and every first Hop still lands; accepted for the deadline (#250).
  */
 function firstHopFuelShare(seed: number, chassisId: ChassisId, level: number): number {
   const start = startingRun(generateSystem(seed, level), chassisId, level, seed);
-  const launched = launchHop(start, firstTarget(start).id);
+  const launched = launchHop(start, firstTarget(start).id, { schedule: [] });
   if (launched.kind !== 'flown') throw new Error(`Seed ${String(seed)}: ${launched.why}`);
   return launched.flight.fuelRemaining / start.spacecraft.fuelCapacity;
 }

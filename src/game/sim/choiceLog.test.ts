@@ -23,6 +23,7 @@ import {
   type ComponentId,
   type HopTarget,
   type Run,
+  type HopOptions,
 } from './index.ts';
 import { firstTarget, readyToJump } from './testing.ts';
 
@@ -35,7 +36,7 @@ const bodyId = (id: string): BodyId => id as BodyId;
  * gather Materials and sometimes build a Jump Drive and try the Heliopause. 80, not 40, since #189:
  * a Run opens short of a Jump Drive's cost, so it takes longer to gather for one.
  */
-function playRandomly(start: Run, rng: Rng): Run {
+function playRandomly(start: Run, rng: Rng, options: HopOptions = {}): Run {
   let run = start;
   for (let step = 0; step < 80 && run.status.kind === 'landed'; step++) {
     const roll = rng.next();
@@ -55,7 +56,7 @@ function playRandomly(start: Run, rng: Rng): Run {
       const planned = planHop(run, target);
       const risky = planned.kind === 'planned' && planned.plan.successChance < 0.6;
       if (risky && rng.next() < 0.8) continue;
-      const result = launchHop(run, target);
+      const result = launchHop(run, target, options);
       if (result.kind === 'flown') run = result.run;
     }
   }
@@ -63,6 +64,7 @@ function playRandomly(start: Run, rng: Rng): Run {
 }
 
 /** The explorer's way out on `seed`, landed with a Jump Drive and the Heliopause found. */
+/** A Run ready to Jump (`readyToJump`, flown with no Cruise events, as these pins are, #250). */
 function ready(seed: number, chassisId: ChassisId): Run {
   const run = readyToJump(seed, chassisId);
   if (!run) throw new Error(`Seed ${String(seed)} should have a way out`);
@@ -81,8 +83,14 @@ function removed(run: Run, slot: number): Run {
   return result.run;
 }
 
-function hopped(run: Run, target: Parameters<typeof launchHop>[1]): Run {
-  const result = launchHop(run, target);
+const NO_EVENTS = { events: [] } as const;
+
+function hopped(
+  run: Run,
+  target: Parameters<typeof launchHop>[1],
+  options: Parameters<typeof launchHop>[2] = {},
+): Run {
+  const result = launchHop(run, target, options);
   if (result.kind !== 'flown') throw new Error(`Expected a Hop: ${result.reason}`);
   return result.run;
 }
@@ -139,10 +147,10 @@ describe('replay', () => {
     // for #283 (was seed 416): the Hop range sends that explorer another way. Re-pinned for #280/#298
     // (was seed 340): Comms Detects a Fuel source first, and every Chassis flies alike.
     const built = ready(408, 'scout');
-    const run = hopped(built, HELIOPAUSE);
+    const run = hopped(built, HELIOPAUSE, NO_EVENTS);
     expect(runEnd(run)?.kind).toBe('fell-short');
 
-    const replayed = replay(408, 'scout', run.choices);
+    const replayed = replay(408, 'scout', run.choices, NO_EVENTS);
     expect(replayed).toMatchObject({
       kind: 'replayed',
       end: runEnd(run),
@@ -154,11 +162,11 @@ describe('replay', () => {
     // Seed 30: the Radar finds the Heliopause, and the Fuel left covers the Hop there. Re-pinned for
     // #191 (was seed 10): only the Radar finds it now.
     const built = ready(30, 'scout');
-    const run = hopped(built, HELIOPAUSE);
+    const run = hopped(built, HELIOPAUSE, NO_EVENTS);
     expect(run.starSystemNumber).toBe(2);
     expect(run.status).toEqual({ kind: 'landed', bodyId: run.starSystem.startingMoonId });
 
-    const replayed = replay(30, 'scout', run.choices);
+    const replayed = replay(30, 'scout', run.choices, NO_EVENTS);
     expect(replayed).toMatchObject({
       kind: 'replayed',
       end: undefined,
@@ -209,26 +217,28 @@ describe('replay', () => {
   });
 
   it('no choice follows the end of a Run', () => {
-    const ended = hopped(ready(408, 'scout'), HELIOPAUSE);
+    const ended = hopped(ready(408, 'scout'), HELIOPAUSE, NO_EVENTS);
     // Removing the Jump Drive is a choice a landed Run would take.
     const jumpDriveSlot = ended.spacecraft.slots.indexOf('jump-drive');
-    const result = replay(408, 'scout', [
-      ...ended.choices,
-      { kind: 'remove', slot: jumpDriveSlot },
-    ]);
+    const result = replay(
+      408,
+      'scout',
+      [...ended.choices, { kind: 'remove', slot: jumpDriveSlot }],
+      NO_EVENTS,
+    );
     expect(result).toMatchObject({ kind: 'rejected', at: ended.choices.length });
     if (result.kind !== 'rejected') return;
     expect(result.why).toMatch(/not landed/);
   });
 
   it('a stored choice log survives a trip through JSON and back into a replay', () => {
-    const run = hopped(ready(30, 'scout'), HELIOPAUSE);
+    const run = hopped(ready(30, 'scout'), HELIOPAUSE, NO_EVENTS);
     const json = JSON.stringify(storedChoiceLog(run.choices));
     expect(JSON.parse(json)).toMatchObject({ version: CHOICE_LOG_VERSION });
     const parsed = parseChoiceLog(JSON.parse(json));
     expect(parsed).toEqual(run.choices);
     if (!parsed) return;
-    expect(replay(30, 'scout', parsed)).toMatchObject({ kind: 'replayed', run });
+    expect(replay(30, 'scout', parsed, NO_EVENTS)).toMatchObject({ kind: 'replayed', run });
   });
 
   it('stored data that is not a choice log of this version does not parse', () => {
@@ -284,13 +294,15 @@ describe('replay', () => {
       // the random player also tries the Hop there: only the Radar finds it (#191).
       const ready = seed % 10 === 0 ? readyToJump(seed, chassisId) : undefined;
       const start = ready ?? startRun(seed, chassisId);
-      const run = playRandomly(start, createRng(seed * 7_919));
+      // A ready Run was flown with no Cruise events, so it plays and replays on with none (#250).
+      const events = ready ? NO_EVENTS : {};
+      const run = playRandomly(start, createRng(seed * 7_919), events);
       heliopauseHops += run.choices.filter(
         (choice) => choice.kind === 'hop' && choice.target === HELIOPAUSE,
       ).length;
       if (runEnd(run)) endedRuns++;
 
-      const replayed = replay(seed, chassisId, run.choices);
+      const replayed = replay(seed, chassisId, run.choices, events);
       if (replayed.kind !== 'replayed') throw new Error(`Seed ${String(seed)}: ${replayed.why}`);
       expect(replayed.run).toEqual(run);
       expect(replayed.score).toEqual(score(run));
@@ -305,12 +317,12 @@ describe('replay', () => {
   it('replay covers the Jump: a Run replayed into Star System 2 and on is identical', () => {
     // Escape System 1 as above, then play on in System 2: Hop to its first target.
     const built = ready(41, 'scout');
-    const system2 = hopped(built, HELIOPAUSE);
-    const run = hopped(system2, firstTarget(system2).id);
+    const system2 = hopped(built, HELIOPAUSE, NO_EVENTS);
+    const run = hopped(system2, firstTarget(system2).id, NO_EVENTS);
     expect(run.starSystemNumber).toBe(2);
     expect(run.status).toEqual({ kind: 'landed', bodyId: firstTarget(system2).id });
 
-    const replayed = replay(41, 'scout', run.choices);
+    const replayed = replay(41, 'scout', run.choices, NO_EVENTS);
     if (replayed.kind !== 'replayed') throw new Error(`Expected a replay: ${replayed.kind}`);
     expect(replayed.run).toEqual(run);
     expect(replayed.score).toEqual({ starSystemsEscaped: 1, hopsFlown: built.hopsFlown + 2 });

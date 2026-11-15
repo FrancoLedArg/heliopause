@@ -2,7 +2,17 @@ import { afterEach, expect, it } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import { createRng } from '../game/lib/rng.ts';
 import { flightPlayback, type FlightPlayback } from '../game/scenes/flightPlayback.ts';
-import { firstDetectedBody, flyHop, planHop, startRun } from '../game/sim/index.ts';
+import { EventBus } from '../game/EventBus.ts';
+import {
+  advanceCruise,
+  beginHop,
+  firstDetectedBody,
+  flyHop,
+  planHop,
+  startRepair,
+  startRun,
+  type Run,
+} from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { FlightHud } from './FlightHud.tsx';
 import { expectTextBudget } from './textBudget.ts';
@@ -233,4 +243,57 @@ it('fits the 640x360 stage with no panel over another, the table open or not', a
   expect(table?.top).toBeGreaterThanOrEqual(host.getBoundingClientRect().top);
   // The open table rises from the panel, clear of the phase strip at the top.
   expect(table?.bottom).toBeLessThanOrEqual(log.getBoundingClientRect().top);
+});
+
+it('a Damaged Component lights red, says so in its name, and Enter starts its Repair, then Rushes it (#250)', async () => {
+  const run = startRun(123, 'scout');
+  const moon = firstDetectedBody(run.starSystem);
+  const begun = beginHop(run, moon.id, { schedule: [{ kind: 'fuel-leak', tick: 100, slot: 1 }] });
+  if (begun.kind !== 'cruising') throw new Error('Expected a Cruise');
+  const struck = advanceCruise(begun.run, 100);
+  if (struck.kind !== 'cruising') throw new Error('Expected to be cruising');
+  const untouched = advanceCruise(begun.run, 1_200);
+  if (untouched.kind !== 'flown') throw new Error('Expected a flight');
+  const playback = flightPlayback(run.spacecraft, untouched.flight, 'full');
+  const asked: string[] = [];
+  const offs = [
+    EventBus.on('repair-requested', (slot) => asked.push(`repair ${String(slot)}`)),
+    EventBus.on('rush-requested', (slot) => asked.push(`rush ${String(slot)}`)),
+  ];
+  const hud = (live: Run) => (
+    <FlightHud
+      before={run}
+      flight={untouched.flight}
+      moment={playback.at(cruiseStart(playback) + 20_000)}
+      after={undefined}
+      onContinue={() => undefined}
+      onNewRun={() => undefined}
+      onLeave={() => undefined}
+      fast={false}
+      onFastChange={() => undefined}
+      live={live}
+    />
+  );
+  const host = await renderUi(hud(struck.run));
+  const lights = byTestId(host, 'systems-lights');
+  // Shown, not told: still no visible text, the words are in the light's name.
+  expect(lights.textContent.trim()).toBe('');
+  const light = lights.querySelector<HTMLButtonElement>('button[data-light="damaged"]');
+  if (!light) throw new Error('Expected a red light');
+  expect(light.getAttribute('aria-label')).toBe('Fuel Tank 1: Damaged, leaking Fuel. Repair, 30 s');
+  light.focus();
+  await userEvent.keyboard('{Enter}');
+  expect(asked).toEqual(['repair 1']);
+  cleanUp();
+
+  const started = startRepair(struck.run, 1);
+  if (started.kind !== 'repairing') throw new Error('Expected a Repair');
+  const again = await renderUi(hud(started.run));
+  const ring = again.querySelector<HTMLButtonElement>('button[data-light="repairing"]');
+  if (!ring) throw new Error('Expected the Repair ring');
+  expect(ring.getAttribute('aria-label')).toMatch(/Rush for 6 Materials$/);
+  ring.focus();
+  await userEvent.keyboard('{Enter}');
+  expect(asked).toEqual(['repair 1', 'rush 1']);
+  for (const off of offs) off();
 });

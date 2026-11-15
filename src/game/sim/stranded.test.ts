@@ -66,8 +66,12 @@ function fittedWith(from: Run, slots: readonly Slot[]): Run {
  * added at the start: a Run that only swapping in the level-2 Engine (60 Materials) could save, each
  * plan sure yet the last Arriving Stranded as built. Re-pinned for #283 (was seed 27's Dryli,
  * Siolmel, Teskae and Dryli): the Hop range keeps Teskae out of reach from Siolmel. Re-pinned for
- * #280 (was seed 44's Vilthioqui): Comms Detects a Fuel source first, and (#298) every Chassis flies alike (was seed 5, then seed 44).
+ * #280 and #298 (was seed 44's Vilthioqui): Comms Detects a Fuel source first, and every Chassis
+ * flies alike. Flown with no Cruise events (#250 turned the Fuel leak on): this pins Stranded on
+ * the Burns alone.
  */
+const NO_EVENTS = { events: [] } as const;
+
 function onViolios(extra: number): Run {
   let run = startRun(97, 'scout');
   // Stranded follows the plans the player sees (#190): every Body but the three flown to is Surveyed,
@@ -84,7 +88,7 @@ function onViolios(extra: number): Run {
   for (const name of flownTo) {
     const body = listBodies(run.starSystem).find((b) => b.name === name);
     if (!body) throw new Error(`Seed 97 has no ${name}`);
-    const landed = launchHop(run, body.id);
+    const landed = launchHop(run, body.id, NO_EVENTS);
     if (landed.kind !== 'flown' || landed.flight.outcome.kind !== 'arrived') {
       throw new Error(`Seed 97: the Hop to ${name} should Arrive`);
     }
@@ -268,7 +272,7 @@ describe('what could still save a Run', () => {
       'fuel-tank-1',
       'drill-2',
     ]);
-    const fuelMass = kilograms(design.spacecraft.fuelCapacity * 1);
+    const fuelMass = kilograms(design.spacecraft.fuelCapacity);
     const fuelled = { ...design, spacecraft: { ...design.spacecraft, fuelMass } };
     expect(anyBodyHop(fuelled)).toBe(false);
     expect(anyBodyHop(removeSlots(fuelled, [3]))).toBe(true); // the Drill alone removed
@@ -324,8 +328,7 @@ describe('the simulation settles Stranded itself', () => {
     // Seed 1: from Thiolsaer-7, with just the Fuel to make the Hop to Kuntho-6 sure, it Arrives with too
     // little Fuel for any Hop, whatever is changed. Re-pinned for #283 (was seed 199's Hop from its
     // smallest planet to Mionzox Nova, now past the Hop range): from a full Tank, no Hop in range
-    // strands. Re-pinned for #280 (was seed 1's Korli to Draelzae): seed 1 now opens on another draw,
-    // the first with a Fuel source In reach after the first Hop.
+    // strands. Re-pinned for #280 (was Korli to Draelzae): seed 1 now opens on another draw.
     const r = knowingEverything(startRun(1, 'scout'));
     const origin = listBodies(r.starSystem).find(({ name }) => name === 'Thiolsaer-7');
     const body = listBodies(r.starSystem).find(({ name }) => name === 'Kuntho-6');
@@ -333,7 +336,8 @@ describe('the simulation settles Stranded itself', () => {
     const onOrigin = landedOn(r, origin.id);
     const start = withDeltaV(onOrigin, plan(onOrigin, body.id).totalEstimate * 1.1001);
     expect(plan(start, body.id).successChance).toBe(1);
-    const flown = launchHop(start, body.id);
+    // Flown with no Cruise events (#250 turned the Fuel leak on): Stranded here is the Burns' doing.
+    const flown = launchHop(start, body.id, NO_EVENTS);
     if (flown.kind !== 'flown') throw new Error('expected a Hop');
     expect(flown.flight.outcome).toEqual({ kind: 'arrived' });
     expect(flown.run.status).toEqual({
@@ -370,28 +374,30 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('a replayed Run ends Stranded where the game did, and takes no choice after it', () => {
+    // Flown with no Cruise events (#250): this pins Stranded on the Burns alone.
     // Seed 47, played as the player sees it (every Body Unsurveyed until landed on): the fourth Hop
     // strands it. Re-pinned for #283 (was seed 4's four Hops): the Hop range keeps Prumal out of reach.
-    // Re-pinned for #280/#298 (was seed 1's five Hops): Comms Detects a Fuel source first, and every
-    // Chassis flies alike.
+    // Re-pinned for #280/#298 (was seed 1's five Hops): Comms Detects a Fuel source first.
     let run = startRun(47, 'scout');
     for (const name of ['Noxiol', 'Kyrtio', 'Lanpraer', 'Noxiol']) {
       const body = listBodies(run.starSystem).find((b) => b.name === name);
       if (!body) throw new Error(`Seed 47 has no ${name}`);
-      const flown = launchHop(run, body.id);
+      const flown = launchHop(run, body.id, NO_EVENTS);
       if (flown.kind !== 'flown') throw new Error(`Seed 47: no Hop to ${name}`);
       run = flown.run;
     }
     expect(run.status).toMatchObject(stranded);
-    const replayed = replay(47, 'scout', run.choices);
+    const replayed = replay(47, 'scout', run.choices, NO_EVENTS);
     expect(replayed).toMatchObject({ kind: 'replayed', end: { kind: 'stranded' } });
     if (replayed.kind !== 'replayed') return;
     expect(replayed.run.status).toEqual(run.status);
     // A choice made after the end is refused.
-    const after = replay(47, 'scout', [
-      ...run.choices,
-      { kind: 'install', slot: 2, componentId: 'drill-1' },
-    ]);
+    const after = replay(
+      47,
+      'scout',
+      [...run.choices, { kind: 'install', slot: 2, componentId: 'drill-1' }],
+      NO_EVENTS,
+    );
     expect(after).toMatchObject({ kind: 'rejected', at: 4 });
   });
 

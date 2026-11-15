@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { FAST_CRUISE } from './cruise.ts';
+import { FAST_CRUISE, NO_CRUISE_EVENTS } from './cruise.ts';
 import { waitForOpening } from './opening.ts';
 import { recordShots, shotsSeen } from './shots.ts';
 import { formatFuel } from '../../src/ui/format.ts';
@@ -39,11 +39,11 @@ interface Failure {
 // Found by a scan over seeds and paths. Re-pinned for #247 (was seed 1442), #280 (was seed 46, then
 // seed 4 after the Hop range, #283) and #298: every Chassis now flies alike, so the scout and the
 // hauler can no longer fail differently on one path, and each failure has its own seed.
-/** Seed 70: the scout Crashes on Kionprexror Prime after Rurnoscael and Mema. */
+/** Seed 1: the scout Crashes on Xistal after Thiolsaer-7, Mamil and Thiolsaer-7 again. */
 const CRASH: Failure = {
-  seed: 70,
-  path: ['Kionprexror Prime', 'Rurnoscael', 'Mema'],
-  far: 'Kionprexror Prime',
+  seed: 1,
+  path: ['Thiolsaer-7', 'Mamil', 'Thiolsaer-7'],
+  far: 'Xistal',
 };
 /** Seed 130: the hauler Falls Short in the Transfer to Xose after Tiothael, Xose and Saethux. */
 const SHORT: Failure = { seed: 130, path: ['Tiothael', 'Xose', 'Saethux'], far: 'Xose' };
@@ -106,7 +106,7 @@ async function hopAndLand(page: Page, name: string): Promise<void> {
 
 /** The crash seed's scout, Landed at the end of its path, with the Nav Chart open on the failing Hop. */
 async function onTheWayToFail(page: Page): Promise<void> {
-  await page.goto(`/?seed=${String(CRASH.seed)}&chassis=scout&${FAST_CRUISE}`);
+  await page.goto(`/?seed=${String(CRASH.seed)}&chassis=scout&${FAST_CRUISE}&${NO_CRUISE_EVENTS}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await waitForOpening(page);
   for (const name of CRASH.path) await hopAndLand(page, name);
@@ -398,7 +398,7 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
   test.setTimeout(120_000);
   await page.emulateMedia({ reducedMotion: 'reduce' });
   // No Chassis in the URL: the picker is part of the New Run path.
-  await page.goto(`/?seed=${String(SHORT.seed)}&${FAST_CRUISE}`);
+  await page.goto(`/?seed=${String(SHORT.seed)}&${FAST_CRUISE}&${NO_CRUISE_EVENTS}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await expect(page.getByRole('radio', { name: /Scout/ })).toBeFocused();
   await page.keyboard.press('ArrowRight');

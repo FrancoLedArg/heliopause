@@ -1,36 +1,56 @@
 import { expect, test, type Page } from '@playwright/test';
-import { FAST_CRUISE } from './cruise.ts';
+import { FAST_CRUISE, NO_CRUISE_EVENTS } from './cruise.ts';
 import { waitForOpening } from './opening.ts';
 import { firstDetectedBody, startRun } from '../../src/game/sim/index.ts';
 
-// Re-pinned for #189 (was 305): a Run opens knowing one Body, always In reach, so a far Body takes
-// a few landings to find. On seed 179, after the first target Hehaequan, then Dryspraes Tau and
-// Querrelys, the way back to the Starting Moon, Thylthiolhiol, is far: a lancer reaches it at a low
-// chance with some Margin, a hauler cannot reach it at all. Re-pinned for #247 (was seed 1442's
-// Korxel, seen from Thosny): the Chassis Isp rose 30%, so a lancer makes that Hop for sure.
-const SEED = 179;
+// Re-pinned for #189 (was 305), #247 (was seed 1442) and #283 (was seed 179). Since #298 every
+// Chassis flies alike, so one Run can no longer be Marginal for a lancer and Out of reach for a
+// hauler: each verdict now has its own seed and path, found by a scan, flown with no Cruise events.
+const SEED = 130;
 const run = startRun(SEED, 'scout');
 const homeMoon = firstDetectedBody(run.starSystem);
-/** The Hops that Arrive on the way, every Chassis alike; the first is the first target. */
-const PATH = ['Hehaequan', 'Dryspraes Tau', 'Querrelys'] as const;
-const FAR = 'Thylthiolhiol';
-/** Another Body known on Querrelys: Lycio, a sure Hop for a lancer. */
-const NEAR = 'Lycio';
 
-async function openNavChart(page: Page, chassis = 'scout'): Promise<void> {
-  // The fast Cruise (#246): two tests fly the first Hop before the far Body is known (#189).
-  await page.goto(`/?seed=${String(SEED)}&chassis=${chassis}&${FAST_CRUISE}`);
+/** A way to a far Body: the Hops that Arrive on the way (the first is the first target), then the far Body. */
+interface Scenario {
+  readonly seed: number;
+  readonly path: readonly string[];
+  readonly far: string;
+}
+
+/** Seed 29: after Droprel, Vusraex, Droprel and Vordru, Vusraex is Marginal (60%, some Margin). */
+const MARGINAL: Scenario & { readonly near: string } = {
+  seed: 29,
+  path: ['Droprel', 'Vusraex', 'Droprel', 'Vordru'],
+  far: 'Vusraex',
+  /** Another Body known on Vordru: Droprel, a sure Hop. */
+  near: 'Droprel',
+};
+/** Seed 130: after Tiothael, Xose and Saethux, the way back to Tiothael is Out of reach. */
+const OUT_OF_REACH: Scenario = {
+  seed: 130,
+  path: ['Tiothael', 'Xose', 'Saethux'],
+  far: 'Tiothael',
+};
+
+async function openNavChart(page: Page, chassis = 'scout', seed = SEED): Promise<void> {
+  // The fast Cruise (#246): two tests fly the first Hop before the far Body is known (#189). With no
+  // Cruise events (#250): a leak on the first Hop would move the far Body's chance this pins.
+  await page.goto(`/?seed=${String(seed)}&chassis=${chassis}&${FAST_CRUISE}&${NO_CRUISE_EVENTS}`);
   await page.getByRole('button', { name: 'New Run' }).click();
   await waitForOpening(page);
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
 }
 
-/** A New Run on `chassis` that lands on every Body of PATH, then opens the Nav Chart there. */
-async function openNavChartAfterPath(page: Page, chassis: string): Promise<void> {
+/** A New Run on `chassis` that lands on every Body of a scenario's path, then opens the Nav Chart there. */
+async function openNavChartAfterPath(
+  page: Page,
+  chassis: string,
+  { seed, path }: Scenario,
+): Promise<void> {
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await openNavChart(page, chassis);
-  for (const [i, name] of PATH.entries()) {
+  await openNavChart(page, chassis, seed);
+  for (const [i, name] of path.entries()) {
     if (i > 0) await page.getByRole('button', { name: /Nav Chart/ }).click();
     await target(page, name);
     await page.getByRole('button', { name: 'Launch' }).click();
@@ -113,15 +133,15 @@ test('a far Body has a lower Success Chance, flagged in words when low; Cancel c
 }, testInfo) => {
   // Three Hops of playback on a loaded machine.
   test.setTimeout(120_000);
-  await openNavChartAfterPath(page, 'lancer');
-  await target(page, NEAR);
+  await openNavChartAfterPath(page, 'lancer', MARGINAL);
+  await target(page, MARGINAL.near);
   const nearPercent = await percentOf(page);
 
-  await target(page, FAR);
+  await target(page, MARGINAL.far);
   const farPercent = await percentOf(page);
   expect(farPercent).toBeLessThan(nearPercent);
-  // Seed 179's Thylthiolhiol is 57% for the lancer from Querrelys: below the low-chance line, with a
-  // thin Margin.
+  // Seed 29's Vusraex is 60% from Vordru: below the low-chance line, with a thin
+  // Margin.
   // The reach verdict (#190): a triangle and "Marginal", named for assistive technology.
   await expect(page.getByTestId('plan-warning')).toHaveText('Marginal');
   await expect(page.getByTestId('plan-warning')).toHaveAttribute('aria-label', 'Reach: Marginal');
@@ -176,8 +196,8 @@ test('a Margin below zero is signed and warned about more strongly than a low ch
 }) => {
   // Three Hops of playback on a loaded machine.
   test.setTimeout(120_000);
-  await openNavChartAfterPath(page, 'hauler');
-  await target(page, FAR);
+  await openNavChartAfterPath(page, 'hauler', OUT_OF_REACH);
+  await target(page, OUT_OF_REACH.far);
   await expect(page.getByTestId('plan-margin')).toHaveText(/^−\d+\.\d{1,2} km\/s \(\d+%\)$/);
   // Out of reach (#190): a cross and the word, exactly 0%.
   await expect(page.getByTestId('plan-warning')).toHaveText('Out of reach');

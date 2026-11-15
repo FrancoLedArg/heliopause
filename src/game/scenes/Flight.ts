@@ -6,7 +6,19 @@ import { EventBus } from '../EventBus.ts';
 import { prefersReducedMotion } from '../lib/motion.ts';
 import { chooseCruiseSpeed } from '../lib/cruiseSpeed.ts';
 import { createRng } from '../lib/rng.ts';
-import { findBody, type BodyId, type HopFlight, type Run } from '../sim/index.ts';
+import {
+  advanceCruise,
+  CRUISE_TUNING,
+  findBody,
+  rushRepair,
+  startRepair,
+  type BeginResult,
+  type BodyId,
+  type CruiseResult,
+  type HopFlight,
+  type Run,
+} from '../sim/index.ts';
+import { createDamageMarks, repairClickAt, type DamageMarks } from './damageMarks.ts';
 import {
   advancePlayback,
   CRUISE_BOOST_MS,
@@ -63,13 +75,41 @@ import {
   type VerticalShot,
 } from './verticalShots.ts';
 
+/**
+ * The game root's attribute listing the Damaged Components' screen rects in the live Cruise, by Slot
+ * (a test hook, like the Landed view's `data-spacecraft`): e2e flows click a leaking Tank with it.
+ */
+export const DAMAGE_ATTRIBUTE = 'data-cruise-damage';
+
 export interface FlightData {
   /** The Run at Launch: the Spacecraft on the departure Body with its Fuel. */
   readonly before: Run;
-  /** The Hop as the simulation flew it: the outcome is already settled. */
+  /**
+   * The Hop as the simulation flew it. With `cruising`, the Hop as it ends if the player does
+   * nothing in its Cruise: the Takeoff and the Transfer are settled, and the scene replaces it with
+   * the real result when the Cruise ends.
+   */
   readonly flight: HopFlight;
   /** The Run after the Hop: landed on the target, on the next Starting Moon after the Jump, or ended. */
   readonly after: Run;
+  /**
+   * The Run in the Hop's Cruise (#250), when the Hop reached one: the scene owns it until the Cruise
+   * ends, advancing it tick by tick with the playback clock and applying the player's Repairs and
+   * Rushes. Absent for a Hop settled at launch (Fell Short), and in tests that play a flown Hop.
+   */
+  readonly cruising?: Run;
+}
+
+/**
+ * The Flight's data for a Hop just begun: settled at launch (Fell Short), or cruising, with the Hop as
+ * it ends untouched to pace the playback until the real result is known.
+ */
+export function flightDataFor(before: Run, begun: BeginResult): FlightData {
+  if (begun.kind === 'flown') return { before, flight: begun.flight, after: begun.run };
+  const untouched = advanceCruise(begun.run, CRUISE_TUNING.ticks);
+  // Only an Engine fire Destroys a Spacecraft, and real Runs do not schedule one yet (#251).
+  if (untouched.kind !== 'flown') throw new Error('An Engine fire in the Cruise arrives with #251');
+  return { before, flight: untouched.flight, after: untouched.run, cruising: begun.run };
 }
 
 /**
@@ -356,6 +396,10 @@ export class Flight extends Scene {
   /** One-off moments already played (a Crash's hit), so a seek past them plays them once. */
   private played = new Set<string>();
   private lastMoment: FlightMoment | undefined;
+  /** The Run in its Cruise while the Cruise runs (see `FlightData.cruising`); tests read it. */
+  live: Run | undefined;
+  /** The Damage drawn on the flying Spacecraft. */
+  marks!: DamageMarks;
 
   constructor() {
     super(SceneKey.Flight);
@@ -365,6 +409,7 @@ export class Flight extends Scene {
     this.before = data.before;
     this.flight = data.flight;
     this.after = data.after;
+    this.live = data.cruising;
     this.finished = false;
     this.held = false;
     this.fast = false;
@@ -425,6 +470,7 @@ export class Flight extends Scene {
     this.fx = this.pace === 'full' ? createFlightEffects(this) : undefined;
     this.jumpFx = this.buildJumpFx();
     this.buildShip();
+    this.marks = createDamageMarks(this, this.pace === 'reduced');
     this.engineLight = this.buildEngineLight();
     // Over everything the scene draws: the engine's flash, the Jump's flash and the black it ends on.
     this.engineLight.screen.setDepth(1);
@@ -439,8 +485,33 @@ export class Flight extends Scene {
       this.fast = fast;
       this.fx?.setSpeed(fast ? FAST_FORWARD : 1);
     });
+    // The player's Repairs and Rushes, from a systems light or a click on the Damaged part.
+    const offRepair = EventBus.on('repair-requested', (slot) => {
+      if (!this.live) return;
+      const started = startRepair(this.live, slot);
+      if (started.kind === 'repairing') this.updateLive(started.run);
+    });
+    const offRush = EventBus.on('rush-requested', (slot) => {
+      if (!this.live) return;
+      const rushed = rushRepair(this.live, slot);
+      if (rushed.kind === 'rushed') this.updateLive(rushed.run);
+    });
+    // A click on a Damaged part starts its Repair; only a click on its ring or price Rushes it.
+    this.input.on('pointerdown', (pointer: { x: number; y: number }) => {
+      const click = this.repairClick(pointer);
+      if (click) EventBus.emit(`${click.action}-requested`, click.slot);
+    });
+    this.events.once(Scenes.Events.SHUTDOWN, () => {
+      this.input.setDefaultCursor('');
+    });
+    this.input.on('pointermove', (pointer: { x: number; y: number }) => {
+      this.input.setDefaultCursor(this.repairClick(pointer) ? 'pointer' : '');
+    });
     const stop = (): void => {
       offSpeed();
+      offRepair();
+      offRush();
+      this.game.canvas.parentElement?.removeAttribute(DAMAGE_ATTRIBUTE);
       this.holdApproachMusic(false);
       this.events.off(Scenes.Events.SHUTDOWN, stop);
       this.events.off(Scenes.Events.DESTROY, stop);
@@ -449,6 +520,7 @@ export class Flight extends Scene {
     this.events.once(Scenes.Events.DESTROY, stop);
 
     EventBus.emit('hop-flight-started', this.before, this.flight, this.pace);
+    if (this.live) EventBus.emit('cruise-updated', this.live);
     this.render(0);
     EventBus.emit('scene-ready', SceneKey.Flight);
   }
@@ -493,6 +565,67 @@ export class Flight extends Scene {
     return out;
   }
 
+  /** What a click in the Cruise asks of a Damaged Component: a Repair or a Rush, if anything. */
+  private repairClick(pointer: { x: number; y: number }): ReturnType<typeof repairClickAt> {
+    if (!this.live || this.stage !== 'space') return undefined;
+    return repairClickAt(this.live, this.componentBounds(), pointer.x, pointer.y);
+  }
+
+  /**
+   * Advances the live Cruise to where the playback clock is: one Cruise tick per 100 ms of Cruise
+   * shot (seeking ahead flies the ticks between with no player actions). At its last tick the Hop is
+   * settled, and the Landing plays from that result.
+   */
+  private cruiseTo(ms: number): void {
+    const window = this.playback.cruise;
+    const live = this.live;
+    if (!live || !window || live.status.kind !== 'cruising') return;
+    const share = (ms - window.start) / window.length;
+    const tick = Math.min(CRUISE_TUNING.ticks, Math.floor(share * CRUISE_TUNING.ticks));
+    if (tick <= live.status.cruise.tick) return;
+    this.settle(advanceCruise(live, tick));
+  }
+
+  private settle(result: CruiseResult): void {
+    switch (result.kind) {
+      case 'cruising':
+        this.updateLive(result.run);
+        return;
+      case 'flown':
+        // The real result: the Takeoff and the Transfer are as played, so the clock carries on.
+        this.live = undefined;
+        this.flight = result.flight;
+        this.after = result.run;
+        this.playback = flightPlayback(this.before.spacecraft, this.flight, this.pace);
+        this.duration = this.playback.duration + (this.jump?.duration ?? 0);
+        this.marks.hide();
+        EventBus.emit('hop-flight-settled', this.flight, this.after);
+        return;
+      case 'destroyed':
+        throw new Error('An Engine fire in the Cruise arrives with #251');
+    }
+  }
+
+  /** The live Cruise changed: a new event drops the fast-forward (#210), and the HUD follows. */
+  private updateLive(run: Run): void {
+    const struck = (r: Run | undefined): number =>
+      r?.status.kind === 'cruising' ? r.status.cruise.struck.length : 0;
+    const before = this.live;
+    this.live = run;
+    if (struck(run) > struck(before) && this.fast) {
+      this.fast = false;
+      this.fx?.setSpeed(1);
+      EventBus.emit('cruise-event-struck');
+    }
+    const bounds = this.componentBounds();
+    const damaged = run.spacecraft.damage.flatMap((damage, slot) => {
+      const rect = bounds.get(slot);
+      return damage && rect ? [{ slot, ...rect }] : [];
+    });
+    this.game.canvas.parentElement?.setAttribute(DAMAGE_ATTRIBUTE, JSON.stringify(damaged));
+    EventBus.emit('cruise-updated', run);
+  }
+
   /**
    * Where a Component's mount point is on the screen (`centre` for now): what Cruise events (#210)
    * play damage effects at. Undefined for an empty Slot.
@@ -505,6 +638,7 @@ export class Flight extends Scene {
   }
 
   private render(ms: number): void {
+    this.cruiseTo(ms);
     this.playbackMs = ms;
     if (this.jump && ms > this.playback.duration) {
       this.renderJump(this.jump, ms - this.playback.duration);
@@ -675,6 +809,8 @@ export class Flight extends Scene {
     this.thrust(0, firing);
     this.fx?.exhaust(firing, this.flightNozzles(this.ship.x, this.ship.y, angle));
     this.puff(live);
+    if (this.live) this.marks.show(this.live, this.componentBounds(), ms);
+    else this.marks.hide();
 
     // How far the stars have drifted: faster through the boost, slowing to a crawl once the engine died.
     const travel = flown + BOOST_GAIN * Math.min(flown, CRUISE_BOOST_MS) + since * 0.15;
@@ -790,6 +926,7 @@ export class Flight extends Scene {
   private vertical(shot: VerticalShot, firing: boolean, ms: number): void {
     const x = SHIP_PLACEMENT.x;
     const y = Math.round(SHIP_PLACEMENT.baseY - shot.altitude);
+    this.marks.hide();
     this.shipArt('landed');
     this.ship.setScale(1).setPosition(x, y).setAngle(0);
     this.thrust(firing ? shot.plume : 0, false);
@@ -942,7 +1079,12 @@ export class Flight extends Scene {
    * Tells the HUD when something it shows has changed: the Burn or shot, the thrust, the log, a Fuel
    * step, a step along the route, or a systems light coming on.
    */
-  private report(moment: FlightMoment): void {
+  private report(shown: FlightMoment): void {
+    // In the live Cruise, once the Transfer's boost is spent, the Fuel is what the leaks left (#250).
+    const moment =
+      this.live && shown.burn === 'transfer' && !shown.thrusting
+        ? { ...shown, fuel: this.live.spacecraft.fuelMass }
+        : shown;
     const last = this.lastMoment;
     const step = (m: FlightMoment): number =>
       Math.round((m.fuel / this.before.spacecraft.fuelCapacity) * 400);
