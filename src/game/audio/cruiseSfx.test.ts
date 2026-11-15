@@ -41,7 +41,13 @@ describe('cruiseCues', () => {
   });
 
   it('has a recipe for every cue', () => {
-    for (const key of ['sfx_leak', 'sfx_repair_start', 'sfx_repair_done', 'sfx_rush']) {
+    for (const key of [
+      'sfx_leak',
+      'sfx_debris',
+      'sfx_repair_start',
+      'sfx_repair_done',
+      'sfx_rush',
+    ]) {
       expect(RECIPES).toHaveProperty(key);
     }
   });

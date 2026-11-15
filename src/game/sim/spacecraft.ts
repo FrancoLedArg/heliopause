@@ -1,4 +1,4 @@
-import { COMPONENTS, type ComponentId } from './catalogue.ts';
+import { COMPONENTS, RADAR_TUNING, type ComponentId } from './catalogue.ts';
 import {
   CHASSIS_TUNING,
   CRUISE_TUNING,
@@ -225,10 +225,12 @@ export function radarReach(
     if (slot === null) continue;
     const component = COMPONENTS[slot];
     if (component.kind !== 'radar') continue;
-    // A flickering (Damaged) Radar reaches less far until it is Repaired (#320).
-    const factor = spacecraft.damage?.[i] ? CRUISE_TUNING.damagedRadarRange : 1;
+    // A Damaged Radar (a solar flare, #253) sees half as far, and still Surveys.
+    const range = spacecraft.damage?.[i]
+      ? component.range * RADAR_TUNING.damagedRangeFactor
+      : component.range;
     reach = {
-      range: astronomicalUnits(Math.max(reach?.range ?? 0, component.range * factor)),
+      range: astronomicalUnits(Math.max(reach?.range ?? 0, range)),
       surveys: (reach?.surveys ?? false) || component.surveys,
     };
   }

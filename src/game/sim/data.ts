@@ -343,9 +343,9 @@ export const CRUISE_TUNING = {
   ticks: 1_200,
   /**
    * The kinds a real Run schedules: the Fuel leak since #250, the first playable Cruise. The other
-   * kinds switch on with their own tickets (#251 to #253).
+   * kinds switch on with their own tickets (#251 and #252; the solar flare since #253).
    */
-  enabledKinds: ['fuel-leak'] as readonly CruiseEventKind[],
+  enabledKinds: ['fuel-leak', 'solar-flare'] as readonly CruiseEventKind[],
   /**
    * The first Hops of a Run are mild: only `mildKinds`. A mild Debris field never misses and hits any
    * part but the Jump Drive, rotating so the first Hops show several kinds of Damage (#320); a leak is slower and stops at the Fuel the Landing needs at its worst plus a Hop back with
@@ -373,8 +373,6 @@ export const CRUISE_TUNING = {
   leakPerSecond: { mild: 0.0015, harsh: 0.0025 },
   /** A Damaged Engine's Isp factor (#197). */
   damagedEngineIsp: 0.85,
-  /** A flickering (Damaged) Radar's range factor (#320). */
-  damagedRadarRange: 0.6,
   /** A burning Engine with no Repair started for this long explodes: 30 s. */
   fireTicks: 300,
   /** Repair times by Component kind, in ticks: Engine 40 s, Fuel Tank 30 s, Drill 20 s. */

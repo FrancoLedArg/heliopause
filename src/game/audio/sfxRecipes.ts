@@ -124,6 +124,10 @@ export const RECIPES: Readonly<Record<string, readonly Layer[]>> = {
     },
     { kind: 'tone', wave: 'square', from: 220, to: 160, start: 0, dur: 0.18, gain: 0.2 },
   ],
+  sfx_debris: [
+    { kind: 'noise', filter: 'lowpass', from: 3000, to: 600, start: 0, dur: 0.35, gain: 0.5 },
+    { kind: 'tone', wave: 'square', from: 140, to: 70, start: 0, dur: 0.2, gain: 0.3 },
+  ],
   sfx_repair_start: [
     { kind: 'tone', wave: 'square', from: 300, to: 360, start: 0, dur: 0.08, gain: 0.25 },
     { kind: 'tone', wave: 'square', from: 300, to: 360, start: 0.12, dur: 0.08, gain: 0.25 },
