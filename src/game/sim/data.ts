@@ -349,10 +349,10 @@ export const CRUISE_TUNING = {
     'solar-flare',
   ] as readonly CruiseEventKind[],
   /**
-   * The first Hops of a Run are mild: only `mildKinds`, a Debris field only ever hits a Fuel Tank,
-   * and a leak is slower and stops at the Fuel the Landing needs at its worst plus a Hop back with
-   * a chance (`Cruise.fuelFloor`). So the Engine fire, and with it Destroyed, never strikes on them,
-   * and no mild event can Crash or Strand a Hop the plan shows at 100% (#188).
+   * The first Hops of a Run are mild: only `mildKinds`. A mild Debris field never misses and hits any
+   * part but the Jump Drive, rotating so the first Hops show several kinds of Damage (#320). A leak is slower and stops at the
+   * Fuel the Landing needs at its worst plus a Hop back with a chance (`Cruise.fuelFloor`). So the
+   * Engine fire, and with it Destroyed, never strikes on them, and no mild event can Crash or Strand a Hop the plan shows at 100% (#188).
    */
   mildHops: 3,
   mildKinds: MILD_KINDS,
