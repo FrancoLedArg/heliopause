@@ -1,6 +1,6 @@
 import type { Kilograms, Materials, MetersPerSecond } from '../game/sim/index.ts';
 import { imageUrl } from '../game/assets/manifest.ts';
-import { formatDeltaV, formatFuel } from './format.ts';
+import { formatDeltaVKmS, formatFuel } from './format.ts';
 import { FuelGauge } from './FuelGauge.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 
@@ -65,7 +65,7 @@ export function TopBar({
       <KitFrame frame="res_delta_v" className="top-bar__icon top-bar__dv-icon" />
       <p className="top-bar__label top-bar__dv-label">Δv available</p>
       <p className="top-bar__value top-bar__dv" data-testid="delta-v">
-        {formatDeltaV(deltaV)}
+        {formatDeltaVKmS(deltaV)}
       </p>
       <img
         src={imageUrl('res_materials')}

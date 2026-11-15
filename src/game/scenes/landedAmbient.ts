@@ -42,6 +42,8 @@ export interface LandedAmbient {
   readonly reducedMotion: boolean;
   /** Test seam: jumps the drift clock to `ms` into its cycle and holds it there. Does nothing under reduced motion. */
   readonly seekDrift: (ms: number) => void;
+  /** Moves the engine-idle glow to these nozzle exits (an Engine was installed or removed). */
+  readonly setNozzles: (nozzles: readonly Point[]) => void;
   /** Stops every tween, timer and listener the ambient life started. Safe to call twice. */
   readonly dispose: () => void;
 }
@@ -58,6 +60,7 @@ export function createLandedAmbient(scene: Scene, targets: AmbientTargets): Land
   let seekDrift: (ms: number) => void = () => undefined;
   let stopLights = (): void => undefined;
   let stopDust = (): void => undefined;
+  let glow: Glow | undefined;
 
   if (!reducedMotion) {
     const drift = driftTween(scene, targets);
@@ -67,7 +70,7 @@ export function createLandedAmbient(scene: Scene, targets: AmbientTargets): Land
       ...targets.starfield.twinklers.map(({ star, index }) => twinkle(scene, star, index)),
     );
     stopLights = blinkLights(scene, targets.setShipLights);
-    tweens.push(glowTween(scene, targets.layers.ship, targets.nozzles));
+    glow = glowTween(scene, targets.layers.ship, targets.nozzles);
     stopDust = blowDust(scene, targets);
   }
 
@@ -77,15 +80,27 @@ export function createLandedAmbient(scene: Scene, targets: AmbientTargets): Land
     seekDrift: (ms) => {
       seekDrift(ms);
     },
+    setNozzles: (nozzles) => {
+      if (!glow || disposed) return;
+      glow.stop();
+      glow = glowTween(scene, targets.layers.ship, nozzles);
+    },
     dispose: () => {
       if (disposed) return;
       disposed = true;
       stopLights();
       stopDust();
+      glow?.tween.remove();
       for (const tween of tweens) tween.remove();
       tweens.length = 0;
     },
   };
+}
+
+/** The engine-idle glow: its pulsing tween, and how to take it away. */
+interface Glow {
+  readonly tween: Tweens.Tween;
+  readonly stop: () => void;
 }
 
 /** One tween is the camera's clock; each frame it sets every layer's x from the shared offsets. The Spacecraft rides the ground it stands on. */
@@ -137,11 +152,7 @@ function blinkLights(scene: Scene, setLights: (on: boolean) => void): () => void
 }
 
 /** A faint warm glow at each nozzle exit that swells and fades together, as if the engines idled. */
-function glowTween(
-  scene: Scene,
-  ship: GameObjects.Container,
-  nozzles: readonly Point[],
-): Tweens.Tween {
+function glowTween(scene: Scene, ship: GameObjects.Container, nozzles: readonly Point[]): Glow {
   // Centred just under each exit and drawn behind the Chassis, so it shows below the nozzle's bell.
   const glows = nozzles.map((exit) =>
     scene.add
@@ -150,7 +161,7 @@ function glowTween(
       .setBlendMode(BlendModes.ADD),
   );
   ship.addAt(glows, 1); // above the shadow, below the Chassis
-  return scene.tweens.add({
+  const tween = scene.tweens.add({
     targets: glows,
     alpha: GLOW.alpha.to,
     duration: 2600,
@@ -158,6 +169,13 @@ function glowTween(
     yoyo: true,
     repeat: -1,
   });
+  return {
+    tween,
+    stop: () => {
+      tween.remove();
+      for (const g of glows) g.destroy();
+    },
+  };
 }
 
 /** A fixed pool of thin motes blown left to right low over the ground, moved by one update listener. Returns a function that stops them. */

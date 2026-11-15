@@ -14,6 +14,7 @@ import { FuelGauge } from './FuelGauge.tsx';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import { ResourceIcon } from './ResourceIcon.tsx';
+import { describeSpacecraft } from './spacecraftPanelView.ts';
 import { yieldIcon } from './yieldIcon.ts';
 import { TopBar } from './TopBar.tsx';
 
@@ -108,6 +109,10 @@ export function LandedPanels({
         filling={gathering?.resource}
         announcement={gathered}
       />
+      {/* The drawn Spacecraft's text alternative: the canvas shows it, this names its parts. */}
+      <p className="sr-only landed-spacecraft-alt" data-testid="spacecraft-alt">
+        {describeSpacecraft(run.spacecraft)}
+      </p>
 
       {!chartOpen && !spacecraftOpen && (
         <>
