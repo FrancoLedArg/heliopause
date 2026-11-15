@@ -6,7 +6,7 @@ import { GameUI } from '../../ui/GameUI.tsx';
 import { EventBus } from '../EventBus.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
 import { paletteNumber } from '../../ui/kit/palette.ts';
-import { nozzleExits } from './chassisArt.ts';
+import { composeSpacecraft } from './spacecraftComposition.ts';
 import { DRIFT_PERIOD_MS } from './landedMotion.ts';
 import {
   GROUND_HEIGHT,
@@ -20,15 +20,18 @@ import {
 import { groundTexture, SKY_X } from './landscape.ts';
 import {
   firstDetectedBody,
+  install,
   launchHop,
+  materials,
   startRun,
   type ChassisId,
+  type ComponentId,
   type RockyPlanet,
   type Run,
 } from '../sim/index.ts';
 import { manifest, type AssetEntry } from '../assets/manifest.ts';
 import { SceneKey } from './keys.ts';
-import { COMMS_PING, type Landed, type LandedData } from './Landed.ts';
+import { COMMS_PING, SPACECRAFT_ATTRIBUTE, type Landed, type LandedData } from './Landed.ts';
 import type { Gathering } from './gathering.ts';
 import '../../style.css';
 
@@ -75,7 +78,11 @@ function homeOf(run: Run): RockyPlanet {
 }
 
 /** Mounts the whole app, then lands the given Run, resolving once the Landed scene is on screen. */
-async function landOn(run: Run, report?: LandedData['report']): Promise<Landed> {
+async function landOn(
+  run: Run,
+  beforeLanding?: (game: Phaser.Game) => void,
+  report?: LandedData['report'],
+): Promise<Landed> {
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
@@ -94,6 +101,7 @@ async function landOn(run: Run, report?: LandedData['report']): Promise<Landed> 
   game = startGame('landed-test-game');
   await titleReady;
   const landedReady = nextSceneReady(SceneKey.Landed);
+  beforeLanding?.(game);
   const data: LandedData = report ? { run, report } : { run };
   game.scene.start(SceneKey.Landed, data);
   await landedReady;
@@ -195,7 +203,9 @@ for (const chassis of CHASSIS) {
       (child): child is GameObjects.Ellipse =>
         child instanceof GameObjects.Ellipse && child.blendMode === BlendModes.ADD,
     );
-    const exits = nozzleExits(chassis, 'standing');
+    const exits = composeSpacecraft(chassis, fresh.spacecraft.slots, 'landed').nozzles.map(
+      (nozzle) => nozzle.exit,
+    );
     expect(glows).toHaveLength(exits.length);
     for (const exit of exits) {
       expect(
@@ -276,7 +286,7 @@ for (const where of ['Planet', 'Moon'] as const) {
       expect(b.left).toBeGreaterThanOrEqual(ship.x - SHIP_FOOTPRINT_HALF_WIDTH);
       expect(b.right).toBeLessThanOrEqual(ship.x + SHIP_FOOTPRINT_HALF_WIDTH);
       // Its art rests exactly on the top edge: no gap below it and no overlap into the ground.
-      const art = ship.list.filter((o): o is GameObjects.Image => o instanceof GameObjects.Image);
+      const art = drawnImages(scene);
       expect(art.length).toBeGreaterThan(0);
       expect(Math.max(...art.map((a) => a.getBounds().bottom))).toBeCloseTo(GROUND_TOP, 3);
     }
@@ -430,7 +440,7 @@ it('a New Run opens with the gathering moment for the Starting Moon’s yield, a
 it('after a landing, Comms pings from the Spacecraft and says what it Detected in a polite live region', async () => {
   const { run, report } = firstLanding();
   expect(report.flight.reveal?.detected).toHaveLength(1);
-  const scene = await landOn(run, report);
+  const scene = await landOn(run, undefined, report);
   expect(scene.commsPing).toEqual([]);
   await until(() => scene.commsPing.length > 0);
   // Rings out of the top of the Spacecraft, riding its container.
@@ -448,7 +458,7 @@ it('under reduced motion the Comms ping is one still ring, gone after a moment',
     (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
   );
   const { run, report } = firstLanding();
-  const scene = await landOn(run, report);
+  const scene = await landOn(run, undefined, report);
   await until(() => scene.commsPing.length > 0);
   expect(scene.commsPing).toHaveLength(1);
   const [ring] = scene.commsPing;
@@ -456,4 +466,183 @@ it('under reduced motion the Comms ping is one still ring, gone after a moment',
   await pause(300);
   expect(ring?.scale).toBe(scale);
   await until(() => scene.commsPing.length === 0, COMMS_PING.stillMs * 3);
+});
+
+/** Every image the drawn Spacecraft is made of: its Chassis art and Component art. */
+function drawnImages(scene: Landed): GameObjects.Image[] {
+  const [art] = scene.spacecraft.objects;
+  if (!(art instanceof GameObjects.Container)) throw new Error('the Spacecraft is not a container');
+  return art.list.filter((o): o is GameObjects.Image => o instanceof GameObjects.Image);
+}
+
+interface DrawnShip {
+  chassisId: ChassisId;
+  pieces: { piece: string; slot: number | null; standIn: boolean }[];
+  components: {
+    slot: number;
+    componentId: ComponentId;
+    bounds: { x: number; y: number; width: number; height: number };
+  }[];
+}
+
+/** What the Landed view says it draws, read from its attribute on the game root. */
+function drawnShip(): DrawnShip {
+  const value = document
+    .querySelector(`[${SPACECRAFT_ATTRIBUTE}]`)
+    ?.getAttribute(SPACECRAFT_ATTRIBUTE);
+  if (!value) throw new Error(`no ${SPACECRAFT_ATTRIBUTE} on the game root`);
+  return JSON.parse(value) as DrawnShip;
+}
+
+/** A Run landed on its innermost planet with `extra` installed in its empty Slots, Materials to spare. */
+function runWith(chassis: ChassisId, extra: readonly ComponentId[]): Run {
+  const fresh = startRun(2026, chassis);
+  let run: Run = {
+    ...fresh,
+    materials: materials(1000),
+    status: { kind: 'landed', bodyId: homeOf(fresh).id },
+  };
+  for (const id of extra) {
+    const done = install(run, run.spacecraft.slots.indexOf(null), id);
+    if (done.kind !== 'installed') throw new Error(`could not install ${id}`);
+    run = done.run;
+  }
+  return run;
+}
+
+it('draws one Component art per installed Component, each at its place in the composition', async () => {
+  const run = runWith('hauler', ['fuel-tank-1', 'drill-2']);
+  const scene = await landOn(run);
+  const drawn = drawnShip();
+  const composed = composeSpacecraft('hauler', run.spacecraft.slots, 'landed');
+  expect(drawn.chassisId).toBe('hauler');
+  // Two Fuel Tank pods and a Drill beside the Engine and the Chassis art, none of them a stand-in.
+  expect(drawn.components.map((c) => c.componentId)).toEqual([
+    'engine-1',
+    'fuel-tank-1',
+    'fuel-tank-1',
+    'drill-2',
+  ]);
+  expect(drawn.pieces.every((p) => !p.standIn)).toBe(true);
+  expect(drawn.pieces.map((p) => p.piece)).toEqual(
+    composed.layers.map((l) => l.frame.replace(/\.landed$/, '')),
+  );
+  expect(drawnImages(scene)).toHaveLength(composed.layers.length);
+  // On screen, each Component's bounds are its composed bounds, carried by the Spacecraft's place.
+  const ship = scene.layers.ship;
+  const onScreen = scene.spacecraft.componentBounds();
+  for (const [slot, part] of composed.components) {
+    expect(onScreen.get(slot)?.x).toBeCloseTo(ship.x + part.bounds.x, 3);
+    expect(onScreen.get(slot)?.y).toBeCloseTo(ship.y + part.bounds.y, 3);
+    expect(onScreen.get(slot)?.width).toBeCloseTo(part.bounds.width, 3);
+  }
+  // A Fuel Tank pod vents from its own top.
+  expect(scene.spacecraft.anchor(1, 'vent')?.y).toBeLessThanOrEqual((onScreen.get(1)?.y ?? 0) + 2);
+});
+
+it('installing a Drill adds its Component art to the drawn Spacecraft, and removing it takes it away', async () => {
+  await landOn(runWith('scout', []));
+  expect(drawnShip().components.map((c) => c.componentId)).toEqual(['engine-1', 'fuel-tank-1']);
+
+  act(() => {
+    EventBus.emit('component-install-requested', 2, 'drill-1');
+  });
+  const built = drawnShip();
+  expect(built.components.map((c) => c.componentId)).toEqual([
+    'engine-1',
+    'fuel-tank-1',
+    'drill-1',
+  ]);
+  expect(built.pieces.map((p) => p.piece)).toContain('drill-1.0.front');
+  const slots = ['engine-1', 'fuel-tank-1', 'drill-1', null] as const;
+  expect(built.components.find((c) => c.slot === 2)?.bounds).toEqual(
+    composeSpacecraft('scout', slots, 'landed').components.get(2)?.bounds,
+  );
+
+  act(() => {
+    EventBus.emit('component-remove-requested', 2);
+  });
+  const removed = drawnShip();
+  expect(removed.components.map((c) => c.componentId)).toEqual(['engine-1', 'fuel-tank-1']);
+  expect(removed.pieces.map((p) => p.piece)).not.toContain('drill-1.0.front');
+});
+
+it('keeps every spark and fading art on the Spacecraft through changes in quick succession', async () => {
+  const scene = await landOn(runWith('scout', []));
+  const [art] = scene.spacecraft.objects;
+  if (!(art instanceof GameObjects.Container)) throw new Error('the Spacecraft is not a container');
+  const sparks = () =>
+    art.list.filter((o) => o instanceof GameObjects.Particles.ParticleEmitter).length;
+  act(() => {
+    EventBus.emit('component-install-requested', 2, 'drill-1');
+    EventBus.emit('component-install-requested', 3, 'fuel-tank-1');
+    EventBus.emit('component-remove-requested', 2);
+  });
+  // Both installs' sparks still fly from the Spacecraft, and the removed Drill fades on it.
+  expect(sparks()).toBe(2);
+  expect(drawnImages(scene)).toHaveLength(5);
+  await expect.poll(() => sparks(), { timeout: 3000 }).toBe(0);
+  await expect.poll(() => drawnImages(scene).length, { timeout: 3000 }).toBe(4);
+});
+
+it('pops a new Component art in at its place and fades a removed one out', async () => {
+  const scene = await landOn(runWith('lancer', []));
+  const count = drawnImages(scene).length;
+  act(() => {
+    EventBus.emit('component-install-requested', 2, 'drill-1');
+  });
+  // The new art starts small, then stands full size at its place.
+  const drill = drawnImages(scene).at(-1);
+  expect(drill?.scale).toBeLessThan(1);
+  await expect.poll(() => drill?.scale, { timeout: 3000 }).toBe(1);
+  const slots = ['engine-1', 'fuel-tank-1', 'drill-1', null] as const;
+  const at = composeSpacecraft('lancer', slots, 'landed').components.get(2)?.bounds;
+  expect([drill?.x, drill?.y]).toEqual([at?.x, at?.y]);
+  expect(drawnImages(scene)).toHaveLength(count + 1);
+
+  act(() => {
+    EventBus.emit('component-remove-requested', 2);
+  });
+  // The removed art lingers while it fades, then it is gone.
+  expect(drawnImages(scene)).toHaveLength(count + 1);
+  await expect.poll(() => drawnImages(scene).length, { timeout: 3000 }).toBe(count);
+});
+
+it('shows an installed Component art at once when the player prefers reduced motion', async () => {
+  vi.spyOn(window, 'matchMedia').mockImplementation(
+    (query) => ({ matches: query.includes('reduce') }) as MediaQueryList,
+  );
+  const scene = await landOn(runWith('scout', []));
+  act(() => {
+    EventBus.emit('component-install-requested', 3, 'jump-drive');
+  });
+  // The ring's two layers join the Chassis art, the Engine and the Fuel Tank: full size and opaque.
+  const images = drawnImages(scene);
+  expect(images).toHaveLength(5);
+  for (const image of images) {
+    expect(image.scale).toBe(1);
+    expect(image.alpha).toBe(1);
+    expect(scene.tweens.isTweening(image)).toBe(false);
+  }
+  act(() => {
+    EventBus.emit('component-remove-requested', 3);
+  });
+  expect(drawnImages(scene)).toHaveLength(3);
+});
+
+it('draws a stand-in plate at the mount point of a Component whose art is missing from the atlas', async () => {
+  const run = runWith('scout', ['drill-2']);
+  const scene = await landOn(run, (g) => {
+    const texture = g.textures.get('chassis_scout');
+    for (const frame of ['landed', 'landed_lit']) texture.remove(`drill-2.0.front.${frame}`);
+  });
+  const drawn = drawnShip();
+  expect(drawn.pieces.filter((p) => p.standIn).map((p) => p.slot)).toEqual([2]);
+  const [art] = scene.spacecraft.objects;
+  const plate =
+    art instanceof GameObjects.Container
+      ? art.list.find((o): o is GameObjects.Graphics => o instanceof GameObjects.Graphics)
+      : undefined;
+  const at = composeSpacecraft('scout', run.spacecraft.slots, 'landed').components.get(2)?.bounds;
+  expect([plate?.x, plate?.y]).toEqual([at?.x, at?.y]);
 });

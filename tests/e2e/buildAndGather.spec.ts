@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { formatDeltaV, formatFuel, formatPlanDeltaV } from '../../src/ui/format.ts';
+import { formatDeltaV, formatDeltaVKmS, formatFuel } from '../../src/ui/format.ts';
 import {
   availableDeltaV,
   firstDetectedBody,
@@ -80,7 +80,7 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   await expect(newRun).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('delta-v')).toHaveText(
-    formatDeltaV(availableDeltaV(run.spacecraft)),
+    formatDeltaVKmS(availableDeltaV(run.spacecraft)),
   );
 
   // 2. Open the Spacecraft panel by keyboard.
@@ -113,12 +113,20 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   });
   await page.keyboard.press('Escape');
   await expect(panel).toBeHidden();
+  // The Drill is drawn on the Spacecraft, and named in its text alternative.
+  await expect(page.locator('[data-spacecraft]')).toHaveAttribute(
+    'data-spacecraft',
+    /"drill-1\.0\.front"/,
+  );
+  await expect(page.getByTestId('spacecraft-alt')).toHaveText(
+    'Scout: Engine 1, Fuel Tank 1, Drill 1',
+  );
 
   // 4. The Hop plan shows the changed Δv.
   await page.keyboard.press('m');
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
   await target(page, moon.name);
-  await expect(page.getByTestId('plan-available')).toHaveText(formatPlanDeltaV(afterDeltaV));
+  await expect(page.getByTestId('plan-available')).toHaveText(formatDeltaVKmS(afterDeltaV));
   // The target Moon shows what it yields, on its card and on the Hop plan's target.
   await expect(page.getByTestId('target').getByRole('img', { name: moonYield.name })).toBeVisible();
   await expect(

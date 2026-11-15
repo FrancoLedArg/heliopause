@@ -26,7 +26,14 @@ import {
   type Slot,
   type Spacecraft,
 } from '../game/sim/index.ts';
-import { deltaVUnit, formatDeltaV, formatFuel, formatIsp, formatMass } from './format.ts';
+import {
+  chassisName,
+  deltaVUnit,
+  formatDeltaV,
+  formatFuel,
+  formatIsp,
+  formatMass,
+} from './format.ts';
 
 const KIND_NAMES: Readonly<Record<ComponentKind, string>> = {
   engine: 'Engine',
@@ -44,6 +51,19 @@ export function componentName(id: ComponentId): string {
 export function componentTitle(id: ComponentId): string {
   const { kind, level } = COMPONENTS[id];
   return kind === 'jump-drive' ? componentName(id) : `${componentName(id)} ${String(level)}`;
+}
+
+/**
+ * The drawn Spacecraft in words, for its text alternative: its Chassis, then each installed
+ * Component in Slot order, a repeat counted once ("Hauler: Engine 1, Fuel Tank 1 ×2, Drill 2").
+ */
+export function describeSpacecraft(spacecraft: Pick<Spacecraft, 'chassisId' | 'slots'>): string {
+  const counts = new Map<ComponentId, number>();
+  for (const id of spacecraft.slots) if (id !== null) counts.set(id, (counts.get(id) ?? 0) + 1);
+  const parts = [...counts].map(([id, n]) =>
+    n > 1 ? `${componentTitle(id)} ×${String(n)}` : componentTitle(id),
+  );
+  return `${chassisName(spacecraft.chassisId)}: ${parts.join(', ')}`;
 }
 
 /** A Component with its level, as a phrase: "Fuel Tank, level 1". The Jump Drive has no levels. */

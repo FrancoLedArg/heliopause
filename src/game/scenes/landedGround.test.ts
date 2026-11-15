@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHASSIS_IDS, firstDetectedBody, startRun, type Run } from '../sim/index.ts';
+import { CHASSIS_IDS, firstDetectedBody, startRun, type Run, type Slot } from '../sim/index.ts';
 import { standingExtent } from './chassisArt.ts';
 import { shadowWidth } from './spacecraftArt.ts';
 import {
@@ -71,7 +71,18 @@ describe('the pebbles on the ground', () => {
     for (const id of CHASSIS_IDS) {
       const half = standingExtent([id]).halfWidth;
       expect(SHIP_FOOTPRINT_HALF_WIDTH, id).toBeGreaterThan(half);
-      expect(SHIP_FOOTPRINT_HALF_WIDTH, `${id} shadow`).toBeGreaterThanOrEqual(shadowWidth(id) / 2);
+      // The widest Spacecraft: Drills reaching out on both sides and a second column of Fuel Tank pods.
+      const wide: Slot[] = [
+        'engine-1',
+        'fuel-tank-1',
+        'drill-2',
+        'drill-2',
+        'drill-2',
+        'fuel-tank-1',
+      ];
+      expect(SHIP_FOOTPRINT_HALF_WIDTH, `${id} shadow`).toBeGreaterThanOrEqual(
+        shadowWidth(id, wide) / 2,
+      );
     }
     expect(SHIP_SHADOW.height).toBeGreaterThan(0);
   });

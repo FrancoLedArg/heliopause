@@ -1,6 +1,7 @@
 import { afterEach, expect, it } from 'vitest';
 import { kilograms, materials, metersPerSecond } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
+import { formatDeltaVKmS } from './format.ts';
 import { TopBar } from './TopBar.tsx';
 
 afterEach(cleanUp);
@@ -43,4 +44,23 @@ it('shows the Daily tag as text, inside the bar and clear of the Star System, Fu
   if (!label || !name) throw new Error('no labels');
   expect(box.left).toBeGreaterThanOrEqual(label.right);
   expect(box.bottom).toBeLessThanOrEqual(name.top + 2);
+});
+
+// Show, don't tell (#222): the Hop plan reads Δv in km/s, so the top bar does too, at every size.
+it.each([
+  [22_105, '22.1 km/s'],
+  [6989, '7.0 km/s'],
+  [420, '0.42 km/s'],
+])('shows %i m/s of Δv as %s, with the Hop plan’s formatter', async (deltaV, shown) => {
+  const host = await renderUi(
+    <TopBar
+      systemNumber={1}
+      systemName="Cinder"
+      fuel={kilograms(3140)}
+      deltaV={metersPerSecond(deltaV)}
+      materials={materials(0)}
+    />,
+  );
+  expect(byTestId(host, 'delta-v').textContent).toBe(shown);
+  expect(byTestId(host, 'delta-v').textContent).toBe(formatDeltaVKmS(metersPerSecond(deltaV)));
 });

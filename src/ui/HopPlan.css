@@ -1,0 +1,192 @@
+/* ---- Hop plan (#222): Success Chance, the Δv bar, the Fuel gauge; details behind "Tell me more" ---- */
+
+/* The plan's box (place and size) is .nav-chart__plan's; this lays out what is inside it. */
+.hop-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  box-sizing: border-box;
+  padding-bottom: 6px;
+}
+
+.hop-plan p {
+  margin: 0;
+}
+
+.hop-plan__label {
+  font: 8px/8px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm5);
+}
+
+.hop-plan__success {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 18px;
+}
+
+.hop-plan__success .hop-plan__label {
+  flex: 1;
+}
+
+.hop-plan__chance {
+  font: 16px/16px var(--font-pixel);
+}
+
+.hop-plan__success--ok .hop-plan__chance {
+  color: var(--gr3);
+}
+
+.hop-plan__success--low .hop-plan__chance {
+  color: var(--am3);
+}
+
+.hop-plan__row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  height: 11px;
+  line-height: 11px;
+}
+
+.hop-plan__available {
+  color: var(--cy3);
+}
+
+.hop-plan__margin--spare {
+  color: var(--gr3);
+}
+
+.hop-plan__margin--short {
+  color: var(--rd3);
+}
+
+.hop-plan__fuel {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 16px;
+}
+
+/* The kit's 32 px Fuel icon, at half size so it sits in the row. */
+.hop-plan__fuel-icon {
+  flex: none;
+  width: 16px;
+  height: 16px;
+}
+
+.hop-plan__fuel-icon .kit-frame {
+  transform: scale(0.5);
+  transform-origin: 0 0;
+}
+
+.hop-plan__gauge {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  box-sizing: border-box;
+  border: 1px solid var(--gm3);
+  background: var(--scr0);
+}
+
+.hop-plan__gauge > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+}
+
+.hop-plan__gauge-left {
+  background: var(--am2);
+}
+
+/* The Fuel this Hop burns: still in the Tank now, gone after. */
+.hop-plan__gauge-burn {
+  background: repeating-linear-gradient(135deg, var(--am1) 0 2px, var(--am0) 2px 4px);
+}
+
+.hop-plan__fuel-after {
+  min-width: 36px;
+  text-align: right;
+  line-height: 11px;
+  color: var(--am3);
+}
+
+.hop-plan__warning {
+  height: 11px;
+  line-height: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  color: var(--am3);
+}
+
+.hop-plan__more {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+/* Opened, the details cover the plan above the toggle, on the panel's own dark ground. */
+.hop-plan__details {
+  position: absolute;
+  inset: 0 0 24px;
+  overflow: hidden;
+  background: var(--gm1);
+}
+
+.hop-plan__burns {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.hop-plan__burns th,
+.hop-plan__burns td {
+  padding: 0;
+  font-weight: normal;
+  line-height: 11px;
+}
+
+.hop-plan__burns th {
+  font: 8px/11px var(--font-pixel);
+  text-transform: uppercase;
+  text-align: left;
+  color: var(--gm5);
+}
+
+.hop-plan__burns td {
+  text-align: right;
+}
+
+/* Each reason has a line of its own under its Burn. */
+.hop-plan__burns tr {
+  display: grid;
+  grid-template-columns: 1fr auto;
+}
+
+.hop-plan__burns .hop-plan__reason {
+  grid-column: 1 / -1;
+  max-width: 164px;
+  margin-bottom: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 10px;
+  text-align: left;
+  color: var(--gm6);
+}
+
+.hop-plan__basis {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 10px;
+  color: var(--gm6);
+}
+
+.hop-plan__empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  color: var(--gm6);
+}

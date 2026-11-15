@@ -12,7 +12,7 @@ import {
   startRun,
 } from '../../src/game/sim/index.ts';
 import { formatScore } from '../../src/ui/endOfRunView.ts';
-import { formatPlanDeltaV } from '../../src/ui/format.ts';
+import { kmPerSecondFigure } from '../../src/ui/format.ts';
 import { JUMP_FLAVOUR_TEXT } from '../../src/ui/jumpFlavour.ts';
 
 // Spec #15's way out, on one seed, by keyboard alone: the Heliopause says it needs a Jump Drive;
@@ -145,10 +145,10 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
   await expect(page.getByTestId('verdict')).toHaveCount(0);
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('target')).toContainText('Heliopause');
-  const burns = page.locator('.nav-chart__burns tbody th');
-  await expect(burns).toHaveText(['Takeoff', 'Transfer']);
+  const bar = page.getByRole('img', { name: /^Δv: / });
+  await expect(bar).toHaveAccessibleName(/^Δv: Takeoff [\d.]+ km\/s, Transfer [\d.]+ km\/s\. /);
   await expect(page.getByTestId('plan-needed')).toHaveText(
-    formatPlanDeltaV(planned.plan.totalEstimate),
+    kmPerSecondFigure(planned.plan.totalEstimate),
   );
   await testInfo.attach('heliopause-plan', {
     body: await page.screenshot(),
