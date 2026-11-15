@@ -159,13 +159,14 @@ describe('the Jump', () => {
   });
 
   it('a Jump that lands where no Hop could ever have a chance ends the Run as Stranded', () => {
-    // Test fixture: deep into a Run, at difficulty level 25, with no Materials left to change the
-    // Spacecraft. Level 26's gravity puts every Hop out of reach even with a full Tank.
+    // Test fixture: deep into a Run, at difficulty level 40, with no Materials left to change the
+    // Spacecraft. Level 41's gravity puts every Hop out of reach even with a full Tank. Re-pinned
+    // for #188 (was level 25): rocky planets are now at most Mars-sized, so it takes deeper levels.
     const deep = (() => {
-      const starSystem = generateSystem(2026, 25);
+      const starSystem = generateSystem(2026, 40);
       const at: Run = {
         ...start,
-        starSystemNumber: 25,
+        starSystemNumber: 40,
         starSystem,
         status: { kind: 'landed', bodyId: starSystem.homePlanetId },
       };
@@ -175,11 +176,11 @@ describe('the Jump', () => {
     if (launched.kind !== 'flown') throw new Error('Expected the Hop to the Heliopause');
     expect(launched.flight.outcome.kind).toBe('reached-heliopause');
     const { run } = launched;
-    expect(run.starSystemNumber).toBe(26);
+    expect(run.starSystemNumber).toBe(41);
     expect(run.status).toMatchObject({
       kind: 'ended',
       end: { kind: 'stranded', bodyId: run.starSystem.homePlanetId },
     });
-    expect(score(run).starSystemsEscaped).toBe(25);
+    expect(score(run).starSystemsEscaped).toBe(40);
   });
 });
