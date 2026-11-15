@@ -373,7 +373,7 @@ export const CRUISE_TUNING = {
   /** A burning Engine with no Repair started for this long explodes: 30 s. */
   fireTicks: 300,
   /** Repair times by Component kind, in ticks: Engine 40 s, Fuel Tank 30 s, Drill 20 s. */
-  repairTicks: { engine: 400, 'fuel-tank': 300, drill: 200 },
+  repairTicks: { engine: 400, 'fuel-tank': 300, drill: 200, radar: 250 },
   /** A Rush costs 1 Material per started 5 s of Repair time left. */
   rushTicksPerMaterial: 50,
 } as const;

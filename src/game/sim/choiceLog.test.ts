@@ -134,13 +134,13 @@ describe('replay', () => {
   });
 
   it('a replayed Run ends the same way, with the same Score', () => {
-    // Scout seed 29: the Radar finds the Heliopause and the Materials pay for a Jump Drive, but the Hop
+    // Scout seed 416: the Radar finds the Heliopause and the Materials pay for a Jump Drive, but the Hop
     // there runs out of Fuel. Re-pinned for #191 (was seed 24): only the Radar finds it now.
-    const built = ready(29, 'scout');
+    const built = ready(416, 'scout');
     const run = hopped(built, HELIOPAUSE);
     expect(runEnd(run)?.kind).toBe('fell-short');
 
-    const replayed = replay(29, 'scout', run.choices);
+    const replayed = replay(416, 'scout', run.choices);
     expect(replayed).toMatchObject({
       kind: 'replayed',
       end: runEnd(run),
@@ -207,10 +207,13 @@ describe('replay', () => {
   });
 
   it('no choice follows the end of a Run', () => {
-    const ended = hopped(ready(29, 'scout'), HELIOPAUSE);
+    const ended = hopped(ready(416, 'scout'), HELIOPAUSE);
     // Removing the Jump Drive is a choice a landed Run would take.
     const jumpDriveSlot = ended.spacecraft.slots.indexOf('jump-drive');
-    const result = replay(29, 'scout', [...ended.choices, { kind: 'remove', slot: jumpDriveSlot }]);
+    const result = replay(416, 'scout', [
+      ...ended.choices,
+      { kind: 'remove', slot: jumpDriveSlot },
+    ]);
     expect(result).toMatchObject({ kind: 'rejected', at: ended.choices.length });
     if (result.kind !== 'rejected') return;
     expect(result.why).toMatch(/not landed/);
