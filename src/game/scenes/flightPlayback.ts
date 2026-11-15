@@ -20,13 +20,19 @@ export const PHASE_MS: Readonly<Record<Pace, Readonly<Record<Burn, number>>>> = 
 };
 
 /**
+ * The share of the Landing at which the Spacecraft touches down and its engine cuts: the rest is the
+ * smoke settling round it before the Landed view (presentation tuning).
+ */
+export const TOUCHDOWN = 0.86;
+
+/**
  * The share of each Burn's part during which its engine fires. The Transfer boosts, then coasts
- * toward the target; Takeoff and Landing hover on their thrusters the whole way.
+ * toward the target; Takeoff burns the whole way up and Landing all the way down to touchdown.
  */
 const THRUST: Readonly<Record<Burn, { readonly from: number; readonly to: number }>> = {
   takeoff: { from: 0, to: 1 },
   transfer: { from: 0, to: 0.55 },
-  landing: { from: 0, to: 1 },
+  landing: { from: 0, to: TOUCHDOWN },
 };
 
 /** How much faster the fast-forward plays the Hop. It only scales the clock: the outcome is settled already. */
