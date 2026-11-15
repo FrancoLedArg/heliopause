@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { stringSeed } from '../lib/stringSeed.ts';
+import { earlyDeadEnds } from './testing.ts';
 import {
   BODY_TUNING,
+  CHASSIS_IDS,
   ICE_LINE,
   generateStarSystem,
   homePlanet,
@@ -45,11 +47,12 @@ describe('Star System generation', () => {
     }
   });
 
-  it('every planet has 0 to 4 Moons, which share its distance from the star', () => {
-    const moonCounts = new Set<number>();
+  it('every rocky planet has two Moons and every Gas Giant 1 to 4, which share its distance from the star', () => {
+    const gasGiantMoonCounts = new Set<number>();
     for (const system of systems) {
       for (const planet of system.planets) {
-        moonCounts.add(planet.moons.length);
+        if (planet.kind === 'gas-giant') gasGiantMoonCounts.add(planet.moons.length);
+        else expect(planet.moons.length).toBe(2);
         for (const moon of planet.moons) {
           expect(moon.kind).toBe('moon');
           expect(moon.planetId).toBe(planet.id);
@@ -58,7 +61,17 @@ describe('Star System generation', () => {
         }
       }
     }
-    expect([...moonCounts].sort()).toEqual([0, 1, 2, 3, 4]);
+    expect([...gasGiantMoonCounts].sort()).toEqual([1, 2, 3, 4]);
+  });
+
+  it('rocky planets are Mercury- to Mars-sized: none leaves faster than Mars (5.03 km/s)', () => {
+    const rocky = systems.flatMap((system) =>
+      system.planets.filter((planet) => planet.kind === 'rocky-planet'),
+    );
+    for (const planet of rocky) {
+      expect(planet.escapeVelocity).toBeGreaterThanOrEqual(4_300);
+      expect(planet.escapeVelocity).toBeLessThanOrEqual(5_030);
+    }
   });
 
   it('Gas Giants are never landable; rocky planets and Moons always are', () => {
@@ -150,7 +163,8 @@ describe('Star System generation', () => {
   it("seed 123's Bodies keep their names, orbits and sizes (new rolls never shift the RNG)", () => {
     const system = generateStarSystem(123);
     const pinned = JSON.parse(
-      '["Tothaexprae","planet-1","102.436756",[["planet-1","Mioquoxdru","0.434101","3.682326","5.868094","6752.434"],["planet-1-moon-1","Roxho Minor","0.434101","3.751611","0.145221","291.269"],["planet-2","Liltux","1.129603","3.336672","6.878600","7895.466"],["planet-2-moon-1","Tiosli","1.129603","5.613642","0.438914","718.774"],["planet-3","Hulxu","6.338748","3.164405","9.287885","22859.528"],["planet-3-moon-1","Ruxi","6.338748","3.516488","0.474599","770.718"],["planet-4","Quyzi Prime","8.208549","3.402418","10.320600","25599.091"],["planet-4-moon-1","Tyquesion","8.208549","0.564942","1.218963","1854.230"],["planet-4-moon-2","Zulthix-2","8.208549","1.548380","1.078617","1649.940"],["planet-4-moon-3","Thuri","8.208549","3.148021","0.317604","542.193"],["planet-4-moon-4","Venke","8.208549","5.224049","0.692915","1088.504"],["planet-5","Viosprixzul","12.556880","6.019771","16.331792","41545.448"],["planet-5-moon-1","Viormio","12.556880","4.047939","1.244971","1892.088"],["planet-5-moon-2","Thyhae","12.556880","5.446103","1.168266","1780.434"],["planet-5-moon-3","Hyrzethion","12.556880","4.218566","0.212536","389.254"],["planet-6","Caexisu","18.627722","1.667084","20.504913","52615.812"],["planet-6-moon-1","Mesprursin","18.627722","0.576598","0.364335","610.215"],["planet-6-moon-2","Maerprondro Nova","18.627722","1.518801","0.271552","475.159"],["planet-7","Raexthanho","23.252931","5.859746","12.472028","31306.352"],["planet-7-moon-1","Relhoxry","23.252931","0.845263","1.058425","1620.547"],["planet-7-moon-2","Thakyxy","23.252931","1.127325","1.112827","1699.736"]]]',
+      // Re-pinned for #188: rocky planets are now Mars-sized at most and have two Moons each.
+      '["Praenquiox","planet-2","93.822079",[["planet-1","Pryxzohan","0.685609","3.415343","3.729297","4333.139"],["planet-1-moon-1","Hynthon","0.685609","1.003739","1.434691","2168.249"],["planet-1-moon-2","Kexxy","0.685609","2.013320","0.709457","1112.582"],["planet-2","Tyhun","0.898983","2.886934","3.723038","4326.059"],["planet-2-moon-1","Synna","0.898983","4.668636","0.853400","1322.109"],["planet-2-moon-2","Thysaer","0.898983","1.095119","1.095552","1674.591"],["planet-3","Thedryl","6.835212","5.846628","15.812801","40168.682"],["planet-3-moon-1","Haenucux","6.835212","4.211735","1.028012","1576.277"],["planet-3-moon-2","Rulquyxlae","6.835212","0.274197","0.774162","1206.768"],["planet-3-moon-3","Xolior","6.835212","5.232701","1.267950","1925.536"],["planet-3-moon-4","Naepre","6.835212","1.596285","1.695097","2547.301"],["planet-4","Nutae","21.541544","2.919196","19.045821","48745.164"],["planet-4-moon-1","Sircer","21.541544","4.458915","1.733182","2602.739"],["planet-4-moon-2","Musuxlar","21.541544","6.066155","0.564591","901.712"],["planet-4-moon-3","Haexxunmix","21.541544","2.400970","0.462933","753.737"]]]',
     ) as unknown;
     expect([
       system.name,
@@ -221,8 +235,34 @@ describe('Icy and Rocky Bodies', () => {
   });
 });
 
-describe('Star System difficulty levels', () => {
-  const at = (level: number) => SEEDS.map((seed) => generateStarSystem(seed, level));
+describe('no early dead ends (#188)', () => {
+  it('generation leaves no early dead end: no 100% Hop from the start strands any Chassis, at levels 1 to 3', () => {
+    const found: string[] = [];
+    for (const level of [1, 2, 3]) {
+      for (let i = 0; i < 500; i++) {
+        const system = generateStarSystem(i * 7919 + 1, level);
+        for (const chassis of CHASSIS_IDS) {
+          for (const body of earlyDeadEnds(system, chassis, level)) {
+            found.push(`seed ${system.seed} level ${level} ${chassis}: ${body.id}`);
+          }
+        }
+      }
+    }
+    expect(found.slice(0, 10)).toEqual([]);
+  }, 120_000);
+});
+
+// Generating 300 Star Systems at a level takes about 0.5 to 2 s (#188 redraws), so each level is
+// generated once and the tests get room on a loaded machine.
+describe('Star System difficulty levels', { timeout: 60_000 }, () => {
+  const levels = new Map<number, StarSystem[]>();
+  const at = (level: number): StarSystem[] => {
+    const known = levels.get(level);
+    if (known) return known;
+    const generated = SEEDS.map((seed) => generateStarSystem(seed, level));
+    levels.set(level, generated);
+    return generated;
+  };
   const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
   const landable = (all: readonly StarSystem[]) =>
     all.flatMap(listBodies).filter((body) => body.landable);
@@ -234,7 +274,8 @@ describe('Star System difficulty levels', () => {
     const json = JSON.stringify(at(1), (_key, value: unknown) =>
       typeof value === 'number' ? Number(value.toPrecision(9)) : value,
     );
-    expect(stringSeed(json)).toBe(1610578539);
+    // Re-pinned for #188, which changed generation (no early dead ends).
+    expect(stringSeed(json)).toBe(3995910413);
   });
 
   it('a higher difficulty level raises gravity', () => {
