@@ -103,3 +103,37 @@ it('fits the 640x360 stage, with the buttons inside it', async () => {
   const buttons = host.querySelector('.chassis-picker__actions')?.getBoundingClientRect();
   expect(more && buttons && more.bottom <= buttons.top).toBe(true);
 });
+
+it("shows each Chassis's Slots as outlines, its starting Components as icons in them", async () => {
+  const host = await renderPicker();
+  const cards = [...host.querySelectorAll('.chassis-card')];
+  const rows = cards.map((card) => card.querySelector('[data-testid="chassis-slots"]'));
+  const picture = rows.map((row) =>
+    [...(row?.querySelectorAll('[data-slot]') ?? [])].map(
+      (slot) =>
+        slot.querySelector('[data-component-icon]')?.getAttribute('data-component-icon') ?? null,
+    ),
+  );
+  expect(CHASSIS_IDS).toEqual(['scout', 'hauler', 'lancer']);
+  expect(picture).toEqual([
+    ['engine', 'fuel-tank', null, null],
+    ['engine', 'fuel-tank', 'fuel-tank', null, null, null],
+    ['engine', 'fuel-tank', null, null, null],
+  ]);
+  // The picture is one image to a screen reader, named in words.
+  expect(rows[1]?.getAttribute('role')).toBe('img');
+  expect(rows[1]?.getAttribute('aria-label')).toBe(
+    'Hauler: Engine 1, Fuel Tank 1 ×2; 6 Slots, 3 empty',
+  );
+  // The row sits between the art and the bars, inside its card.
+  for (const [i, row] of rows.entries()) {
+    const box = row?.getBoundingClientRect();
+    const card = cards[i]?.getBoundingClientRect();
+    const bars = cards[i]?.querySelector('.chassis-card__bars')?.getBoundingClientRect();
+    if (!box || !card || !bars) throw new Error('no Slot row');
+    expect(box.width).toBeGreaterThan(0);
+    expect(box.left).toBeGreaterThanOrEqual(card.left);
+    expect(box.right).toBeLessThanOrEqual(card.right);
+    expect(box.bottom).toBeLessThanOrEqual(bars.top);
+  }
+});

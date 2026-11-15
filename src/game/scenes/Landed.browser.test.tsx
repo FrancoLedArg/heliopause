@@ -511,7 +511,8 @@ function runWith(chassis: ChassisId, extra: readonly ComponentId[]): Run {
 }
 
 it('draws one Component art per installed Component, each at its place in the composition', async () => {
-  const run = runWith('hauler', ['fuel-tank-1', 'drill-2']);
+  // The Hauler starts with its second Fuel Tank (#231).
+  const run = runWith('hauler', ['drill-2']);
   const scene = await landOn(run);
   const drawn = drawnShip();
   const composed = composeSpacecraft('hauler', run.spacecraft.slots, 'landed');

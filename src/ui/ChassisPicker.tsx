@@ -2,8 +2,10 @@ import { useMemo, useState } from 'react';
 import { atlasImageUrl, hasAsset, imageUrl } from '../game/assets/manifest.ts';
 import { frameGeometry, standingExtent } from '../game/scenes/chassisArt.ts';
 import { composeSpacecraft } from '../game/scenes/spacecraftComposition.ts';
-import { CHASSIS_IDS, newSpacecraft, type ChassisId } from '../game/sim/index.ts';
+import { CHASSIS_IDS, COMPONENTS, newSpacecraft, type ChassisId } from '../game/sim/index.ts';
 import { chassisBars, type ChassisBar } from './chassisPickView.ts';
+import { ComponentIcon } from './componentIcons/ComponentIcon.tsx';
+import { describeSpacecraft } from './spacecraftPanelView.ts';
 import { Disclosure, DisclosurePanel, TellMeMoreToggle } from './Disclosure.tsx';
 import { chassisName } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
@@ -145,6 +147,7 @@ function ChassisCard({ id, bars, selected, onSelect }: ChassisCardProps) {
         </span>
       )}
       <ChassisSprite id={id} />
+      <ChassisSlots id={id} />
       <ul
         className="chassis-card__bars"
         style={{ top: SPRITE_TOP + ART_BOX_HEIGHT + SPRITE_GAP + SLOT_ROW_HEIGHT + SPRITE_GAP }}
@@ -170,6 +173,38 @@ function ChassisCard({ id, bars, selected, onSelect }: ChassisCardProps) {
         ))}
       </ul>
     </label>
+  );
+}
+
+/** The icon in a filled Slot outline (px): half its native 16, so its pixels stay whole. */
+const SLOT_ICON_SIZE = 8;
+
+/**
+ * The Chassis's Slots as a row of outlines under its art, each starting Component's icon in its
+ * Slot: how much room a Chassis has, and what it starts with, shown rather than told (#231).
+ */
+function ChassisSlots({ id }: { id: ChassisId }) {
+  const { slots } = newSpacecraft(id);
+  const empty = slots.filter((slot) => slot === null).length;
+  return (
+    <ul
+      className="chassis-card__slots"
+      role="img"
+      aria-label={`${describeSpacecraft({ chassisId: id, slots })}; ${String(slots.length)} Slots, ${String(empty)} empty`}
+      data-testid="chassis-slots"
+      style={{ top: SPRITE_TOP + ART_BOX_HEIGHT + SPRITE_GAP, height: SLOT_ROW_HEIGHT }}
+    >
+      {slots.map((slot, index) => (
+        <li
+          key={index}
+          className="chassis-card__slot"
+          data-slot={slot === null ? 'empty' : 'filled'}
+          style={{ width: SLOT_ROW_HEIGHT, height: SLOT_ROW_HEIGHT }}
+        >
+          {slot !== null && <ComponentIcon kind={COMPONENTS[slot].kind} size={SLOT_ICON_SIZE} />}
+        </li>
+      ))}
+    </ul>
   );
 }
 

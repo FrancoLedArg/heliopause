@@ -492,6 +492,34 @@ body {
   background-position: center;
 }
 
+/* The Chassis's Slots as outlines, centred under its art; a filled one holds its Component's icon. */
+.chassis-card__slots {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+}
+
+.chassis-card__slot {
+  box-sizing: border-box;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--wh3);
+}
+
+.chassis-card__slot[data-slot='filled'] {
+  border: 1px solid var(--cy3);
+}
+
+.chassis-card__slot .component-icon {
+  image-rendering: pixelated;
+}
+
 /* Three bars, each one measure against the other Chassis: label, bar, then the number small at its end. */
 .chassis-card__bars {
   position: absolute;

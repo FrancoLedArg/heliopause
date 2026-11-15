@@ -75,7 +75,7 @@ it('the worst report fits: the ice line and a left-behind clause together (seed 
 });
 
 it('the worst report with a Drill fits with room to spare: ice line, left-behind clause and Drill text (seed 892, hauler)', async () => {
-  const fitted = install(startRun(892, 'hauler'), 2, 'drill-1');
+  const fitted = install(startRun(892, 'hauler'), 3, 'drill-1');
   if (fitted.kind !== 'installed') throw new Error('Expected the Drill to install');
   const before = fitted.run;
   const { flight } = hop(before, 'Praerionrio Prime');
@@ -141,7 +141,8 @@ const reports: [string, () => [Run, HopFlight]][] = [
       return [before, hop(before, 'Praerionrio Prime').flight];
     },
   ],
-  ['Fell Short', () => halfFuelledHop('fell-short', 'hauler')],
+  // the Hauler's two Tanks (#231) hold twice the Fuel, so it takes a quarter.
+  ['Fell Short', () => halfFuelledHop('fell-short', 'hauler', 0.25)],
   // 0.45 of the Fuel, not half, is what Crashes from there (as in hopReportView.test.ts).
   ['Crashed', () => halfFuelledHop('crashed', 'scout', 0.45)],
   ['the Heliopause', () => heliopauseHop(1)],

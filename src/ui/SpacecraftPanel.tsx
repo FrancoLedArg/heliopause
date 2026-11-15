@@ -27,6 +27,14 @@ import './SpacecraftPanel.css';
 const PANEL = { x: 8, y: 52, width: 624, height: 292 } as const;
 const TITLEBAR_HEIGHT = 14;
 const SLOT_SIZE = 36;
+
+/**
+ * The gap between Slots (px): up to five sit 8 px apart, the Hauler's six 2 px apart, so every
+ * Chassis's Slots fit the column at 640×360 (the kit's Slot frames have one size).
+ */
+function slotGap(count: number): number {
+  return count > 5 ? 2 : 8;
+}
 const MASS_BAR_WIDTH = 220;
 const REMOVE_WIDTH = 56;
 const SLOT_CODES = {
@@ -248,6 +256,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
         <h2 className="spacecraft-panel__label">Slots</h2>
         <div
           className="spacecraft-panel__slots"
+          style={{ gap: slotGap(spacecraft.slots.length) }}
           role="radiogroup"
           aria-label="Slots"
           aria-describedby={keysId}

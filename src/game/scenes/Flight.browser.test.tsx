@@ -632,10 +632,11 @@ it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clea
           launched.flight.outcome.burn === 'transfer'
         );
       })?.id,
-    // No Hop of a full hauler from seed 2046's innermost planet falls short; half its Fuel.
+    // No Hop of a full hauler from seed 2046's innermost planet falls short; half of one Tank
+    // (the Hauler's two Tanks (#231) hold twice the Fuel, so it takes a quarter).
     (run) => ({
       ...run,
-      spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 2) },
+      spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 4) },
     }),
   );
   expect(data.flight.outcome.kind).toBe('fell-short');

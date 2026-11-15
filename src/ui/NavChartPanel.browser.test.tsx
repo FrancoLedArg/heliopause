@@ -104,7 +104,8 @@ it.each(['scout', 'hauler'] as const)(
   'keeps the whole Hop plan above Cancel and Launch, open or closed, and the Δv help inside the frame (%s, seed 123 Rexsio, half the Fuel)',
   async (chassis) => {
     const full = newRun(123, chassis);
-    const fuelMass = kilograms(full.spacecraft.fuelMass / 2);
+    // Half of one Tank: the Hauler's two Tanks (#231) hold twice the Fuel, so it takes a quarter.
+    const fuelMass = kilograms(full.spacecraft.fuelMass / (chassis === 'hauler' ? 4 : 2));
     const run = { ...full, spacecraft: { ...full.spacecraft, fuelMass } };
     const far = listBodies(run.starSystem).find((b) => b.name === 'Rexsio');
     if (!far) throw new Error('seed 123 has no Rexsio');
@@ -586,10 +587,10 @@ it('opens the Hop plan details by keyboard: each Burn with its reason, and the m
 it('the text-budget helper passes on the Hop plan, in every state, and on the chart under it', async () => {
   const scout = newRun(123, 'scout');
   const full = newRun(123, 'hauler');
-  // Half-fuelled, the hauler is short of Rexsio (see the fit test above).
+  // With half of one Tank, the hauler is short of Rexsio (see the fit test above).
   const hauler = {
     ...full,
-    spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 2) },
+    spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 4) },
   };
   const sircer = listBodies(scout.starSystem).find((b) => b.name === 'Rexsio');
   // The landable Body with the lowest Success Chance from the innermost planet.

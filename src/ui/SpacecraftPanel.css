@@ -81,12 +81,12 @@
   left: 0;
   top: 12px;
   display: flex;
-  gap: 8px;
 }
 
+/* Beside the caption, under the Slots: a Hauler's six Slots take the column's whole width. */
 .spacecraft-panel .spacecraft-panel__remove {
   left: 172px;
-  top: 18px;
+  top: 58px;
 }
 
 .slot-button {
@@ -144,7 +144,7 @@
 .spacecraft-panel__slot-caption {
   left: 0;
   top: 62px;
-  width: 228px;
+  width: 168px;
   font: 12px/12px var(--font-pixel-body);
   color: var(--wh2);
 }

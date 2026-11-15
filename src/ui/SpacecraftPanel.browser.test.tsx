@@ -200,15 +200,18 @@ it('shows each Component’s effect as its Chassis scales it, never the catalogu
   expect(effects.join(' ')).not.toContain('900 s');
 });
 
+/** The Run with `slots` fitted in its first Slots, the rest empty, and every Tank full. */
+function withSlots(base: Run, slots: Parameters<typeof refit>[1]): Run {
+  const spacecraft = refit(
+    base.spacecraft,
+    base.spacecraft.slots.map((_, i) => slots[i] ?? null),
+  );
+  return { ...base, spacecraft: { ...spacecraft, fuelMass: spacecraft.fuelCapacity } };
+}
+
 /** A Hauler with `slots` fitted and every Tank full, so removing a Tank loses Fuel. */
 function fullRun(slots: Parameters<typeof refit>[1]): Run {
-  const base = startRun(2026, 'hauler');
-  const spacecraft = refit(base.spacecraft, slots);
-  return {
-    ...base,
-    materials: materials(0),
-    spacecraft: { ...spacecraft, fuelMass: spacecraft.fuelCapacity },
-  };
+  return { ...withSlots(startRun(2026, 'hauler'), slots), materials: materials(0) };
 }
 
 /** A button by its accessible name: its label when it has one, otherwise its text. */
@@ -245,7 +248,7 @@ async function tabTo(name: RegExp, backwards = false): Promise<void> {
 
 /** Moves focus to a Slot as a keyboard player does: Shift+Tab out to the Slots, then the arrow keys. */
 async function focusSlot(label: RegExp): Promise<void> {
-  for (let step = 0; step < 12; step += 1) {
+  for (let step = 0; step < 20; step += 1) {
     const active = document.activeElement;
     if (label.test(named(active))) return;
     await userEvent.keyboard(
@@ -254,6 +257,32 @@ async function focusSlot(label: RegExp): Promise<void> {
   }
   throw new Error(`No way by keyboard to ${String(label)}`);
 }
+
+it.each([
+  ['scout', 4],
+  ['lancer', 5],
+  ['hauler', 6],
+] as const)(
+  'shows exactly the %s’s %i Slots, inside the panel, and the arrow keys wrap at the last',
+  async (chassis, count) => {
+    const host = await renderUi(<Harness initial={runWith(chassis, 25)} />);
+    const panel = host.querySelector<HTMLElement>('.spacecraft-panel')?.getBoundingClientRect();
+    const radios = [...host.querySelectorAll<HTMLElement>('[role="radio"]')].filter((r) =>
+      /^Slot \d/.test(named(r)),
+    );
+    expect(radios).toHaveLength(count);
+    for (const radio of radios) {
+      const box = radio.getBoundingClientRect();
+      expect(box.right).toBeLessThanOrEqual((panel?.right ?? 0) - 4);
+      expect(box.bottom).toBeLessThanOrEqual((panel?.bottom ?? 0) - 4);
+    }
+    await focusSlot(new RegExp(`^Slot ${String(count)}, empty`));
+    await userEvent.keyboard('{ArrowRight}');
+    expect(named(document.activeElement)).toMatch(/^Slot 1, Engine/);
+    await userEvent.keyboard('{ArrowLeft}');
+    expect(named(document.activeElement)).toMatch(new RegExp(`^Slot ${String(count)}, empty`));
+  },
+);
 
 it('removes a Component by keyboard alone, asks first, and Materials rise by half its cost', async () => {
   const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
@@ -357,7 +386,9 @@ it('says how much Fuel is lost before the player confirms', async () => {
 it.each(CHASSIS_IDS)(
   'keeps the longest removal refusal inside its box on the %s, with a line to spare',
   async (chassis) => {
-    const host = await renderUi(<Harness initial={startRun(2026, chassis)} />);
+    // One Fuel Tank on every Chassis, so the Hauler's is its last too.
+    const run = withSlots(startRun(2026, chassis), ['engine-1', 'fuel-tank-1']);
+    const host = await renderUi(<Harness initial={run} />);
     const status = byTestId(host, 'install-status');
     for (const [slot, reason] of [
       [/^Slot 1, Engine/, 'last Engine'],
@@ -445,9 +476,7 @@ it('previews the removal of the Component in the chosen Slot, and says why when 
 it.each(CHASSIS_IDS)(
   'keeps every preview inside its box, with room to spare (%s)',
   async (chassis) => {
-    const base = startRun(2026, chassis);
-    const spacecraft = refit(base.spacecraft, ['engine-2', 'fuel-tank-2', 'fuel-tank-1', null]);
-    const run: Run = { ...base, spacecraft: { ...spacecraft, fuelMass: spacecraft.fuelCapacity } };
+    const run = withSlots(startRun(2026, chassis), ['engine-2', 'fuel-tank-2', 'fuel-tank-1']);
     const host = await renderUi(<Harness initial={run} />);
     const panel = host.querySelector<HTMLElement>('.spacecraft-panel')?.getBoundingClientRect();
     const box = byTestId(host, 'install-preview');
@@ -494,7 +523,9 @@ it.each(CHASSIS_IDS)(
 
 it('shows no figures, only a sentence, when every Slot is full and a catalogue entry is focused', async () => {
   const host = await renderUi(
-    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', 'drill-1'])} />,
+    <Harness
+      initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', 'drill-1', 'drill-1', 'drill-1'])}
+    />,
   );
   await tabTo(/Install Engine, level 2/);
   expect(previewText(host)).toContain('Every Slot is full');
