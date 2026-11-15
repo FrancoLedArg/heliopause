@@ -2,6 +2,7 @@ import type { Kilograms, Materials, MetersPerSecond } from '../game/sim/index.ts
 import { imageUrl } from '../game/assets/manifest.ts';
 import { formatDeltaV, formatFuel } from './format.ts';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { MusicControls } from './MusicControls.tsx';
 
 const BAR_WIDTH = 624;
 const BAR_HEIGHT = 40;
@@ -59,6 +60,7 @@ export function TopBar({
       <p className="top-bar__value top-bar__materials" data-testid="materials">
         {materials}
       </p>
+      <MusicControls />
     </header>
   );
 }

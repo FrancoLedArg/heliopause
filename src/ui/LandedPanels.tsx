@@ -11,6 +11,7 @@ import { EventBus } from '../game/EventBus.ts';
 import { bodyFullLabel, formatDistanceAu, formatGravity } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { useApproachMusic } from './useApproachMusic.ts';
 import { TopBar } from './TopBar.tsx';
 
 const PLATE_WIDTH = 284;
@@ -46,6 +47,8 @@ export function LandedPanels({
   const depleted = isDepleted(run, body.id);
   // Kept per Run by the simulation, so asking on every render costs nothing.
   const stranding = assessStranding(run);
+  // The Stranded warning plays the Approach music for as long as it shows.
+  useApproachMusic(stranding.kind === 'warning' && !chartOpen && !spacecraftOpen);
 
   // Closing the Nav Chart hands focus back to the button that opened it.
   const buttonSlot = useRef<HTMLDivElement>(null);

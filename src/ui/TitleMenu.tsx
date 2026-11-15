@@ -4,6 +4,7 @@ import type { Score } from '../game/sim/index.ts';
 import { formatScore } from './endOfRunView.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { MusicControls } from './MusicControls.tsx';
 
 const PANEL_WIDTH = 192;
 const BUTTON_WIDTH = 160;
@@ -105,6 +106,7 @@ export function TitleMenu({
         Daily Star System {today} UTC:{' '}
         {dailyBest === undefined ? 'not played yet' : formatScore(dailyBest)}
       </p>
+      <MusicControls className="music-controls--title" />
       <p className="hud-tag title-menu__build">{formatBuildLabel(BUILD_INFO)}</p>
     </section>
   );

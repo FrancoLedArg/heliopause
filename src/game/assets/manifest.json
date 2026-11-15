@@ -116,5 +116,14 @@
       "data": "sprites/fx_thruster.json"
     }
   ],
-  "audio": []
+  "audio": [
+    { "key": "music_title", "file": "audio/music_abandoned_craft_1.mp3" },
+    { "key": "music_landed", "file": "audio/music_abandoned_craft_1.mp3" },
+    { "key": "music_jump", "file": "audio/music_abandoned_craft_1.mp3" },
+    { "key": "music_end", "file": "audio/music_abandoned_craft_1.mp3" },
+    { "key": "music_cruise", "file": "audio/music_abandoned_craft_2.mp3" },
+    { "key": "music_navchart", "file": "audio/music_abandoned_craft_2.mp3" },
+    { "key": "music_cruise_event", "file": "audio/music_jagged_pulse_1.mp3" },
+    { "key": "music_approach", "file": "audio/music_jagged_pulse_2.mp3" }
+  ]
 }

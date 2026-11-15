@@ -32,11 +32,27 @@ export const manifest: AssetManifest = manifestJson;
 /** Where public/assets/ is served, relative to the page (Vite `base: './'`). */
 const ASSET_ROOT = 'assets';
 
+/**
+ * Loads the images and atlases the game needs to start. Audio is left out on purpose: the tracks are
+ * several MB each and are fetched lazily once the title is up (see `audioUrls` and the music system).
+ */
 export function loadManifest(load: Loader.LoaderPlugin, source: AssetManifest = manifest): void {
   load.setPath(ASSET_ROOT);
   for (const { key, file } of source.images) load.image(key, file);
   for (const { key, image, data } of source.atlases) load.atlas(key, image, data);
-  for (const { key, file } of source.audio) load.audio(key, file);
+}
+
+/** The audio file (relative to public/assets/) a key plays; `undefined` when the key is not listed. */
+export function audioFile(key: string, source: AssetManifest = manifest): string | undefined {
+  return source.audio.find((entry) => entry.key === key)?.file;
+}
+
+/** Each distinct audio file once, in manifest order, with its page-relative URL. Many keys may share a file. */
+export function audioFiles(
+  source: AssetManifest = manifest,
+): readonly { file: string; url: string }[] {
+  const files = [...new Set(source.audio.map((entry) => entry.file))];
+  return files.map((file) => ({ file, url: `${ASSET_ROOT}/${file}` }));
 }
 
 export function hasAsset(key: string, source: AssetManifest = manifest): boolean {
