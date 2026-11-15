@@ -359,6 +359,8 @@ body {
 
 .mission-tracker__goal {
   position: relative;
+  /* The UI layer lets clicks fall through to the canvas; the icons opt back in so hover shows the tooltip. */
+  pointer-events: auto;
   display: block;
   width: 12px;
   height: 12px;
