@@ -85,7 +85,7 @@ The player's one vehicle, built on the Chassis picked at New Run, kept and modif
 _Avoid_: Ship, satellite, rocket, vessel
 
 **Chassis**:
-The starting design of the Spacecraft, picked at New Run. It sets the Spacecraft's shape and its starting dry mass, Fuel capacity and engine.
+The starting design of the Spacecraft, picked at New Run. It sets the Spacecraft's shape, how many Slots it has, its starting Components, its own mass, and how much its Engines and Fuel Tanks give.
 _Avoid_: Hull, frame, model, class
 
 **Component**:
@@ -93,7 +93,7 @@ A part installed on the Spacecraft in a Slot, with its own mass and Materials co
 _Avoid_: Module, part, upgrade, item
 
 **Slot**:
-A place on the Spacecraft that holds one Component; the Spacecraft has a fixed number of them.
+A place on the Spacecraft that holds one Component; the Chassis sets how many.
 _Avoid_: Socket, bay, hardpoint
 
 **Mount point**:
