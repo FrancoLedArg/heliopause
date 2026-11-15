@@ -14,7 +14,7 @@ import {
   type HopOutcome,
   type Run,
 } from '../game/sim/index.ts';
-import { describeReport } from './hopReportView.ts';
+import { describeReport, type ReportView } from './hopReportView.ts';
 
 /** A New Run on `chassis` with only `share` of its Fuel left. */
 function withFuelShare(seed: number, chassis: ChassisId, share: number): Run {
@@ -65,16 +65,22 @@ function heliopauseHopThatEnds(
   throw new Error(`No seed has a ${kind} Hop to the Heliopause`);
 }
 
+/** The simulation's explanation as written: a failure keeps it whole in `outcomeLine`. */
+const whole = (view: ReportView): string =>
+  view.title === 'Fell Short' || view.title === 'Crashed'
+    ? (view.outcomeLine ?? '')
+    : [view.outcomeLine, view.why].filter((part) => part !== undefined).join(' ');
+
 describe('the Hop report', () => {
   it('says the Heliopause was reached, with no Landing row: a placeholder until the Jump', () => {
     const { run, flight } = heliopauseHopThatEnds('reached-heliopause', 1);
     const view = describeReport(run, flight);
     expect(view.title).toBe('Reached the Heliopause');
-    expect(view.headline).toMatch(/edge of the Star System/);
+    expect(view.bar.label).toMatch(/^Δv: Takeoff .*Transfer /);
     expect(view.rows.map((row) => row.label)).toEqual(['Takeoff', 'Transfer']);
     expect(view.margin).toMatch(/^Margin left: /);
     expect(view.gains).toEqual([]);
-    expect(view.why).toBe(flight.why);
+    expect(whole(view)).toBe(flight.why);
   });
 
   it('reports a Hop to the Heliopause that ran out of Fuel as Fell Short', () => {
@@ -95,7 +101,47 @@ describe('the Hop report', () => {
       expect(row.change).toMatch(/^[+−±]\d+%$/);
     }
     expect(view.margin).toMatch(/^Margin left: .*(m\/s|km\/s)/);
-    expect(view.why).toBe(flight.why);
+    expect(whole(view)).toBe(flight.why);
+  });
+
+  it('draws the estimate against the actual of every flown Burn, in km/s, and leaves out Burns that never flew', () => {
+    const arrived = hopThatEnds('arrived', 123, 'scout');
+    const bar = describeReport(arrived.run, arrived.flight).bar;
+    expect(bar.segments.map((s) => s.burn)).toEqual(['takeoff', 'transfer', 'landing']);
+    expect(bar.segments.every((s) => s.estimateTick !== undefined)).toBe(true);
+    expect(bar.label).toMatch(/Used [\d.]+ of [\d.]+ km\/s/);
+    expect(bar.label).toMatch(/\(est\. [\d.]+\)/);
+
+    const fell = hopThatEnds('fell-short', 123, 'hauler', 0.5);
+    const short = describeReport(fell.run, fell.flight).bar;
+    expect(short.segments.map((s) => s.burn)).toEqual(['takeoff', 'transfer']);
+  });
+
+  it('gives every outcome exactly one why sentence, with the whole explanation kept apart', () => {
+    const flights = [
+      hopThatEnds('arrived', 123, 'scout'),
+      hopThatEnds('fell-short', 123, 'hauler', 0.5),
+      hopThatEnds('crashed', 123, 'scout', 0.5),
+      heliopauseHopThatEnds('reached-heliopause', 1),
+    ];
+    for (const { run, flight } of flights) {
+      const view = describeReport(run, flight);
+      expect(view.why.split(/(?<=[.!?])\s+/)).toHaveLength(1);
+      expect(view.why.length).toBeGreaterThan(10);
+      expect(whole(view)).toBe(flight.why);
+    }
+  });
+
+  it('names the Burn that ran out and the shortfall in the why line of each failure', () => {
+    const fell = hopThatEnds('fell-short', 123, 'hauler', 0.5);
+    const fellView = describeReport(fell.run, fell.flight);
+    expect(fellView.why).toMatch(/^Fuel ran out in the Transfer: Δv short by [\d.]+ km\/s\.$/);
+    expect(fellView.outcomeLine).toBe(fell.flight.why);
+
+    const crashed = hopThatEnds('crashed', 123, 'scout', 0.5);
+    const crashedView = describeReport(crashed.run, crashed.flight);
+    expect(crashedView.why).toMatch(/^Fuel ran out in the Landing: Δv short by [\d.]+ km\/s\.$/);
+    expect(crashedView.outcomeLine).toBe(crashed.flight.why);
   });
 
   it('says during which Burn the Fuel ran out when a Hop Fell Short, and that the later Burns never flew', () => {
@@ -103,13 +149,13 @@ describe('the Hop report', () => {
     const { run, flight } = hopThatEnds('fell-short', 123, 'hauler', 0.5);
     const view = describeReport(run, flight);
     expect(view.title).toBe('Fell Short');
-    expect(view.headline).toMatch(/Fuel ran out during the Transfer/);
+    expect(view.outcomeLine).toMatch(/Fuel ran out during the Transfer/);
     const ranOut = view.rows.find((row) => row.change === 'ran out');
     expect(ranOut?.label).toBe('Transfer');
     expect(ranOut?.actual).toMatch(/^[\d.,]+ of [\d.,]+ (m|km)\/s$/);
     expect(view.rows.at(-1)?.change).toBe('not flown');
-    expect(view.margin).toMatch(/^Margin: none left \(planned −[\d,]+ m\/s, \d+%\)$/);
-    expect(view.why).toBe(flight.why);
+    expect(view.margin).toMatch(/^Margin: none left \(planned −[\d.]+ km\/s, \d+%\)$/);
+    expect(whole(view)).toBe(flight.why);
   });
 
   it('gives the same Margin share in the report as in the why text: a hauler on seed 123', () => {
@@ -120,8 +166,8 @@ describe('the Hop report', () => {
     const launched = launchHop(run, sircer.id);
     if (launched.kind !== 'flown') throw new Error('expected a flight');
     const view = describeReport(run, launched.flight);
-    expect(view.margin).toBe('Margin: none left (planned −1,793 m/s, 11%)');
-    expect(view.why).toMatch(/The Fuel gives 11% less Δv/);
+    expect(view.margin).toBe('Margin: none left (planned −1.8 km/s, 11%)');
+    expect(view.outcomeLine).toMatch(/The Fuel gives 11% less Δv/);
   });
 
   it('says a Crashed Hop completed the Transfer but ran out of Δv in the Landing', () => {
@@ -129,13 +175,13 @@ describe('the Hop report', () => {
     const { run, flight } = hopThatEnds('crashed', 123, 'scout', 0.5);
     const view = describeReport(run, flight);
     expect(view.title).toBe('Crashed');
-    expect(view.headline).toMatch(/Transfer succeeded.*Landing/);
+    expect(view.outcomeLine).toMatch(/Transfer was completed.*Landing/);
     expect(view.rows.map((row) => row.change).slice(0, 2)).toEqual([
       expect.stringMatching(/%$/),
       expect.stringMatching(/%$/),
     ]);
     expect(view.rows[2]?.change).toBe('ran out');
-    expect(view.why).toBe(flight.why);
+    expect(whole(view)).toBe(flight.why);
   });
 
   describe('what landing collected', () => {
@@ -177,7 +223,7 @@ describe('the Hop report', () => {
     it('says how much Fuel an Icy Body gave and explains ice-to-propellant the first time', () => {
       const view = describeReport(run, flown(run).flight);
       expect(view.gains[0]?.name).toMatch(/^Collected [\d.]+ t of Fuel\.$/);
-      expect(view.note).toBe(
+      expect(view.fact).toBe(
         'Real missions plan to split lunar water ice into hydrogen and oxygen, so rockets could refuel on the Moon.',
       );
     });
@@ -191,7 +237,7 @@ describe('the Hop report', () => {
       const second = { ...run, depleted: [elsewhere.id] };
       const view = describeReport(second, flown(second).flight);
       expect(view.gains[0]?.name).toMatch(/of Fuel/);
-      expect(view.note).toBeUndefined();
+      expect(view.fact).toBeUndefined();
     });
 
     it('says how much Fuel was left behind when the Tank is full', () => {
@@ -217,7 +263,7 @@ describe('the Hop report', () => {
       if (launched.kind !== 'flown') throw new Error('expected a flight');
       const view = describeReport(away, launched.flight);
       expect(view.gains[0]?.name).toMatch(/^Collected \d+ Materials\.$/);
-      expect(view.note).toBeUndefined();
+      expect(view.fact).toBeUndefined();
     });
 
     it('names the Drill inside the Collected line, and nowhere else', () => {
@@ -226,8 +272,7 @@ describe('the Hop report', () => {
       const view = describeReport(installed.run, flown(installed.run).flight);
       expect(view.gains[0]?.name).toMatch(/^Collected [\d.]+ t of Fuel \(Drill ×1\.5\)\.$/);
       expect(view.gains[0]?.drill).toBe('×1.5');
-      expect(view.headline).not.toMatch(/Drill/);
-      expect(view.note).not.toMatch(/Drill/);
+      expect(view.fact).not.toMatch(/Drill/);
     });
 
     it('does not credit the Drill when nothing was collected', () => {

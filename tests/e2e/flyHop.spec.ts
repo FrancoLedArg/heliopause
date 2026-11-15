@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { FAST_CRUISE } from './cruise.ts';
 import { formatFuel } from '../../src/ui/format.ts';
 import {
@@ -60,6 +60,13 @@ async function target(page: Page, name: string): Promise<void> {
   }
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('target')).toContainText(name);
+}
+
+/** The report says the simulation's explanation in two places: its outcome line, and the one why line. */
+async function expectWhy(report: Locator, why: string): Promise<void> {
+  for (const sentence of why.split(/(?<=[.!?])\s+/)) {
+    await expect(report).toContainText(sentence);
+  }
 }
 
 const currentBurn = (page: Page) =>
@@ -130,12 +137,15 @@ test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, the
   await expect(report).toBeVisible();
   // The film's shots, in order, from the HUD (the Cruise played fast: see FAST_CRUISE).
   expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise', 'landing']);
-  await expect(report).toContainText(`Landed on ${homeMoon.name}`);
+  // Show, don't tell: the Δv bar and the gathered icon first, the Burn table behind "Tell me more".
+  await expect(report.getByRole('img', { name: /^Δv: .*Used / })).toBeVisible();
+  await expect(report.getByRole('button', { name: 'Continue' })).toBeFocused();
+  await report.getByRole('button', { name: 'Tell me more' }).click();
   for (const burn of ['Takeoff', 'Transfer', 'Landing']) {
     await expect(report.getByRole('row', { name: new RegExp(burn) })).toContainText(/[+−±]\d+%/);
   }
   await expect(report.getByTestId('hop-report-margin')).toContainText('Margin left');
-  await expect(report).toContainText(moonHop.flight.why);
+  await expectWhy(report, moonHop.flight.why);
   // Landing on the Icy Moon collected its Fuel (the report opens once the gathering moment has played):
   // "+N t" beside the Fuel icon, the words in its accessible name. And it says why that is plausible.
   const gain = report.getByRole('img', { name: /^Collected .* t of Fuel/ });
@@ -147,10 +157,10 @@ test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, the
     body: await page.screenshot(),
     contentType: 'image/png',
   });
-  await expect(report.getByRole('button', { name: 'Continue' })).toBeFocused();
-  // Focus stays in the report: Tab and Shift+Tab come back to Continue.
+  // Focus stays in the report: Tab wraps from Continue to Tell me more, and Shift+Tab back.
+  await page.getByRole('button', { name: 'Continue' }).focus();
   await page.keyboard.press('Tab');
-  await expect(report.getByRole('button', { name: 'Continue' })).toBeFocused();
+  await expect(report.getByRole('button', { name: 'Tell me more' })).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(report.getByRole('button', { name: 'Continue' })).toBeFocused();
   await page.keyboard.press('Enter');
@@ -221,17 +231,22 @@ test('a Hop that Crashes stops on the Landing and says why, and the title is the
 
   const outcome = page.getByRole('alertdialog', { name: 'Crashed' });
   await expect(outcome).toBeVisible({ timeout: 10_000 });
+  await expect(outcome.getByRole('img', { name: /^Δv: .*Landing/ })).toBeVisible();
+  await expect(outcome.getByRole('button', { name: 'Continue' })).toBeFocused();
+  await outcome.getByRole('button', { name: 'Tell me more' }).click();
   await expect(outcome).toContainText('not enough Δv left to finish the Landing');
-  await expect(outcome).toContainText('The Transfer succeeded');
   await expect(outcome.getByRole('row', { name: /Landing/ })).toContainText('ran out');
   await expect(outcome.getByRole('row', { name: /Transfer/ })).toContainText(/[+−±]\d+%/);
+  await expect(outcome.locator('.hop-report__why')).toHaveText(
+    /^Fuel ran out in the Landing: Δv short by [\d.]+ km\/s\.$/,
+  );
   await expect(outcome).toContainText(crashFlight.why);
   await testInfo.attach('crashed-report', {
     body: await page.screenshot(),
     contentType: 'image/png',
   });
-  // Continue (focused) moves on from the Hop report to the End-of-Run screen.
-  await expect(outcome.getByRole('button', { name: 'Continue' })).toBeFocused();
+  // Continue moves on from the Hop report to the End-of-Run screen.
+  await outcome.getByRole('button', { name: 'Continue' }).focus();
   await page.keyboard.press('Enter');
   // The End-of-Run screen: the Score (one Hop flown, no Star System escaped) and the Best Score it set.
   await expect(outcome.getByTestId('end-of-run-score')).toHaveText(
@@ -348,9 +363,14 @@ test('a Hop that Falls Short says in which Burn the Fuel ran out, and New Run of
 
   const outcome = page.getByRole('alertdialog', { name: 'Fell Short' });
   await expect(outcome).toBeVisible({ timeout: 10_000 });
+  await expect(outcome.getByRole('button', { name: 'Continue' })).toBeFocused();
+  await outcome.getByRole('button', { name: 'Tell me more' }).click();
   await expect(outcome).toContainText('Fuel ran out during the Transfer');
   await expect(outcome.getByRole('row', { name: /Transfer/ })).toContainText('ran out');
   await expect(outcome.getByRole('row', { name: /Landing/ })).toContainText('not flown');
+  await expect(outcome.locator('.hop-report__why')).toHaveText(
+    /^Fuel ran out in the Transfer: Δv short by [\d.]+ km\/s\.$/,
+  );
   await expect(outcome).toContainText(shortFlight.why);
   await testInfo.attach('fell-short', { body: await page.screenshot(), contentType: 'image/png' });
 
