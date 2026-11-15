@@ -66,7 +66,7 @@ import {
   type ShipFrame,
   type SpacecraftArt,
 } from './spacecraftArt.ts';
-import type { Rect } from './spacecraftComposition.ts';
+import type { AnchorKind, Rect } from './spacecraftComposition.ts';
 import { generateStars } from './starfield.ts';
 import {
   CRASH_FALL_MS,
@@ -655,6 +655,17 @@ export class Flight extends Scene {
     });
     this.game.canvas.parentElement?.setAttribute(DAMAGE_ATTRIBUTE, JSON.stringify(damaged));
     EventBus.emit('cruise-updated', run);
+  }
+
+  /**
+   * Where a Component's mount point is on the screen (`centre` for now): what Cruise events (#210)
+   * play damage effects at. Undefined for an empty Slot.
+   */
+  anchor(slot: number, kind: AnchorKind): Point | undefined {
+    const at = this.shipParts.anchor(slot, kind);
+    if (!at) return undefined;
+    const { scrollX, scrollY } = this.cameras.main;
+    return { x: at.x - scrollX, y: at.y - scrollY };
   }
 
   private render(ms: number): void {

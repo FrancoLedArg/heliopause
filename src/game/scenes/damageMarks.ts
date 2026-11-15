@@ -221,7 +221,8 @@ export function damagedSlotAt(
 
 /**
  * The Slot whose Rush a click at (`x`, `y`) asks for: it lands on a running Repair's ring (its line,
- * give or take a little) or on the Rush price beside it, and the Materials can pay. A click on the
+ * give or take a little, outside every Damaged part) or on the Rush price beside it, and the
+ * Materials can pay. A click on the
  * part itself only ever starts a Repair, so a double-click never spends Materials.
  */
 export function rushTargetAt(
@@ -230,6 +231,9 @@ export function rushTargetAt(
   x: number,
   y: number,
 ): number | undefined {
+  // A click on a Damaged part (its bounds, give or take a little) is never a Rush, even where the
+  // ring's line runs close by its corners or narrow edges.
+  if (damagedSlotAt(run, bounds, x, y) !== undefined) return undefined;
   for (const [slot, rect] of bounds) {
     const state = repairState(run, slot);
     if (state.kind === 'sound' || state.progress === null || !state.affordable) continue;

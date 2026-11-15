@@ -662,7 +662,7 @@ function leakingOnTheMoon(): Run {
   return { ...run, spacecraft: { ...run.spacecraft, damage } };
 }
 
-it('a click on the Damaged part on the Landed view starts its Repair, and a second click does not Rush it (#250)', async () => {
+it('a click on the Damaged part on the Landed view starts its Repair, and no later click on it Rushes it (#250)', async () => {
   const scene = await landOn(leakingOnTheMoon());
   const rect = scene.spacecraft.componentBounds().get(1);
   if (!rect) throw new Error('The Tank is drawn');
@@ -677,6 +677,12 @@ it('a click on the Damaged part on the Landed view starts its Repair, and a seco
   const off = EventBus.on('run-updated', (run) => updates.push(run));
   await userEvent.click(canvas, { position: at });
   await userEvent.click(canvas, { position: at });
+  // A double-click 1 px inside the part's bottom-right corner, where the ring's line runs close by.
+  const corner = {
+    x: (rect.x - scrollX + rect.width - 1) * scale,
+    y: (rect.y - scrollY + rect.height - 1) * scale,
+  };
+  await userEvent.dblClick(canvas, { position: corner });
   off();
   expect(updates).toHaveLength(1);
   const started = updates[0];

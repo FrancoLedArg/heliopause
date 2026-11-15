@@ -17,6 +17,7 @@ import {
   launchHop,
   listBodies,
   materials,
+  refit,
   startRun,
   type BodyId,
   type ChassisId,
@@ -236,6 +237,13 @@ it.each(CHASSIS_IDS)(
     expect(hull.right - hull.left).toBeGreaterThan(200);
     for (const [slot, rect] of bounds) {
       const where = `Slot ${String(slot)}`;
+      // The Component's centre mount point lies inside its own bounds.
+      const centre = scene.anchor(slot, 'centre');
+      expect(centre, where).toBeDefined();
+      expect(centre?.x, where).toBeGreaterThanOrEqual(rect.x);
+      expect(centre?.x, where).toBeLessThanOrEqual(rect.x + rect.width);
+      expect(centre?.y, where).toBeGreaterThanOrEqual(rect.y);
+      expect(centre?.y, where).toBeLessThanOrEqual(rect.y + rect.height);
       expect(rect.width, where).toBeGreaterThanOrEqual(24);
       expect(rect.height, where).toBeGreaterThanOrEqual(24);
       expect(rect.x, where).toBeGreaterThanOrEqual(0);
@@ -997,32 +1005,48 @@ const PLUME_MOMENTS = [
   { name: 'hovering down', burn: 'landing', progress: 0.5, pose: 'standing' },
 ] as const satisfies readonly { name: string; burn: string; progress: number; pose: ShipPose }[];
 
-it.each(CHASSIS_IDS)(
-  'the %s fires one plume from every nozzle exit, down while standing and rearward in flight',
-  async (chassis) => {
-    const { scene, data } = await fly(chassis);
-    for (const moment of PLUME_MOMENTS) {
-      scene.seek(momentOf(scene, moment.burn, moment.progress));
-      const { x, y, angle, scaleX: k } = scene.ship;
-      const expected = nozzlesOf(data, moment.pose).map((nozzle) => {
-        const at = turn(nozzle.exit, angle);
-        return { x: x + k * at.x, y: y + k * at.y };
-      });
-      const shown = shownPlumes(scene);
-      expect(shown, moment.name).toHaveLength(expected.length);
-      for (const exit of expected) {
-        const plume = shown.find((p) => Math.hypot(p.x - exit.x, p.y - exit.y) < 0.5);
-        expect(
-          plume,
-          `${moment.name}: a plume at (${exit.x.toFixed(1)}, ${exit.y.toFixed(1)})`,
-        ).toBeDefined();
-        // Straight down from the ship standing; back along the flight heading, turned with the ship.
-        const heading = moment.pose === 'standing' ? 0 : FLIGHT_ANGLE;
-        expect(plume?.angle, moment.name).toBeCloseTo(heading + angle, 1);
+/** A loadout with a second Engine beside the first, so the Spacecraft has two nozzles. */
+function twinEngine(run: Run): Run {
+  const slots = [...run.spacecraft.slots];
+  const free = slots.indexOf(null);
+  slots[free] = 'engine-2';
+  return { ...run, spacecraft: refit(run.spacecraft, slots) };
+}
+
+describe.each([
+  ['stock', (run: Run) => run],
+  ['two-engine', twinEngine],
+] as const)('with the %s loadout', (_loadout, from) => {
+  it.each(CHASSIS_IDS)(
+    'the %s fires one plume from every nozzle exit, down while standing and rearward in flight',
+    async (chassis) => {
+      const { scene, data } = await fly(chassis, homeMoonId, from);
+      if (_loadout === 'two-engine') {
+        expect(nozzlesOf(data, 'flight').length).toBeGreaterThanOrEqual(2);
       }
-    }
-  },
-);
+      for (const moment of PLUME_MOMENTS) {
+        scene.seek(momentOf(scene, moment.burn, moment.progress));
+        const { x, y, angle, scaleX: k } = scene.ship;
+        const expected = nozzlesOf(data, moment.pose).map((nozzle) => {
+          const at = turn(nozzle.exit, angle);
+          return { x: x + k * at.x, y: y + k * at.y };
+        });
+        const shown = shownPlumes(scene);
+        expect(shown, moment.name).toHaveLength(expected.length);
+        for (const exit of expected) {
+          const plume = shown.find((p) => Math.hypot(p.x - exit.x, p.y - exit.y) < 0.5);
+          expect(
+            plume,
+            `${moment.name}: a plume at (${exit.x.toFixed(1)}, ${exit.y.toFixed(1)})`,
+          ).toBeDefined();
+          // Straight down from the ship standing; back along the flight heading, turned with the ship.
+          const heading = moment.pose === 'standing' ? 0 : FLIGHT_ANGLE;
+          expect(plume?.angle, moment.name).toBeCloseTo(heading + angle, 1);
+        }
+      }
+    },
+  );
+});
 
 /** The Chassis art in a ship's container, inside the drawn Spacecraft (the plumes, glow and Component art left out). */
 function hullOf(ship: GameObjects.Container): GameObjects.Image {
@@ -1238,6 +1262,10 @@ describe('the live Cruise (#250)', () => {
     expect(scene.live?.spacecraft.damage[fuelTank]?.repair).toBe(0);
     // A second click on the part never Rushes: only the ring or its price does.
     await userEvent.click(canvas, { position: part });
+    // Nor a double-click 2 px inside a corner, where the ring's line runs close by.
+    await userEvent.dblClick(canvas, {
+      position: { x: (rect.x + rect.width - 2) * scale, y: (rect.y + rect.height - 2) * scale },
+    });
     expect(scene.live?.materials).toBe(materialsBefore);
     expect(scene.live?.spacecraft.damage[fuelTank]?.repair).toBe(0);
     const { price } = ringGeometry(rect);
