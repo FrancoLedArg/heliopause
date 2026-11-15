@@ -10,13 +10,14 @@ import {
 } from './componentIconSet.ts';
 
 describe('the Component icon set', () => {
-  it('has an icon for the Engine, Fuel Tank, Drill, Radar and Jump Drive', () => {
+  it('has an icon for the Engine, Fuel Tank, Drill, Radar, Jump Drive and Instrument', () => {
     expect([...COMPONENT_ICON_KINDS]).toEqual([
       'engine',
       'fuel-tank',
       'drill',
       'radar',
       'jump-drive',
+      'instrument',
     ]);
   });
 
@@ -27,6 +28,7 @@ describe('the Component icon set', () => {
       'comp_drill',
       'comp_radar',
       'comp_jump_drive',
+      'comp_instrument',
     ]);
   });
 

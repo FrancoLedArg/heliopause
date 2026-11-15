@@ -5,8 +5,8 @@ import { CALLOUT, PICTURE, slotCallouts, type CalloutPlace } from './slotCallout
 
 /** Loadouts of every Slot count a Chassis can have (spec #230: Scout 4, Lancer 5, Hauler 6). */
 const LOADOUTS: readonly (readonly Slot[])[] = [
-  ['engine-1', 'fuel-tank-1', null, null],
-  ['engine-1', 'fuel-tank-1', 'drill-1', 'jump-drive'],
+  ['engine-1', 'fuel-tank-1', null, null, null, null],
+  ['engine-1', 'fuel-tank-1', 'drill-1', 'jump-drive', null, null],
   ['engine-1', 'fuel-tank-1', null, 'drill-2', null],
   ['engine-2', 'fuel-tank-1', 'fuel-tank-2', 'drill-1', 'jump-drive'],
   ['engine-1', 'fuel-tank-1', null, null, null, null],
@@ -38,7 +38,7 @@ describe.each(CHASSIS_IDS)('the Slot callouts on the %s', (chassisId) => {
   );
 
   it('leads a fitted Slot’s line to its Component art, and an empty Slot’s nowhere', () => {
-    const slots: readonly Slot[] = ['engine-1', 'fuel-tank-1', null, 'drill-1'];
+    const slots: readonly Slot[] = ['engine-1', 'fuel-tank-1', null, 'drill-1', null, null];
     const drawn = composeSpacecraft(chassisId, slots, 'landed');
     const { width, height, pivot } = drawn.geometry;
     const origin = {
@@ -61,7 +61,7 @@ describe.each(CHASSIS_IDS)('the Slot callouts on the %s', (chassisId) => {
   });
 
   it('puts a Component’s callout on its own side of the Spacecraft when that side has room', () => {
-    const slots: readonly Slot[] = ['engine-1', 'fuel-tank-1', null, 'drill-1'];
+    const slots: readonly Slot[] = ['engine-1', 'fuel-tank-1', null, 'drill-1', null, null];
     const places = slotCallouts(chassisId, slots);
     for (const place of places) {
       if (!place.anchor) continue;

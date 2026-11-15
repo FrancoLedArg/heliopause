@@ -197,7 +197,7 @@ describe('a Drill multiplies yields', () => {
       fuelMass: kilograms(500),
     },
   });
-  const drill1 = withSlots(base, ['engine-1', 'fuel-tank-1', 'drill-1', null]);
+  const drill1 = withSlots(base, ['engine-1', 'fuel-tank-1', 'drill-1', null, null, null]);
 
   it('a level-1 Drill yields 1.5 times the Fuel from an Icy Body', () => {
     const result = collectYield(drill1, moon.id);
@@ -209,7 +209,7 @@ describe('a Drill multiplies yields', () => {
   });
 
   it('a Drill increases each Body’s yield', () => {
-    const none = withSlots(base, ['engine-1', 'fuel-tank-1', null, null]);
+    const none = withSlots(base, ['engine-1', 'fuel-tank-1', null, null, null, null]);
     const fuelOf = (run: Run, id: typeof moon.id) => collectYield(run, id).collection;
     const without = fuelOf(none, moon.id);
     const withDrill = fuelOf(drill1, moon.id);
@@ -224,7 +224,7 @@ describe('a Drill multiplies yields', () => {
   });
 
   it('a level-2 Drill yields more than a level-1 Drill', () => {
-    const level2 = withSlots(base, ['engine-1', 'fuel-tank-1', 'drill-2', null]);
+    const level2 = withSlots(base, ['engine-1', 'fuel-tank-1', 'drill-2', null, null, null]);
     const one = collectYield(drill1, moon.id).collection;
     const two = collectYield(level2, moon.id).collection;
     if (one.kind !== 'fuel' || two.kind !== 'fuel') throw new Error('The Moon is Icy');
@@ -282,8 +282,8 @@ describe('a Drill multiplies yields', () => {
   });
 
   it('the best Drill sets the multiplier: a second Drill adds only mass', () => {
-    const two = withSlots(base, ['engine-1', 'drill-1', 'drill-1', 'fuel-tank-1']);
-    const mixed = withSlots(base, ['engine-1', 'drill-1', 'drill-2', 'fuel-tank-1']);
+    const two = withSlots(base, ['engine-1', 'drill-1', 'drill-1', 'fuel-tank-1', null, null]);
+    const mixed = withSlots(base, ['engine-1', 'drill-1', 'drill-2', 'fuel-tank-1', null, null]);
     const fuel = (run: Run) => collectYield(run, moon.id).collection;
     expect(fuel(two)).toMatchObject({ collected: kilograms(moon.baseYield * 1.5) });
     expect(fuel(mixed)).toMatchObject({ collected: kilograms(moon.baseYield * 2) });
@@ -291,7 +291,7 @@ describe('a Drill multiplies yields', () => {
 
   it('with no Drill a yield is the Body’s base yield', () => {
     expect(
-      collectYield(withSlots(base, ['engine-1', null, null, null]), moon.id).collection,
+      collectYield(withSlots(base, ['engine-1', null, null, null, null, null]), moon.id).collection,
     ).toMatchObject({ collected: moon.baseYield });
   });
 

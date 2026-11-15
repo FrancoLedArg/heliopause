@@ -109,6 +109,10 @@
       "file": "sprites/comp_fuel_tank.png"
     },
     {
+      "key": "comp_instrument",
+      "file": "sprites/comp_instrument.png"
+    },
+    {
       "key": "comp_jump_drive",
       "file": "sprites/comp_jump_drive.png"
     },

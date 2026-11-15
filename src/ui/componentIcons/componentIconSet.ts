@@ -12,6 +12,7 @@ export const COMPONENT_ICON_KINDS = [
   'drill',
   'radar',
   'jump-drive',
+  'instrument',
 ] as const;
 export type ComponentIconKind = (typeof COMPONENT_ICON_KINDS)[number];
 
@@ -30,6 +31,7 @@ export const COMPONENT_ICON_NAMES: Record<ComponentIconKind, string> = {
   drill: 'Drill',
   radar: 'Radar',
   'jump-drive': 'Jump Drive',
+  instrument: 'Instrument',
 };
 
 /** One character per pixel in `PIXELS`; `.` is clear. */
@@ -117,6 +119,24 @@ const PIXELS: Record<ComponentIconKind, readonly string[]> = {
     '...ohgddddggo...',
     '...oggggggggo...',
     '...oooooooooo...',
+    '................',
+    '................',
+  ],
+  instrument: [
+    '................',
+    '................',
+    '....oooooooo....',
+    '..oogggggggggo..',
+    '.oghhggggggggo..',
+    '.ogoooooogggggo.',
+    '.ogocccccogggo..',
+    '.ogoccwwcogggo..',
+    '.ogoccwwcogggo..',
+    '.ogocccccogggo..',
+    '.ogoooooogggo...',
+    '.oggggggggggo...',
+    '..oooooooooo....',
+    '................',
     '................',
     '................',
   ],

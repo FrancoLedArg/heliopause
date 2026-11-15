@@ -18,7 +18,7 @@ function removed(result: ReturnType<typeof remove>): Extract<typeof result, { ki
   return result;
 }
 
-/** A Run with Slots `['engine-1', 'fuel-tank-1', 'fuel-tank-1', 'drill-1']`, back to the starting purse. */
+/** A Run with Slots `['engine-1', 'fuel-tank-1', 'fuel-tank-1', 'drill-1', null, null]`, back to the starting purse. */
 function fitted(): Run {
   let rich: Run = { ...run, materials: materials(500) };
   for (const [slot, id] of [
@@ -32,6 +32,17 @@ function fitted(): Run {
   return { ...rich, materials: materials(STARTING_MATERIALS) };
 }
 
+describe('removing an Instrument', () => {
+  it('refunds half its Materials, rounded down, and leaves Stranded a lighter configuration', () => {
+    const fit = install(run, 2, 'camera');
+    if (fit.kind !== 'installed') throw new Error('expected an install');
+    const result = removed(remove(fit.run, 2));
+    expect(result.refund).toBe(Math.floor(COMPONENTS.camera.cost / 2));
+    expect(result.run.spacecraft.slots).toEqual(run.spacecraft.slots);
+    expect(result.run.spacecraft.dryMass).toBe(run.spacecraft.dryMass);
+  });
+});
+
 describe('removing a Component', () => {
   it('removing a Component refunds half its Materials', () => {
     // Drill level 1 costs 25: half is 12.5, rounded down.
@@ -39,7 +50,14 @@ describe('removing a Component', () => {
     const drill = removed(remove(fitted(), 3));
     expect(drill.refund).toBe(12);
     expect(drill.run.materials).toBe(STARTING_MATERIALS + 12);
-    expect(drill.run.spacecraft.slots).toEqual(['engine-1', 'fuel-tank-1', 'fuel-tank-1', null]);
+    expect(drill.run.spacecraft.slots).toEqual([
+      'engine-1',
+      'fuel-tank-1',
+      'fuel-tank-1',
+      null,
+      null,
+      null,
+    ]);
     const tank = removed(remove(fitted(), 2));
     expect(tank.refund).toBe(10);
     expect(tank.run.materials).toBe(STARTING_MATERIALS + 10);
@@ -49,7 +67,7 @@ describe('removing a Component', () => {
     const before = fitted();
     const after = removed(remove(before, 3)).run;
     expect(after.spacecraft).toEqual(
-      refit(before.spacecraft, ['engine-1', 'fuel-tank-1', 'fuel-tank-1', null]),
+      refit(before.spacecraft, ['engine-1', 'fuel-tank-1', 'fuel-tank-1', null, null, null]),
     );
     expect(availableDeltaV(after.spacecraft)).toBeGreaterThan(availableDeltaV(before.spacecraft));
     expect(after.status).toEqual(before.status);
@@ -68,6 +86,8 @@ describe('removing a Component', () => {
       null,
       'fuel-tank-1',
       'engine-2',
+      null,
+      null,
       null,
     ]);
   });
@@ -100,6 +120,6 @@ describe('removing a Component', () => {
   });
 
   it('throws for a Slot that does not exist', () => {
-    expect(() => remove(run, 4)).toThrow(RangeError);
+    expect(() => remove(run, 6)).toThrow(RangeError);
   });
 });

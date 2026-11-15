@@ -179,7 +179,7 @@ function SlotCallout({ place, held, damaged, selected, buttonRef, onSelect }: Sl
         // Keyed by the Component, so a new one pops in where the old one was.
         <span key={held} className="slot-callout__part" aria-hidden="true">
           <ComponentIcon kind={component.kind} className="slot-callout__icon" />
-          {component.kind !== 'jump-drive' && (
+          {component.kind !== 'jump-drive' && component.kind !== 'instrument' && (
             <span className="slot-callout__level">{component.level}</span>
           )}
         </span>

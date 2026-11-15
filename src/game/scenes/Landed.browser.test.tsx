@@ -582,7 +582,7 @@ it('installing a Drill adds its Component art to the drawn Spacecraft, and remov
     'drill-1',
   ]);
   expect(built.pieces.map((p) => p.piece)).toContain('drill-1.0.front');
-  const slots = ['engine-1', 'fuel-tank-1', 'drill-1', null] as const;
+  const slots = ['engine-1', 'fuel-tank-1', 'drill-1', null, null, null] as const;
   expect(built.components.find((c) => c.slot === 2)?.bounds).toEqual(
     composeSpacecraft('scout', slots, 'landed').components.get(2)?.bounds,
   );
@@ -623,7 +623,7 @@ it('pops a new Component art in at its place and fades a removed one out', async
   const drill = drawnImages(scene).at(-1);
   expect(drill?.scale).toBeLessThan(1);
   await expect.poll(() => drill?.scale, { timeout: 3000 }).toBe(1);
-  const slots = ['engine-1', 'fuel-tank-1', 'drill-1', null] as const;
+  const slots = ['engine-1', 'fuel-tank-1', 'drill-1', null, null, null] as const;
   const at = composeSpacecraft('lancer', slots, 'landed').components.get(2)?.bounds;
   expect([drill?.x, drill?.y]).toEqual([at?.x, at?.y]);
   expect(drawnImages(scene)).toHaveLength(count + 1);
