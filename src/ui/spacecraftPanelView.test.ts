@@ -272,9 +272,9 @@ describe('the Jump Drive in the panel', () => {
       name: 'Jump Drive',
       title: 'Jump Drive',
       mass: '4.0 t',
-      cost: '100 Materials',
+      cost: '45 Materials',
       affordable: false,
-      short: 75,
+      short: 20,
     });
   });
 
@@ -289,10 +289,10 @@ describe('the Jump Drive in the panel', () => {
     expect(
       describeRefusal({
         kind: 'not-enough-materials',
-        cost: materials(100),
+        cost: materials(45),
         have: materials(25),
-        short: materials(75),
+        short: materials(20),
       }),
-    ).toBe('Not enough Materials: it costs 100 and you have 25, 75 short.');
+    ).toBe('Not enough Materials: it costs 45 and you have 25, 20 short.');
   });
 });

@@ -82,16 +82,16 @@ export type Component = Engine | FuelTank | Drill | JumpDrive;
 export type ComponentKind = Component['kind'];
 
 /**
- * The Jump Drive's gameplay tuning, in one place. About five Rocky Bodies' yield (10 to 30 Materials
+ * The Jump Drive's gameplay tuning, in one place. About two to three Rocky Bodies' yield (10 to 30 Materials
  * each, 20 on average, before any Drill) in Star System 1, and a Run starts with 25. The mass takes
  * about a fifth of the Δv of a full Spacecraft on every Chassis.
  */
 export const JUMP_DRIVE_TUNING = {
   mass: kilograms(4_000),
   /** The Materials cost in Star System 1. */
-  baseCost: materials(100),
+  baseCost: materials(45),
   /** What each later Star System adds to the cost. */
-  costPerStarSystem: materials(25),
+  costPerStarSystem: materials(3),
 } as const;
 
 const PROPULSION = 'docs/research/propulsion-trade-offs.md';

@@ -44,7 +44,7 @@ describe('the Jump Drive', () => {
 
   it('needs several Rocky Bodies yield, and more than a Run starts with', () => {
     // A Rocky Body gives 10 to 30 Materials before the Drill, so about 20 on average.
-    expect(componentCost('jump-drive', 1)).toBeGreaterThanOrEqual(80);
+    expect(componentCost('jump-drive', 1)).toBeGreaterThanOrEqual(40);
     expect(install(startRun(2026, 'scout'), 2, 'jump-drive').kind).toBe('refused');
   });
 
@@ -69,6 +69,15 @@ describe('the Jump Drive', () => {
     const costs = [1, 2, 3, 4, 5].map((n) => componentCost('jump-drive', n));
     for (let i = 1; i < costs.length; i++) expect(costs[i]).toBeGreaterThan(costs[i - 1] ?? 0);
     expect(costs.every(Number.isInteger)).toBe(true);
+  });
+
+  it("the Jump Drive's cost stays within reach as Rocky yields shrink with each level", () => {
+    // Total Rocky yield in a Star System at levels 1 to 5, from the difficulty review's figures
+    // (level 4 between its neighbours). The cost must stay clearly under it.
+    const rockyYield = [82, 78, 76, 71, 66];
+    rockyYield.forEach((total, index) => {
+      expect(componentCost('jump-drive', index + 1)).toBeLessThanOrEqual(total * 0.9);
+    });
   });
 
   it("other Components' costs do not change with the Star System number", () => {

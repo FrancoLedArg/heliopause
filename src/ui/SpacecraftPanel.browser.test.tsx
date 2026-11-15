@@ -523,8 +523,8 @@ it('lists the Jump Drive from the first screen, previews it and refuses it plain
   const row = [...host.querySelectorAll('[data-testid="component-row"]')].find((r) =>
     r.textContent.includes('Jump Drive'),
   );
-  expect(row?.textContent).toContain('100 Materials');
-  expect(row?.textContent).toContain('Need 75 more');
+  expect(row?.textContent).toContain('45 Materials');
+  expect(row?.textContent).toContain('Need 20 more');
   await tabTo(/Install Jump Drive,/);
   expect(previewText(host)).toContain('Install Jump Drive');
   expect(previewText(host)).toContain('Drops');
@@ -533,6 +533,6 @@ it('lists the Jump Drive from the first screen, previews it and refuses it plain
     installButton(host, /Install Jump Drive,/).click();
   });
   expect(byTestId(host, 'install-status').textContent).toBe(
-    "Can't install. Not enough Materials: it costs 100 and you have 25, 75 short.",
+    "Can't install. Not enough Materials: it costs 45 and you have 25, 20 short.",
   );
 });
