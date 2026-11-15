@@ -101,6 +101,14 @@
       "file": "sprites/fx_dust.png"
     },
     {
+      "key": "fx_flare",
+      "file": "sprites/fx_flare.png"
+    },
+    {
+      "key": "fx_flash",
+      "file": "sprites/fx_flash.png"
+    },
+    {
       "key": "fx_smoke",
       "file": "sprites/fx_smoke.png"
     },
@@ -158,6 +166,31 @@
       "key": "fx_thruster",
       "image": "sprites/fx_thruster.png",
       "data": "sprites/fx_thruster.json"
+    },
+    {
+      "key": "fx_explosion",
+      "image": "sprites/fx_explosion.png",
+      "data": "sprites/fx_explosion.json"
+    },
+    {
+      "key": "fx_flame",
+      "image": "sprites/fx_flame.png",
+      "data": "sprites/fx_flame.json"
+    },
+    {
+      "key": "fx_plume",
+      "image": "sprites/fx_plume.png",
+      "data": "sprites/fx_plume.json"
+    },
+    {
+      "key": "fx_vent",
+      "image": "sprites/fx_vent.png",
+      "data": "sprites/fx_vent.json"
+    },
+    {
+      "key": "fx_debris",
+      "image": "sprites/fx_debris.png",
+      "data": "sprites/fx_debris.json"
     }
   ],
   "audio": []
