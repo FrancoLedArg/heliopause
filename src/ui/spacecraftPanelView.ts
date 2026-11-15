@@ -41,6 +41,7 @@ const KIND_NAMES: Readonly<Record<ComponentKind, string>> = {
   drill: 'Drill',
   radar: 'Radar',
   'jump-drive': 'Jump Drive',
+  instrument: 'Instrument',
 };
 
 /** A Component's name without its level: "Engine", "Fuel Tank", "Drill". */
@@ -51,7 +52,9 @@ export function componentName(id: ComponentId): string {
 /** A Component with its level, as a short title: "Fuel Tank 1". The Jump Drive has no levels. */
 export function componentTitle(id: ComponentId): string {
   const { kind, level } = COMPONENTS[id];
-  return kind === 'jump-drive' ? componentName(id) : `${componentName(id)} ${String(level)}`;
+  return kind === 'jump-drive' || kind === 'instrument'
+    ? componentName(id)
+    : `${componentName(id)} ${String(level)}`;
 }
 
 /**
@@ -91,6 +94,8 @@ export function describeEffect(chassisId: ChassisId, id: ComponentId): string {
       return `Yields ${String(effect.yieldMultiplier)}× from each Body.`;
     case 'jump-drive':
       return 'Escapes the Star System, at the Heliopause only.';
+    case 'instrument':
+      return COMPONENTS[id].explanation;
     case 'radar':
       return effect.surveys
         ? `Range ${formatDistanceAu(effect.range)}: finds and Surveys Bodies.`

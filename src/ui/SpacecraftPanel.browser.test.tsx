@@ -303,7 +303,7 @@ it('Escape cancels an open remove question even when focus has left the confirm 
   const closed: string[] = [];
   const host = await renderUi(
     <SpacecraftPanel
-      run={fullRun(['engine-1', 'fuel-tank-1', 'fuel-tank-1', null])}
+      run={fullRun(['engine-1', 'fuel-tank-1', 'fuel-tank-1', null, null, null])}
       onClose={() => {
         closed.push('closed');
       }}
@@ -325,7 +325,7 @@ it('Escape cancels an open remove question even when focus has left the confirm 
 
 it('clears the old outcome line when it asks about a removal', async () => {
   const host = await renderUi(
-    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', null])} />,
+    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', null, null, null])} />,
   );
   await tabTo(/Install Drill, level 2/);
   await userEvent.keyboard('{Enter}');
@@ -352,7 +352,7 @@ it('refuses the last Engine and the last Fuel Tank in words, without asking', as
 
 it('says how much Fuel is lost before the player confirms', async () => {
   const host = await renderUi(
-    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'fuel-tank-1', null])} />,
+    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'fuel-tank-1', null, null, null])} />,
   );
   press(slotRadio(host, /^Slot 3, Fuel Tank/));
   press(button(host, /^Remove$/));
@@ -387,7 +387,7 @@ it.each(CHASSIS_IDS)(
 
 it('keeps the Fuel-loss warning and its buttons inside the panel, with room to spare', async () => {
   const host = await renderUi(
-    <Harness initial={fullRun(['engine-1', 'fuel-tank-2', 'fuel-tank-2', null])} />,
+    <Harness initial={fullRun(['engine-1', 'fuel-tank-2', 'fuel-tank-2', null, null, null])} />,
   );
   press(slotRadio(host, /^Slot 3, Fuel Tank/));
   press(button(host, /^Remove$/));
@@ -447,7 +447,7 @@ it('previews a Fuel Tank dropping Δv, in words, when its Install button is focu
 
 it('previews the removal of the Component in the chosen Slot, and says why when it cannot be removed', async () => {
   const host = await renderUi(
-    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', null])} />,
+    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', null, null, null])} />,
   );
   await focusSlot(/^Slot 3, Drill/);
   expect(previewText(host)).toContain('Remove Drill 1');
@@ -466,7 +466,14 @@ it.each(CHASSIS_IDS)(
   'keeps every preview inside its box, with room to spare (%s)',
   async (chassis) => {
     const base = startRun(2026, chassis);
-    const spacecraft = refit(base.spacecraft, ['engine-2', 'fuel-tank-2', 'fuel-tank-1', null]);
+    const spacecraft = refit(base.spacecraft, [
+      'engine-2',
+      'fuel-tank-2',
+      'fuel-tank-1',
+      null,
+      null,
+      null,
+    ]);
     const run: Run = { ...base, spacecraft: { ...spacecraft, fuelMass: spacecraft.fuelCapacity } };
     const host = await renderUi(<Harness initial={run} />);
     const panel = host.querySelector<HTMLElement>('.spacecraft-panel')?.getBoundingClientRect();
@@ -516,7 +523,7 @@ it.each(CHASSIS_IDS)(
 
 it('shows no figures, only a sentence, when every Slot is full and a catalogue entry is focused', async () => {
   const host = await renderUi(
-    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', 'drill-1'])} />,
+    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', 'drill-1', null, null])} />,
   );
   await tabTo(/Install Engine, level 2/);
   expect(previewText(host)).toContain('Every Slot is full');
@@ -524,7 +531,7 @@ it('shows no figures, only a sentence, when every Slot is full and a catalogue e
 
 it('keeps the removal preview while the remove question is open, even when the catalogue is focused', async () => {
   const host = await renderUi(
-    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', null])} />,
+    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', null, null, null])} />,
   );
   await focusSlot(/^Slot 3, Drill/);
   await userEvent.keyboard('{Tab}{Enter}');
@@ -608,7 +615,7 @@ function callouts(host: HTMLElement): HTMLElement[] {
 }
 
 it('draws the Spacecraft with one callout per Slot, and names it in words', async () => {
-  const run = fullRun(['engine-1', 'fuel-tank-1', 'drill-1', null]);
+  const run = fullRun(['engine-1', 'fuel-tank-1', 'drill-1', null, null, null]);
   const host = await renderUi(<Harness initial={run} />);
   const picture = host.querySelector<HTMLElement>('[role="img"][data-testid="spacecraft-picture"]');
   expect(picture?.getAttribute('aria-label')).toBe('Hauler: Engine 1, Fuel Tank 1, Drill 1');
@@ -625,7 +632,7 @@ it('draws the Spacecraft with one callout per Slot, and names it in words', asyn
       (slot) =>
         slot.querySelector('[data-component-icon]')?.getAttribute('data-component-icon') ?? null,
     ),
-  ).toEqual(['engine', 'fuel-tank', 'drill', null]);
+  ).toEqual(['engine', 'fuel-tank', 'drill', null, null, null]);
   expect(slots.map((slot) => slot.dataset['state'])).toEqual([
     'fitted',
     'fitted',

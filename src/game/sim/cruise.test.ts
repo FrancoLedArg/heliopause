@@ -15,6 +15,8 @@ const fullSpacecraft = refit(newSpacecraft('scout'), [
   'fuel-tank-1',
   'drill-1',
   'engine-2',
+  null,
+  null,
 ]);
 
 describe('the Cruise event schedule', () => {
@@ -107,7 +109,14 @@ describe('the Cruise event schedule', () => {
   });
 
   it('the Jump Drive is never a target', () => {
-    const withJump = refit(newSpacecraft('scout'), ['engine-1', 'fuel-tank-1', 'jump-drive', null]);
+    const withJump = refit(newSpacecraft('scout'), [
+      'engine-1',
+      'fuel-tank-1',
+      'jump-drive',
+      null,
+      null,
+      null,
+    ]);
     for (const seed of SEEDS) {
       for (const event of cruiseSchedule(seed, 9, 2, withJump, ALL)) {
         expect(event.slot).not.toBe(2);

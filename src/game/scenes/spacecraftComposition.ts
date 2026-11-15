@@ -115,6 +115,8 @@ export function composeSpacecraft(
   slots.forEach((componentId, slot) => {
     if (componentId === null) return;
     const { kind } = COMPONENTS[componentId];
+    // An Instrument has no art on the Spacecraft yet (asset request #324): its Slot callout shows it.
+    if (kind === 'instrument') return;
     const mount = used.get(kind) ?? 0;
     used.set(kind, mount + 1);
     const art = data.components[componentId]?.[mount];

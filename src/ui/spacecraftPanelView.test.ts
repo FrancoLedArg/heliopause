@@ -58,7 +58,7 @@ describe('a Component’s effect is shown as the Chassis scales it', () => {
         ...run,
         spacecraft: {
           ...run.spacecraft,
-          ...refit(run.spacecraft, ['engine-1', 'fuel-tank-1', id, null]),
+          ...refit(run.spacecraft, ['engine-1', 'fuel-tank-1', id, null, null, null]),
           fuelCapacity: kilograms(1_000_000),
           fuelMass: kilograms(0),
         },
@@ -107,7 +107,7 @@ describe('a refusal says why in words', () => {
 });
 
 describe('which Slot an install goes into', () => {
-  const slots: readonly Slot[] = ['engine-1', null, 'fuel-tank-1', null];
+  const slots: readonly Slot[] = ['engine-1', null, 'fuel-tank-1', null, null, null];
 
   it('is the selected Slot when it is empty', () => {
     expect(installTarget(slots, 3)).toBe(3);
@@ -118,7 +118,9 @@ describe('which Slot an install goes into', () => {
   });
 
   it('is nothing when every Slot is full', () => {
-    expect(installTarget(['engine-1', 'engine-1', 'drill-1', 'drill-1'], 0)).toBeUndefined();
+    expect(
+      installTarget(['engine-1', 'engine-1', 'drill-1', 'drill-1', 'drill-1', 'drill-1'], 0),
+    ).toBeUndefined();
   });
 });
 
@@ -203,10 +205,13 @@ describe('the preview before you pay', () => {
     const drill = describePreview(scout, { kind: 'install', component: 'drill-1' });
     expect(drill?.note).toBe('More mass, so Δv drops.');
     expect(drill?.more).toEqual([COMPONENTS['drill-1'].explanation]);
-    const removal = describePreview(refit(scout, ['engine-1', 'fuel-tank-1', 'drill-1', null]), {
-      kind: 'remove',
-      slot: 2,
-    });
+    const removal = describePreview(
+      refit(scout, ['engine-1', 'fuel-tank-1', 'drill-1', null, null, null]),
+      {
+        kind: 'remove',
+        slot: 2,
+      },
+    );
     expect(removal?.heading).toBe('Remove Drill 1');
     expect(removal?.note).toBe('Less mass, so Δv rises.');
   });
@@ -217,7 +222,14 @@ describe('the preview before you pay', () => {
   });
 
   it('has nothing to preview with no empty Slot to install into', () => {
-    const full = refit(scout, ['engine-1', 'fuel-tank-1', 'drill-1', 'drill-1']);
+    const full = refit(scout, [
+      'engine-1',
+      'fuel-tank-1',
+      'drill-1',
+      'drill-1',
+      'drill-1',
+      'drill-1',
+    ]);
     expect(describePreview(full, { kind: 'install', component: 'drill-1' })).toBeUndefined();
   });
 });
@@ -264,8 +276,8 @@ describe('the stat bars', () => {
 
   it('never overflow, with the heaviest Components and the largest Fuel Tanks fitted', () => {
     for (const slots of [
-      ['engine-2', 'fuel-tank-2', 'fuel-tank-2', 'fuel-tank-2'],
-      ['engine-2', 'fuel-tank-2', 'jump-drive', 'drill-2'],
+      ['engine-2', 'fuel-tank-2', 'fuel-tank-2', 'fuel-tank-2', null, null],
+      ['engine-2', 'fuel-tank-2', 'jump-drive', 'drill-2', null, null],
     ] as const) {
       const full = refit(scout, slots);
       for (const bar of statBars({ ...full, fuelMass: full.fuelCapacity })) {
@@ -330,12 +342,21 @@ describe('the drawn Spacecraft’s text alternative', () => {
       'fuel-tank-1',
       'fuel-tank-1',
       'drill-2',
+      null,
+      null,
     ]);
     expect(describeSpacecraft(hauler)).toBe('Hauler: Engine 1, Fuel Tank 1 ×2, Drill 2');
   });
 
   it('skips empty Slots and names the Jump Drive without a level', () => {
-    const lancer = refit(newSpacecraft('lancer'), ['engine-2', null, 'fuel-tank-1', 'jump-drive']);
+    const lancer = refit(newSpacecraft('lancer'), [
+      'engine-2',
+      null,
+      'fuel-tank-1',
+      'jump-drive',
+      null,
+      null,
+    ]);
     expect(describeSpacecraft(lancer)).toBe('Lancer: Engine 2, Fuel Tank 1, Jump Drive');
   });
 });

@@ -280,6 +280,7 @@ const PART_NAMES: Readonly<Record<ComponentKind, string>> = {
   drill: 'Drill',
   'jump-drive': 'Jump Drive',
   radar: 'Radar',
+  instrument: 'Instrument',
 };
 
 /** What the Cruise did, as icon-row entries: each event that Damaged a part, then the Fuel lost. */

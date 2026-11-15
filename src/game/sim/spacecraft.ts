@@ -21,7 +21,7 @@ import {
 export type Slot = ComponentId | null;
 
 /** How many Slots every Spacecraft has. */
-export const SLOT_COUNT = 4;
+export const SLOT_COUNT = 6;
 
 declare const loadout: unique symbol;
 
@@ -32,8 +32,8 @@ declare const loadout: unique symbol;
  */
 export type Loadout = readonly Slot[] & { readonly [loadout]: true };
 
-/** What a New Run's Spacecraft carries: a level-1 Engine and a level-1 Fuel Tank, 2 Slots empty. */
-export const STARTING_SLOTS: readonly Slot[] = ['engine-1', 'fuel-tank-1', null, null];
+/** What a New Run's Spacecraft carries: a level-1 Engine and a level-1 Fuel Tank, 4 Slots empty. */
+export const STARTING_SLOTS: readonly Slot[] = ['engine-1', 'fuel-tank-1', null, null, null, null];
 
 /**
  * A Component hit by a Cruise event (#210): it works worse until Repaired. `repair` is the Repair's
@@ -164,6 +164,7 @@ export type ComponentEffect =
   | { readonly kind: 'fuel-tank'; readonly fuelCapacity: Kilograms }
   | { readonly kind: 'drill'; readonly yieldMultiplier: number }
   | { readonly kind: 'jump-drive' }
+  | { readonly kind: 'instrument' }
   | { readonly kind: 'radar'; readonly range: AstronomicalUnits; readonly surveys: boolean };
 
 /**
@@ -186,6 +187,8 @@ export function componentEffect(chassisId: ChassisId, id: ComponentId): Componen
       return { kind: 'drill', yieldMultiplier: component.yieldMultiplier };
     case 'jump-drive':
       return { kind: 'jump-drive' };
+    case 'instrument':
+      return { kind: 'instrument' };
     case 'radar':
       return { kind: 'radar', range: component.range, surveys: component.surveys };
   }
@@ -281,6 +284,7 @@ function figures(
         break;
       case 'drill':
       case 'jump-drive':
+      case 'instrument':
       case 'radar':
         break;
     }
@@ -310,6 +314,7 @@ function loadoutTotals(slots: readonly Slot[]) {
         break;
       case 'drill':
       case 'jump-drive':
+      case 'instrument':
       case 'radar':
         break;
     }

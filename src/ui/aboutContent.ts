@@ -295,6 +295,7 @@ export const KIND_NAMES: Record<ComponentKind, string> = {
   drill: 'Drill',
   radar: 'Radar',
   'jump-drive': 'Jump Drive',
+  instrument: 'Instrument',
 };
 
 /** The kinds the catalogue holds, as the player reads them, in catalogue order. */

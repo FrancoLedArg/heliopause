@@ -58,7 +58,14 @@ function removeSlots(from: Run, slots: readonly number[]): Run {
 
 /** The same Run with these Components in its Slots and no Materials, its Fuel kept up to capacity. */
 function fittedWith(from: Run, slots: readonly Slot[]): Run {
-  return { ...from, spacecraft: refit(from.spacecraft, slots), materials: materials(0) };
+  return {
+    ...from,
+    spacecraft: refit(from.spacecraft, [
+      ...slots,
+      ...Array.from({ length: 6 - slots.length }, () => null),
+    ]),
+    materials: materials(0),
+  };
 }
 
 /**
@@ -125,8 +132,8 @@ function bisect(hops: (deltaV: number) => boolean): number {
   return high;
 }
 
-const LIGHTEST: readonly Slot[] = ['engine-1', 'fuel-tank-1', null, null];
-const HEAVY: readonly Slot[] = ['engine-1', 'fuel-tank-1', 'drill-2', 'drill-1'];
+const LIGHTEST: readonly Slot[] = ['engine-1', 'fuel-tank-1', null, null, null, null];
+const HEAVY: readonly Slot[] = ['engine-1', 'fuel-tank-1', 'drill-2', 'drill-1', null, null];
 const base = fittedWith(onSmallPlanet(startRun(2026, 'scout')), LIGHTEST);
 const need = threshold(base);
 
