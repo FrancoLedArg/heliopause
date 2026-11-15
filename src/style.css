@@ -993,3 +993,8 @@ body {
   line-height: 11px;
   color: var(--gm6);
 }
+
+/* Depleted ends the kind row, in amber (and in words, so not by colour alone). */
+.landed-plate__depleted {
+  color: var(--am3);
+}

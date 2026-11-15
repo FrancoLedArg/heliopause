@@ -129,10 +129,15 @@ test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, the
   expect(moonHop.flight.fuelRemaining).toBeLessThan(run.spacecraft.fuelMass);
   expect(moonHop.run.spacecraft.fuelMass).toBeGreaterThan(moonHop.flight.fuelRemaining);
   await testInfo.attach('arrived', { body: await page.screenshot(), contentType: 'image/png' });
+  // The Moon gave up its Fuel, so the plate says it is Depleted.
+  await expect(page.getByTestId('landed-depleted')).toHaveText('· Depleted');
 
-  // The next Hop can be planned from the Moon.
+  // The next Hop can be planned from the Moon, and the chart lists it as Depleted.
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
+  await expect(
+    page.getByRole('option', { name: new RegExp(`^${homeMoon.name}, .*Depleted, yields nothing`) }),
+  ).toBeAttached();
   await target(page, home.name);
   await expect(page.getByTestId('plan-success')).toContainText('%');
   expect(errors).toEqual([]);
