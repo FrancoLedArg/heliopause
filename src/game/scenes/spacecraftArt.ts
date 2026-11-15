@@ -201,6 +201,12 @@ function drawPlate(
     case 'jump-drive':
       g.lineStyle(1, paletteNumber('am3')).strokeCircle(cx, cy, r);
       break;
+    case 'instrument':
+      // A lens: a ring with a dot.
+      g.lineStyle(1, paletteNumber('am3'))
+        .strokeCircle(cx, cy, r)
+        .fillRect(cx - 0.5, cy - 0.5, 1, 1);
+      break;
     case 'radar':
       // A dish: a half circle on a stalk.
       g.lineStyle(1, paletteNumber('am3')).beginPath();

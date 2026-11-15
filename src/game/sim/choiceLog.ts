@@ -32,7 +32,8 @@ export function recordChoice(run: Run, choice: Choice): Run {
  * field, or a field's meaning changes (for instance, Slots counted differently), so a log stored
  * before is refused rather than misread. Adding a kind of Choice (as #210 added `repair` and `rush`)
  * leaves the existing ones' shape alone, so it is not a new version either. A change to the game's rules is not a new version: the
- * stored record's build says which rules a log was played under.
+ * stored record's build says which rules a log was played under. Raising the Slot count from 4 to 6 (#316) only
+ * adds Slots 4 and 5 after the existing ones, so a Slot index keeps its meaning and the version stays.
  */
 export const CHOICE_LOG_VERSION = 1;
 

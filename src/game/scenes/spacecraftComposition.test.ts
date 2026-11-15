@@ -7,7 +7,7 @@ import {
   type SpacecraftComposition,
 } from './spacecraftComposition.ts';
 
-const START: readonly Slot[] = ['engine-1', 'fuel-tank-1', null, null];
+const START: readonly Slot[] = ['engine-1', 'fuel-tank-1', null, null, null, null];
 const FRAMES: readonly ShipFrame[] = ['landed', 'landed_lit', 'flight'];
 /** The most Slots any Chassis has (spec #230: the Hauler's 6). */
 const MOST_SLOTS = 6;
@@ -127,7 +127,7 @@ describe.each(CHASSIS_IDS)('the composed %s', (chassisId) => {
   it('draws two Fuel Tanks as two pods at two mount points', () => {
     const drawn = composeSpacecraft(
       chassisId,
-      ['engine-1', 'fuel-tank-1', 'fuel-tank-1', 'drill-2'],
+      ['engine-1', 'fuel-tank-1', 'fuel-tank-1', 'drill-2', null, null],
       'landed',
     );
     const pods = [...drawn.components.values()].filter((p) => p.kind === 'fuel-tank');
@@ -163,7 +163,11 @@ describe.each(CHASSIS_IDS)('the composed %s', (chassisId) => {
   });
 
   it('lists the lamps of the Chassis art and of every Component art', () => {
-    const bare = composeSpacecraft(chassisId, ['engine-1', null, null, null], 'landed').lamps;
+    const bare = composeSpacecraft(
+      chassisId,
+      ['engine-1', null, null, null, null, null],
+      'landed',
+    ).lamps;
     const withTank = composeSpacecraft(chassisId, START, 'landed').lamps;
     expect(bare.length).toBeGreaterThan(0);
     // The Fuel Tank pod carries a lamp of its own.
@@ -190,11 +194,15 @@ describe.each([
   });
 
   it('change with the Engines installed: a level-2 Engine fires one bell, a second Engine adds its own', () => {
-    const bell = composeSpacecraft(chassisId, ['engine-2', 'fuel-tank-1', null, null], 'landed');
+    const bell = composeSpacecraft(
+      chassisId,
+      ['engine-2', 'fuel-tank-1', null, null, null, null],
+      'landed',
+    );
     expect(exits(bell, 'main')).toEqual([{ x: 0, y: -16 }]);
     const two = composeSpacecraft(
       chassisId,
-      ['engine-1', 'fuel-tank-1', 'engine-1', null],
+      ['engine-1', 'fuel-tank-1', 'engine-1', null, null, null],
       'landed',
     );
     expect(exits(two, 'main').length).toBe(main.length + 1);

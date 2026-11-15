@@ -14,7 +14,7 @@ import {
 } from './index.ts';
 
 describe('the Component catalogue', () => {
-  it('holds an Engine, a Fuel Tank, a Drill and a Radar, each at levels 1 and 2, and the Jump Drive', () => {
+  it('holds an Engine, a Fuel Tank, a Drill and a Radar, each at levels 1 and 2, the Jump Drive and three Instruments', () => {
     const kindsAndLevels = Object.values(COMPONENTS).map((c) => `${c.kind} ${String(c.level)}`);
     expect(kindsAndLevels.sort()).toEqual([
       'drill 1',
@@ -23,6 +23,9 @@ describe('the Component catalogue', () => {
       'engine 2',
       'fuel-tank 1',
       'fuel-tank 2',
+      'instrument 1',
+      'instrument 1',
+      'instrument 1',
       'jump-drive 1',
       'radar 1',
       'radar 2',
@@ -88,13 +91,15 @@ function effectOf(component: Component): number {
       return 1;
     case 'radar':
       return component.range;
+    case 'instrument':
+      return component.mass;
   }
 }
 
 describe('Slots', () => {
-  it('a new Spacecraft has 4 Slots: a level-1 Engine, a level-1 Fuel Tank and 2 empty', () => {
+  it('a new Spacecraft has 6 Slots: a level-1 Engine, a level-1 Fuel Tank and 4 empty', () => {
     for (const id of CHASSIS_IDS) {
-      expect(newSpacecraft(id).slots).toEqual(['engine-1', 'fuel-tank-1', null, null]);
+      expect(newSpacecraft(id).slots).toEqual(['engine-1', 'fuel-tank-1', null, null, null, null]);
     }
   });
 
@@ -116,18 +121,33 @@ describe('what the installed Components make of the Spacecraft', () => {
   it('Fuel capacity is the sum of the Fuel Tanks', () => {
     for (const id of CHASSIS_IDS) {
       const start = newSpacecraft(id);
-      const levelOne = refit(start, ['engine-1', 'fuel-tank-1', null, null]).fuelCapacity;
-      const levelTwo = refit(start, ['engine-1', 'fuel-tank-2', null, null]).fuelCapacity;
-      expect(refit(start, ['engine-1', 'fuel-tank-1', 'fuel-tank-1', null]).fuelCapacity).toBe(
-        levelOne * 2,
-      );
-      expect(refit(start, ['fuel-tank-2', 'engine-1', 'fuel-tank-1', null]).fuelCapacity).toBe(
-        levelOne + levelTwo,
-      );
+      const levelOne = refit(start, [
+        'engine-1',
+        'fuel-tank-1',
+        null,
+        null,
+        null,
+        null,
+      ]).fuelCapacity;
+      const levelTwo = refit(start, [
+        'engine-1',
+        'fuel-tank-2',
+        null,
+        null,
+        null,
+        null,
+      ]).fuelCapacity;
+      expect(
+        refit(start, ['engine-1', 'fuel-tank-1', 'fuel-tank-1', null, null, null]).fuelCapacity,
+      ).toBe(levelOne * 2);
+      expect(
+        refit(start, ['fuel-tank-2', 'engine-1', 'fuel-tank-1', null, null, null]).fuelCapacity,
+      ).toBe(levelOne + levelTwo);
     }
     // Worked example: the 36 t level-1 Tank every Chassis starts with (#298), twice.
     expect(
-      refit(newSpacecraft('scout'), ['engine-1', 'fuel-tank-1', 'fuel-tank-1', null]).fuelCapacity,
+      refit(newSpacecraft('scout'), ['engine-1', 'fuel-tank-1', 'fuel-tank-1', null, null, null])
+        .fuelCapacity,
     ).toBe(72_000);
   });
 
@@ -136,7 +156,7 @@ describe('what the installed Components make of the Spacecraft', () => {
       for (const share of [1, 0.5, 0.05]) {
         const start = newSpacecraft(id);
         const levelOne = { ...start, fuelMass: kilograms(start.fuelCapacity * share) };
-        const levelTwo = refit(levelOne, ['engine-2', 'fuel-tank-1', null, null]);
+        const levelTwo = refit(levelOne, ['engine-2', 'fuel-tank-1', null, null, null, null]);
         expect(levelTwo.fuelMass).toBe(levelOne.fuelMass);
         expect(availableDeltaV(levelTwo)).toBeGreaterThan(availableDeltaV(levelOne));
       }
@@ -147,7 +167,7 @@ describe('what the installed Components make of the Spacecraft', () => {
     for (const id of CHASSIS_IDS) {
       const start = newSpacecraft(id);
       for (const tank of ['fuel-tank-1', 'fuel-tank-2'] as const) {
-        const withTank = refit(start, ['engine-1', 'fuel-tank-1', tank, null]);
+        const withTank = refit(start, ['engine-1', 'fuel-tank-1', tank, null, null, null]);
         expect(withTank.fuelMass).toBe(start.fuelMass);
         expect(availableDeltaV(withTank)).toBeLessThan(availableDeltaV(start));
       }
@@ -157,8 +177,8 @@ describe('what the installed Components make of the Spacecraft', () => {
   it('the best installed Engine sets the Isp', () => {
     for (const id of CHASSIS_IDS) {
       const start = newSpacecraft(id);
-      const levelTwo = refit(start, ['engine-2', 'fuel-tank-1', null, null]);
-      const both = refit(start, ['engine-1', 'fuel-tank-1', 'engine-2', null]);
+      const levelTwo = refit(start, ['engine-2', 'fuel-tank-1', null, null, null, null]);
+      const both = refit(start, ['engine-1', 'fuel-tank-1', 'engine-2', null, null, null]);
       expect(levelTwo.engineIsp).toBeGreaterThan(start.engineIsp);
       expect(both.engineIsp).toBe(levelTwo.engineIsp);
     }
@@ -167,11 +187,11 @@ describe('what the installed Components make of the Spacecraft', () => {
   it('dry mass is the Chassis plus every installed Component', () => {
     for (const id of CHASSIS_IDS) {
       const start = newSpacecraft(id);
-      const drilled = refit(start, ['engine-1', 'fuel-tank-1', 'drill-1', 'drill-2']);
+      const drilled = refit(start, ['engine-1', 'fuel-tank-1', 'drill-1', 'drill-2', null, null]);
       expect(drilled.dryMass).toBe(
         start.dryMass + COMPONENTS['drill-1'].mass + COMPONENTS['drill-2'].mass,
       );
-      const bare = refit(start, [null, null, null, null]);
+      const bare = refit(start, [null, null, null, null, null, null]);
       expect(bare.dryMass).toBe(
         start.dryMass - COMPONENTS['engine-1'].mass - COMPONENTS['fuel-tank-1'].mass,
       );
@@ -181,28 +201,28 @@ describe('what the installed Components make of the Spacecraft', () => {
 
   it('a Drill changes neither Fuel capacity nor Isp', () => {
     const start = newSpacecraft('lancer');
-    const drilled = refit(start, ['engine-1', 'fuel-tank-1', 'drill-2', null]);
+    const drilled = refit(start, ['engine-1', 'fuel-tank-1', 'drill-2', null, null, null]);
     expect(drilled.fuelCapacity).toBe(start.fuelCapacity);
     expect(drilled.engineIsp).toBe(start.engineIsp);
   });
 
   it('removing a Fuel Tank keeps only the Fuel the remaining Tanks can hold', () => {
     const start = newSpacecraft('hauler');
-    const twoTanks = refit(start, ['engine-1', 'fuel-tank-1', 'fuel-tank-2', null]);
+    const twoTanks = refit(start, ['engine-1', 'fuel-tank-1', 'fuel-tank-2', null, null, null]);
     expect(twoTanks.fuelMass).toBe(start.fuelMass);
     const full = { ...twoTanks, fuelMass: twoTanks.fuelCapacity };
-    const oneTank = refit(full, ['engine-1', null, 'fuel-tank-2', null]);
+    const oneTank = refit(full, ['engine-1', null, 'fuel-tank-2', null, null, null]);
     expect(oneTank.fuelMass).toBe(oneTank.fuelCapacity);
     expect(oneTank.fuelCapacity).toBeLessThan(full.fuelCapacity);
   });
 
   it('with no Engine installed the Spacecraft has no Δv', () => {
     const start = newSpacecraft('scout');
-    expect(availableDeltaV(refit(start, [null, 'fuel-tank-1', null, null]))).toBe(0);
+    expect(availableDeltaV(refit(start, [null, 'fuel-tank-1', null, null, null, null]))).toBe(0);
   });
 
   it('with no Engine installed, burning no Δv leaves the Fuel as it was', () => {
-    const noEngine = refit(newSpacecraft('scout'), [null, 'fuel-tank-1', null, null]);
+    const noEngine = refit(newSpacecraft('scout'), [null, 'fuel-tank-1', null, null, null, null]);
     expect(fuelAfterBurning(noEngine, metersPerSecond(0))).toBe(noEngine.fuelMass);
   });
 
@@ -214,9 +234,48 @@ describe('what the installed Components make of the Spacecraft', () => {
     expect(refit(start, start.slots.with(2, 'drill-1')).dryMass).toBeGreaterThan(start.dryMass);
   });
 
-  it('a Spacecraft always has exactly 4 Slots', () => {
+  it('a Spacecraft always has exactly 6 Slots', () => {
     const start = newSpacecraft('scout');
-    expect(() => refit(start, ['engine-1', 'fuel-tank-1'])).toThrow(/4 Slots/);
+    expect(() => refit(start, ['engine-1', 'fuel-tank-1'])).toThrow(/6 Slots/);
+  });
+});
+
+describe('Instruments', () => {
+  const ORDER = ['camera', 'chemistry-scanner', 'sample-lab'] as const;
+
+  it('are ordered Camera < Chemistry scanner < Sample lab in mass and cost', () => {
+    for (const [a, b] of [
+      [ORDER[0], ORDER[1]],
+      [ORDER[1], ORDER[2]],
+    ] as const) {
+      expect(COMPONENTS[a].mass).toBeLessThan(COMPONENTS[b].mass);
+      expect(COMPONENTS[a].cost).toBeLessThan(COMPONENTS[b].cost);
+    }
+  });
+
+  it("keep the Camera affordable from a Run's starting Materials, and the Sample lab near a level-2 Drill in mass", () => {
+    expect(COMPONENTS.camera.cost).toBeLessThanOrEqual(25);
+    expect(COMPONENTS['sample-lab'].mass).toBeGreaterThanOrEqual(COMPONENTS['drill-2'].mass * 0.75);
+    expect(COMPONENTS['sample-lab'].mass).toBeLessThanOrEqual(COMPONENTS['drill-2'].mass * 1.25);
+  });
+
+  it('say so in the catalogue when they are idle without a Drill, and give a real name', () => {
+    for (const id of ORDER) {
+      const entry = COMPONENTS[id];
+      expect(entry.realName.length).toBeGreaterThan(0);
+      expect(entry.provenance.kind).toBe('gameplay-tuning');
+    }
+    expect(COMPONENTS['sample-lab'].needsDrill).toBe(true);
+    expect(COMPONENTS['sample-lab'].explanation).toMatch(/idle without a Drill/);
+    expect(COMPONENTS.camera.needsDrill).toBe(false);
+  });
+
+  it('add their mass to the Spacecraft and change neither Fuel capacity nor Isp', () => {
+    const start = newSpacecraft('scout');
+    const fitted = refit(start, start.slots.with(2, 'sample-lab'));
+    expect(fitted.dryMass).toBe(start.dryMass + COMPONENTS['sample-lab'].mass);
+    expect(fitted.fuelCapacity).toBe(start.fuelCapacity);
+    expect(fitted.engineIsp).toBe(start.engineIsp);
   });
 });
 
@@ -243,14 +302,21 @@ describe('the Chassis', () => {
       const start = newSpacecraft(id);
       const tank = componentEffect(id, 'fuel-tank-2');
       if (tank.kind !== 'fuel-tank') throw new Error('fuel-tank-2 is a Fuel Tank');
-      const refitted = refit(start, ['engine-1', 'fuel-tank-1', 'fuel-tank-2', null]);
+      const refitted = refit(start, ['engine-1', 'fuel-tank-1', 'fuel-tank-2', null, null, null]);
       expect(refitted.fuelCapacity).toBe(start.fuelCapacity + tank.fuelCapacity);
     }
   });
 
   it("the best Engine's effect is the Spacecraft's Isp", () => {
     for (const id of CHASSIS_IDS) {
-      const refitted = refit(newSpacecraft(id), ['engine-1', 'fuel-tank-1', 'engine-2', null]);
+      const refitted = refit(newSpacecraft(id), [
+        'engine-1',
+        'fuel-tank-1',
+        'engine-2',
+        null,
+        null,
+        null,
+      ]);
       expect(componentEffect(id, 'engine-2')).toEqual({
         kind: 'engine',
         isp: refitted.engineIsp,
@@ -262,7 +328,7 @@ describe('the Chassis', () => {
   it('the same Component changes every Chassis alike', () => {
     const added = CHASSIS_IDS.map((id) => {
       const start = newSpacecraft(id);
-      const refitted = refit(start, ['engine-2', 'fuel-tank-1', 'fuel-tank-1', null]);
+      const refitted = refit(start, ['engine-2', 'fuel-tank-1', 'fuel-tank-1', null, null, null]);
       return {
         fuelCapacity: refitted.fuelCapacity - start.fuelCapacity,
         engineIsp: refitted.engineIsp - start.engineIsp,
@@ -274,7 +340,9 @@ describe('the Chassis', () => {
 
   it('a refit keeps the Chassis', () => {
     for (const id of CHASSIS_IDS) {
-      expect(refit(newSpacecraft(id), ['engine-2', 'fuel-tank-2', null, null]).chassisId).toBe(id);
+      expect(
+        refit(newSpacecraft(id), ['engine-2', 'fuel-tank-2', null, null, null, null]).chassisId,
+      ).toBe(id);
     }
   });
 });

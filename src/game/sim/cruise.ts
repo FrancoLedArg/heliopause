@@ -210,6 +210,8 @@ export function repairTicks(kind: ComponentKind): number {
       return CRUISE_TUNING.repairTicks[kind];
     case 'jump-drive':
       throw new Error('The Jump Drive is never Damaged');
+    case 'instrument':
+      throw new Error('An Instrument is never Damaged');
   }
 }
 

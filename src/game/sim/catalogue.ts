@@ -28,6 +28,9 @@ export const COMPONENT_IDS = [
   'radar-1',
   'radar-2',
   'jump-drive',
+  'camera',
+  'chemistry-scanner',
+  'sample-lab',
 ] as const;
 export type ComponentId = (typeof COMPONENT_IDS)[number];
 
@@ -99,7 +102,22 @@ export interface Radar extends ComponentEntry {
   readonly surveys: boolean;
 }
 
-export type Component = Engine | FuelTank | Drill | JumpDrive | Radar;
+/**
+ * An Instrument (#171): carried so a Landing can reveal a Discovery. It does nothing yet on its own
+ * (Discoveries come with their own tickets), but it is an ordinary Component for install, removal,
+ * Stranded and the Jump. No levels.
+ */
+export interface Instrument extends ComponentEntry {
+  readonly kind: 'instrument';
+  /** The plain name the player reads first. */
+  readonly name: string;
+  /** What a scientist calls it, shown small beside the plain name. */
+  readonly realName: string;
+  /** Idle until a Drill is aboard: the Sample lab analyses what the Drill brings up. */
+  readonly needsDrill: boolean;
+}
+
+export type Component = Engine | FuelTank | Drill | JumpDrive | Radar | Instrument;
 export type ComponentKind = Component['kind'];
 
 /**
@@ -247,6 +265,42 @@ export const COMPONENTS = {
       kind: 'sourced',
       source: `Spectrometers tell ice from rock from afar (OSIRIS-REx's OVIRS, Dawn's VIR): ${SENSORS} §1 and §2. Range, mass and cost are gameplay tuning (§5).`,
     },
+  },
+  camera: {
+    id: 'camera',
+    kind: 'instrument',
+    level: 1,
+    mass: kilograms(300),
+    cost: materials(15),
+    name: 'Camera',
+    realName: 'Imager',
+    needsDrill: false,
+    explanation: 'Photographs the ground, and spots what it shows.',
+    provenance: { kind: 'gameplay-tuning' },
+  },
+  'chemistry-scanner': {
+    id: 'chemistry-scanner',
+    kind: 'instrument',
+    level: 1,
+    mass: kilograms(700),
+    cost: materials(30),
+    name: 'Chemistry scanner',
+    realName: 'Spectrometer',
+    needsDrill: false,
+    explanation: 'Reads what the ground is made of.',
+    provenance: { kind: 'gameplay-tuning' },
+  },
+  'sample-lab': {
+    id: 'sample-lab',
+    kind: 'instrument',
+    level: 1,
+    mass: kilograms(1_500),
+    cost: materials(45),
+    name: 'Sample lab',
+    realName: 'Sample-analysis lab',
+    needsDrill: true,
+    explanation: 'Analyses Drill samples; idle without a Drill.',
+    provenance: { kind: 'gameplay-tuning' },
   },
 } as const satisfies { readonly [Id in ComponentId]: Component & { readonly id: Id } };
 

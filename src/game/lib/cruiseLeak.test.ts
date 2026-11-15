@@ -3,7 +3,14 @@ import { newSpacecraft, refit } from '../sim/index.ts';
 import { chooseCruiseLeak } from './cruiseLeak.ts';
 
 describe('the test-only Cruise leak from the URL', () => {
-  const spacecraft = refit(newSpacecraft('scout'), ['engine-1', null, 'fuel-tank-1', null]);
+  const spacecraft = refit(newSpacecraft('scout'), [
+    'engine-1',
+    null,
+    'fuel-tank-1',
+    null,
+    null,
+    null,
+  ]);
 
   it('puts one Fuel leak on the first Fuel Tank at the tick it names', () => {
     expect(chooseCruiseLeak('?seed=5&cruiseLeak=100', spacecraft)).toEqual([

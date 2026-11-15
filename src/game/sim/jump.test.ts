@@ -91,8 +91,22 @@ describe('the Jump', () => {
     const drilled = install({ ...start, materials: materials(1_000) }, 2, 'drill-1');
     if (drilled.kind !== 'installed') throw new Error('Expected an install');
     const { before, run: jumped } = escape(drilled.run);
-    expect(before.spacecraft.slots).toEqual(['engine-1', 'fuel-tank-1', 'drill-1', 'jump-drive']);
-    expect(jumped.spacecraft.slots).toEqual(['engine-1', 'fuel-tank-1', 'drill-1', null]);
+    expect(before.spacecraft.slots).toEqual([
+      'engine-1',
+      'fuel-tank-1',
+      'drill-1',
+      'jump-drive',
+      null,
+      null,
+    ]);
+    expect(jumped.spacecraft.slots).toEqual([
+      'engine-1',
+      'fuel-tank-1',
+      'drill-1',
+      null,
+      null,
+      null,
+    ]);
     expect(carriesJumpDrive(jumped.spacecraft)).toBe(false);
     // Burnt out, not removed: no Materials come back for it.
     expect(jumped.materials).toBe(before.materials + gathered(jumped).materials);
@@ -100,6 +114,13 @@ describe('the Jump', () => {
     expect(jumped.spacecraft.dryMass).toBeCloseTo(
       before.spacecraft.dryMass - COMPONENTS['jump-drive'].mass,
     );
+  });
+
+  it('the Jump keeps an Instrument', () => {
+    const fit = install({ ...start, materials: materials(1_000) }, 2, 'sample-lab');
+    if (fit.kind !== 'installed') throw new Error('Expected an install');
+    const { run: jumped } = escape(fit.run);
+    expect(jumped.spacecraft.slots[2]).toBe('sample-lab');
   });
 
   it('the Jump keeps Fuel and Materials, and adds what the new Starting Moon gives', () => {

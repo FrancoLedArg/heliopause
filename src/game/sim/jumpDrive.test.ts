@@ -32,10 +32,18 @@ describe('the Jump Drive', () => {
     const run = rich('scout');
     const cost = componentCost('jump-drive', 1);
     const after = installed(install(run, 2, 'jump-drive'));
-    expect(after.spacecraft.slots).toEqual(['engine-1', 'fuel-tank-1', 'jump-drive', null]);
+    expect(after.spacecraft.slots).toEqual([
+      'engine-1',
+      'fuel-tank-1',
+      'jump-drive',
+      null,
+      null,
+      null,
+    ]);
     expect(after.materials).toBe(500 - cost);
     // With every Slot full, its Slot is one nothing else can have.
-    const full = installed(install(after, 3, 'drill-1'));
+    let full = after;
+    for (const slot of [3, 4, 5]) full = installed(install(full, slot, 'drill-1'));
     expect(install(full, 0, 'drill-1')).toEqual({
       kind: 'refused',
       reason: { kind: 'no-empty-slot' },

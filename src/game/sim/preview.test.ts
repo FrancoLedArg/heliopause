@@ -11,6 +11,11 @@ describe('previewing a change', () => {
     expect(run).toEqual(before);
   });
 
+  it('an Instrument previews the lower Δv its mass costs', () => {
+    const result = preview(run.spacecraft, { kind: 'install', component: 'sample-lab' });
+    expect(result?.deltaV).toBeLessThan(availableDeltaV(run.spacecraft));
+  });
+
   it('a Fuel Tank added with little Fuel aboard previews lower Δv', () => {
     const little = { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 10) };
     const result = preview(little, { kind: 'install', component: 'fuel-tank-1' });
@@ -28,7 +33,14 @@ describe('previewing a change', () => {
 
   it('reads the same figures as a refit would give', () => {
     const result = preview(run.spacecraft, { kind: 'install', component: 'drill-1' });
-    const refitted = refit(run.spacecraft, ['engine-1', 'fuel-tank-1', 'drill-1', null]);
+    const refitted = refit(run.spacecraft, [
+      'engine-1',
+      'fuel-tank-1',
+      'drill-1',
+      null,
+      null,
+      null,
+    ]);
     expect(result).toEqual({
       dryMass: refitted.dryMass,
       fuelCapacity: refitted.fuelCapacity,
@@ -38,7 +50,14 @@ describe('previewing a change', () => {
   });
 
   it('previews an install into the Slot asked for, and none when every Slot is full', () => {
-    const full = refit(run.spacecraft, ['engine-1', 'fuel-tank-1', 'drill-1', 'drill-1']);
+    const full = refit(run.spacecraft, [
+      'engine-1',
+      'fuel-tank-1',
+      'drill-1',
+      'drill-1',
+      'drill-1',
+      'drill-1',
+    ]);
     expect(preview(full, { kind: 'install', component: 'drill-1' })).toBeUndefined();
     expect(preview(run.spacecraft, { kind: 'install', component: 'drill-1', slot: 3 })).toEqual(
       preview(run.spacecraft, { kind: 'install', component: 'drill-1' }),
@@ -46,7 +65,7 @@ describe('previewing a change', () => {
   });
 
   it('a removed Fuel Tank previews the lower Fuel capacity', () => {
-    const two = refit(run.spacecraft, ['engine-1', 'fuel-tank-1', 'fuel-tank-1', null]);
+    const two = refit(run.spacecraft, ['engine-1', 'fuel-tank-1', 'fuel-tank-1', null, null, null]);
     const result = preview(two, { kind: 'remove', slot: 2 });
     expect(result?.dryMass).toBeLessThan(two.dryMass);
     expect(result?.fuelCapacity).toBeLessThan(two.fuelCapacity);

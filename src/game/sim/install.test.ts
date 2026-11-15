@@ -18,6 +18,21 @@ function installed(result: ReturnType<typeof install>): Run {
   return result.run;
 }
 
+describe('installing an Instrument', () => {
+  it('a Camera is affordable from the starting Materials and fills the Slot', () => {
+    const after = installed(install(run, 2, 'camera'));
+    expect(after.spacecraft.slots[2]).toBe('camera');
+    expect(after.materials).toBe(STARTING_MATERIALS - COMPONENTS.camera.cost);
+    expect(after.spacecraft.dryMass).toBe(run.spacecraft.dryMass + COMPONENTS.camera.mass);
+  });
+
+  it('a heavier Instrument lowers Δv by its mass', () => {
+    const rich = { ...run, materials: materials(500) };
+    const lab = installed(install(rich, 2, 'sample-lab'));
+    expect(availableDeltaV(lab.spacecraft)).toBeLessThan(availableDeltaV(run.spacecraft));
+  });
+});
+
 describe('installing a Component', () => {
   it('installing a Component spends its Materials', () => {
     const after = installed(install(run, 2, 'fuel-tank-1'));
@@ -27,9 +42,16 @@ describe('installing a Component', () => {
 
   it('puts the Component in the Slot and refits the Spacecraft, so the Δv changes', () => {
     const after = installed(install(run, 2, 'fuel-tank-1'));
-    expect(after.spacecraft.slots).toEqual(['engine-1', 'fuel-tank-1', 'fuel-tank-1', null]);
+    expect(after.spacecraft.slots).toEqual([
+      'engine-1',
+      'fuel-tank-1',
+      'fuel-tank-1',
+      null,
+      null,
+      null,
+    ]);
     expect(after.spacecraft).toEqual(
-      refit(run.spacecraft, ['engine-1', 'fuel-tank-1', 'fuel-tank-1', null]),
+      refit(run.spacecraft, ['engine-1', 'fuel-tank-1', 'fuel-tank-1', null, null, null]),
     );
     // Fuel stays what it was: the new Tank is empty until the Spacecraft refuels.
     expect(after.spacecraft.fuelMass).toBe(run.spacecraft.fuelMass);
@@ -45,7 +67,8 @@ describe('installing a Component', () => {
 
   it('installing needs an empty Slot', () => {
     const rich = { ...run, materials: materials(500) };
-    const full = installed(install(installed(install(rich, 2, 'drill-1')), 3, 'drill-1'));
+    let full = rich;
+    for (const slot of [2, 3, 4, 5]) full = installed(install(full, slot, 'drill-1'));
     expect(install(full, 0, 'fuel-tank-1')).toEqual({
       kind: 'refused',
       reason: { kind: 'no-empty-slot' },
@@ -70,6 +93,6 @@ describe('installing a Component', () => {
   });
 
   it('throws for a Slot that does not exist', () => {
-    expect(() => install(run, 4, 'drill-1')).toThrow(RangeError);
+    expect(() => install(run, 6, 'drill-1')).toThrow(RangeError);
   });
 });

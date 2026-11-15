@@ -17,9 +17,18 @@ const fullSpacecraft = refit(newSpacecraft('scout'), [
   'fuel-tank-1',
   'drill-1',
   'engine-2',
+  null,
+  null,
 ]);
 
-const anyPart = refit(newSpacecraft('scout'), ['engine-1', 'fuel-tank-1', 'drill-1', 'radar-1']);
+const anyPart = refit(newSpacecraft('scout'), [
+  'engine-1',
+  'fuel-tank-1',
+  'drill-1',
+  'radar-1',
+  null,
+  null,
+]);
 
 describe('a flickering Radar', () => {
   it('a Damaged Radar reaches less far until it is Repaired', () => {
@@ -67,6 +76,24 @@ describe('the Cruise event schedule', () => {
       }
     }
     expect([...kinds].sort()).toEqual(['drill', 'engine', 'fuel-tank', 'radar']);
+  });
+
+  it('an Instrument is never hit by a Cruise event', () => {
+    const withCamera = refit(newSpacecraft('scout'), [
+      'engine-1',
+      'fuel-tank-1',
+      'camera',
+      'sample-lab',
+      null,
+      null,
+    ]);
+    for (const seed of SEEDS) {
+      for (const hop of [1, 5]) {
+        for (const event of cruiseSchedule(seed, hop, 1, withCamera, ALL)) {
+          expect([2, 3]).not.toContain(event.slot);
+        }
+      }
+    }
   });
 
   it('the first 3 Hops hit at least 2 different Component kinds in most Runs, never the same part back to back', () => {
@@ -202,7 +229,14 @@ describe('the Cruise event schedule', () => {
   });
 
   it('a solar flare strikes the Radar when one is aboard, and passes harmlessly without one', () => {
-    const withRadar = refit(newSpacecraft('scout'), ['engine-1', 'fuel-tank-1', 'radar-1', null]);
+    const withRadar = refit(newSpacecraft('scout'), [
+      'engine-1',
+      'fuel-tank-1',
+      'radar-1',
+      null,
+      null,
+      null,
+    ]);
     let hit = 0;
     for (const seed of SEEDS) {
       for (const event of cruiseSchedule(seed, 8, 2, withRadar, ['solar-flare'])) {
@@ -217,7 +251,14 @@ describe('the Cruise event schedule', () => {
   });
 
   it('the Jump Drive is never a target', () => {
-    const withJump = refit(newSpacecraft('scout'), ['engine-1', 'fuel-tank-1', 'jump-drive', null]);
+    const withJump = refit(newSpacecraft('scout'), [
+      'engine-1',
+      'fuel-tank-1',
+      'jump-drive',
+      null,
+      null,
+      null,
+    ]);
     for (const seed of SEEDS) {
       for (const event of cruiseSchedule(seed, 9, 2, withJump, ALL)) {
         expect(event.slot).not.toBe(2);
