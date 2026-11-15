@@ -35,8 +35,8 @@ test('New Run from the title screen lands on the Starting Moon, seeded from the 
   );
   await expect(page.getByTestId('landed-depleted')).toBeVisible();
   await expect(page.getByTestId('fuel')).toHaveText('21.0 t');
-  // Scout: 1230 s Isp, 4 t dry + 21 t Fuel: 1230 × 9.80665 × ln(25 / 4) is about 22.1 km/s.
-  await expect(page.getByTestId('delta-v')).toHaveText('22.1 km/s');
+  // Scout: 1600 s Isp (#247), 4 t dry + 21 t Fuel: 1600 × 9.80665 × ln(25 / 4) is about 28.8 km/s.
+  await expect(page.getByTestId('delta-v')).toHaveText('28.8 km/s');
   await expect(page.getByTestId('game-ui')).toHaveAttribute('data-run-seed', '123');
   await expect(page.getByText('AI-generated art and music')).toBeVisible();
   await expect(newRun).toBeHidden();
@@ -78,8 +78,8 @@ test('?chassis= in the URL skips the picker and lands on that Chassis', async ({
   await page.getByRole('button', { name: 'New Run' }).click();
 
   await expect(page.getByTestId('fuel')).toHaveText('36.0 t');
-  // Lancer: 1280 s Isp, 6 t dry + 36 t Fuel: 1280 × 9.80665 × ln(42 / 6) is about 24.4 km/s.
-  await expect(page.getByTestId('delta-v')).toHaveText('24.4 km/s');
+  // Lancer: 1665 s Isp (#247), 6 t dry + 36 t Fuel: 1665 × 9.80665 × ln(42 / 6) is about 31.8 km/s.
+  await expect(page.getByTestId('delta-v')).toHaveText('31.8 km/s');
   await testInfo.attach('landed-lancer', {
     body: await page.screenshot(),
     contentType: 'image/png',
@@ -120,8 +120,8 @@ test('the picker shows each Chassis and its numbers, and picking by keyboard sta
   await page.keyboard.press('Enter');
 
   await expect(page.getByTestId('fuel')).toHaveText('66.0 t');
-  // Hauler: 1210 s Isp, 15 t dry + 66 t Fuel: 1210 × 9.80665 × ln(81 / 15) is about 20.0 km/s.
-  await expect(page.getByTestId('delta-v')).toHaveText('20.0 km/s');
+  // Hauler: 1575 s Isp (#247), 15 t dry + 66 t Fuel: 1575 × 9.80665 × ln(81 / 15) is about 26.0 km/s.
+  await expect(page.getByTestId('delta-v')).toHaveText('26.0 km/s');
 });
 
 test('Back from the picker returns focus to New Run', async ({ page }) => {

@@ -127,15 +127,16 @@ describe('replay', () => {
   });
 
   it('a replayed Run ends the same way, with the same Score', () => {
-    // Lancer seed 9: Materials from its first target pay for a Jump Drive, but the Hop to the Heliopause
+    // Scout seed 24: Materials from the opening pay for a Jump Drive, but the Hop to the Heliopause
     // runs out of Fuel. Re-pinned for #189 (was seed 3): Runs open on a Starting Moon now.
-    const start = startRun(9, 'lancer');
+    // Re-pinned for #247 (was the Lancer on seed 9): the Chassis Isp rose 30%, so it reaches it now.
+    const start = startRun(24, 'scout');
     const mined = hopped(start, firstTarget(start).id);
     const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');
     const run = hopped(built, HELIOPAUSE);
     expect(runEnd(run)?.kind).toBe('fell-short');
 
-    const replayed = replay(9, 'lancer', run.choices);
+    const replayed = replay(24, 'scout', run.choices);
     expect(replayed).toMatchObject({
       kind: 'replayed',
       end: runEnd(run),
@@ -144,16 +145,17 @@ describe('replay', () => {
   });
 
   it('replay covers a Hop to the Heliopause, and the Jump into Star System 2', () => {
-    // Seed 35: its first target pays for the Jump Drive, and the Fuel left covers the Heliopause.
+    // Seed 10: the opening pays for the Jump Drive, and the Fuel left covers the Heliopause.
     // Re-pinned for #189 (was seed 8's planet-3-moon-2): Runs open on a Starting Moon now.
-    const start = startRun(35, 'scout');
+    // Re-pinned for #247 (was seed 35): the Chassis Isp rose 30%, which reshuffles generation.
+    const start = startRun(10, 'scout');
     const mined = hopped(start, firstTarget(start).id);
     const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');
     const run = hopped(built, HELIOPAUSE);
     expect(run.starSystemNumber).toBe(2);
     expect(run.status).toEqual({ kind: 'landed', bodyId: run.starSystem.startingMoonId });
 
-    const replayed = replay(35, 'scout', run.choices);
+    const replayed = replay(10, 'scout', run.choices);
     expect(replayed).toMatchObject({
       kind: 'replayed',
       end: undefined,
@@ -204,13 +206,14 @@ describe('replay', () => {
   });
 
   it('no choice follows the end of a Run', () => {
-    const start = startRun(9, 'lancer');
+    // Re-pinned for #247 (was the Lancer on seed 9): the Run above that falls short at the Heliopause.
+    const start = startRun(24, 'scout');
     const mined = hopped(start, firstTarget(start).id);
     const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');
     const ended = hopped(built, HELIOPAUSE);
     // Removing the Jump Drive is a choice a landed Run would take.
     const jumpDriveSlot = ended.spacecraft.slots.indexOf('jump-drive');
-    const result = replay(9, 'lancer', [...ended.choices, { kind: 'remove', slot: jumpDriveSlot }]);
+    const result = replay(24, 'scout', [...ended.choices, { kind: 'remove', slot: jumpDriveSlot }]);
     expect(result).toMatchObject({ kind: 'rejected', at: 3 });
     if (result.kind !== 'rejected') return;
     expect(result.why).toMatch(/not landed/);
@@ -300,7 +303,8 @@ describe('replay', () => {
 
   it('replay covers the Jump: a Run replayed into Star System 2 and on is identical', () => {
     // Escape System 1 as above, then play on in System 2: Hop to its first target.
-    const start = startRun(35, 'scout');
+    // Re-pinned for #247 (was seed 35): seed 10, as above.
+    const start = startRun(10, 'scout');
     const mined = hopped(start, firstTarget(start).id);
     const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');
     const system2 = hopped(built, HELIOPAUSE);
@@ -308,7 +312,7 @@ describe('replay', () => {
     expect(run.starSystemNumber).toBe(2);
     expect(run.status).toEqual({ kind: 'landed', bodyId: firstTarget(system2).id });
 
-    const replayed = replay(35, 'scout', run.choices);
+    const replayed = replay(10, 'scout', run.choices);
     if (replayed.kind !== 'replayed') throw new Error(`Expected a replay: ${replayed.kind}`);
     expect(replayed.run).toEqual(run);
     expect(replayed.score).toEqual({ starSystemsEscaped: 1, hopsFlown: 3 });

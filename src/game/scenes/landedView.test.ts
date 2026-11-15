@@ -174,8 +174,10 @@ describe('the Landed sky', () => {
         expect(apart, `seed ${seed}`).toBeGreaterThanOrEqual(half(moon) + half(planet));
         // Moons fan out sideways, so "beside" bounds the sideways distance: a Moon at the end of its
         // fan may also sit a pixel or two higher or lower (#188 seed 191: 48 px across, 1 px down).
+        // The fan reaches four Moon widths past the planet's edge, each with its 2 px gap: a crowded
+        // sky uses the far end (#247 seed 161: 54 px across, its Moons three widths out).
         expect(Math.abs(moon.x - planet.x), `seed ${seed}`).toBeLessThanOrEqual(
-          half(moon) + half(planet) + 2 * 2 * half(moon) + 6,
+          half(moon) + half(planet) + 2 + 4 * (2 * half(moon) + 2),
         );
       }
     }
