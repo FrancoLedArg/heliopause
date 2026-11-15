@@ -156,8 +156,11 @@ const TARGET_AHEAD = {
  * screen against the heading, `size` px across.
  */
 const PASSING = { first: 9000, every: 26_000, crossMs: 15_000, size: { min: 8, max: 22 } } as const;
-/** The sun's glint behind the Spacecraft (`fx_flare` once the manifest has it): where, how big, how it breathes. */
-const GLINT = { x: 150, y: 104, scale: 2, alpha: { min: 0.18, max: 0.4 }, ms: 5200 } as const;
+/**
+ * The star's light behind the Spacecraft, off the left edge: a soft warm glow that breathes slowly
+ * (where, how big across, how bright). Drawn in code; `fx_flare` is the solar flare's art (#210).
+ */
+const GLINT = { x: -20, y: 150, size: 260, alpha: { min: 0.1, max: 0.2 }, ms: 5200 } as const;
 /**
  * The attitude thrusters' puffs (`fx_vent`): one every `every` ms of Cruise, each `frameMs` per
  * frame of its four, from one of the spots (px from the base, standing, turned with the ship).
@@ -1076,9 +1079,9 @@ export class Flight extends Scene {
     );
     space.add(this.starLayers);
     this.glint = this.add
-      .image(GLINT.x, GLINT.y, hasAsset('fx_flare') ? 'fx_flare' : glowTexture(this))
-      .setScale(GLINT.scale)
-      .setTint(paletteNumber('am4'))
+      .image(GLINT.x, GLINT.y, glowTexture(this))
+      .setDisplaySize(GLINT.size, GLINT.size)
+      .setTint(paletteNumber('am3'))
       .setBlendMode(BlendModes.ADD);
     // Any Body of the Star System but the two of this Hop.
     const { plan } = this.flight;
