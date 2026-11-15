@@ -5,12 +5,24 @@
       "file": "sprites/body_gas_0.png"
     },
     {
+      "key": "body_gas_0_approach",
+      "file": "sprites/body_gas_0_approach.png"
+    },
+    {
       "key": "body_gas_1",
       "file": "sprites/body_gas_1.png"
     },
     {
+      "key": "body_gas_1_approach",
+      "file": "sprites/body_gas_1_approach.png"
+    },
+    {
       "key": "body_gas_2",
       "file": "sprites/body_gas_2.png"
+    },
+    {
+      "key": "body_gas_2_approach",
+      "file": "sprites/body_gas_2_approach.png"
     },
     {
       "key": "body_heliopause",
@@ -21,32 +33,64 @@
       "file": "sprites/body_moon_0.png"
     },
     {
+      "key": "body_moon_0_approach",
+      "file": "sprites/body_moon_0_approach.png"
+    },
+    {
       "key": "body_moon_1",
       "file": "sprites/body_moon_1.png"
+    },
+    {
+      "key": "body_moon_1_approach",
+      "file": "sprites/body_moon_1_approach.png"
     },
     {
       "key": "body_moon_2",
       "file": "sprites/body_moon_2.png"
     },
     {
+      "key": "body_moon_2_approach",
+      "file": "sprites/body_moon_2_approach.png"
+    },
+    {
       "key": "body_moon_3",
       "file": "sprites/body_moon_3.png"
+    },
+    {
+      "key": "body_moon_3_approach",
+      "file": "sprites/body_moon_3_approach.png"
     },
     {
       "key": "body_rocky_0",
       "file": "sprites/body_rocky_0.png"
     },
     {
+      "key": "body_rocky_0_approach",
+      "file": "sprites/body_rocky_0_approach.png"
+    },
+    {
       "key": "body_rocky_1",
       "file": "sprites/body_rocky_1.png"
+    },
+    {
+      "key": "body_rocky_1_approach",
+      "file": "sprites/body_rocky_1_approach.png"
     },
     {
       "key": "body_rocky_2",
       "file": "sprites/body_rocky_2.png"
     },
     {
+      "key": "body_rocky_2_approach",
+      "file": "sprites/body_rocky_2_approach.png"
+    },
+    {
       "key": "body_rocky_3",
       "file": "sprites/body_rocky_3.png"
+    },
+    {
+      "key": "body_rocky_3_approach",
+      "file": "sprites/body_rocky_3_approach.png"
     },
     {
       "key": "body_star",
