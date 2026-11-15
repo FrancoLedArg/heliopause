@@ -226,14 +226,14 @@ describe('what could still save a Run', () => {
   });
 
   it('a rescue the Materials cannot pay for in the order the changes must be made does not count', () => {
-    // Seed 12: back on Laquun the Run has 59 Materials. Swapping the level-1 Engine for the level-2
+    // Seed 12: back on Laquun the Run has 44 Materials. Swapping the level-1 Engine for the level-2
     // one would save it, but the new Engine (60) must be installed before the old one can be
     // removed for its refund, so the swap can never be paid for.
     const landed = backOnLaquun(0);
-    expect(landed.materials).toBe(59);
+    expect(landed.materials).toBe(44);
     expect(landed.status).toMatchObject({ kind: 'ended', end: { kind: 'stranded' } });
-    // With 1 more Material, 60 on Landing, the same Run can still be saved.
-    const richer = backOnLaquun(1);
+    // With 16 more Materials, 60 on Landing, the same Run can still be saved.
+    const richer = backOnLaquun(16);
     expect(richer.materials).toBe(60);
     expect(assessStranding(richer).kind).toBe('warning');
   });
@@ -328,7 +328,7 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('installing a Component that spends the Materials a rescue needed ends the Run as Stranded', () => {
-    const saveable = backOnLaquun(1);
+    const saveable = backOnLaquun(16);
     const spent = install(saveable, 2, 'drill-1');
     if (spent.kind !== 'installed') throw new Error('expected an install');
     expect(spent.run.status).toMatchObject(stranded);

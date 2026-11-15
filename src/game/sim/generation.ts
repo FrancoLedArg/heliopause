@@ -38,7 +38,10 @@ export function generateStarSystem(seed: Seed, level = 1): StarSystem {
   return system.seed === seed ? system : deepFreeze({ ...system, seed });
 }
 
-/** Every Burn at its estimate: the dispersion factor drawn is exactly 1. */
+/**
+ * Every Burn at its estimate: the dispersion factor drawn is exactly 1. Exported only for the sim's
+ * test fixtures (testing.ts), so `earlyDeadEnds` weighs a Hop exactly as the generator does.
+ */
 export const AT_ESTIMATE: Rng = { next: () => 0.5, int: (min) => min };
 
 /** Whether every Chassis's new Spacecraft opens `system` fairly (see `generateStarSystem`). */
@@ -72,7 +75,7 @@ function isDeadEnd(start: Run, body: Body): boolean {
   return flyHop(knowing, planned.plan, AT_ESTIMATE).run.status.kind === 'ended';
 }
 
-/** The same Run, with `body` Detected too. */
+/** The same Run, with `body` Detected too. Exported only for the sim's test fixtures (testing.ts). */
 export function withDetected(run: Run, body: Body): Run {
   if (run.knowledge.detected.includes(body.id)) return run;
   return {

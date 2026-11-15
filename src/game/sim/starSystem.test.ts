@@ -8,11 +8,13 @@ import {
   findBody,
   firstDetectedBody,
   generateStarSystem,
+  install,
   listBodies,
   marginShare,
   OPENING_TUNING,
   planHop,
   startingMoon,
+  startRun,
   type StarSystem,
 } from './index.ts';
 
@@ -237,6 +239,21 @@ describe('Icy and Rocky Bodies', () => {
 });
 
 describe('a fair opening (#96), with no early dead ends (#188)', () => {
+  it('a new Run cannot afford a Jump Drive before its first Hop', () => {
+    // Otherwise a Rocky opening could pay for one on the Starting Moon and Jump on Hop 1 (#189 review).
+    const affords: string[] = [];
+    for (let i = 0; i < 500; i++) {
+      const seed = i * 7919 + 1;
+      for (const chassis of CHASSIS_IDS) {
+        const run = startRun(seed, chassis);
+        const slot = run.spacecraft.slots.indexOf(null);
+        if (install(run, slot, 'jump-drive').kind === 'installed')
+          affords.push(`${seed} ${chassis}`);
+      }
+    }
+    expect(affords.slice(0, 10)).toEqual([]);
+  });
+
   it('the first Detected Body yields something and is In reach with comfortable Margin for every Chassis, and no 100% Hop from the Starting Moon strands any Chassis, at levels 1 to 3', () => {
     const found: string[] = [];
     for (const level of [1, 2, 3]) {
@@ -289,7 +306,7 @@ describe('Star System difficulty levels', { timeout: 60_000 }, () => {
       typeof value === 'number' ? Number(value.toPrecision(9)) : value,
     );
     // Re-pinned for #189: the Starting Moon replaces the Home Planet, and generation checks its opening.
-    expect(stringSeed(json)).toBe(2378838568);
+    expect(stringSeed(json)).toBe(75913036);
   });
 
   it('a higher difficulty level raises gravity', () => {

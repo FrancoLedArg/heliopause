@@ -30,13 +30,14 @@ import { firstTarget } from './testing.ts';
 const bodyId = (id: string): BodyId => id as BodyId;
 
 /**
- * A random player: up to 40 tries at installing, removing and Hopping, refused ones included, while
+ * A random player: up to 80 tries at installing, removing and Hopping, refused ones included, while
  * the Spacecraft is landed. It mostly Hops where the Success Chance is good, so Runs last a while,
- * gather Materials and sometimes build a Jump Drive and try the Heliopause.
+ * gather Materials and sometimes build a Jump Drive and try the Heliopause. 80, not 40, since #189:
+ * a Run opens short of a Jump Drive's cost, so it takes longer to gather for one.
  */
 function playRandomly(start: Run, rng: Rng): Run {
   let run = start;
-  for (let step = 0; step < 40 && run.status.kind === 'landed'; step++) {
+  for (let step = 0; step < 80 && run.status.kind === 'landed'; step++) {
     const roll = rng.next();
     if (roll < 0.35) {
       const componentId = COMPONENT_IDS[rng.int(0, COMPONENT_IDS.length - 1)] ?? 'engine-1';
@@ -126,15 +127,15 @@ describe('replay', () => {
   });
 
   it('a replayed Run ends the same way, with the same Score', () => {
-    // Lancer seed 4: Materials from the opening pay for a Jump Drive, but the Hop to the Heliopause
+    // Lancer seed 9: Materials from its first target pay for a Jump Drive, but the Hop to the Heliopause
     // runs out of Fuel. Re-pinned for #189 (was seed 3): Runs open on a Starting Moon now.
-    const start = startRun(4, 'lancer');
+    const start = startRun(9, 'lancer');
     const mined = hopped(start, firstTarget(start).id);
     const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');
     const run = hopped(built, HELIOPAUSE);
     expect(runEnd(run)?.kind).toBe('fell-short');
 
-    const replayed = replay(4, 'lancer', run.choices);
+    const replayed = replay(9, 'lancer', run.choices);
     expect(replayed).toMatchObject({
       kind: 'replayed',
       end: runEnd(run),
@@ -143,16 +144,16 @@ describe('replay', () => {
   });
 
   it('replay covers a Hop to the Heliopause, and the Jump into Star System 2', () => {
-    // Seed 7: the opening pays for the Jump Drive, and the Fuel left covers the Heliopause.
+    // Seed 35: its first target pays for the Jump Drive, and the Fuel left covers the Heliopause.
     // Re-pinned for #189 (was seed 8's planet-3-moon-2): Runs open on a Starting Moon now.
-    const start = startRun(7, 'scout');
+    const start = startRun(35, 'scout');
     const mined = hopped(start, firstTarget(start).id);
     const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');
     const run = hopped(built, HELIOPAUSE);
     expect(run.starSystemNumber).toBe(2);
     expect(run.status).toEqual({ kind: 'landed', bodyId: run.starSystem.startingMoonId });
 
-    const replayed = replay(7, 'scout', run.choices);
+    const replayed = replay(35, 'scout', run.choices);
     expect(replayed).toMatchObject({
       kind: 'replayed',
       end: undefined,
@@ -203,20 +204,20 @@ describe('replay', () => {
   });
 
   it('no choice follows the end of a Run', () => {
-    const start = startRun(4, 'lancer');
+    const start = startRun(9, 'lancer');
     const mined = hopped(start, firstTarget(start).id);
     const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');
     const ended = hopped(built, HELIOPAUSE);
     // Removing the Jump Drive is a choice a landed Run would take.
     const jumpDriveSlot = ended.spacecraft.slots.indexOf('jump-drive');
-    const result = replay(4, 'lancer', [...ended.choices, { kind: 'remove', slot: jumpDriveSlot }]);
+    const result = replay(9, 'lancer', [...ended.choices, { kind: 'remove', slot: jumpDriveSlot }]);
     expect(result).toMatchObject({ kind: 'rejected', at: 3 });
     if (result.kind !== 'rejected') return;
     expect(result.why).toMatch(/not landed/);
   });
 
   it('a stored choice log survives a trip through JSON and back into a replay', () => {
-    const start = startRun(7, 'scout');
+    const start = startRun(35, 'scout');
     const mined = hopped(start, firstTarget(start).id);
     const run = hopped(
       installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive'),
@@ -227,7 +228,7 @@ describe('replay', () => {
     const parsed = parseChoiceLog(JSON.parse(json));
     expect(parsed).toEqual(run.choices);
     if (!parsed) return;
-    expect(replay(7, 'scout', parsed)).toMatchObject({ kind: 'replayed', run });
+    expect(replay(35, 'scout', parsed)).toMatchObject({ kind: 'replayed', run });
   });
 
   it('stored data that is not a choice log of this version does not parse', () => {
@@ -285,7 +286,7 @@ describe('replay', () => {
 
   it('replay covers the Jump: a Run replayed into Star System 2 and on is identical', () => {
     // Escape System 1 as above, then play on in System 2: Hop to its first target.
-    const start = startRun(7, 'scout');
+    const start = startRun(35, 'scout');
     const mined = hopped(start, firstTarget(start).id);
     const built = installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive');
     const system2 = hopped(built, HELIOPAUSE);
@@ -293,7 +294,7 @@ describe('replay', () => {
     expect(run.starSystemNumber).toBe(2);
     expect(run.status).toEqual({ kind: 'landed', bodyId: firstTarget(system2).id });
 
-    const replayed = replay(7, 'scout', run.choices);
+    const replayed = replay(35, 'scout', run.choices);
     if (replayed.kind !== 'replayed') throw new Error(`Expected a replay: ${replayed.kind}`);
     expect(replayed.run).toEqual(run);
     expect(replayed.score).toEqual({ starSystemsEscaped: 1, hopsFlown: 3 });

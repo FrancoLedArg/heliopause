@@ -66,7 +66,8 @@ describe('the opening', () => {
       if (moon.composition === 'rocky') {
         rocky++;
         expect(run.startingYield).toEqual({ kind: 'materials', collected: moon.baseYield });
-        expect(run.materials).toBe(STARTING_MATERIALS + moon.baseYield);
+        // The Materials flow in up to a New Run's, or the yield when it is bigger (#189 review).
+        expect(run.materials).toBe(Math.max(STARTING_MATERIALS, moon.baseYield));
         expect(run.spacecraft.fuelMass).toBe(run.spacecraft.fuelCapacity);
       } else {
         icy++;
