@@ -1,7 +1,8 @@
 import { afterEach, expect, it } from 'vitest';
-import { listBodies, startRun, type Run } from '../game/sim/index.ts';
+import { CHASSIS_IDS, kilograms, listBodies, startRun, type Run } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { landing, SAVE_BY_REMOVING, saveByRefitting } from './landingFixtures.ts';
+import { SHIP_PLACEMENT, SHIP_SWEEP } from '../game/scenes/landedView.ts';
 import { LandedPanels } from './LandedPanels.tsx';
 
 afterEach(cleanUp);
@@ -191,3 +192,47 @@ it('the Landed plate shows the yield icon next to Icy or Rocky, struck through a
     cleanUp();
   }
 });
+
+it.each(CHASSIS_IDS)(
+  'shows the %s Fuel tank by the Spacecraft, matching the Fuel and clear of the panels',
+  async (chassis) => {
+    const start = startRun(123, chassis);
+    const run: Run = {
+      ...start,
+      spacecraft: { ...start.spacecraft, fuelMass: kilograms(start.spacecraft.fuelCapacity / 4) },
+    };
+    const host = await renderUi(
+      <LandedPanels
+        run={run}
+        chartOpen={false}
+        spacecraftOpen={false}
+        onOpenSpacecraft={() => undefined}
+      />,
+    );
+    const gauge = byTestId(host, 'spacecraft-fuel-gauge');
+    const fill = byTestId(host, 'spacecraft-fuel-gauge-fill');
+    expect(gauge.getAttribute('aria-valuenow')).toBe(String(Math.round(run.spacecraft.fuelMass)));
+    expect(fill.getBoundingClientRect().height / gauge.clientHeight).toBeCloseTo(0.25, 1);
+    // The top bar's bar agrees with it.
+    const bar = byTestId(host, 'fuel-bar-fill');
+    expect(Number(bar.dataset['share'])).toBe(Number(fill.dataset['share']));
+    // Beside the ship: standing on its base line, within a few pixels of its sweep, with the Fuel icon above.
+    const box = gauge.getBoundingClientRect();
+    expect(box.right).toBeLessThanOrEqual(SHIP_SWEEP.left);
+    expect(SHIP_SWEEP.left - box.right).toBeLessThanOrEqual(10);
+    expect(Math.abs(box.bottom - SHIP_PLACEMENT.baseY)).toBeLessThanOrEqual(1);
+    const icon = byTestId(host, 'spacecraft-fuel-icon').getBoundingClientRect();
+    expect(icon.bottom).toBeLessThanOrEqual(box.top);
+    expect(icon.top).toBeGreaterThanOrEqual(40);
+    for (const selector of ['.landed-spacecraft-button', '.landed-nav-button', '.landed-plate']) {
+      const other = host.querySelector<HTMLElement>(selector)?.getBoundingClientRect();
+      if (!other) throw new Error(selector);
+      const apart =
+        box.right <= other.left ||
+        other.right <= box.left ||
+        box.bottom <= other.top ||
+        other.bottom <= box.top;
+      expect(apart, selector).toBe(true);
+    }
+  },
+);

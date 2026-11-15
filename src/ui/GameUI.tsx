@@ -396,6 +396,7 @@ export function GameUI() {
             systemNumber={starSystemNumber(stranded.run)}
             systemName={stranded.run.starSystem.name}
             fuel={stranded.run.spacecraft.fuelMass}
+            fuelCapacity={stranded.run.spacecraft.fuelCapacity}
             deltaV={availableDeltaV(stranded.run.spacecraft)}
             materials={stranded.run.materials}
             dailyDay={stranded.recorded.dailyDay}
