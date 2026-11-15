@@ -96,6 +96,10 @@ _Avoid_: Module, part, upgrade, item
 A place on the Spacecraft that holds one Component; the Spacecraft has a fixed number of them.
 _Avoid_: Socket, bay, hardpoint
 
+**Mount point**:
+Where a Component's art attaches to the Chassis art on the drawn Spacecraft. A drawing term only; it has no effect on play.
+_Avoid_: Hardpoint, socket
+
 **Engine**:
 The Component that turns Fuel into Δv; a better Engine gets more Δv from the same Fuel.
 _Avoid_: Thruster, motor

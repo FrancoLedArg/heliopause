@@ -11,7 +11,8 @@ Light comes from the top-left; every sprite gets a 1px `void` outline, except th
 
 Usage:  python3 -I gen_sprites.py <out_dir> [preview_png [surfaces_preview_png [chassis_preview_png [chassis_art_json]]]]
 Needs Pillow and numpy. The Chassis ships are drawn by `gen_ships.py` beside this file;
-`chassis_art_json` is where the game's ship data (frame sizes, pivots, nozzle exits) goes
+`chassis_art_json` is where the game's ship data (frame boxes and pivots, and every piece's place,
+nozzle exits, lamps and anchors per mount point) goes
 (`src/game/assets/chassisArt.json`); run `pnpm exec prettier --write` on it and on the atlas
 JSON afterwards, as the repo's format check expects.
 """
@@ -788,17 +789,19 @@ def surface_preview(surfaces, ship, path):
 
 
 # ------------------------------------------------------------------ chassis
-# Chassis sprites (tickets #21, #135): the three interim upright ships from `gen_ships.py`
-# (a port of the shipwright mockup) plus the thruster plume.
+# Spacecraft sprites (tickets #21, #135, #232): the three interim upright ships from `gen_ships.py`
+# (a port of the shipwright mockup), split into Chassis art and Component art, plus the thruster plume.
 #
-#   chassis_<id>  frames landed, landed_lit (104x126 each, the ship's lowest row on the bottom row)
-#                 and flight (the ship turned toward the Transfer heading, its own size), side by side
+#   chassis_<id>  one atlas per Chassis: its Chassis art (`chassis.<frame>`) and every Component
+#                 art at every mount point (`<component id>.<mount>.<layer>.<frame>`), each in the
+#                 frames landed, landed_lit and flight, each cropped to its own box
 #   fx_thruster   48x24   three flicker frames (16x24), nozzle at the top centre,
 #                 plume pointing down; recolour or rotate at runtime
-#   chassis art data (JSON): frame sizes, base-centre pivots and nozzle exits, for the game
+#   chassis art data (JSON): every piece's place, nozzle exits, lamps and anchors, for the game
 
 CHASSIS_FRAME = (SHIPS.W, SHIPS.H)  # the standing frame; the flight frame has its own size
 CHASSIS_FEET_ROW = SHIPS.H - 1  # the lowest opaque row of a standing frame
+ATLAS_W = 512  # the Chassis atlases' width; their pieces are packed in shelves
 
 
 def _frame_spr(frame):
@@ -810,24 +813,88 @@ def _frame_spr(frame):
     return spr
 
 
+_SHIPS = {}
+
+
+def ships():
+    """`gen_ships.build_ships()`, drawn once per run."""
+    if not _SHIPS:
+        _SHIPS.update(SHIPS.build_ships())
+    return _SHIPS
+
+
+def pack(frames, width=ATLAS_W, pad=1):
+    """Shelf packing, tallest first (ties in drawing order): {name: (x, y, w, h)} and the sheet height."""
+    order = sorted(range(len(frames)), key=lambda i: (-frames[i][1].h, i))
+    rects, x, y, shelf = {}, 0, 0, 0
+    for i in order:
+        name, spr = frames[i]
+        if x + spr.w > width:
+            x, y, shelf = 0, y + shelf + pad, 0
+        rects[name] = (x, y, spr.w, spr.h)
+        x += spr.w + pad
+        shelf = max(shelf, spr.h)
+    return {name: rects[name] for name, _ in frames}, y + shelf
+
+
 def build_chassis():
-    """{'chassis_<id>': (sheet Spr, {frame name: (x, y, w, h)}), 'fx_thruster': ...}"""
+    """{'chassis_<id>': (sheet Spr, {frame name: (x, y, w, h)})}"""
     out = {}
-    for cid, ship in SHIPS.build_ships().items():
-        frames = [(name, _frame_spr(ship[name])) for name in ("landed", "landed_lit", "flight")]
-        sheet = Spr(sum(fr.w for _, fr in frames), max(fr.h for _, fr in frames))
-        rects = {}
-        x = 0
-        for name, fr in frames:
-            sheet.blit(fr, x, 0)
-            rects[name] = (x, 0, fr.w, fr.h)
-            x += fr.w
+    for cid, ship in ships().items():
+        frames = [(SHIPS.frame_name(p, f), _frame_spr(p.imgs[f])) for p in ship["pieces"] for f in SHIPS.FRAMES]
+        rects, height = pack(frames)
+        sheet = Spr(ATLAS_W, height)
+        for name, spr in frames:
+            sheet.blit(spr, rects[name][0], rects[name][1])
         out[f"chassis_{cid}"] = (sheet, rects)
     return out
 
 
+def _compact(obj, indent=0):
+    """JSON with every object of plain values on one line, as Prettier keeps it."""
+    pad = "  " * indent
+    if isinstance(obj, dict):
+        if all(not isinstance(v, (dict, list)) for v in obj.values()):
+            return "{ " + ", ".join(f"{json.dumps(k)}: {json.dumps(v)}" for k, v in obj.items()) + " }" if obj else "{}"
+        inner = ",\n".join(f"{pad}  {json.dumps(k)}: {_compact(v, indent + 1)}" for k, v in obj.items())
+        return "{\n" + inner + "\n" + pad + "}"
+    if isinstance(obj, list):
+        if not obj:
+            return "[]"
+        inner = ",\n".join(f"{pad}  {_compact(v, indent + 1)}" for v in obj)
+        return "[\n" + inner + "\n" + pad + "]"
+    return json.dumps(obj)
+
+
 def chassis_art_json():
-    return json.dumps(SHIPS.art_data(SHIPS.build_ships()), indent=2) + "\n"
+    return _compact(SHIPS.art_data(ships())) + "\n"
+
+
+def compose(ship, slots, frame):
+    """The drawn Spacecraft as the game composes it (`spacecraftComposition.ts`): the n-th Component
+    of a kind, in Slot order, at its kind's n-th mount point; back layers, the Chassis art, then
+    front layers, each in Slot order. [(piece, Img)] in draw order."""
+    by_name = {p.name: p for p in ship["pieces"]}
+    used, parts = {}, []
+    for cid in slots:
+        if cid is None:
+            continue
+        kind = SHIPS.ART[cid][0]
+        mount = used.get(kind, 0)
+        used[kind] = mount + 1
+        parts.append((cid, mount))
+    back = [by_name[f"{c}.{m}.back"] for c, m in parts if f"{c}.{m}.back" in by_name]
+    front = [by_name[f"{c}.{m}.front"] for c, m in parts if f"{c}.{m}.front" in by_name]
+    return [(p, p.imgs[frame]) for p in back + [by_name["chassis"]] + front]
+
+
+def composed_image(ship, slots, frame):
+    """The composed Spacecraft on its whole frame box, as one RGBA image."""
+    w, h, (px, py) = ship["frames"][frame]
+    img = Image.new("RGBA", (w, h), CLEAR)
+    for _, part in compose(ship, slots, frame):
+        img.alpha_composite(_frame_spr(part).image(), (px + part.x, py + part.y))
+    return img
 
 
 # --- thruster plume
@@ -871,7 +938,8 @@ def build_thruster():
 
 
 def chassis_atlas_json(image_name, sheet, rects):
-    """Phaser JSON-hash atlas data for a sheet and its frame rectangles."""
+    """Phaser JSON-hash atlas data for a sheet and its frame rectangles (a Chassis atlas, with its
+    many small pieces, written compactly)."""
     frames = {}
     for name, (x, y, w, h) in rects.items():
         frames[name] = {
@@ -883,6 +951,8 @@ def chassis_atlas_json(image_name, sheet, rects):
         }
     meta = {"app": "docs/design/sprites/gen_sprites.py", "image": image_name,
             "size": {"w": sheet.w, "h": sheet.h}, "scale": "1"}
+    if image_name.startswith("chassis_"):
+        return _compact({"frames": frames, "meta": meta}) + "\n"
     return json.dumps({"frames": frames, "meta": meta}, indent=2) + "\n"
 
 
@@ -905,8 +975,18 @@ def _backed(img, scale, key="gm1"):
     return panel.resize((img.width * scale, img.height * scale), Image.NEAREST)
 
 
-def chassis_scene(assets, surfaces, key, x_feet=525):
-    """The 640x360 Landed scene with one Chassis (lights on) standing on the Rocky strip
+# Sample loadouts for the preview, Slot by Slot (None is an empty Slot).
+PREVIEW_LOADOUTS = (
+    ("start", ("engine-1", "fuel-tank-1", None, None)),
+    ("Hauler start (#231)", ("engine-1", "fuel-tank-1", "fuel-tank-1", "drill-2", None, None)),
+    ("upgraded", ("engine-2", "fuel-tank-2", "drill-1", "jump-drive")),
+    ("six Slots", ("engine-1", "fuel-tank-1", "fuel-tank-2", "drill-1", "radar-1", "jump-drive")),
+    ("most pieces", ("engine-1", "engine-2", "fuel-tank-1", "fuel-tank-1", "fuel-tank-1", "drill-2")),
+)
+
+
+def chassis_scene(surfaces, ship, slots, x_feet=525):
+    """The 640x360 Landed scene with one composed Spacecraft (lights on) standing on the Rocky strip
     at its scene placement: the strip's top row at y 296, the ship's feet on that line."""
     scene = Image.new("RGBA", (640, 360), col("void"))
     stars = Spr(640, 360)
@@ -916,38 +996,39 @@ def chassis_scene(assets, surfaces, key, x_feet=525):
     scene.alpha_composite(stars.image())
     strip = surfaces["surface_rocky"].image()
     scene.alpha_composite(strip.crop((SURFACE_SCENE_X, 0, SURFACE_SCENE_X + 640, SURFACE_H)), (0, SURFACE_SCENE_Y))
-    sheet, rects = assets[key]
-    frame = _crop(sheet, rects["landed_lit"])
+    frame = composed_image(ship, slots, "landed_lit")
     scene.alpha_composite(frame, (x_feet - CHASSIS_FRAME[0] // 2, SURFACE_SCENE_Y - CHASSIS_FEET_ROW - 1))
     return scene
 
 
 def chassis_preview(assets, surfaces, path):
-    """Every frame of every Chassis at 2x with the same frames at 1x under them, the
-    thruster plume, and each Chassis standing on the Rocky surface."""
+    """A contact sheet: each Chassis composed with sample loadouts (landed_lit at 2x, landed and
+    flight at 1x), the thruster plume, and each Chassis's start standing on the Rocky surface."""
     pad, label_h, zoom = 12, 12, 2
-    names = [k for k in assets if k.startswith("chassis_")]
-    row_w = max(sum(r[2] * zoom + pad for r in assets[k][1].values()) for k in names)
-    row_h = max(r[3] for k in names for r in assets[k][1].values())
+    all_ships = ships()
+    flight_h = max(s["frames"]["flight"][1] for s in all_ships.values())
+    flight_w = max(s["frames"]["flight"][0] for s in all_ships.values())
+    cell_w = max(CHASSIS_FRAME[0] * zoom, CHASSIS_FRAME[0] + flight_w + 4)
+    cell_h = label_h + CHASSIS_FRAME[1] * zoom + 4 + max(CHASSIS_FRAME[1], flight_h)
     scene_w, scene_h = 260, 200
-    width = max(pad + row_w, pad + 3 * (scene_w + pad))
-    block = label_h + row_h * zoom + 4 + row_h + pad + 4
-    height = pad + len(names) * block + label_h + THRUSTER_H * 4 + 4 + THRUSTER_H + pad * 2
+    width = pad + len(PREVIEW_LOADOUTS) * (cell_w + pad)
+    block = label_h + cell_h + pad
+    height = pad + len(all_ships) * block + label_h + THRUSTER_H * 4 + 4 + THRUSTER_H + pad * 2
     height += label_h + scene_h + pad + 22
     sheet = Image.new("RGBA", (width, height), col("void"))
     d = ImageDraw.Draw(sheet)
     y = pad
-    for key in names:
-        spr, rects = assets[key]
-        d.text((pad, y), f"{key}: landed / landed_lit / flight  (2x, then 1x)", fill=col("wh1"))
+    for cid, ship in all_ships.items():
+        d.text((pad, y), f"chassis_{cid}: landed_lit (2x), then landed and flight (1x)", fill=col("wh1"))
         y += label_h
-        x = pad
-        for name, rect in rects.items():
-            img = _crop(spr, rect)
-            sheet.alpha_composite(_backed(img, zoom), (x, y))
-            sheet.alpha_composite(_backed(img, 1), (x, y + row_h * zoom + 4))
-            x += rect[2] * zoom + pad
-        y += row_h * zoom + 4 + row_h + pad + 4
+        for n, (name, slots) in enumerate(PREVIEW_LOADOUTS):
+            x = pad + n * (cell_w + pad)
+            d.text((x, y), name, fill=col("gm5"))
+            sheet.alpha_composite(_backed(composed_image(ship, slots, "landed_lit"), zoom), (x, y + label_h))
+            under = y + label_h + CHASSIS_FRAME[1] * zoom + 4
+            sheet.alpha_composite(_backed(composed_image(ship, slots, "landed"), 1), (x, under))
+            sheet.alpha_composite(_backed(composed_image(ship, slots, "flight"), 1), (x + CHASSIS_FRAME[0] + 4, under))
+        y += cell_h + pad
     spr, rects = assets["fx_thruster"]
     d.text((pad, y), "fx_thruster: three flicker frames (4x, then 1x)", fill=col("wh1"))
     y += label_h
@@ -957,12 +1038,13 @@ def chassis_preview(assets, surfaces, path):
         sheet.alpha_composite(_backed(img, 4), (x, y))
         sheet.alpha_composite(_backed(img, 1), (x, y + THRUSTER_H * 4 + 4))
     y += THRUSTER_H * 4 + 4 + THRUSTER_H + pad * 2
-    d.text((pad, y), "landed_lit standing on surface_rocky at the scene placement (1x, scene crop)", fill=col("wh1"))
+    d.text((pad, y), "Hauler start (#231), landed_lit on surface_rocky at the scene placement (1x)", fill=col("wh1"))
     y += label_h
-    for n, key in enumerate(names):
-        crop = chassis_scene(assets, surfaces, key).crop((640 - scene_w, 340 - scene_h, 640, 340))
+    for n, ship in enumerate(all_ships.values()):
+        slots = PREVIEW_LOADOUTS[1][1]
+        crop = chassis_scene(surfaces, ship, slots).crop((640 - scene_w, 340 - scene_h, 640, 340))
         sheet.alpha_composite(crop, (pad + n * (scene_w + pad), y))
-    d.text((pad, height - 14), "HELIOPAUSE Chassis sprites and thruster plume - AI-generated art", fill=col("cy3"))
+    d.text((pad, height - 14), "HELIOPAUSE Spacecraft sprites and thruster plume - AI-generated art", fill=col("cy3"))
     sheet.save(path)
 
 
