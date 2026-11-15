@@ -3,6 +3,7 @@ import type { Outfit } from './install.ts';
 import type { Run } from './run.ts';
 import { refit, SLOT_COUNT, type Slot } from './spacecraft.ts';
 import { deepFreeze } from './starSystem.ts';
+import { assertNotEnded, endIfStranded } from './stranded.ts';
 import { kilograms, materials, type Kilograms, type Materials } from './units.ts';
 
 /** Why a Component cannot be removed: expected outcomes a player causes, so results, not exceptions. */
@@ -28,19 +29,21 @@ export type RemoveResult =
 /**
  * Removes the Component in Slot `slotIndex` (0-based), refunds half its Materials cost rounded
  * down, and refits the Spacecraft so its mass, Fuel capacity and Isp follow and its Fuel is capped
- * at the new capacity. Refuses an empty Slot, the last Engine and the last Fuel Tank. Throws for a
- * Slot that does not exist: a programmer error.
+ * at the new capacity. Refuses an empty Slot, the last Engine and the last Fuel Tank. Ends the Run as
+ * Stranded when the removal leaves no way out (see `endIfStranded`). Throws for a Slot that does not
+ * exist, or a Run that has ended: programmer errors.
  */
 export function remove(run: Run, slotIndex: number): RemoveResult {
   if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= SLOT_COUNT) {
     throw new RangeError(`A Spacecraft has Slots 0 to ${String(SLOT_COUNT - 1)}, not ${slotIndex}`);
   }
+  assertNotEnded(run);
   const refusal = removalRefusal(run.spacecraft.slots, slotIndex);
   if (refusal) return { kind: 'refused', reason: refusal };
   const after = withRemoved(run, slotIndex);
   return {
     kind: 'removed',
-    run: deepFreeze({ ...run, ...after }),
+    run: endIfStranded(deepFreeze({ ...run, ...after })),
     refund: materials(after.materials - run.materials),
     fuelLost: kilograms(run.spacecraft.fuelMass - after.spacecraft.fuelMass),
   };

@@ -129,6 +129,7 @@ export function GameUI() {
         setStranded({ run: ended, recorded: recordScore(score(ended)) });
         setSpacecraftOpen(false);
         setArrival(undefined);
+        setFlight(undefined);
       }),
     [],
   );

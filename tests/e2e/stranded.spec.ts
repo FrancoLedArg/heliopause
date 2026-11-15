@@ -1,12 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
-import { assessStranding } from '../../src/game/sim/index.ts';
+import { assessStranding, runEnd } from '../../src/game/sim/index.ts';
 import { landing, SAVE_BY_REMOVING, STRANDED_ON_LANDING } from '../../src/ui/landingFixtures.ts';
 
 // Spec #15's Stranded, in real play from a seed: a Hop that Arrives where no change could ever give
 // a Hop a chance ends the Run; one that a lighter Spacecraft could leave warns instead.
 const strandedLanding = landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.body);
-const strandedVerdict = assessStranding(strandedLanding.run);
-if (strandedVerdict.kind !== 'stranded') throw new Error('Seed 2 should strand on Quydril');
+const strandedVerdict = runEnd(strandedLanding.run);
+if (strandedVerdict?.kind !== 'stranded') throw new Error('Seed 2 should strand on Quydril');
 const saveable = landing(SAVE_BY_REMOVING.seed, SAVE_BY_REMOVING.body, SAVE_BY_REMOVING.fit);
 const warning = assessStranding(saveable.run);
 if (warning.kind !== 'warning') throw new Error('Seed 1 with a Drill should warn on Korli');

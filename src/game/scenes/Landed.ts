@@ -1,14 +1,7 @@
 import { Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
-import {
-  endIfStranded,
-  install,
-  launchHop,
-  remove,
-  type HopFlight,
-  type Run,
-} from '../sim/index.ts';
+import { install, launchHop, remove, type HopFlight, type Run } from '../sim/index.ts';
 import { SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
 import { SceneKey } from './keys.ts';
 import type { FlightData } from './Flight.ts';
@@ -29,8 +22,6 @@ export interface LandedData {
 export class Landed extends Scene {
   private run!: Run;
   private report: LandedData['report'];
-  /** Whether the Run has ended here, as Stranded: the view stays up behind the End-of-Run screen. */
-  private ended = false;
   /** The layers, back to front: ambient motion (parallax drift) moves these. */
   layers!: Readonly<Record<'sky' | 'ground' | 'ship', GameObjects.Container>>;
   /** Whether the ambient life was left still; read once at create from `prefers-reduced-motion`. */
@@ -45,24 +36,23 @@ export class Landed extends Scene {
   init(data: LandedData): void {
     this.run = data.run;
     this.report = data.report;
-    this.ended = false;
   }
 
   create(): void {
-    const landscape = buildLandscape(this, this.run);
+    const landscape = buildLandscape(this, standingOn(this.run));
     const ship = this.buildShip();
     this.layers = { ...landscape.layers, ship: ship.container };
 
     // The Nav Chart runs as its own scene over this one, which keeps running (dimmed) beneath it.
     const offOpen = EventBus.on('nav-chart-open-requested', () => {
-      if (this.scene.isActive(SceneKey.NavChart) || this.ended) return;
+      if (this.scene.isActive(SceneKey.NavChart) || this.run.status.kind !== 'landed') return;
       const data: NavChartData = { run: this.run };
       this.scene.launch(SceneKey.NavChart, data);
     });
     // Launch settles the Hop in the simulation, then hands it to the Flight to play back. Starting
     // the Flight shuts this scene down, and the Nav Chart with it.
     const offLaunch = EventBus.on('hop-launch-requested', (targetId) => {
-      if (this.ended) return;
+      if (this.run.status.kind !== 'landed') return;
       const launched = launchHop(this.run, targetId);
       // The plan only offers Launch for a valid target; the chart already says why one is not.
       if (launched.kind !== 'flown') return;
@@ -78,9 +68,7 @@ export class Landed extends Scene {
           `Install of ${componentId} in Slot ${String(slotIndex)} refused: ${installed.reason.kind}`,
         );
       }
-      this.run = installed.run;
-      EventBus.emit('run-updated', this.run);
-      this.endIfStranded();
+      this.changed(installed.run);
     });
     const offRemove = EventBus.on('component-remove-requested', (slotIndex) => {
       const removed = remove(this.run, slotIndex);
@@ -88,9 +76,7 @@ export class Landed extends Scene {
       if (removed.kind !== 'removed') {
         throw new Error(`Removal from Slot ${String(slotIndex)} refused: ${removed.reason.kind}`);
       }
-      this.run = removed.run;
-      EventBus.emit('run-updated', this.run);
-      this.endIfStranded();
+      this.changed(removed.run);
     });
     // A destroyed game never shuts its scenes down, so unsubscribe on both events.
     const unsubscribe = (): void => {
@@ -131,25 +117,22 @@ export class Landed extends Scene {
     this.events.once(Scenes.Events.DESTROY, stop);
 
     onLeaveRun(this);
-    EventBus.emit('run-started', this.run);
-    // A Run Stranded on arrival goes straight to its end: the Hop's report would only delay it.
-    if (!this.endIfStranded() && this.report) {
-      EventBus.emit('hop-arrived', this.report.before, this.report.flight);
+    if (this.run.status.kind === 'ended') {
+      // Landed Stranded (the simulation ended the Run on arrival): straight to its end, with no
+      // Hop report, since that Hop is not what ended it.
+      EventBus.emit('run-stranded', this.run);
+    } else {
+      EventBus.emit('run-started', this.run);
+      if (this.report) EventBus.emit('hop-arrived', this.report.before, this.report.flight);
     }
     EventBus.emit('scene-ready', SceneKey.Landed);
   }
 
-  /**
-   * Ends the Run as Stranded when no change to the Spacecraft could give any Hop a chance, and says
-   * so with `run-stranded`. Asked whenever the Spacecraft is on a Body: as the view comes up (Run
-   * start, or a Landing) and after every install or removal. Returns whether the Run ended.
-   */
-  private endIfStranded(): boolean {
-    const ended = endIfStranded(this.run);
-    if (ended === this.run) return false;
-    this.ended = true;
-    EventBus.emit('run-stranded', ended);
-    return true;
+  /** An install or a removal changed the Run: it may have left the Spacecraft Stranded. */
+  private changed(run: Run): void {
+    this.run = run;
+    if (run.status.kind === 'ended') EventBus.emit('run-stranded', run);
+    else EventBus.emit('run-updated', run);
   }
 
   /** The whole Spacecraft standing in the foreground, with its shadow. */
@@ -178,4 +161,11 @@ export class Landed extends Scene {
       },
     };
   }
+}
+
+/** The Run as the Landed view draws it: a Stranded Run still stands on the Body it ended on. */
+function standingOn(run: Run): Run {
+  const { status } = run;
+  if (status.kind !== 'ended' || status.end.kind !== 'stranded') return run;
+  return { ...run, status: { kind: 'landed', bodyId: status.end.bodyId } };
 }

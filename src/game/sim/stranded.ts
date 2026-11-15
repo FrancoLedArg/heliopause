@@ -36,14 +36,24 @@ export function assessStranding(run: Run): Stranding {
   return verdict;
 }
 
-/** The same Run ended as Stranded when no change could give any Hop a chance; otherwise `run` itself. */
+/**
+ * The same Run ended as Stranded when no change could give any Hop a chance; otherwise `run` itself,
+ * as it is for a Run that is not landed on a Body. Every operation that leaves the Spacecraft on a
+ * Body (`install`, `remove`, an Arrived Hop, and the Jump to a new Home Planet) returns its Run
+ * through this, so the end is part of the Run itself: a Run rebuilt from the same choices ends at
+ * the same one, and takes no more.
+ */
 export function endIfStranded(run: Run): Run {
+  if (run.status.kind !== 'landed') return run;
   const verdict = assessStranding(run);
   if (verdict.kind !== 'stranded') return run;
-  return deepFreeze({
-    ...run,
-    status: { kind: 'ended', end: { kind: 'stranded', reason: verdict.reason } },
-  });
+  const end = { kind: 'stranded', reason: verdict.reason, bodyId: run.status.bodyId } as const;
+  return deepFreeze({ ...run, status: { kind: 'ended', end } });
+}
+
+/** Throws for a Run that has ended: it takes no more choices (a programmer error, or a forged log). */
+export function assertNotEnded(run: Run): void {
+  if (run.status.kind === 'ended') throw new Error(`Run ${String(run.seed)} has ended`);
 }
 
 function assess(run: Run): Stranding {

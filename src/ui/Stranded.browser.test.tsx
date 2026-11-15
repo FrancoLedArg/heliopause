@@ -6,7 +6,7 @@ import { readBestScore } from '../game/lib/bestScore.ts';
 import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../game/main.ts';
 import { SceneKey } from '../game/scenes/keys.ts';
 import type { LandedData } from '../game/scenes/Landed.ts';
-import { kilograms } from '../game/sim/index.ts';
+import { endIfStranded, kilograms } from '../game/sim/index.ts';
 import { GameUI } from './GameUI.tsx';
 import { landing, saveByRefitting, STRANDED_ON_LANDING } from './landingFixtures.ts';
 import '../style.css';
@@ -93,18 +93,18 @@ it('a Run Stranded on Landing goes straight to the End-of-Run screen with the St
 
 it('a Run that arrives in a new Star System with no way out ends there too, whatever started the Landed view', async () => {
   // As after a Jump: the Landed view comes up on a Home Planet with no Hop report, in System 2,
-  // with about 250 kg of Fuel (the case PR #180 found on seed 5).
-  const { run } = landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.body);
-  const home = run.starSystem.homePlanetId;
-  const lowFuel = { ...run.spacecraft, fuelMass: kilograms(250) };
-  const ui = await land({
-    run: {
-      ...run,
-      starSystemNumber: 2,
-      spacecraft: lowFuel,
-      status: { kind: 'landed', bodyId: home },
-    },
+  // with about 250 kg of Fuel (the case PR #180 found on seed 5). The Jump returns its Run through
+  // `endIfStranded`, like every operation that leaves the Spacecraft on a Body.
+  const { before } = landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.body);
+  const lowFuel = { ...before.spacecraft, fuelMass: kilograms(250) };
+  const arrived = endIfStranded({
+    ...before,
+    starSystemNumber: 2,
+    hopsFlown: 1,
+    spacecraft: lowFuel,
   });
+  expect(arrived.status).toMatchObject({ kind: 'ended', end: { kind: 'stranded' } });
+  const ui = await land({ run: arrived });
   expect(find(ui, 'end-of-run')?.querySelector('h2')?.textContent).toBe('Stranded');
   expect(find(ui, 'end-of-run-score')?.textContent).toBe('1 Star System escaped, 1 Hop flown');
   expect(readBestScore()).toEqual({ starSystemsEscaped: 1, hopsFlown: 1 });

@@ -2,6 +2,7 @@ import { COMPONENTS, componentCost, type ComponentId } from './catalogue.ts';
 import type { Run } from './run.ts';
 import { carriesJumpDrive, refit, SLOT_COUNT } from './spacecraft.ts';
 import { deepFreeze } from './starSystem.ts';
+import { assertNotEnded, endIfStranded } from './stranded.ts';
 import { materials, type Materials } from './units.ts';
 
 /** Why a Component cannot be installed: expected outcomes a player causes, so results, not exceptions. */
@@ -52,17 +53,19 @@ export function standingRefusal(
  * Installs `componentId` in Slot `slotIndex` (0-based) by paying its Materials, and refits the
  * Spacecraft so its mass, Fuel capacity and Isp follow. Refuses for a standing reason (a second
  * Jump Drive), when no Slot is empty, when the chosen Slot is taken, or when the Run cannot afford
- * it. Throws for a Slot that does not exist: a programmer error.
+ * it. Ends the Run as Stranded when the install leaves no way out (see `endIfStranded`). Throws for
+ * a Slot that does not exist, or a Run that has ended: programmer errors.
  */
 export function install(run: Run, slotIndex: number, componentId: ComponentId): InstallResult {
   if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= SLOT_COUNT) {
     throw new RangeError(`A Spacecraft has Slots 0 to ${String(SLOT_COUNT - 1)}, not ${slotIndex}`);
   }
+  assertNotEnded(run);
   const refusal = installRefusal(run, slotIndex, componentId);
   if (refusal) return { kind: 'refused', reason: refusal };
   return {
     kind: 'installed',
-    run: deepFreeze({ ...run, ...withInstalled(run, slotIndex, componentId) }),
+    run: endIfStranded(deepFreeze({ ...run, ...withInstalled(run, slotIndex, componentId) })),
   };
 }
 

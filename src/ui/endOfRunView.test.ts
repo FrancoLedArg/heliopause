@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { startRun } from '../game/sim/index.ts';
 import { describeEndOfRun, formatScore } from './endOfRunView.ts';
 
 const none = { starSystemsEscaped: 0, hopsFlown: 0 };
@@ -18,7 +19,12 @@ describe('the End-of-Run screen text', () => {
     const ends = [
       { kind: 'fell-short', reason: 'Fuel ran out during the Transfer.', title: 'Fell Short' },
       { kind: 'crashed', reason: 'Not enough Δv for the Landing.', title: 'Crashed' },
-      { kind: 'stranded', reason: 'Even the lightest Spacecraft has no Hop.', title: 'Stranded' },
+      {
+        kind: 'stranded',
+        reason: 'Even the lightest Spacecraft has no Hop.',
+        bodyId: startRun(5, 'scout').starSystem.homePlanetId,
+        title: 'Stranded',
+      },
     ] as const;
     for (const { title, ...end } of ends) {
       const view = describeEndOfRun(end, score, score, false);

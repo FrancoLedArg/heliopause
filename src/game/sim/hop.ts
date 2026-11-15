@@ -3,6 +3,7 @@ import { stringSeed } from '../lib/stringSeed.ts';
 import { DISPERSION, SOURCED_CONSTANTS } from './data.ts';
 import { collectYield, type Collection } from './gather.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
+import { endIfStranded } from './stranded.ts';
 import { availableDeltaV, carriesJumpDrive, fuelAfterBurning } from './spacecraft.ts';
 import {
   deepFreeze,
@@ -252,8 +253,8 @@ export interface HopFlight {
 /**
  * Flies a planned Hop: resolves the Burns in order, each costing its estimate times a factor drawn
  * from `rng` within the dispersion range. Arrived lands the Spacecraft on the target with the Fuel
- * left; a Hop to the Heliopause that the Fuel covers leaves it there; Fell Short or Crashed ends the
- * Run. Throws for a plan made for another Run state.
+ * left (or Stranded there, when no change could give any Hop a chance); a Hop to the Heliopause
+ * that the Fuel covers leaves it there; Fell Short or Crashed ends the Run. Throws for a plan made for another Run state.
  */
 export function flyHop(
   run: Run,
@@ -326,7 +327,11 @@ export function flyHop(
     case 'arrived': {
       if (!target) throw new Error('Arrived on no Body');
       const landed = collectYield(flown({ kind: 'landed', bodyId: target.id }), target.id);
-      return deepFreeze({ flight: { ...flight, collection: landed.collection }, run: landed.run });
+      // Landed where no change could give any Hop a chance: the Run ends there, as Stranded.
+      return deepFreeze({
+        flight: { ...flight, collection: landed.collection },
+        run: endIfStranded(landed.run),
+      });
     }
   }
 }

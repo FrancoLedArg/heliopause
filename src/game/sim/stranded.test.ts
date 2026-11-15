@@ -35,8 +35,24 @@ function fittedWith(from: Run, slots: readonly Slot[]): Run {
   return { ...from, spacecraft: refit(from.spacecraft, slots), materials: materials(0) };
 }
 
-/** Whether any Body Hop from here has a Success Chance above 0%, straight from `planHop`. */
+/**
+ * Seed 7's Scout after its Hop to Quiolxaexis, `extra` Materials added before Launch: a Run that
+ * only swapping in the level-2 Engine (60 Materials) could save.
+ */
+function quiolxaexis(extra: number): Run {
+  const start = startRun(7, 'scout');
+  const body = listBodies(start.starSystem).find(({ name }) => name === 'Quiolxaexis');
+  if (!body) throw new Error('Seed 7 has no Quiolxaexis');
+  const landed = launchHop({ ...start, materials: materials(start.materials + extra) }, body.id);
+  if (landed.kind !== 'flown' || landed.flight.outcome.kind !== 'arrived') {
+    throw new Error('Seed 7: the Hop to Quiolxaexis should Arrive');
+  }
+  return landed.run;
+}
+
+/** Whether any Body Hop from here has a Success Chance above 0%, straight from `planHop`; none once the Run has ended. */
 function anyBodyHop(from: Run): boolean {
+  if (from.status.kind !== 'landed') return false;
   return listBodies(from.starSystem).some((body) => {
     if (!body.landable) return false;
     const result = planHop(from, body.id);
@@ -117,7 +133,7 @@ describe('Stranded', () => {
     );
     expect(endIfStranded(lost).status).toEqual({
       kind: 'ended',
-      end: { kind: 'stranded', reason: verdict.reason },
+      end: { kind: 'stranded', reason: verdict.reason, bodyId: lost.starSystem.homePlanetId },
     });
   });
 });
@@ -182,17 +198,13 @@ describe('what could still save a Run', () => {
     // Seed 7: after Landing on Quiolxaexis the Run has 53 Materials. Swapping the level-1 Engine for
     // the level-2 one would save it, but the new Engine (60) must be installed before the old one
     // can be removed for its refund, so the swap can never be paid for.
-    const start = startRun(7, 'scout');
-    const body = listBodies(start.starSystem).find(({ name }) => name === 'Quiolxaexis');
-    if (!body) throw new Error('Seed 7 has no Quiolxaexis');
-    const landed = launchHop(start, body.id);
-    if (landed.kind !== 'flown' || landed.flight.outcome.kind !== 'arrived') {
-      throw new Error('Seed 7: the Hop to Quiolxaexis should Arrive');
-    }
-    expect(landed.run.materials).toBe(53);
-    expect(assessStranding(landed.run).kind).toBe('stranded');
-    // With the 60 up front, the same Run can still be saved.
-    expect(assessStranding({ ...landed.run, materials: materials(60) }).kind).toBe('warning');
+    const landed = quiolxaexis(0);
+    expect(landed.materials).toBe(53);
+    expect(landed.status).toMatchObject({ kind: 'ended', end: { kind: 'stranded' } });
+    // With 7 more Materials, 60 on Landing, the same Run can still be saved.
+    const richer = quiolxaexis(7);
+    expect(richer.materials).toBe(60);
+    expect(assessStranding(richer).kind).toBe('warning');
   });
 
   it('a second full Fuel Tank can save a Run that the lightest configuration cannot', () => {
@@ -213,9 +225,13 @@ describe('what could still save a Run', () => {
     const fuelMass = kilograms(design.spacecraft.fuelCapacity * 0.6);
     const fuelled = { ...design, spacecraft: { ...design.spacecraft, fuelMass } };
     expect(anyBodyHop(fuelled)).toBe(false);
-    expect(anyBodyHop(removeSlots(fuelled, [3, 2]))).toBe(false); // the lightest configuration
     expect(anyBodyHop(removeSlots(fuelled, [3]))).toBe(true); // the Drill alone removed
     expect(assessStranding(fuelled)).toMatchObject({ kind: 'warning' });
+    // Down to the lightest configuration, the spilled Fuel leaves no way out: the Run ends there.
+    expect(removeSlots(fuelled, [3, 2]).status).toMatchObject({
+      kind: 'ended',
+      end: { kind: 'stranded' },
+    });
   });
 
   it('never ends a Run that removing Components could save', () => {
@@ -254,9 +270,64 @@ describe('what could still save a Run', () => {
   });
 });
 
+describe('the simulation settles Stranded itself', () => {
+  // A Run rebuilt from its choices (install, remove, launchHop) must end exactly where the game did.
+  const stranded = { kind: 'ended', end: { kind: 'stranded' } };
+
+  it('a Hop that Arrives where no change could ever help ends the Run as Stranded', () => {
+    // Seed 2: a sure Hop to Quydril leaves too little Fuel for any Hop, whatever is changed.
+    const start = startRun(2, 'scout');
+    const body = listBodies(start.starSystem).find(({ name }) => name === 'Quydril');
+    if (!body) throw new Error('Seed 2 has no Quydril');
+    const flown = launchHop(start, body.id);
+    if (flown.kind !== 'flown') throw new Error('expected a Hop');
+    expect(flown.flight.outcome).toEqual({ kind: 'arrived' });
+    expect(flown.run.status).toEqual({
+      kind: 'ended',
+      end: {
+        kind: 'stranded',
+        bodyId: body.id,
+        reason:
+          'However you change its Components, your Spacecraft has at most 3.4 km/s of Δv, and ' +
+          'the cheapest Hop needs 4.0 km/s.',
+      },
+    });
+    expect(flown.run.hopsFlown).toBe(1);
+  });
+
+  it('installing a Component that spends the Materials a rescue needed ends the Run as Stranded', () => {
+    const saveable = quiolxaexis(7);
+    const spent = install(saveable, 2, 'drill-1');
+    if (spent.kind !== 'installed') throw new Error('expected an install');
+    expect(spent.run.status).toMatchObject(stranded);
+    // A change that keeps the rescue in reach leaves the Run as it was.
+    const kept = install(saveable, 2, 'engine-2');
+    if (kept.kind !== 'installed') throw new Error('expected an install');
+    expect(kept.run.status).toEqual(saveable.status);
+  });
+
+  it('a Stranded Run takes no more choices', () => {
+    const ended = quiolxaexis(0);
+    expect(() => install(ended, 2, 'drill-1')).toThrow(/ended/);
+    expect(() => remove(ended, 1)).toThrow(/ended/);
+    const someBody = listBodies(ended.starSystem).find((body) => body.landable);
+    if (!someBody) throw new Error('no Body');
+    expect(() => launchHop(ended, someBody.id)).toThrow(/ended/);
+  });
+
+  it('a New Run is never Stranded', () => {
+    for (let seed = 1; seed <= 100; seed++) {
+      for (const chassis of ['scout', 'hauler', 'lancer'] as const) {
+        expect(assessStranding(startRun(seed, chassis)).kind).toBe('clear');
+      }
+    }
+  });
+});
+
 /** Every Run reachable from `from` by allowed removals, through the public `remove`. */
 function removals(from: Run): Run[] {
   const reached: Run[] = [from];
+  if (from.status.kind !== 'landed') return reached;
   for (let slot = 0; slot < from.spacecraft.slots.length; slot++) {
     const result = remove(from, slot);
     if (result.kind === 'removed') reached.push(...removals(result.run));

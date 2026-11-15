@@ -20,10 +20,17 @@ export interface Landing {
 
 /**
  * A Scout Run from `seed` that first installs `fit` in Slot 2 on the Home Planet (if given), then
- * Hops to the Body named `bodyName` and Arrives. Throws if the seed does not play out that way.
+ * Hops to the Body named `bodyName` and Arrives. `extraMaterials` are added at the start, as a tuned
+ * fixture. Throws if the seed does not play out that way.
  */
-export function landing(seed: number, bodyName: string, fit?: ComponentId): Landing {
-  let before = startRun(seed, 'scout');
+export function landing(
+  seed: number,
+  bodyName: string,
+  fit?: ComponentId,
+  extraMaterials = 0,
+): Landing {
+  const start = startRun(seed, 'scout');
+  let before: Run = { ...start, materials: materials(start.materials + extraMaterials) };
   if (fit) {
     const fitted = install(before, 2, fit);
     if (fitted.kind !== 'installed') throw new Error(`Seed ${String(seed)}: cannot fit ${fit}`);
@@ -45,10 +52,10 @@ export const SAVE_BY_REMOVING = { seed: 1, body: 'Korli', fit: 'drill-1' } as co
 export const STRANDED_ON_LANDING = { seed: 2, body: 'Quydril' } as const;
 
 /**
- * Seed 7, landed on Quiolxaexis with its 53 Materials tuned up to 60: only swapping in the level-2
- * Engine (60) saves the Run, so spending any of them on another Component strands it.
+ * Seed 7, landed on Quiolxaexis with 7 Materials more than it would have (60, not 53): only
+ * swapping in the level-2 Engine (60) saves the Run, so spending any of them on another Component
+ * strands it. Without the 7, the Landing itself strands it.
  */
 export function saveByRefitting(): Run {
-  const { run } = landing(7, 'Quiolxaexis');
-  return { ...run, materials: materials(60) };
+  return landing(7, 'Quiolxaexis', undefined, 7).run;
 }
