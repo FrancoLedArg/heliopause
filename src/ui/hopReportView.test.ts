@@ -6,7 +6,7 @@ import {
   materials,
   launchHop,
   listBodies,
-  homePlanet,
+  planHop,
   HELIOPAUSE,
   startRun,
   type ChassisId,
@@ -16,11 +16,22 @@ import {
 } from '../game/sim/index.ts';
 import { describeReport, type ReportView } from './hopReportView.ts';
 
-/** A New Run on `chassis` with only `share` of its Fuel left. */
+/**
+ * A New Run on `chassis` with only `share` of its Fuel left, stood on its innermost planet knowing
+ * every Body (where Runs opened before #96), so any Hop can be reported.
+ */
 function withFuelShare(seed: number, chassis: ChassisId, share: number): Run {
   const run = startRun(seed, chassis);
+  const ids = listBodies(run.starSystem).map((body) => body.id);
+  const inner = run.starSystem.planets[0];
+  if (!inner) throw new Error('A Star System has planets');
   const fuelMass = kilograms(run.spacecraft.fuelMass * share);
-  return { ...run, spacecraft: { ...run.spacecraft, fuelMass } };
+  return {
+    ...run,
+    status: { kind: 'landed', bodyId: inner.id },
+    knowledge: { detected: ids, surveyed: ids, heliopauseFound: true },
+    spacecraft: { ...run.spacecraft, fuelMass },
+  };
 }
 
 /**
@@ -121,7 +132,8 @@ describe('the Hop report', () => {
     const flights = [
       hopThatEnds('arrived', 123, 'scout'),
       hopThatEnds('fell-short', 123, 'hauler', 0.5),
-      hopThatEnds('crashed', 123, 'scout', 0.5),
+      // 0.45, not 0.5, since #189: from seed 123's innermost planet that is the share that Crashes.
+      hopThatEnds('crashed', 123, 'scout', 0.45),
       heliopauseHopThatEnds('reached-heliopause', 1),
     ];
     for (const { run, flight } of flights) {
@@ -138,7 +150,8 @@ describe('the Hop report', () => {
     expect(fellView.why).toMatch(/^Fuel ran out in the Transfer: Δv short by [\d.]+ km\/s\.$/);
     expect(fellView.outcomeLine).toBe(fell.flight.why);
 
-    const crashed = hopThatEnds('crashed', 123, 'scout', 0.5);
+    // 0.45, not 0.5, since #189 (see the Crashed report test below).
+    const crashed = hopThatEnds('crashed', 123, 'scout', 0.45);
     const crashedView = describeReport(crashed.run, crashed.flight);
     expect(crashedView.why).toMatch(/^Fuel ran out in the Landing: Δv short by [\d.]+ km\/s\.$/);
     expect(crashedView.outcomeLine).toBe(crashed.flight.why);
@@ -159,20 +172,20 @@ describe('the Hop report', () => {
   });
 
   it('gives the same Margin share in the report as in the why text: a hauler on seed 123', () => {
-    // Re-pinned for #188: a half-fuelled hauler's Hop to Sircer is short (was a full one to Viormio).
+    // Re-pinned for #189: a half-fuelled hauler's Hop to Rexsio is short (was Sircer's).
     const run = withFuelShare(123, 'hauler', 0.5);
-    const sircer = listBodies(run.starSystem).find((body) => body.name === 'Sircer');
-    if (!sircer) throw new Error('seed 123 has no Sircer');
-    const launched = launchHop(run, sircer.id);
+    const rexsio = listBodies(run.starSystem).find((body) => body.name === 'Rexsio');
+    if (!rexsio) throw new Error('seed 123 has no Rexsio');
+    const launched = launchHop(run, rexsio.id);
     if (launched.kind !== 'flown') throw new Error('expected a flight');
     const view = describeReport(run, launched.flight);
-    expect(view.margin).toBe('Margin: none left (planned −1.8 km/s, 11%)');
-    expect(view.outcomeLine).toMatch(/The Fuel gives 11% less Δv/);
+    expect(view.margin).toBe('Margin: none left (planned −7.0 km/s, 34%)');
+    expect(view.outcomeLine).toMatch(/The Fuel gives 34% less Δv/);
   });
 
   it('says a Crashed Hop completed the Transfer but ran out of Δv in the Landing', () => {
-    // Re-pinned for #188: no first Hop of a full scout crashes now, so it sets off half-fuelled.
-    const { run, flight } = hopThatEnds('crashed', 123, 'scout', 0.5);
+    // Re-pinned for #189 (was 0.5): no first Hop of a full scout crashes, so it sets off low on Fuel.
+    const { run, flight } = hopThatEnds('crashed', 123, 'scout', 0.45);
     const view = describeReport(run, flight);
     expect(view.title).toBe('Crashed');
     expect(view.outcomeLine).toMatch(/Transfer was completed.*Landing/);
@@ -185,10 +198,31 @@ describe('the Hop report', () => {
   });
 
   describe('what landing collected', () => {
-    // Re-pinned for #188: seed 2026's Home Moon now overfills a Drill-carrying scout's Tank.
-    const run = startRun(2027, 'scout');
-    const moon = homePlanet(run.starSystem).moons[0];
-    if (!moon) throw new Error('The Home Planet has a Moon');
+    // Seed 2027's Scout stood on its innermost planet, knowing every Body and with none Depleted,
+    // so Hops to an Icy and a Rocky Body can be reported apart from the opening (#96).
+    const start = startRun(2027, 'scout');
+    const ids = listBodies(start.starSystem).map((body) => body.id);
+    const run: Run = {
+      ...start,
+      status: {
+        kind: 'landed',
+        bodyId: start.starSystem.planets[0]?.id ?? start.starSystem.startingMoonId,
+      },
+      knowledge: { detected: ids, surveyed: ids, heliopauseFound: true },
+      depleted: [],
+    };
+    /** The first Body of `composition` a Hop from `run` reaches for sure. */
+    const sure = (composition: 'icy' | 'rocky') => {
+      const body = listBodies(run.starSystem).find((b) => {
+        if (!b.landable || b.composition !== composition) return false;
+        const planned = planHop(run, b.id);
+        return planned.kind === 'planned' && planned.plan.successChance === 1;
+      });
+      if (!body) throw new Error(`seed 2027 has a ${composition} Body in sure reach`);
+      return body;
+    };
+    const moon = sure('icy');
+    const rocky = sure('rocky');
     const flown = (from: Run) => {
       const launched = launchHop(from, moon.id);
       if (launched.kind !== 'flown') throw new Error('expected a flight');
@@ -258,10 +292,9 @@ describe('the Hop report', () => {
     });
 
     it('says how many Materials a Rocky Body gave', () => {
-      const away = { ...run, status: { kind: 'landed', bodyId: moon.id } as const };
-      const launched = launchHop(away, run.starSystem.homePlanetId);
+      const launched = launchHop(run, rocky.id);
       if (launched.kind !== 'flown') throw new Error('expected a flight');
-      const view = describeReport(away, launched.flight);
+      const view = describeReport(run, launched.flight);
       expect(view.gains[0]?.name).toMatch(/^Collected \d+ Materials\.$/);
       expect(view.fact).toBeUndefined();
     });
@@ -293,10 +326,9 @@ describe('the Hop report', () => {
     it('names the Drill on a Rocky yield too', () => {
       const installed = install({ ...run, materials: materials(100) }, 2, 'drill-2');
       if (installed.kind !== 'installed') throw new Error('expected an install');
-      const away = { ...installed.run, status: { kind: 'landed', bodyId: moon.id } as const };
-      const launched = launchHop(away, run.starSystem.homePlanetId);
+      const launched = launchHop(installed.run, rocky.id);
       if (launched.kind !== 'flown') throw new Error('expected a flight');
-      expect(describeReport(away, launched.flight).gains[0]?.name).toMatch(
+      expect(describeReport(installed.run, launched.flight).gains[0]?.name).toMatch(
         /^Collected \d+ Materials \(Drill ×2\)\.$/,
       );
     });

@@ -2,14 +2,16 @@ import { afterEach, expect, it } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import {
   HELIOPAUSE,
-  homePlanet,
+  firstDetectedBody,
   install,
   kilograms,
   listBodies,
   materials,
   planHop,
   startRun,
+  type Body,
   type BodyId,
+  type Planet,
   type HopTarget,
   type Run,
 } from '../game/sim/index.ts';
@@ -18,6 +20,22 @@ import { NavChartPanel } from './NavChartPanel.tsx';
 import { expectTextBudget } from './textBudget.ts';
 
 afterEach(cleanUp);
+
+/**
+ * A New Run stood on its innermost planet, knowing every Body: the panel's layout is tested on a full
+ * chart, from where Runs opened before the Starting Moon (#96).
+ */
+function newRun(seed: number, chassis: 'scout' | 'hauler' | 'lancer'): Run {
+  const run = startRun(seed, chassis);
+  const ids = listBodies(run.starSystem).map((body) => body.id);
+  const inner = run.starSystem.planets[0];
+  if (!inner) throw new Error('A Star System has planets');
+  return {
+    ...run,
+    status: { kind: 'landed', bodyId: inner.id },
+    knowledge: { detected: ids, surveyed: ids, heliopauseFound: true },
+  };
+}
 
 /** The Hop plan's "Tell me more" toggle. */
 const tellMeMore = (host: HTMLElement): HTMLElement =>
@@ -49,7 +67,7 @@ async function press(el: HTMLElement, key: string): Promise<void> {
 
 /** Renders the panel at native scale with focus on one Body, once the pixel fonts have loaded. */
 async function showFocused(seed: number, focusedId: string): Promise<HTMLElement> {
-  const run = startRun(seed, 'scout');
+  const run = newRun(seed, 'scout');
   const host = await renderUi(
     <NavChartPanel run={run} state={{ focusedId: focusedId as BodyId, selectedId: undefined }} />,
   );
@@ -80,16 +98,16 @@ it.each([
 // The Hop plan is the densest block on the panel. Its longest states (a low chance, and a Margin below
 // zero with its stronger warning) must keep every gauge and line inside the plan area, above the
 // buttons, with its details open as well as closed, and the Δv help under the chart must fit the frame.
-// Re-pinned for #188: a full Spacecraft is no longer short of any Body on seed 123, so it sets off
-// half-fuelled for Sircer (was a full one for Thakyxy).
+// Re-pinned for #189: from seed 123's innermost planet a half-fuelled Spacecraft is short of Rexsio
+// (was Sircer, from the Home Planet).
 it.each(['scout', 'hauler'] as const)(
-  'keeps the whole Hop plan above Cancel and Launch, open or closed, and the Δv help inside the frame (%s, seed 123 Sircer, half the Fuel)',
+  'keeps the whole Hop plan above Cancel and Launch, open or closed, and the Δv help inside the frame (%s, seed 123 Rexsio, half the Fuel)',
   async (chassis) => {
-    const full = startRun(123, chassis);
+    const full = newRun(123, chassis);
     const fuelMass = kilograms(full.spacecraft.fuelMass / 2);
     const run = { ...full, spacecraft: { ...full.spacecraft, fuelMass } };
-    const far = listBodies(run.starSystem).find((b) => b.name === 'Sircer');
-    if (!far) throw new Error('seed 123 has no Sircer');
+    const far = listBodies(run.starSystem).find((b) => b.name === 'Rexsio');
+    if (!far) throw new Error('seed 123 has no Rexsio');
     const host = await renderUi(
       <NavChartPanel run={run} state={{ focusedId: far.id, selectedId: far.id }} />,
     );
@@ -143,7 +161,7 @@ it.each(['scout', 'hauler'] as const)(
 // The longest name the generator makes: three syllables of onset, vowel and coda (15 letters) plus an
 // epithet. A Moon of such a planet has the longest target subtitle, and the numbers must fit beside it.
 it('shows the whole target subtitle for a Moon of the longest-named planet, inside the frame', async () => {
-  const run = startRun(123, 'scout');
+  const run = newRun(123, 'scout');
   const longName = 'Thaeprioquaeprix Prime';
   const planets = run.starSystem.planets.map((planet) =>
     planet.moons.length > 0 ? { ...planet, name: longName } : planet,
@@ -175,14 +193,23 @@ it('shows the whole target subtitle for a Moon of the longest-named planet, insi
   }
 });
 
+/**
+ * A Run's opening as the chart shows it: the first Body Comms Detected and the planet it orbits (on
+ * seed 123 a sibling Moon of the Starting Moon, round a Gas Giant).
+ */
+function opening(run: Run): { home: Planet; moon: Body } {
+  const moon = firstDetectedBody(run.starSystem);
+  const home = run.starSystem.planets.find((planet) => planet.moons.some((m) => m.id === moon.id));
+  if (!home) throw new Error('The first Detected Body is a Moon on this seed');
+  return { home, moon };
+}
+
 // The tallest the side panel gets: a 21-character target name (two lines, so the plan moves down) with
 // the strongest warning (a Margin below zero, here from almost no Fuel). Baselines differ by platform,
 // so the last line keeps real room inside the plan and the plan stays clear of the buttons.
 it('keeps the tallest plan, with a 21-character target and a Margin warning, clear of its box and the buttons', async () => {
-  const base = startRun(123, 'scout');
-  const home = homePlanet(base.starSystem);
-  const moon = home.moons[0];
-  if (!moon) throw new Error('no moon');
+  const base = newRun(123, 'scout');
+  const { home, moon } = opening(base);
   const name = 'Quaexquaexquaex Minor';
   const planets = base.starSystem.planets.map((planet) =>
     planet.id === home.id
@@ -241,7 +268,7 @@ function textRight(el: HTMLElement): number {
 }
 
 function longBody() {
-  const run = startRun(LONG_SEED, 'scout');
+  const run = newRun(LONG_SEED, 'scout');
   const body = listBodies(run.starSystem).find((b) => b.name === LONG_NAME);
   if (!body) throw new Error(`seed ${String(LONG_SEED)} has no ${LONG_NAME}`);
   return { run, body };
@@ -313,7 +340,7 @@ it('shows the whole name and subtitle of the longest-named Body in the Hop plan,
 
 // Icy or Rocky is its own short item, so the worst-case name can never push it out of view.
 it('shows the composition in the tooltip and the target head for the longest-named planet, inside their frames', async () => {
-  const run = startRun(123, 'scout');
+  const run = newRun(123, 'scout');
   const longName = 'Thaeprioquaeprix Prime';
   const planets = run.starSystem.planets.map((planet) =>
     planet.moons.length > 0 ? { ...planet, name: longName } : planet,
@@ -371,10 +398,8 @@ it('shows Depleted in the tooltip of the longest-named Body, inside its frame', 
 });
 
 it('keeps the tallest plan, 21-character target, Margin warning and Depleted, clear of its box and the buttons', async () => {
-  const base = startRun(123, 'scout');
-  const home = homePlanet(base.starSystem);
-  const moon = home.moons[0];
-  if (!moon) throw new Error('no moon');
+  const base = newRun(123, 'scout');
+  const { home, moon } = opening(base);
   const name = 'Quaexquaexquaex Minor';
   const planets = base.starSystem.planets.map((planet) =>
     planet.id === home.id
@@ -421,10 +446,8 @@ it('keeps the tallest plan, 21-character target, Margin warning and Depleted, cl
 });
 
 it('names Depleted in the screen-reader entry for the Body', async () => {
-  const run = startRun(123, 'scout');
-  const home = homePlanet(run.starSystem);
-  const moon = home.moons[0];
-  if (!moon) throw new Error('no moon');
+  const run = newRun(123, 'scout');
+  const { home, moon } = opening(run);
   const host = await renderUi(
     <NavChartPanel
       run={{ ...run, depleted: [moon.id] }}
@@ -439,7 +462,7 @@ it('names Depleted in the screen-reader entry for the Body', async () => {
 
 /** A lancer on seed 1 with a Jump Drive installed: the Heliopause is within its reach. */
 function withJumpDrive(): Run {
-  const result = install({ ...startRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+  const result = install({ ...newRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
   if (result.kind !== 'installed') throw new Error('Expected an install');
   return result.run;
 }
@@ -447,7 +470,7 @@ function withJumpDrive(): Run {
 it('says on the chart why the focused Heliopause cannot be the target without a Jump Drive', async () => {
   const host = await renderUi(
     <NavChartPanel
-      run={startRun(1, 'lancer')}
+      run={newRun(1, 'lancer')}
       state={{ focusedId: HELIOPAUSE, selectedId: undefined }}
     />,
   );
@@ -503,8 +526,8 @@ it('plans a Hop to the targeted Heliopause with a Jump Drive: Takeoff and Transf
 
 // Show, don't tell (#222): Success Chance first, then the Δv bar, then the Fuel after the Hop.
 it('leads the Hop plan with Success Chance, then the Δv bar, then the Fuel gauge, each named in words', async () => {
-  const run = startRun(123, 'scout');
-  const moon = homePlanet(run.starSystem).moons[0];
+  const run = newRun(123, 'scout');
+  const moon = run.starSystem.planets[0]?.moons[0];
   if (!moon) throw new Error('no moon');
   const host = await renderUi(
     <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
@@ -512,15 +535,16 @@ it('leads the Hop plan with Success Chance, then the Δv bar, then the Fuel gaug
   const top = (id: string): number => byTestId(host, id).getBoundingClientRect().top;
   expect(top('plan-success')).toBeLessThan(top('dv-bar'));
   expect(top('dv-bar')).toBeLessThan(top('plan-fuel'));
-  // Seed 123's Moon: 6.0 of 22.1 km/s, and the bar's segments, gap and words agree.
+  // Seed 123's innermost planet to its Moon: 5.4 of 22.1 km/s, and the bar's segments, gap and words
+  // agree (re-pinned for #189; was the Home Planet's Moon).
   const bar = byTestId(host, 'dv-bar');
   expect(bar.getAttribute('role')).toBe('img');
   expect(bar.getAttribute('aria-label')).toBe(
-    'Δv: Takeoff 3.6 km/s, Transfer 1.2 km/s, Landing 1.1 km/s. Needs 6.0 of 22.1 km/s, Margin +16.1 km/s.',
+    'Δv: Takeoff 3.8 km/s, Transfer 1.3 km/s, Landing 0.24 km/s. Needs 5.4 of 22.1 km/s, Margin +16.7 km/s.',
   );
-  expect(byTestId(host, 'plan-needed').textContent).toBe('6.0');
+  expect(byTestId(host, 'plan-needed').textContent).toBe('5.4');
   expect(byTestId(host, 'plan-available').textContent).toBe('22.1 km/s');
-  expect(byTestId(host, 'plan-margin').textContent).toBe('+16.1 km/s');
+  expect(byTestId(host, 'plan-margin').textContent).toBe('+16.7 km/s');
   const fuel = byTestId(host, 'plan-fuel');
   expect(fuel.getAttribute('role')).toBe('img');
   expect(fuel.getAttribute('aria-label')).toMatch(/^Fuel: 21\.0 t now, \d+\.\d t after the Hop\.$/);
@@ -539,8 +563,8 @@ it('leads the Hop plan with Success Chance, then the Δv bar, then the Fuel gaug
 });
 
 it('opens the Hop plan details by keyboard: each Burn with its reason, and the mass behind the Δv', async () => {
-  const run = startRun(123, 'scout');
-  const moon = homePlanet(run.starSystem).moons[0];
+  const run = newRun(123, 'scout');
+  const moon = run.starSystem.planets[0]?.moons[0];
   if (!moon) throw new Error('no moon');
   const host = await renderUi(
     <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
@@ -559,22 +583,22 @@ it('opens the Hop plan details by keyboard: each Burn with its reason, and the m
 });
 
 it('the text-budget helper passes on the Hop plan, in every state, and on the chart under it', async () => {
-  const scout = startRun(123, 'scout');
-  const full = startRun(123, 'hauler');
-  // Half-fuelled, the hauler is short of Sircer (see the fit test above).
+  const scout = newRun(123, 'scout');
+  const full = newRun(123, 'hauler');
+  // Half-fuelled, the hauler is short of Rexsio (see the fit test above).
   const hauler = {
     ...full,
     spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 2) },
   };
-  const sircer = listBodies(scout.starSystem).find((b) => b.name === 'Sircer');
-  // The landable Body with the lowest Success Chance from the Home Planet.
+  const sircer = listBodies(scout.starSystem).find((b) => b.name === 'Rexsio');
+  // The landable Body with the lowest Success Chance from the innermost planet.
   const far = listBodies(scout.starSystem)
     .flatMap((body) => {
       const result = planHop(scout, body.id);
       return result.kind === 'planned' ? [{ body, chance: result.plan.successChance }] : [];
     })
     .sort((a, b) => a.chance - b.chance)[0]?.body;
-  const moon = homePlanet(scout.starSystem).moons[0];
+  const moon = scout.starSystem.planets[0]?.moons[0];
   if (!far || !moon || !sircer) throw new Error('seed 123 setup');
   const states: [Run, HopTarget | undefined][] = [
     [scout, undefined],
@@ -596,11 +620,11 @@ it('the text-budget helper passes on the Hop plan, in every state, and on the ch
 });
 
 it('opens the Δv help under the chart with the "?" in its header, by keyboard', async () => {
-  const run = startRun(123, 'scout');
+  const run = newRun(123, 'scout');
   const host = await renderUi(
     <NavChartPanel
       run={run}
-      state={{ focusedId: run.starSystem.homePlanetId, selectedId: undefined }}
+      state={{ focusedId: run.starSystem.planets[0]?.id ?? HELIOPAUSE, selectedId: undefined }}
     />,
   );
   const toggle = helpToggle(host);
@@ -624,9 +648,9 @@ it('opens the Δv help under the chart with the "?" in its header, by keyboard',
 
 // Show, don't tell (#219): the Body's card and the Hop plan's target carry the yield icon, with its words.
 it('every yield icon on the card and the Hop plan target has its accessible name, and a Gas Giant has none', async () => {
-  const run = startRun(123, 'scout');
+  const run = newRun(123, 'scout');
   const bodies = listBodies(run.starSystem);
-  const landable = bodies.find((b) => b.landable && b.id !== run.starSystem.homePlanetId);
+  const landable = bodies.find((b) => b.landable && b.id !== run.starSystem.planets[0]?.id);
   const gas = bodies.find((b) => b.kind === 'gas-giant');
   if (!landable?.landable || !gas)
     throw new Error('seed 123 needs a landable Body and a Gas Giant');
@@ -664,9 +688,9 @@ it('every yield icon on the card and the Hop plan target has its accessible name
 
 it('the yield icon fits inside the card and the target block', async () => {
   // The landable Body with the longest name, so the fit holds whatever the generator draws.
-  const run = startRun(4171, 'scout');
+  const run = newRun(4171, 'scout');
   const body = listBodies(run.starSystem)
-    .filter((b) => b.landable && b.id !== run.starSystem.homePlanetId)
+    .filter((b) => b.landable && b.id !== run.starSystem.planets[0]?.id)
     .reduce<ReturnType<typeof listBodies>[number] | undefined>(
       (longest, b) => (longest && longest.name.length >= b.name.length ? longest : b),
       undefined,

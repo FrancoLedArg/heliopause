@@ -50,7 +50,7 @@ const LONG_REASON =
 const ENDS = [
   { kind: 'fell-short', reason: LONG_REASON },
   { kind: 'crashed', reason: LONG_REASON },
-  { kind: 'stranded', reason: LONG_REASON, bodyId: startRun(5, 'scout').starSystem.homePlanetId },
+  { kind: 'stranded', reason: LONG_REASON, bodyId: startRun(5, 'scout').starSystem.startingMoonId },
 ] as const satisfies readonly RunEnd[];
 
 /** Whether the screen sits inside the 640x360 stage and nothing in it overflows or crowds the buttons. */
@@ -83,7 +83,7 @@ it.each(ENDS)(
 );
 
 it('shows the Score as a Star System icon and a Hop icon with their numbers, and the Best Score beside them', async () => {
-  const bodyId = startRun(5, 'scout').starSystem.homePlanetId;
+  const bodyId = startRun(5, 'scout').starSystem.startingMoonId;
   const host = await show(ended({ kind: 'stranded', reason: LONG_REASON, bodyId }, 3, 12));
   const screen = byTestId(host, 'end-of-run');
   expect(screen.querySelector('h2')?.textContent).toBe('Stranded');

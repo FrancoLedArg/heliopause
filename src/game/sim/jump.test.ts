@@ -8,7 +8,6 @@ import {
   currentBody,
   generateSystem,
   HELIOPAUSE,
-  homePlanet,
   install,
   isDepleted,
   launchHop,
@@ -17,11 +16,12 @@ import {
   planHop,
   score,
   startRun,
+  startingMoon,
   starSystemNumber,
   type HopFlight,
   type Run,
 } from './index.ts';
-import { homeMoon, plan, withDeltaV, withJumpDrive } from './testing.ts';
+import { firstTarget, landedOn, plan, withDeltaV, withJumpDrive } from './testing.ts';
 
 /**
  * `from` with a Jump Drive and Fuel for `share` of the Hop's estimate, flown out to the Heliopause:
@@ -37,25 +37,35 @@ function escape(from: Run, share = 1.3): { before: Run; flight: HopFlight; run: 
   return { before, flight: launched.flight, run: launched.run };
 }
 
-/** The best Success Chance of a Hop from the Home Planet to one of its (Icy) Moons. */
-function bestHomeMoonChance(run: Run): number {
-  return Math.max(
-    ...homePlanet(run.starSystem).moons.map((moon) => {
-      const planned = planHop(run, moon.id);
-      return planned.kind === 'planned' ? planned.plan.successChance : 0;
-    }),
-  );
+/** The Success Chance of the Hop from the Starting Moon to the first Body Comms Detected there. */
+function firstHopChance(run: Run): number {
+  const planned = planHop(run, firstTarget(run).id);
+  return planned.kind === 'planned' ? planned.plan.successChance : 0;
+}
+
+/** The Fuel and Materials the new Starting Moon gave on arrival. */
+function gathered(run: Run): { fuel: number; materials: number } {
+  const { startingYield } = run;
+  return {
+    fuel: startingYield.kind === 'fuel' ? startingYield.collected : 0,
+    materials: startingYield.kind === 'materials' ? startingYield.collected : 0,
+  };
+}
+
+/** The Fuel kept from the Hop plus what the new Starting Moon gave, up to the Tank's capacity. */
+function keptAndGathered(flight: HopFlight, jumped: Run): number {
+  return Math.min(jumped.spacecraft.fuelCapacity, flight.fuelRemaining + gathered(jumped).fuel);
 }
 
 const start = startRun(2026, 'hauler');
 const escaped = escape(start);
 
 describe('the Jump', () => {
-  it("the Jump lands on the next Star System's Home Planet", () => {
+  it("the Jump maroons the Spacecraft on the next Star System's Starting Moon", () => {
     const jumped = escaped.run;
     expect(jumped.starSystem).toEqual(generateSystem(2026, 2));
-    expect(jumped.status).toEqual({ kind: 'landed', bodyId: jumped.starSystem.homePlanetId });
-    expect(currentBody(jumped)).toEqual(homePlanet(jumped.starSystem));
+    expect(jumped.status).toEqual({ kind: 'landed', bodyId: jumped.starSystem.startingMoonId });
+    expect(currentBody(jumped)).toEqual(startingMoon(jumped.starSystem));
   });
 
   it('the Jump raises the difficulty level', () => {
@@ -78,65 +88,58 @@ describe('the Jump', () => {
     expect(jumped.spacecraft.slots).toEqual(['engine-1', 'fuel-tank-1', 'drill-1', null]);
     expect(carriesJumpDrive(jumped.spacecraft)).toBe(false);
     // Burnt out, not removed: no Materials come back for it.
-    expect(jumped.materials).toBe(before.materials);
+    expect(jumped.materials).toBe(before.materials + gathered(jumped).materials);
     // Without the Jump Drive the Spacecraft is lighter by exactly its mass.
     expect(jumped.spacecraft.dryMass).toBeCloseTo(
       before.spacecraft.dryMass - COMPONENTS['jump-drive'].mass,
     );
   });
 
-  it('the Jump keeps Fuel and Materials', () => {
+  it('the Jump keeps Fuel and Materials, and adds what the new Starting Moon gives', () => {
     const { flight, run: jumped } = escape({ ...start, materials: materials(73) }, 2);
-    expect(jumped.spacecraft.fuelMass).toBe(flight.fuelRemaining);
-    expect(jumped.materials).toBe(materials(73));
+    expect(jumped.spacecraft.fuelMass).toBeCloseTo(keptAndGathered(flight, jumped));
+    expect(jumped.materials).toBe(materials(73 + gathered(jumped).materials));
     expect(jumped.hopsFlown).toBe(1);
   });
 
-  it("the Jump leaves enough Fuel for a 100% Hop to the new Home Planet's Icy Moon", () => {
+  it('the Jump leaves enough Fuel for a 100% Hop to the first Body Comms Detects there', () => {
     // Fuel for the Heliopause's worst case and no more: the Spacecraft gets there nearly dry.
     const { flight, run: jumped } = escape(start, 1.105);
     expect(
-      bestHomeMoonChance({
+      firstHopChance({
         ...jumped,
         spacecraft: { ...jumped.spacecraft, fuelMass: flight.fuelRemaining },
       }),
     ).toBe(0);
     expect(jumped.spacecraft.fuelMass).toBeGreaterThan(flight.fuelRemaining);
     expect(jumped.spacecraft.fuelMass).toBeLessThanOrEqual(jumped.spacecraft.fuelCapacity);
-    expect(bestHomeMoonChance(jumped)).toBe(1);
+    expect(firstHopChance(jumped)).toBe(1);
   });
 
   it('a player who arrives with more Fuel keeps it', () => {
     const nearlyDry = escape(start, 1.105).run.spacecraft.fuelMass;
     const { flight, run: jumped } = escape(start, 2);
     expect(flight.fuelRemaining).toBeGreaterThan(nearlyDry);
-    expect(jumped.spacecraft.fuelMass).toBe(flight.fuelRemaining);
+    expect(jumped.spacecraft.fuelMass).toBeCloseTo(keptAndGathered(flight, jumped));
   });
 
-  it('every Body of the next Star System still has its yield, whatever was gathered before', () => {
-    // Gather on the Home Planet's Moon first: its id is reused by a Body of the next Star System.
-    const gathered = launchHop(start, homeMoon(start).id);
-    if (gathered.kind !== 'flown') throw new Error('Expected a Hop to the Moon');
-    expect(gathered.run.depleted).not.toEqual([]);
-    const jumped = escape(gathered.run).run;
+  it('every Body of the next Star System but its Starting Moon still has its yield, whatever was gathered before', () => {
+    // Gather on the first target first: its id may be reused by a Body of the next Star System.
+    const hopped = launchHop(start, firstTarget(start).id);
+    if (hopped.kind !== 'flown') throw new Error('Expected a Hop to the first target');
+    expect(hopped.run.depleted.length).toBe(2);
+    const jumped = escape(hopped.run).run;
     for (const body of listBodies(jumped.starSystem)) {
-      expect(isDepleted(jumped, body.id)).toBe(false);
+      expect(isDepleted(jumped, body.id)).toBe(body.id === jumped.starSystem.startingMoonId);
     }
   });
 
-  it('the next Home Planet keeps the Home Planet guarantees: Rocky, with Icy Moons', () => {
-    const home = homePlanet(escaped.run.starSystem);
-    expect(home.composition).toBe('rocky');
-    expect(home.moons.length).toBeGreaterThan(0);
-    for (const moon of home.moons) expect(moon.composition).toBe('icy');
-  });
-
   it('a Run replays identically by seed across two Jumps', () => {
-    /** Two Jumps, then a Hop to the third Home Planet's Moon. */
+    /** Two Jumps, then a Hop to the third Star System's first target. */
     const play = (seed: number) => {
       const second = escape(startRun(seed, 'lancer')).run;
       const third = escape(second).run;
-      const hop = launchHop(third, homeMoon(third).id);
+      const hop = launchHop(third, firstTarget(third).id);
       return { second, third, hop };
     };
     const first = play(77);
@@ -159,28 +162,26 @@ describe('the Jump', () => {
   });
 
   it('a Jump that lands where no Hop could ever have a chance ends the Run as Stranded', () => {
-    // Test fixture: deep into a Run, at difficulty level 40, with no Materials left to change the
-    // Spacecraft. Level 41's gravity puts every Hop out of reach even with a full Tank. Re-pinned
-    // for #188 (was level 25): rocky planets are now at most Mars-sized, so it takes deeper levels.
+    // Test fixture: deep into a Run, at difficulty level 41, with no Materials left to change the
+    // Spacecraft. Level 42's gravity puts every Hop out of reach even with a full Tank. Re-pinned
+    // for #189 (was level 40): a Starting Moon is easier to leave than the Home Planet was.
     const deep = (() => {
-      const starSystem = generateSystem(2026, 40);
-      const at: Run = {
-        ...start,
-        starSystemNumber: 40,
-        starSystem,
-        status: { kind: 'landed', bodyId: starSystem.homePlanetId },
-      };
+      const starSystem = generateSystem(2026, 41);
+      const at = landedOn(
+        { ...start, starSystemNumber: 41, starSystem },
+        starSystem.startingMoonId,
+      );
       return { ...escape(at).before, materials: materials(0) };
     })();
     const launched = launchHop(deep, HELIOPAUSE);
     if (launched.kind !== 'flown') throw new Error('Expected the Hop to the Heliopause');
     expect(launched.flight.outcome.kind).toBe('reached-heliopause');
     const { run } = launched;
-    expect(run.starSystemNumber).toBe(41);
+    expect(run.starSystemNumber).toBe(42);
     expect(run.status).toMatchObject({
       kind: 'ended',
-      end: { kind: 'stranded', bodyId: run.starSystem.homePlanetId },
+      end: { kind: 'stranded', bodyId: run.starSystem.startingMoonId },
     });
-    expect(score(run).starSystemsEscaped).toBe(40);
+    expect(score(run).starSystemsEscaped).toBe(41);
   });
 });

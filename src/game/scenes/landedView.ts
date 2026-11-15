@@ -9,7 +9,7 @@ import {
   CHASSIS_IDS,
   currentBody,
   kilometersToAu,
-  listBodies,
+  knownBodies,
 } from '../sim/index.ts';
 import type {
   AstronomicalUnits,
@@ -233,7 +233,7 @@ function planetOf(run: Run, moon: Moon): Planet {
 }
 
 /**
- * The star and the nearest Bodies as seen from where the Spacecraft stands, farthest first so
+ * The star and the nearest known Bodies as seen from where the Spacecraft stands, farthest first so
  * nearer ones are drawn in front. The star sits at the middle of the visible sky; every other Body
  * is placed by its bearing from the star's direction, squeezed into the visible band so none starts
  * off-screen. A Moon whose planet is also in the sky hangs beside it instead, clear of its disc.
@@ -259,7 +259,8 @@ export function skyBodies(run: Run): SkyBody[] {
     distanceAu: starDistance,
   };
 
-  const nearest = listBodies(run.starSystem)
+  // Only the Bodies the player knows of: the sky agrees with the Nav Chart (#96).
+  const nearest = knownBodies(run)
     .filter((body) => body.id !== here.id)
     .map((body) => {
       const at = position(run, body);
