@@ -11,7 +11,7 @@ The human's rough scene sketches. They set composition and mood only; agents gen
 
 - **Landscape, not a diagram**: wide shots that show a lot of the surface, and the complete Spacecraft with a little perspective.
 - **Never quite still**: very slow camera drift with parallax, sky Bodies creeping, low blowing dust, blinking Spacecraft lights and a faint engine glow.
-- **Sci-fi videogame look**: a player picks one of three Chassis, each with a distinct silhouette. Spacecraft stand upright and take off and land tail-first, on their engines (#200, #201).
+- **Sci-fi videogame look**: a player picks one of three Chassis, each with a distinct silhouette. Spacecraft take off and land upright on their engines, tail-first: straight up off the ground and straight down onto it, x fixed, never tilting or drifting sideways (the human's direction, 2026-11-15, spec #200).
 - **Spacecraft style** (updated 2026-11-15, spec #230): flat, non-3D pixel art with curved silhouettes, rim light, glowing windows and blinking lamps; no 3D or voxel look. The reference is the human-approved Shipwright Bench mockup (`docs/design/shipwright-bench.html`) and its Python port (`docs/design/sprites/gen_ships.py`). The drawn Spacecraft is its Chassis art plus one Component art per installed Component, each at a mount point, so better art drops in by files and manifest only. The current art is interim; the final designs follow the human's 2–3 style references when they arrive. Our Chassis are original designs in the kit palette (gunmetal plating, cyan glass and lights, amber thruster glow).
 
 ## Ground (decided 2026-11-14, replaces the curved horizon)
