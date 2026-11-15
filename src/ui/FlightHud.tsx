@@ -116,6 +116,7 @@ export function FlightHud({
     return (
       <>
         <TopBar
+          systemNumber={starSystemNumber(before)}
           systemName={before.starSystem.name}
           fuel={fuel}
           deltaV={deltaV}
