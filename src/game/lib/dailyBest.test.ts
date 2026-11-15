@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  firstDetectedBody,
   launchHop,
-  listBodies,
   parseChoiceLog,
   replay,
   score,
@@ -110,10 +110,7 @@ describe('Daily Best', () => {
   it('the Daily Best keeps the day, seed, Chassis, build, Score and choice log', () => {
     const storage = memory();
     const start = startRun(dailySeed(TODAY), 'hauler');
-    const moon = listBodies(start.starSystem).find(
-      (body) => body.id !== start.starSystem.homePlanetId,
-    );
-    if (!moon) throw new Error('no Body to Hop to');
+    const moon = firstDetectedBody(start.starSystem);
     const hopped = launchHop(start, moon.id);
     if (hopped.kind !== 'flown') throw new Error('the Hop should fly');
     recordDailyRun(TODAY, hopped.run, BUILD, storage);

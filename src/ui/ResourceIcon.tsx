@@ -15,6 +15,8 @@ interface ResourceIconProps {
   className?: string;
   /** The `data-testid` to carry; every icon has `resource-icon` by default. */
   testId?: string;
+  /** The accessible name, when the icon stands for the resource itself rather than a Body's yield. */
+  label?: string;
 }
 
 /**
@@ -28,6 +30,7 @@ export function ResourceIcon({
   size = 16,
   className,
   testId = 'resource-icon',
+  label,
 }: ResourceIconProps) {
   const classes = ['resource-icon', depleted ? 'resource-icon--depleted' : '', className ?? '']
     .filter(Boolean)
@@ -36,7 +39,7 @@ export function ResourceIcon({
   return (
     <span
       role="img"
-      aria-label={yieldIconName(resource, depleted)}
+      aria-label={label ?? yieldIconName(resource, depleted)}
       className={classes}
       data-testid={testId}
       data-resource={resource}

@@ -8,7 +8,8 @@ describe('the yield icon of a Body', () => {
   it('an Icy Body offers the Fuel icon, a Rocky Body the Materials icon, a Depleted Body the struck-through icon, and a Gas Giant none', () => {
     const seen = { icy: false, rocky: false, gas: false };
     for (const seed of SEEDS) {
-      const run = startRun(seed, 'scout');
+      // Nothing Depleted yet: since #189 a Run starts with its Starting Moon's yield taken.
+      const run = { ...startRun(seed, 'scout'), depleted: [] };
       for (const body of listBodies(run.starSystem)) {
         const icon = yieldIcon(run, body);
         if (!body.landable) {
@@ -32,7 +33,7 @@ describe('the yield icon of a Body', () => {
   });
 
   it('a Body is struck through only in the Run that emptied it', () => {
-    const run = startRun(1, 'scout');
+    const run = { ...startRun(1, 'scout'), depleted: [] };
     const [first, second] = listBodies(run.starSystem).filter((b) => b.landable);
     if (!first || !second) throw new Error('Seed 1 needs two landable Bodies');
     const emptied = { ...run, depleted: [first.id] };

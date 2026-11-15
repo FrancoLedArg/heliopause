@@ -4,7 +4,7 @@ import {
   BURNS,
   flyHop,
   HELIOPAUSE,
-  homePlanet,
+  firstDetectedBody,
   install,
   kilograms,
   launchHop,
@@ -26,12 +26,10 @@ import {
 } from './flightPlayback.ts';
 
 const run = startRun(123, 'scout');
-const moon = homePlanet(run.starSystem).moons[0];
-if (!moon) throw new Error('The Home Planet has a Moon');
-/** The Home Planet's Moon: every Hop in these tests goes there. */
-const moonId: BodyId = moon.id;
+/** The first Body Comms Detected: every Hop in these tests goes there. */
+const moonId: BodyId = firstDetectedBody(run.starSystem).id;
 
-/** Flies the Hop to the Home Planet's Moon from `from`, with the first seed whose outcome is `kind`. */
+/** Flies the Hop to the first Detected Body from `from`, with the first seed whose outcome is `kind`. */
 function flightEnding(kind: HopFlight['outcome']['kind'], from: Run, burn?: string): HopFlight {
   const planned = planHop(from, moonId);
   if (planned.kind !== 'planned') throw new Error('no plan');
@@ -217,7 +215,11 @@ describe('Hop playback', () => {
   });
 
   it('a Hop that Fell Short at Takeoff never leaves the Takeoff', () => {
-    const from = shortRun(0.2);
+    // Fuel for most of the Takeoff alone. Re-pinned for #189 (was a fixed 0.2): from the Starting
+    // Moon the Takeoff is a small share of the Hop.
+    const planned = planHop(run, moonId);
+    if (planned.kind !== 'planned') throw new Error('no plan');
+    const from = shortRun((0.8 * planned.plan.estimates.takeoff) / planned.plan.totalEstimate);
     const flight = flightEnding('fell-short', from, 'takeoff');
     const playback = flightPlayback(from.spacecraft, flight, 'full');
     expect(playback.at(0).fuel).toBeCloseTo(from.spacecraft.fuelMass, 6);
@@ -398,7 +400,11 @@ describe('the shots of a Hop’s playback', () => {
   });
 
   it('a Spacecraft that Fell Short in the Takeoff never reaches the Cruise', () => {
-    const from = shortRun(0.2);
+    // Fuel for most of the Takeoff alone (not a fixed 0.2: from the Starting Moon, #189, the Takeoff
+    // is a small share of the Hop).
+    const planned = planHop(run, moonId);
+    if (planned.kind !== 'planned') throw new Error('no plan');
+    const from = shortRun((0.8 * planned.plan.estimates.takeoff) / planned.plan.totalEstimate);
     const flight = flightEnding('fell-short', from, 'takeoff');
     const playback = flightPlayback(from.spacecraft, flight, 'full');
     expect(shotsOf(playback)).toEqual(['takeoff']);
