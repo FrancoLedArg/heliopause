@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { FAST_CRUISE } from './cruise.ts';
+import { recordShots, shotsSeen } from './shots.ts';
 import {
   findBody,
   firstDetectedBody,
@@ -158,12 +159,15 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
   });
 
   // 5. Launch: Takeoff and Transfer play, then the Jump: the flavour text over the black.
+  await recordShots(page);
   await launch(page);
   const strip = page.getByTestId('phase-strip');
   await expect(strip).toBeVisible();
   await expect(strip).not.toContainText('Landing');
   const caption = page.getByTestId('jump-caption');
   await expect(caption).toHaveText(JUMP_FLAVOUR_TEXT, { timeout: 30_000 });
+  // No Approach on the way out: the Jump follows the Cruise.
+  expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise']);
   await testInfo.attach('the-jump', { body: await page.screenshot(), contentType: 'image/png' });
 
   // 6. The Landed view of System 2's Starting Moon: the Jump Drive burnt out, Materials kept and its
