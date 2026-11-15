@@ -52,10 +52,11 @@ test('the Nav Chart opens over the Landed view, names the Spacecraft Body and cl
   // #193: it opens on the map alone, no card, with where the Spacecraft is named on it.
   await expect(page.getByTestId('inspect')).toHaveCount(0);
   await expect(page.getByText(`${homeName} · you`)).toBeVisible();
-  // Only what the player knows: the Starting Moon, its Gas Giant and the one Body Comms Detected,
-  // and the Heliopause (found from the start until the Radar, #191).
+  // Only what the player knows: the Starting Moon, its Gas Giant and the one Body Comms Detected.
+  // The Heliopause is not on the chart until the Radar finds it (#191).
+  await expect(page.getByText('Heliopause', { exact: true })).toHaveCount(0);
   const options = page.getByRole('option');
-  await expect(options).toHaveCount(4);
+  await expect(options).toHaveCount(3);
   for (const body of [home, gasGiant, homeMoon]) {
     await expect(page.getByRole('option', { name: new RegExp(`^${body.name},`) })).toBeAttached();
   }
@@ -203,7 +204,7 @@ test('the full-screen chart: pick the blip, plan an Unsurveyed Hop, launch, and 
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
   // The Starting Moon, its Gas Giant, and one blip with a "?": the Body Comms Detected.
-  await expect(page.getByRole('option')).toHaveCount(4);
+  await expect(page.getByRole('option')).toHaveCount(3);
   const blips = page.getByTestId('unsurveyed-mark');
   await expect(blips).toHaveCount(1);
   await expect(blips).toHaveAttribute('aria-label', `${homeMoon.name}: Unsurveyed`);
@@ -225,7 +226,7 @@ test('the full-screen chart: pick the blip, plan an Unsurveyed Hop, launch, and 
 
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   // The Body landed on is Surveyed now, and Comms Detected one more: a new blip.
-  await expect(page.getByRole('option')).toHaveCount(5);
+  await expect(page.getByRole('option')).toHaveCount(4);
   await expect(
     page.getByRole('option', { name: new RegExp(`^${homeMoon.name}, .*you are here`) }),
   ).not.toContainText('Unsurveyed');

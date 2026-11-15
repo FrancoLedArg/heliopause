@@ -154,7 +154,9 @@ export function layoutChart(run: Run): ChartLayout {
     (a, b) => a.distanceFromStar - b.distanceFromStar || a.id.localeCompare(b.id),
   );
   const firstRing = (planet: Planet, previousRing: number): number => {
-    const fraction = (planet.distanceFromStar / system.heliopauseRadius) ** DISTANCE_EXPONENT;
+    // The map's reach, not the Heliopause's: it lies just past the outermost planet (#191), and
+    // scaling to it would crowd the outer planets against the map's edge.
+    const fraction = (planet.distanceFromStar / system.mapRadius) ** DISTANCE_EXPONENT;
     return Math.max(
       Math.round(INNER_RING + (MIN_HELIOPAUSE - INNER_RING) * fraction),
       previousRing + 1,

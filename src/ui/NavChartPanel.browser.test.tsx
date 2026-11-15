@@ -29,6 +29,12 @@ import {
 import { toScreen } from '../game/scenes/navChartMap.ts';
 import { EventBus } from '../game/EventBus.ts';
 
+/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
+const found = (run: Run): Run => ({
+  ...run,
+  knowledge: { ...run.knowledge, heliopauseFound: true },
+});
+
 afterEach(cleanUp);
 
 /**
@@ -491,10 +497,23 @@ it('names Depleted in the screen-reader entry for the Body', async () => {
 
 /** A lancer on seed 1 with a Jump Drive installed: the Heliopause is within its reach. */
 function withJumpDrive(): Run {
-  const result = install({ ...newRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+  const result = install(
+    found({ ...newRun(1, 'lancer'), materials: materials(100) }),
+    2,
+    'jump-drive',
+  );
   if (result.kind !== 'installed') throw new Error('Expected an install');
   return result.run;
 }
+
+it('lists no Heliopause until the Radar finds it', async () => {
+  const run = startRun(1, 'lancer');
+  const host = await renderUi(
+    <Panel run={run} focusedId={run.starSystem.startingMoonId} selectedId={undefined} />,
+  );
+  expect(host.querySelector(`#nav-option-${HELIOPAUSE}`)).toBeNull();
+  expect(host.querySelectorAll('[role="option"]')).toHaveLength(run.knowledge.detected.length);
+});
 
 it('says on the chart why the focused Heliopause cannot be the target without a Jump Drive', async () => {
   const host = await renderUi(
@@ -832,8 +851,8 @@ it('opens with nothing but the map: no card, no plan and no highlight', async ()
   expect(host.querySelector('[data-testid="inspect"]')).toBeNull();
   expect(host.querySelector('[data-testid="hop-plan"]')).toBeNull();
   expect(host.querySelector('.nav-chart__label--focused')).toBeNull();
-  // Only known Bodies are on it (and the Heliopause, found from the start until the Radar).
-  expect(host.querySelectorAll('[role="option"]').length).toBe(layout.nodes.length + 1);
+  // Only known Bodies are on it; the Heliopause waits for the Radar (#191).
+  expect(host.querySelectorAll('[role="option"]').length).toBe(layout.nodes.length);
   // The Detected Body wears a "?", named for screen readers.
   const marks = [...host.querySelectorAll('[data-testid="unsurveyed-mark"]')];
   expect(marks.map((m) => m.getAttribute('aria-label'))).toEqual([

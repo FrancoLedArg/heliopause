@@ -179,6 +179,7 @@ export function repairTicks(kind: ComponentKind): number {
     case 'engine':
     case 'fuel-tank':
     case 'drill':
+    case 'radar':
       return CRUISE_TUNING.repairTicks[kind];
     case 'jump-drive':
       throw new Error('The Jump Drive is never Damaged');

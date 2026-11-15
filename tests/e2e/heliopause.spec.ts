@@ -5,35 +5,46 @@ import {
   findBody,
   firstDetectedBody,
   HELIOPAUSE,
-  install,
   launchHop,
   planHop,
+  replay,
   runEnd,
   score,
   startingMoon,
   startRun,
 } from '../../src/game/sim/index.ts';
+import { readyToJump } from '../../src/game/sim/testing.ts';
 import { formatScore } from '../../src/ui/endOfRunView.ts';
 import { kmPerSecondFigure } from '../../src/ui/format.ts';
 import { JUMP_FLAVOUR_TEXT } from '../../src/ui/jumpFlavour.ts';
 
-// Spec #15's way out, on one seed, by keyboard alone: the Heliopause says it needs a Jump Drive;
-// gather Materials on the first target, build the Jump Drive, target the Heliopause, Launch, reach
-// it, Jump to Star System 2 and Hop on from its Starting Moon. Re-pinned for #189 (was seed 35's
-// Tisquul). Re-pinned for #247 (was seed 62's Sekus): the Chassis Isp rose 30%, so seed 62's Run no
-// longer Crashes in System 2. Seed 28 opens on an Icy Moon, and its first target, Princol Nova,
-// yields 24 Materials: with the starting 25, enough for the Jump Drive (45).
-const SEED = 28;
+// Spec #15's way out, on one seed, by keyboard alone, since #191 found only by the Radar: the chart
+// opens with no Heliopause; build a Radar, Hop out until it finds the Heliopause, build the Jump
+// Drive, target the Heliopause, Launch, reach it, Jump to Star System 2 and Hop on from its Starting
+// Moon. The route is a careful explorer's (`readyToJump`): seed 121 gets out in 5 Hops. Re-pinned for
+// #191 (was seed 28, whose first target paid for the Jump Drive with the Heliopause already found).
+const SEED = 121;
+const ready = readyToJump(SEED, 'scout');
+if (!ready) throw new Error(`Seed ${String(SEED)} should have a way out`);
 const run = startRun(SEED, 'scout');
-const rocky = firstDetectedBody(run.starSystem);
-const gathered = launchHop(run, rocky.id);
-if (gathered.kind !== 'flown' || gathered.flight.outcome.kind !== 'arrived') {
-  throw new Error(`Seed ${String(SEED)}: the Hop to ${rocky.name} should Arrive`);
-}
-const built = install(gathered.run, gathered.run.spacecraft.slots.indexOf(null), 'jump-drive');
-if (built.kind !== 'installed') throw new Error(`${rocky.name} should pay for the Jump Drive`);
-const planned = planHop(built.run, HELIOPAUSE);
-const escape = launchHop(built.run, HELIOPAUSE);
+
+/** The explorer's choices, each with the Run it leaves: a Radar, the Hops out, then the Jump Drive. */
+const route = ready.choices.map((choice, index) => {
+  const replayed = replay(SEED, 'scout', ready.choices.slice(0, index + 1));
+  if (replayed.kind !== 'replayed') throw new Error('The route should replay');
+  return { choice, after: replayed.run };
+});
+const hops = route.flatMap(({ choice, after }) => {
+  if (choice.kind !== 'hop' || choice.target === HELIOPAUSE) return [];
+  const body = findBody(run.starSystem, choice.target);
+  if (!body) throw new Error(`No Body ${choice.target}`);
+  return [{ name: body.name, finds: after.knowledge.heliopauseFound, materials: after.materials }];
+});
+const firstFind = hops.findIndex((hop) => hop.finds);
+if (firstFind < 0) throw new Error('The route should find the Heliopause');
+
+const planned = planHop(ready, HELIOPAUSE);
+const escape = launchHop(ready, HELIOPAUSE);
 if (planned.kind !== 'planned' || escape.kind !== 'flown') throw new Error('Expected a plan');
 if (escape.flight.outcome.kind !== 'reached-heliopause') {
   throw new Error(`Seed ${String(SEED)}: the Hop to the Heliopause should reach it`);
@@ -46,14 +57,14 @@ if (onward.kind !== 'flown' || onward.run.status.kind !== 'landed') {
   throw new Error(`Seed ${String(SEED)}: the Hop on from System 2's Starting Moon should land`);
 }
 
-// ...and where the Run ends in System 2: from there, a Hop to the Body Comms Detected Crashes.
+// ...and where the Run ends in System 2: from there, a Hop to the Body Comms Detected Falls Short.
 const doomedId = onward.flight.reveal?.detected[0];
 const doomed = doomedId && findBody(system2.starSystem, doomedId);
 if (!doomed) throw new Error(`Seed ${String(SEED)}: Comms should Detect a Body in System 2`);
 const doomedHop = launchHop(onward.run, doomed.id);
 if (doomedHop.kind !== 'flown') throw new Error('unreachable');
 const finalEnd = runEnd(doomedHop.run);
-if (finalEnd?.kind !== 'crashed') throw new Error('The doomed Hop should end the Run');
+if (finalEnd?.kind !== 'fell-short') throw new Error('The doomed Hop should end the Run');
 const finalScore = score(doomedHop.run);
 
 /** Steps through the chart until the tooltip shows `name` (a Body, or the Heliopause). */
@@ -87,10 +98,45 @@ async function launch(page: Page): Promise<void> {
   await page.keyboard.press('Enter');
 }
 
-test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and Hop on', async ({
+/** Installs a Component in the first empty Slot through the Spacecraft panel, by keyboard. */
+async function installByKeyboard(page: Page, label: RegExp, name: string): Promise<void> {
+  await tabTo(page, /^Spacecraft/);
+  await page.keyboard.press('Enter');
+  const panel = page.getByRole('dialog', { name: 'Spacecraft' });
+  await expect(panel).toBeVisible();
+  await tabTo(page, label);
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('install-status')).toContainText(`Installed ${name}`);
+  await page.keyboard.press('Escape');
+  await expect(panel).toBeHidden();
+}
+
+/** Opens the Nav Chart, targets `name` and launches by keyboard. */
+async function hopTo(page: Page, name: string): Promise<void> {
+  await page.keyboard.press('m');
+  await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
+  await focusOnChart(page, name);
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('target')).toContainText(name);
+  await launch(page);
+}
+
+/** Hops out along the route, through each Hop's report, until the Radar has found the Heliopause. */
+async function exploreUntilFound(page: Page): Promise<void> {
+  for (const hop of hops.slice(0, firstFind + 1)) {
+    await hopTo(page, hop.name);
+    const arrived = page.getByRole('dialog', { name: 'Arrived' });
+    await expect(arrived).toBeVisible({ timeout: 30_000 });
+    await page.keyboard.press('Enter');
+    await expect(arrived).toBeHidden();
+    await expect(page.getByTestId('materials')).toHaveText(String(hop.materials));
+  }
+}
+
+test('build a Radar to find the Heliopause, then a Jump Drive, reach it by keyboard, Jump and Hop on', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(90_000);
+  test.setTimeout(180_000);
   await page.setViewportSize({ width: 640, height: 360 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors: string[] = [];
@@ -102,9 +148,21 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('materials')).toHaveText(String(run.materials));
 
-  // 1. Without a Jump Drive the chart says why the Heliopause cannot be the target, and Enter does nothing.
+  // 1. The chart opens with no Heliopause: only the Radar finds it.
   await page.keyboard.press('m');
   const chart = page.getByRole('dialog', { name: 'Nav Chart' });
+  await expect(chart).toBeVisible();
+  await expect(page.getByRole('option', { name: /^Heliopause, / })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(chart).toBeHidden();
+
+  // 2. Build a level-1 Radar from the Materials a New Run has, and Hop out until it finds the Heliopause.
+  await installByKeyboard(page, /^Install Radar, level 1,/, 'Radar');
+  await exploreUntilFound(page);
+  await expect(page.getByTestId('comms-announcement')).toContainText('Heliopause found');
+
+  // 3. Now on the chart, it says why it cannot be the target without a Jump Drive, and Enter does nothing.
+  await page.keyboard.press('m');
   await expect(chart).toBeVisible();
   await focusOnChart(page, 'Heliopause');
   await expect(page.getByTestId('verdict')).toContainText('Jump Drive');
@@ -116,35 +174,18 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
   // #193: no target, so no Hop plan; the card stays with its reason.
   await expect(page.getByTestId('target')).toHaveCount(0);
   await expect(page.getByTestId('verdict')).toContainText('Jump Drive');
-  await testInfo.attach('heliopause-needs-a-jump-drive', {
+  await testInfo.attach('heliopause-found-needs-a-jump-drive', {
     body: await page.screenshot(),
     contentType: 'image/png',
   });
-
-  // 2. Gather Materials on the first target, a Rocky Body.
-  await focusOnChart(page, rocky.name);
-  await page.keyboard.press('Enter');
-  await expect(page.getByTestId('target')).toContainText(rocky.name);
-  await launch(page);
-  const arrived = page.getByRole('dialog', { name: 'Arrived' });
-  await expect(arrived).toBeVisible({ timeout: 30_000 });
-  await page.keyboard.press('Enter');
-  await expect(arrived).toBeHidden();
-  await expect(page.getByTestId('materials')).toHaveText(String(gathered.run.materials));
-
-  // 3. Build the Jump Drive in the Spacecraft panel.
-  await tabTo(page, /^Spacecraft/);
-  await page.keyboard.press('Enter');
-  const panel = page.getByRole('dialog', { name: 'Spacecraft' });
-  await expect(panel).toBeVisible();
-  await tabTo(page, /^Install Jump Drive,/);
-  await page.keyboard.press('Enter');
-  await expect(page.getByTestId('install-status')).toContainText('Installed Jump Drive');
-  await expect(page.getByTestId('materials')).toHaveText(String(built.run.materials));
   await page.keyboard.press('Escape');
-  await expect(panel).toBeHidden();
+  await expect(chart).toBeHidden();
 
-  // 4. Target the Heliopause: its plan has Takeoff and Transfer, and no Landing.
+  // 4. Build the Jump Drive in the Spacecraft panel.
+  await installByKeyboard(page, /^Install Jump Drive,/, 'Jump Drive');
+  await expect(page.getByTestId('materials')).toHaveText(String(ready.materials));
+
+  // 5. Target the Heliopause: its plan has Takeoff and Transfer, and no Landing.
   await page.keyboard.press('m');
   await expect(chart).toBeVisible();
   await focusOnChart(page, 'Heliopause');
@@ -161,7 +202,7 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
     contentType: 'image/png',
   });
 
-  // 5. Launch: Takeoff and Transfer play, then the Jump: the flavour text over the black.
+  // 6. Launch: Takeoff and Transfer play, then the Jump: the flavour text over the black.
   await recordShots(page);
   await launch(page);
   const strip = page.getByTestId('phase-strip');
@@ -173,7 +214,7 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
   expect(await shotsSeen(page)).toEqual(['takeoff', 'cruise']);
   await testInfo.attach('the-jump', { body: await page.screenshot(), contentType: 'image/png' });
 
-  // 6. The Landed view of System 2's Starting Moon: the Jump Drive burnt out, Materials kept and its
+  // 7. The Landed view of System 2's Starting Moon: the Jump Drive burnt out, Materials kept and its
   // yield gathered.
   await expect(page.getByTestId('system-number')).toHaveText('System 2', { timeout: 15_000 });
   await expect(caption).toBeHidden();
@@ -184,7 +225,7 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
     contentType: 'image/png',
   });
 
-  // 7. Hop on in System 2, to the one Body Comms Detected there.
+  // 8. Hop on in System 2, to the one Body Comms Detected there.
   await page.keyboard.press('m');
   await expect(chart).toBeVisible();
   await focusOnChart(page, nextMoon.name);
@@ -201,7 +242,7 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
 test('a Run that escaped a Star System ends in the next one with its Score, and New Run starts by keyboard', async ({
   page,
 }, testInfo) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   await page.setViewportSize({ width: 640, height: 360 });
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const errors: string[] = [];
@@ -213,42 +254,24 @@ test('a Run that escaped a Star System ends in the next one with its Score, and 
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('materials')).toHaveText(String(run.materials));
 
-  /** Opens the Nav Chart, targets `name` and launches by keyboard. */
-  const hopTo = async (name: string): Promise<void> => {
-    await page.keyboard.press('m');
-    await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
-    await focusOnChart(page, name);
-    await page.keyboard.press('Enter');
-    await expect(page.getByTestId('target')).toContainText(name);
-    await launch(page);
-  };
+  await installByKeyboard(page, /^Install Radar, level 1,/, 'Radar');
+  await exploreUntilFound(page);
+  await installByKeyboard(page, /^Install Jump Drive,/, 'Jump Drive');
 
-  await hopTo(rocky.name);
-  const arrived = page.getByRole('dialog', { name: 'Arrived' });
-  await expect(arrived).toBeVisible({ timeout: 30_000 });
-  await page.keyboard.press('Enter');
-  await expect(arrived).toBeHidden();
-  await tabTo(page, /^Spacecraft/);
-  await page.keyboard.press('Enter');
-  await tabTo(page, /^Install Jump Drive,/);
-  await page.keyboard.press('Enter');
-  await expect(page.getByTestId('install-status')).toContainText('Installed Jump Drive');
-  await page.keyboard.press('Escape');
-
-  await hopTo('Heliopause');
+  await hopTo(page, 'Heliopause');
   await expect(page.getByTestId('system-number')).toHaveText('System 2', { timeout: 45_000 });
   await expect(page.getByRole('button', { name: /^Nav Chart/ })).toBeFocused();
 
   // A sure Hop on from the new Starting Moon, then the Body Comms Detects there.
-  await hopTo(nextMoon.name);
+  await hopTo(page, nextMoon.name);
   const onwardReport = page.getByRole('dialog', { name: 'Arrived' });
   await expect(onwardReport).toBeVisible({ timeout: 30_000 });
   await page.keyboard.press('Enter');
   await expect(onwardReport).toBeHidden();
 
   // The Run ends in System 2: Hop report, Continue, then the End-of-Run screen.
-  await hopTo(doomed.name);
-  const outcome = page.getByRole('alertdialog', { name: 'Crashed' });
+  await hopTo(page, doomed.name);
+  const outcome = page.getByRole('alertdialog', { name: 'Fell Short' });
   await expect(outcome).toBeVisible({ timeout: 30_000 });
   await expect(outcome.getByRole('button', { name: 'Continue' })).toBeFocused();
   await page.keyboard.press('Enter');

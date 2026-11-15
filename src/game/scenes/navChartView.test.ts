@@ -293,6 +293,17 @@ describe('moving between Bodies with the arrow keys', () => {
 });
 
 describe('the Heliopause on the Nav Chart', () => {
+  it('is not on the chart until the Radar finds it: no mark and no focus stop', () => {
+    for (const seed of SEEDS.slice(0, 20)) {
+      const run = freshRun(seed);
+      const layout = layoutChart(run);
+      expect(layout.heliopause).toBeUndefined();
+      let id: HopTarget = currentBody(run).id;
+      for (let step = 0; step < 10; step += 1) id = stepFocus(layout, id, 1);
+      expect(id).not.toBe(HELIOPAUSE);
+    }
+  });
+
   /** The Run with a Jump Drive installed. */
   const withJumpDrive = (run: Run): Run => {
     const result = install({ ...run, materials: materials(100) }, 2, 'jump-drive');

@@ -2,7 +2,14 @@ import { Scene, Scenes, type GameObjects, type Input } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
 import { prefersReducedMotion } from '../lib/motion.ts';
-import { bodyKnowledge, currentBody, isDepleted, type HopTarget, type Run } from '../sim/index.ts';
+import {
+  bodyKnowledge,
+  currentBody,
+  isDepleted,
+  type HopTarget,
+  type Run,
+  type StarSystem,
+} from '../sim/index.ts';
 import { bodySprite } from './landedView.ts';
 import {
   BRACKET_ARM,
@@ -10,6 +17,7 @@ import {
   chartReducer,
   crossSegments,
   dashedSegments,
+  HELIOPAUSE_MARK_RADIUS,
   initialChartState,
   layoutChart,
   MARK_GAP,
@@ -36,6 +44,12 @@ const DRAG_THRESHOLD = 5;
 
 /** The side (px) of a Body's yield icon on the map: the kit's 32 px icon at five sixteenths. */
 const YIELD_MARK_SIZE = 10;
+
+/** The Heliopause's reveal on the chart (gameplay tuning, ms): its fade-in and the ping from its mark. */
+const HELIOPAUSE_REVEAL = { fadeMs: 900, pingMs: 1_100, pingScale: 5 } as const;
+
+/** The Star Systems whose found Heliopause the chart has already revealed: it fades in once. */
+const REVEALED = new WeakSet<StarSystem>();
 
 /** Gameplay tuning: a Detected Body's blip, and its pulse (ms). */
 const BLIP = { radius: 3, pulseMs: 1_600, pulseScale: 3 } as const;
@@ -78,9 +92,11 @@ export class NavChart extends Scene {
     // Full screen and opaque: while it is open, the map is the whole view.
     this.cameras.main.setBackgroundColor(paletteNumber('scr0'));
     this.drawRings();
+    const heliopauseRing = this.drawHeliopauseRing();
     this.add.image(this.layout.star.x, this.layout.star.y, 'body_star');
     for (const node of this.layout.nodes) this.addBody(node);
-    this.addHeliopauseMark();
+    const mark = this.addHeliopauseMark();
+    if (heliopauseRing && mark) this.revealHeliopause(heliopauseRing, mark);
     this.drawYieldMarks();
     this.marks = this.add.graphics();
     this.drawMarks();
@@ -234,7 +250,12 @@ export class NavChart extends Scene {
         graphics.lineBetween(...from, ...to);
       }
     }
-    if (!this.layout.heliopause) return;
+  }
+
+  /** The Heliopause's ring, dashed violet; none until the Radar finds it. */
+  private drawHeliopauseRing(): GameObjects.Graphics | undefined {
+    if (!this.layout.heliopause) return undefined;
+    const graphics = this.add.graphics();
     graphics.lineStyle(1, paletteNumber('vi2'));
     const segments = ringSegments(
       this.layout.star,
@@ -245,6 +266,36 @@ export class NavChart extends Scene {
     for (const [index, { from, to }] of segments.entries()) {
       if (index % 4 < 2) graphics.lineBetween(...from, ...to);
     }
+    return graphics;
+  }
+
+  /**
+   * The first time the chart shows a found Heliopause, its ring and mark fade in and a ping grows from
+   * the mark: the way out, shown rather than told (#191). Under reduced motion they are simply there.
+   */
+  private revealHeliopause(ring: GameObjects.Graphics, mark: GameObjects.Graphics): void {
+    if (REVEALED.has(this.run.starSystem)) return;
+    REVEALED.add(this.run.starSystem);
+    if (prefersReducedMotion()) return;
+    this.tweens.add({
+      targets: [ring, mark],
+      alpha: { from: 0, to: 1 },
+      duration: HELIOPAUSE_REVEAL.fadeMs,
+    });
+    const ping = this.add.graphics({ x: mark.x, y: mark.y });
+    ping.lineStyle(1, paletteNumber('vi4'));
+    ping.strokeCircle(0, 0, HELIOPAUSE_MARK_RADIUS + 2);
+    this.tweens.add({
+      targets: ping,
+      delay: HELIOPAUSE_REVEAL.fadeMs / 2,
+      scale: { from: 1, to: HELIOPAUSE_REVEAL.pingScale },
+      alpha: { from: 1, to: 0 },
+      duration: HELIOPAUSE_REVEAL.pingMs,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        ping.destroy();
+      },
+    });
   }
 
   /**
@@ -276,8 +327,8 @@ export class NavChart extends Scene {
   }
 
   /** The Heliopause's mark: a violet diamond on its ring (a shape, not just a colour), once found. */
-  private addHeliopauseMark(): void {
-    if (!this.layout.heliopause) return;
+  private addHeliopauseMark(): GameObjects.Graphics | undefined {
+    if (!this.layout.heliopause) return undefined;
     const { x, y, radius } = this.layout.heliopause;
     const mark = this.add.graphics({ x, y });
     mark.fillStyle(paletteNumber('vi4'));
@@ -290,6 +341,7 @@ export class NavChart extends Scene {
     mark.closePath();
     mark.fillPath();
     mark.strokePath();
+    return mark;
   }
 
   /**
