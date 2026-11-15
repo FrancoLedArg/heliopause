@@ -11,8 +11,8 @@ export {
 } from './run.ts';
 export { collectYield, isDepleted } from './gather.ts';
 export type { Collection, Landing } from './gather.ts';
-export { install } from './install.ts';
-export type { InstallRefusal, InstallResult } from './install.ts';
+export { install, standingRefusal } from './install.ts';
+export type { InstallRefusal, InstallResult, StandingRefusal } from './install.ts';
 export { preview } from './preview.ts';
 export type { Preview, ProposedChange } from './preview.ts';
 export { remove } from './remove.ts';
