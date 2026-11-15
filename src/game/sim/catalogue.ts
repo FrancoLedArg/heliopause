@@ -11,7 +11,7 @@ import {
   type Seconds,
 } from './units.ts';
 
-/** Every Component the Spacecraft can carry: Engine, Fuel Tank and Drill, at levels 1 and 2. */
+/** Every Component the Spacecraft can carry: Engine, Fuel Tank and Drill at levels 1 and 2, and the Jump Drive. */
 export const COMPONENT_IDS = [
   'engine-1',
   'engine-2',
@@ -19,6 +19,7 @@ export const COMPONENT_IDS = [
   'fuel-tank-2',
   'drill-1',
   'drill-2',
+  'jump-drive',
 ] as const;
 export type ComponentId = (typeof COMPONENT_IDS)[number];
 
@@ -68,8 +69,30 @@ export interface Drill extends ComponentEntry {
   readonly yieldMultiplier: number;
 }
 
-export type Component = Engine | FuelTank | Drill;
+/**
+ * The Jump Drive: carries the Spacecraft out of the Star System, and fires only at the Heliopause.
+ * It is heavy, and its `cost` is the price in Star System 1: later Star Systems charge more (see
+ * `componentCost`). It burns out on the Jump, so every Star System asks the player to build it again.
+ */
+export interface JumpDrive extends ComponentEntry {
+  readonly kind: 'jump-drive';
+}
+
+export type Component = Engine | FuelTank | Drill | JumpDrive;
 export type ComponentKind = Component['kind'];
+
+/**
+ * The Jump Drive's gameplay tuning, in one place. About two to three Rocky Bodies' yield (10 to 30 Materials
+ * each, 20 on average, before any Drill) in Star System 1, and a Run starts with 25. The mass takes
+ * about a fifth of the Δv of a full Spacecraft on every Chassis.
+ */
+export const JUMP_DRIVE_TUNING = {
+  mass: kilograms(4_000),
+  /** The Materials cost in Star System 1. */
+  baseCost: materials(45),
+  /** What each later Star System adds to the cost. */
+  costPerStarSystem: materials(3),
+} as const;
 
 const PROPULSION = 'docs/research/propulsion-trade-offs.md';
 const BOROWSKI = 'Borowski et al., NTRS 20120003776 https://ntrs.nasa.gov/citations/20120003776';
@@ -148,4 +171,25 @@ export const COMPONENTS = {
     explanation: 'Makes every Body yield twice as much, but weighs more.',
     provenance: { kind: 'gameplay-tuning' },
   },
+  'jump-drive': {
+    id: 'jump-drive',
+    kind: 'jump-drive',
+    level: 1,
+    mass: JUMP_DRIVE_TUNING.mass,
+    cost: JUMP_DRIVE_TUNING.baseCost,
+    explanation: 'Jumps you to the next Star System, but only at the Heliopause.',
+    provenance: { kind: 'gameplay-tuning' },
+  },
 } as const satisfies { readonly [Id in ComponentId]: Component & { readonly id: Id } };
+
+/**
+ * What installing a Component costs in Star System number `starSystemNumber` (1 for the first).
+ * Only the Jump Drive's price rises with it, by `JUMP_DRIVE_TUNING.costPerStarSystem` each time.
+ */
+export function componentCost(id: ComponentId, starSystemNumber: number): Materials {
+  const component = COMPONENTS[id];
+  if (component.kind !== 'jump-drive') return component.cost;
+  return materials(
+    JUMP_DRIVE_TUNING.baseCost + (starSystemNumber - 1) * JUMP_DRIVE_TUNING.costPerStarSystem,
+  );
+}

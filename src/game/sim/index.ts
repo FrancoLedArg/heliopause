@@ -1,7 +1,7 @@
 // The simulation module's public interface: pure TypeScript game rules, no Phaser or React.
 // The UI and tests use only what is exported here.
 export { findBody, generateStarSystem, homePlanet, listBodies } from './starSystem.ts';
-export { currentBody, startRun, STARTING_MATERIALS } from './run.ts';
+export { currentBody, startRun, starSystemNumber, STARTING_MATERIALS } from './run.ts';
 export { collectYield, isDepleted } from './gather.ts';
 export type { Collection, Landing } from './gather.ts';
 export { install } from './install.ts';
@@ -33,7 +33,7 @@ export {
   STARTING_SLOTS,
 } from './spacecraft.ts';
 export type { ComponentEffect, Loadout, Slot, Spacecraft } from './spacecraft.ts';
-export { COMPONENT_IDS, COMPONENTS } from './catalogue.ts';
+export { COMPONENT_IDS, COMPONENTS, componentCost, JUMP_DRIVE_TUNING } from './catalogue.ts';
 export type {
   Component,
   ComponentId,
@@ -42,6 +42,7 @@ export type {
   Drill,
   Engine,
   FuelTank,
+  JumpDrive,
   Provenance,
 } from './catalogue.ts';
 export type {

@@ -14,7 +14,7 @@ import {
 } from './index.ts';
 
 describe('the Component catalogue', () => {
-  it('holds an Engine, a Fuel Tank and a Drill, each at levels 1 and 2', () => {
+  it('holds an Engine, a Fuel Tank and a Drill, each at levels 1 and 2, and the Jump Drive', () => {
     const kindsAndLevels = Object.values(COMPONENTS).map((c) => `${c.kind} ${String(c.level)}`);
     expect(kindsAndLevels.sort()).toEqual([
       'drill 1',
@@ -23,6 +23,7 @@ describe('the Component catalogue', () => {
       'engine 2',
       'fuel-tank 1',
       'fuel-tank 2',
+      'jump-drive 1',
     ]);
   });
 
@@ -75,6 +76,9 @@ function effectOf(component: Component): number {
       return component.baseFuelCapacity;
     case 'drill':
       return component.yieldMultiplier;
+    case 'jump-drive':
+      // It has no figure to compare: its effect is the Jump itself.
+      return 1;
   }
 }
 

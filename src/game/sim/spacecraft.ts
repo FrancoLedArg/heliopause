@@ -101,7 +101,8 @@ function exhaustVelocity(spacecraft: Spacecraft): number {
 export type ComponentEffect =
   | { readonly kind: 'engine'; readonly isp: Seconds }
   | { readonly kind: 'fuel-tank'; readonly fuelCapacity: Kilograms }
-  | { readonly kind: 'drill'; readonly yieldMultiplier: number };
+  | { readonly kind: 'drill'; readonly yieldMultiplier: number }
+  | { readonly kind: 'jump-drive' };
 
 /**
  * What a Component gives on this Chassis: an Engine's Isp and a Fuel Tank's capacity scaled by the
@@ -121,6 +122,8 @@ export function componentEffect(chassisId: ChassisId, id: ComponentId): Componen
       };
     case 'drill':
       return { kind: 'drill', yieldMultiplier: component.yieldMultiplier };
+    case 'jump-drive':
+      return { kind: 'jump-drive' };
   }
 }
 
@@ -177,6 +180,7 @@ function figures(chassisId: ChassisId, slots: readonly Slot[]): Figures {
         fuelCapacity += effect.fuelCapacity;
         break;
       case 'drill':
+      case 'jump-drive':
         break;
     }
   }
@@ -204,6 +208,7 @@ function loadoutTotals(slots: readonly Slot[]) {
         baseFuelCapacity += component.baseFuelCapacity;
         break;
       case 'drill':
+      case 'jump-drive':
         break;
     }
   }
