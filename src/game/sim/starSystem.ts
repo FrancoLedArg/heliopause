@@ -1,4 +1,5 @@
 import { createRng, type Rng } from '../lib/rng.ts';
+import { RADAR_TUNING } from './catalogue.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
 import {
   BODY_TUNING,
@@ -26,6 +27,9 @@ import {
   type MetersPerSecondSquared,
   type Radians,
 } from './units.ts';
+
+/** The farthest past the outermost planet the Heliopause lies, as a share of a level-2 Radar's range. */
+const HELIOPAUSE_WITHIN_LEVEL_2 = 0.95;
 
 /** A Run's seed: any integer; the same seed always generates the same Star System. */
 export type Seed = number;
@@ -108,6 +112,11 @@ export interface StarSystem {
   readonly startingMoonId: BodyId;
   /** The outer edge of the Star System. */
   readonly heliopauseRadius: AstronomicalUnits;
+  /**
+   * How far out a map of the Star System reaches: where a real heliopause would lie, beyond the
+   * game's Heliopause (see `GENERATION_TUNING.mapRadiusPerOutermostPlanet`). The Nav Chart scales to it.
+   */
+  readonly mapRadius: AstronomicalUnits;
 }
 
 /**
@@ -175,14 +184,23 @@ export function drawStarSystem(seed: Seed, level = 1): StarSystem {
   });
   const start = pickStartingMoon(seed, planets, level);
 
-  // The Heliopause is anchored on the outermost planet, always a Gas Giant.
+  // The Heliopause is anchored on the outermost planet, always a Gas Giant, a little less than a
+  // level-1 Radar's range past it. Deeper Star Systems push it out, but never past what a level-2
+  // Radar reaches from there: every Heliopause can be found.
   const outermostGasGiant = gasGiants.at(-1);
   if (!outermostGasGiant) throw new Error(`Star System ${name} generated no Gas Giant`);
-  const outermost = outermostGasGiant.distanceFromStar;
-  const heliopauseRadius = astronomicalUnits(
-    outermost *
-      sampleFloat(rng, GENERATION_TUNING.heliopausePerOutermostPlanet) *
-      difficultyFactor(DIFFICULTY_TUNING.heliopauseRadius, level),
+  // One draw places both the Heliopause and the edge of the Star System's map.
+  const draw = rng.next();
+  const farther = difficultyFactor(DIFFICULTY_TUNING.heliopauseRadius, level);
+  const beyond = Math.min(
+    lerp(GENERATION_TUNING.heliopauseBeyondOutermostPlanet, draw) * RADAR_TUNING.range[1] * farther,
+    HELIOPAUSE_WITHIN_LEVEL_2 * RADAR_TUNING.range[2],
+  );
+  const heliopauseRadius = astronomicalUnits(outermostGasGiant.distanceFromStar + beyond);
+  const mapRadius = astronomicalUnits(
+    outermostGasGiant.distanceFromStar *
+      lerp(GENERATION_TUNING.mapRadiusPerOutermostPlanet, draw) *
+      farther,
   );
 
   // Frozen: Bodies do not move, and nothing outside the rules can change them.
@@ -193,6 +211,7 @@ export function drawStarSystem(seed: Seed, level = 1): StarSystem {
     planets: start.planets,
     startingMoonId: start.moonId,
     heliopauseRadius,
+    mapRadius,
   });
 }
 

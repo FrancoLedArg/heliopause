@@ -201,6 +201,12 @@ function drawPlate(
     case 'jump-drive':
       g.lineStyle(1, paletteNumber('am3')).strokeCircle(cx, cy, r);
       break;
+    case 'radar':
+      // A dish: a half circle on a stalk.
+      g.lineStyle(1, paletteNumber('am3')).beginPath();
+      g.arc(cx, cy, r, 0, Math.PI).strokePath();
+      g.fillRect(cx - 0.5, cy - r, 1, r);
+      break;
     case 'chassis':
       g.fillRect(cx - r, cy - 0.5, 2 * r, 1);
       break;

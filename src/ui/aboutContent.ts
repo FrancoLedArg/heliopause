@@ -293,6 +293,7 @@ export const KIND_NAMES: Record<ComponentKind, string> = {
   engine: 'Engine',
   'fuel-tank': 'Fuel Tank',
   drill: 'Drill',
+  radar: 'Radar',
   'jump-drive': 'Jump Drive',
 };
 
@@ -315,7 +316,7 @@ export const HOW_TO_PLAY: { heading: string; steps: readonly HowToPlayStep[]; ba
     {
       heading: 'Goal',
       body: [
-        'Build a Jump Drive, Hop to the Heliopause and make the Jump.',
+        'Find the Heliopause with a Radar, then build a Jump Drive, Hop there and make the Jump.',
         'The Jump burns the Drive out, so build a new one in every Star System; you always arrive with enough Fuel to reach the first Body Comms finds there.',
       ],
     },
