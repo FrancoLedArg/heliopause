@@ -121,7 +121,7 @@ const landed = (run: Run) =>
 
 it('warns in words, on the Landed view, when no Hop is possible as built but removing a Component would save the Run', async () => {
   const { seed, path, fit } = SAVE_BY_REMOVING;
-  const host = await landed(landing(seed, path, fit).run);
+  const host = await landed(landing(seed, path, fit, 0, false).run);
   const warning = byTestId(host, 'stranded-warning');
   // Text, not colour alone: a heading that says it, and what to do.
   expect(warning.getAttribute('role')).toBe('alert');

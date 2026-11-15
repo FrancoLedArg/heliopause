@@ -1058,6 +1058,23 @@ body {
   white-space: nowrap;
 }
 
+/* The reach verdict on the Body card (#190): an icon whose shape says it, and a short word. */
+.nav-chart__reach {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  white-space: nowrap;
+  color: var(--am3);
+}
+
+.nav-chart__reach--in-reach {
+  color: var(--gr3);
+}
+
+.nav-chart__reach--out-of-reach {
+  color: var(--rd3);
+}
+
 .nav-chart__divider {
   position: absolute;
   left: 0;

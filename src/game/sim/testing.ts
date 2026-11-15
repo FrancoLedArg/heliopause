@@ -6,13 +6,17 @@ import {
   assessStranding,
   availableDeltaV,
   currentBody,
+  distanceBetween,
+  findBody,
   firstDetectedBody,
   flyHop,
   install,
   kilograms,
+  launchHop,
   listBodies,
   materials,
   planHop,
+  startRun,
   type Body,
   type ChassisId,
   type StarSystem,
@@ -157,3 +161,47 @@ export function withJumpDrive(from: Run): Run {
 }
 
 export { startingRun };
+
+/** The same Run as if a Radar had found the Heliopause, for rules about the Hop there. */
+export function heliopauseFound(from: Run): Run {
+  return { ...from, knowledge: { ...from.knowledge, heliopauseFound: true } };
+}
+
+/**
+ * A Run played the way out by a careful explorer, through the real rules from a New Run on `seed`:
+ * it builds a level-1 Radar before its first Hop, then Hops only at a 100% Success Chance to the
+ * nearest Body it knows of and has not landed on, out from the star where it can, until the Radar has
+ * found the Heliopause and the Materials pay for a Jump Drive; then it installs one. `undefined` when
+ * that explorer cannot get there on this seed (no sure Hop left). Its choices replay to the same Run,
+ * so tests of the Jump and the end-to-end flow start from a real way out.
+ */
+export function readyToJump(seed: number, chassisId: ChassisId): Run | undefined {
+  const start = startRun(seed, chassisId);
+  const radar = install(start, start.spacecraft.slots.indexOf(null), 'radar-1');
+  if (radar.kind !== 'installed') return undefined;
+  let run = radar.run;
+  const visited = new Set<BodyId>([currentBody(run).id]);
+  for (let hops = 0; hops < 40 && run.status.kind === 'landed'; hops += 1) {
+    if (run.knowledge.heliopauseFound) {
+      const built = install(run, run.spacecraft.slots.indexOf(null), 'jump-drive');
+      if (built.kind === 'installed') return built.run;
+    }
+    const here = currentBody(run);
+    const sure = run.knowledge.detected.flatMap((id) => {
+      const body = findBody(run.starSystem, id);
+      if (!body?.landable || visited.has(id)) return [];
+      const planned = planHop(run, id);
+      return planned.kind === 'planned' && planned.plan.successChance === 1 ? [body] : [];
+    });
+    const outward = sure.filter((body) => body.distanceFromStar >= here.distanceFromStar);
+    const [next] = (outward.length > 0 ? outward : sure).sort(
+      (a, b) => distanceBetween(run.starSystem, here, a) - distanceBetween(run.starSystem, here, b),
+    );
+    if (!next) return undefined;
+    const flown = launchHop(run, next.id);
+    if (flown.kind !== 'flown') return undefined;
+    run = flown.run;
+    visited.add(next.id);
+  }
+  return undefined;
+}

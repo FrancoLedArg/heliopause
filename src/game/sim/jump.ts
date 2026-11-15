@@ -1,12 +1,11 @@
 import { COMPONENTS } from './catalogue.ts';
-import { DISPERSION } from './data.ts';
-import { planHop } from './hop.ts';
+import { certainDeltaV, planHop } from './hop.ts';
 import { firstDetectedBody, maroon } from './opening.ts';
 import { generateSystem, type Run } from './run.ts';
 import { fuelForDeltaV, refit } from './spacecraft.ts';
 import { endIfStranded } from './stranded.ts';
 import { deepFreeze } from './starSystem.ts';
-import { kilograms, metersPerSecond, type Kilograms } from './units.ts';
+import { kilograms, type Kilograms } from './units.ts';
 
 /**
  * The Jump, for a Run whose Hop has just reached the Heliopause: it always succeeds, carrying the
@@ -54,9 +53,6 @@ function arrivalFuel(arrived: Run): Kilograms {
   const { spacecraft } = arrived;
   const planned = planHop(arrived, firstDetectedBody(arrived.starSystem).id);
   if (planned.kind !== 'planned') throw new Error(`No first Hop after the Jump: ${planned.reason}`);
-  // A Hop is certain when the Fuel covers every Burn at the top of the dispersion range; a hair
-  // over, so rounding never leaves it a fraction short of certain.
-  const certain = metersPerSecond(planned.plan.totalEstimate * DISPERSION.max * (1 + 1e-9));
-  const floor = fuelForDeltaV(spacecraft, certain);
+  const floor = fuelForDeltaV(spacecraft, certainDeltaV(planned.plan));
   return kilograms(Math.min(spacecraft.fuelCapacity, Math.max(spacecraft.fuelMass, floor)));
 }

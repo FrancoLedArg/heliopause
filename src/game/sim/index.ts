@@ -43,6 +43,7 @@ export {
   marginShare,
   plannedBurns,
   planHop,
+  reachVerdict,
 } from './hop.ts';
 export { rushRepair, startRepair } from './repair.ts';
 export type { RepairRefusal, RepairResult, RushResult } from './repair.ts';
@@ -64,6 +65,7 @@ export type {
   InvalidTargetReason,
   LaunchResult,
   PlannedBurn,
+  ReachVerdict,
 } from './hop.ts';
 export {
   availableDeltaV,
@@ -114,6 +116,8 @@ export {
   ICE_LINE,
   CHASSIS_IDS,
   OPENING_TUNING,
+  REACH_VERDICT,
+  UNSURVEYED,
   CHASSIS_TUNING,
   CRUISE_EVENT_KINDS,
   CRUISE_TUNING,

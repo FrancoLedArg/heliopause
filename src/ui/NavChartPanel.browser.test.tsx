@@ -19,6 +19,12 @@ import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
 import { expectTextBudget } from './textBudget.ts';
 
+/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
+const found = (run: Run): Run => ({
+  ...run,
+  knowledge: { ...run.knowledge, heliopauseFound: true },
+});
+
 afterEach(cleanUp);
 
 /**
@@ -463,10 +469,26 @@ it('names Depleted in the screen-reader entry for the Body', async () => {
 
 /** A lancer on seed 1 with a Jump Drive installed: the Heliopause is within its reach. */
 function withJumpDrive(): Run {
-  const result = install({ ...newRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+  const result = install(
+    found({ ...newRun(1, 'lancer'), materials: materials(100) }),
+    2,
+    'jump-drive',
+  );
   if (result.kind !== 'installed') throw new Error('Expected an install');
   return result.run;
 }
+
+it('lists no Heliopause until the Radar finds it', async () => {
+  const run = startRun(1, 'lancer');
+  const host = await renderUi(
+    <NavChartPanel
+      run={run}
+      state={{ focusedId: run.starSystem.startingMoonId, selectedId: undefined }}
+    />,
+  );
+  expect(host.querySelector(`#nav-option-${HELIOPAUSE}`)).toBeNull();
+  expect(host.querySelectorAll('[role="option"]')).toHaveLength(run.knowledge.detected.length);
+});
 
 it('says on the chart why the focused Heliopause cannot be the target without a Jump Drive', async () => {
   const host = await renderUi(
@@ -708,4 +730,58 @@ it('the yield icon fits inside the card and the target block', async () => {
   };
   within(byTestId(byTestId(host, 'inspect'), 'resource-icon'), byTestId(host, 'inspect'));
   within(byTestId(byTestId(host, 'target'), 'resource-icon'), byTestId(host, 'target'));
+});
+
+/** A New Run's first Hop target, with that target Surveyed or not. */
+function surveyedRun(surveyed: boolean): { run: Run; target: Body } {
+  const base = newRun(123, 'scout');
+  const here = base.status.kind === 'landed' ? base.status.bodyId : '';
+  const target = listBodies(base.starSystem).find((b) => b.landable && b.id !== here);
+  if (!target) throw new Error('no target');
+  const knowledge = {
+    ...base.knowledge,
+    surveyed: surveyed
+      ? base.knowledge.surveyed
+      : base.knowledge.surveyed.filter((id) => id !== target.id),
+  };
+  return { run: { ...base, knowledge }, target };
+}
+
+it('flags an Unsurveyed target with a badge and shows the reach verdict, both with accessible names (#190)', async () => {
+  const { run, target } = surveyedRun(false);
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: target.id, selectedId: target.id }} />,
+  );
+  expect(byTestId(host, 'plan-unsurveyed').getAttribute('aria-label')).toBe('Unsurveyed');
+  expect(byTestId(host, 'plan-warning').getAttribute('aria-label')).toMatch(/^Reach: /);
+  expect(byTestId(host, 'target-reach').getAttribute('aria-label')).toMatch(/^Reach: /);
+  expectTextBudget(byTestId(host, 'hop-plan'));
+});
+
+it('shows no Unsurveyed badge for a Surveyed target (#190)', async () => {
+  const { run, target } = surveyedRun(true);
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: target.id, selectedId: target.id }} />,
+  );
+  expect(host.querySelector('[data-testid="plan-unsurveyed"]')).toBeNull();
+  expect(byTestId(host, 'target-reach').getAttribute('aria-label')).toMatch(/^Reach: /);
+});
+
+it('fits the badge and the verdict inside the plan at 640x360 (#190)', async () => {
+  const { run, target } = surveyedRun(false);
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: target.id, selectedId: target.id }} />,
+  );
+  const plan = byTestId(host, 'hop-plan').getBoundingClientRect();
+  const frame = host.querySelector<HTMLElement>('.nav-chart__panel')?.getBoundingClientRect();
+  for (const id of ['plan-unsurveyed', 'plan-warning', 'plan-success']) {
+    const box = byTestId(host, id).getBoundingClientRect();
+    expect(box.right).toBeLessThanOrEqual(plan.right);
+    expect(box.left).toBeGreaterThanOrEqual(plan.left);
+    expect(box.bottom).toBeLessThanOrEqual(frame?.bottom ?? plan.bottom);
+  }
+  const reach = byTestId(host, 'target-reach').getBoundingClientRect();
+  const card = byTestId(host, 'target').getBoundingClientRect();
+  expect(reach.right).toBeLessThanOrEqual(card.right);
+  expect(reach.left).toBeGreaterThanOrEqual(card.left);
 });
