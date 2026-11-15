@@ -1,4 +1,4 @@
-import { availableDeltaV, currentBody, type Run } from '../game/sim/index.ts';
+import { availableDeltaV, currentBody, isDepleted, type Run } from '../game/sim/index.ts';
 import { useEffect, useRef } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import { bodyFullLabel, formatDistanceAu, formatGravity } from './format.ts';
@@ -31,6 +31,7 @@ export function LandedPanels({
 }: LandedPanelsProps) {
   const body = currentBody(run);
   const type = bodyFullLabel(run, body);
+  const depleted = isDepleted(run, body.id);
 
   // Closing the Nav Chart hands focus back to the button that opened it.
   const buttonSlot = useRef<HTMLDivElement>(null);
@@ -74,7 +75,14 @@ export function LandedPanels({
             <h1 id="landed-title" className="landed-plate__title">
               {body.name}
             </h1>
-            <p className="landed-plate__kind">{type}</p>
+            <p className="landed-plate__kind" data-testid="landed-kind">
+              {type}
+              {depleted && (
+                <span className="landed-plate__depleted" data-testid="landed-depleted">
+                  {' · Depleted'}
+                </span>
+              )}
+            </p>
             <p className="landed-plate__detail">
               Gravity {formatGravity(body.surfaceGravity)} ·{' '}
               {formatDistanceAu(body.distanceFromStar)} from the star

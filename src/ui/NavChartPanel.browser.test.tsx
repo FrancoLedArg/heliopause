@@ -280,3 +280,118 @@ it('shows the composition in the tooltip and the target head for the longest-nam
   expect(targetBadge.getBoundingClientRect().height).toBeLessThanOrEqual(12);
   expect(targetBadge.scrollWidth).toBeLessThanOrEqual(targetBadge.clientWidth);
 });
+
+// Depleted takes the place of Icy or Rocky in the badge, and a Hop plan to it says it yields nothing.
+// The same worst cases as above, with the Body Depleted, keep the same room.
+it('shows Depleted in the tooltip of the longest-named Body, inside its frame', async () => {
+  const { run, body } = longBody();
+  const host = await renderUi(
+    <NavChartPanel
+      run={{ ...run, depleted: [body.id] }}
+      state={{ focusedId: body.id, selectedId: undefined }}
+    />,
+  );
+  const frame = byTestId(host, 'inspect').getBoundingClientRect();
+  const badge = byTestId(host, 'landable');
+  const words = byTestId(host, 'tip-composition');
+  expect(words.textContent).toContain('Depleted');
+  expect(words.textContent).not.toMatch(/Icy|Rocky/);
+  expect(badge.scrollWidth).toBeLessThanOrEqual(badge.clientWidth);
+  expect(textRight(words)).toBeLessThanOrEqual(frame.right - SLACK);
+  expect(badge.getBoundingClientRect().bottom).toBeLessThanOrEqual(frame.bottom - 3);
+});
+
+it('keeps the tallest plan, 21-character target, Margin warning and Depleted, clear of its box and the buttons', async () => {
+  const base = startRun(123, 'scout');
+  const home = homePlanet(base.starSystem);
+  const moon = home.moons[0];
+  if (!moon) throw new Error('no moon');
+  const name = 'Quaexquaexquaex Minor';
+  const planets = base.starSystem.planets.map((planet) =>
+    planet.id === home.id
+      ? { ...planet, moons: planet.moons.map((m) => (m.id === moon.id ? { ...m, name } : m)) }
+      : planet,
+  );
+  const run = {
+    ...base,
+    starSystem: { ...base.starSystem, planets },
+    spacecraft: { ...base.spacecraft, fuelMass: kilograms(1) },
+    depleted: [moon.id],
+  };
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
+  );
+  expect(byTestId(host, 'plan-warning').textContent).not.toBe('');
+  const note = byTestId(host, 'plan-yield');
+  expect(note.textContent).toBe('Depleted: this Hop will yield nothing.');
+  const plan = byTestId(host, 'hop-plan');
+  const buttons = host.querySelector<HTMLElement>('.nav-chart__actions');
+  if (!buttons) throw new Error('no buttons');
+  // The note leads the text under the chart, which still fits its box and the frame with all of the
+  // Δv explanation after it; the plan beside it keeps the room it had.
+  const explain = byTestId(host, 'plan-explain');
+  const frame = host.querySelector<HTMLElement>('.nav-chart__panel');
+  if (!frame) throw new Error('no frame');
+  expect(explain.scrollHeight).toBeLessThanOrEqual(explain.clientHeight);
+  expect(explain.textContent).toContain('Δv is how much');
+  expect(explain.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    frame.getBoundingClientRect().bottom,
+  );
+  const text = document.createRange();
+  text.selectNodeContents(explain);
+  expect(text.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    explain.getBoundingClientRect().bottom,
+  );
+  expect(text.getBoundingClientRect().right).toBeLessThanOrEqual(
+    explain.getBoundingClientRect().right,
+  );
+  expect(plan.lastElementChild?.getBoundingClientRect().bottom ?? 0).toBeLessThanOrEqual(
+    plan.getBoundingClientRect().bottom - SLACK,
+  );
+  expect(plan.scrollHeight).toBeLessThanOrEqual(plan.clientHeight);
+  expect(plan.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    buttons.getBoundingClientRect().top,
+  );
+  // The head badge reads "Landable · Depleted" on one row beside the label, inside the block.
+  const head = byTestId(host, 'target');
+  const words = byTestId(host, 'target-composition');
+  expect(words.textContent).toBe('Depleted · no yield');
+  const label = head.querySelector<HTMLElement>('.nav-chart__target-label');
+  const badge = words.closest<HTMLElement>('.nav-chart__badge');
+  if (!label || !badge) throw new Error('missing head parts');
+  expect(words.getBoundingClientRect().right).toBeLessThanOrEqual(
+    head.getBoundingClientRect().right,
+  );
+  expect(badge.scrollWidth).toBeLessThanOrEqual(badge.clientWidth);
+  expect(badge.getBoundingClientRect().height).toBeLessThanOrEqual(12);
+  expect(label.getBoundingClientRect().right + 6).toBeLessThanOrEqual(
+    badge.getBoundingClientRect().left,
+  );
+});
+
+it('says nothing about yield in a plan to a Body that is not Depleted', async () => {
+  const run = startRun(123, 'scout');
+  const moon = homePlanet(run.starSystem).moons[0];
+  if (!moon) throw new Error('no moon');
+  const host = await renderUi(
+    <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
+  );
+  expect(host.querySelector('[data-testid="plan-yield"]')).toBeNull();
+});
+
+it('names Depleted in the screen-reader entry for the Body', async () => {
+  const run = startRun(123, 'scout');
+  const home = homePlanet(run.starSystem);
+  const moon = home.moons[0];
+  if (!moon) throw new Error('no moon');
+  const host = await renderUi(
+    <NavChartPanel
+      run={{ ...run, depleted: [moon.id] }}
+      state={{ focusedId: moon.id, selectedId: undefined }}
+    />,
+  );
+  const option = host.querySelector<HTMLElement>(`#nav-option-${moon.id}`);
+  expect(option?.textContent).toContain('Depleted, yields nothing');
+  const other = host.querySelector<HTMLElement>(`#nav-option-${home.id}`);
+  expect(other?.textContent).not.toContain('Depleted');
+});

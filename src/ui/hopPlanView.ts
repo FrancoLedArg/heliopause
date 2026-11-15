@@ -4,6 +4,7 @@ import {
   astronomicalUnits,
   BURNS,
   findBody,
+  isDepleted,
   marginShare,
   metersPerSecond,
   type Body,
@@ -61,6 +62,8 @@ export interface HopPlanView {
    * alone); undefined when neither.
    */
   readonly warning: string | undefined;
+  /** Says in words that the target gives nothing more, when it is Depleted. */
+  readonly yieldNote: string | undefined;
   /** The plan in one sentence, for a live region. */
   readonly summary: string;
 }
@@ -87,6 +90,7 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
   if (!from || !to) throw new Error(`Hop plan names unknown Body ${plan.fromId} or ${plan.toId}`);
   const reasons = burnReasons(from, to);
   const short = plan.margin < 0;
+  const depleted = isDepleted(run, to.id);
   const share = formatMarginShare(marginShare(plan));
   const marginDeltaV = formatPlanDeltaV(metersPerSecond(Math.abs(plan.margin)));
   const low = short || plan.successChance < LOW_SUCCESS_BELOW;
@@ -108,6 +112,7 @@ export function describeHopPlan(run: Run, plan: HopPlan): HopPlanView {
     successChance,
     low,
     warning: short ? NOT_ENOUGH : low ? 'Low chance: may run dry' : undefined,
-    summary: `Hop plan for ${to.name}: needs ${needed}, you have ${available}, success chance ${successChance}.`,
+    yieldNote: depleted ? 'Depleted: this Hop will yield nothing.' : undefined,
+    summary: `Hop plan for ${to.name}: needs ${needed}, you have ${available}, success chance ${successChance}.${depleted ? ' It is Depleted and will yield nothing.' : ''}`,
   };
 }

@@ -9,6 +9,7 @@ import { CHASSIS_IDS, homePlanet, listBodies, startRun } from '../game/sim/index
 import {
   bodyCompositionLabel,
   bodyFullLabel,
+  bodyStatusLabel,
   bodyTypeLabel,
   formatDeltaV,
   formatDistanceAu,
@@ -77,6 +78,15 @@ describe('Body type label', () => {
     }
     const moon = home.moons[0];
     if (moon) expect(bodyFullLabel(run, moon)).toBe(`Moon of ${home.name} · Icy`);
+  });
+
+  it('puts Depleted in the place of Icy or Rocky in the status label, leaving the full label alone', () => {
+    const moon = home.moons[0];
+    if (!moon) throw new Error('no moon');
+    const used = { ...run, depleted: [moon.id] };
+    expect(bodyStatusLabel(run, moon)).toBe('Icy');
+    expect(bodyStatusLabel(used, moon)).toBe('Depleted');
+    expect(bodyFullLabel(used, moon)).toBe(`Moon of ${home.name} · Icy`);
   });
 
   it('gives a Gas Giant no composition', () => {

@@ -1,13 +1,14 @@
 import { Geom, Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
-import { currentBody, type BodyId, type Run } from '../sim/index.ts';
+import { currentBody, isDepleted, type BodyId, type Run } from '../sim/index.ts';
 import { bodySprite } from './landedView.ts';
 import {
   BRACKET_ARM,
   BRACKET_GAP,
   CHART,
   chartReducer,
+  crossSegments,
   dashedSegments,
   initialChartState,
   layoutChart,
@@ -155,6 +156,19 @@ export class NavChart extends Scene {
     // Gas Giants carry a dotted ring: no surface to land on (shape, not just colour).
     for (const node of this.layout.nodes) {
       if (node.body.kind === 'gas-giant') this.dottedRing(node, node.radius + MARK_GAP);
+    }
+
+    // A Depleted Body is crossed out: an X over it, which is a shape, not just a colour.
+    // A 3 px dark stroke with a 1 px bright one on top, so it shows over any sprite.
+    for (const [width, colour] of [
+      [3, paletteNumber('void')],
+      [1, paletteNumber('am3')],
+    ] as const) {
+      g.lineStyle(width, colour);
+      for (const node of this.layout.nodes) {
+        if (!isDepleted(this.run, node.body.id)) continue;
+        for (const { from, to } of crossSegments(node)) g.lineBetween(...from, ...to);
+      }
     }
 
     const here = at(currentBody(this.run).id);
