@@ -85,7 +85,7 @@ it('a Run Stranded on Landing goes straight to the End-of-Run screen with the St
   expect(find(ui, 'hop-report')).toBeNull();
   expect(ui.querySelector('.landed-plate')).toBeNull();
   expect(ui.querySelector('.landed-nav-button')).toBeNull();
-  expect(readBestScore()).toEqual({ starSystemsEscaped: 0, hopsFlown: 3 });
+  expect(readBestScore()).toEqual({ starSystemsEscaped: 0, hopsFlown: 4 });
   expect(document.activeElement?.textContent).toBe('New Run');
   // M does not open the Nav Chart under the End-of-Run screen.
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'm' }));
@@ -124,7 +124,7 @@ it('spending the Materials that could have saved the Run strands it on the spot'
   await act(() => Promise.resolve());
   expect(find(ui, 'end-of-run')?.querySelector('h2')?.textContent).toBe('Stranded');
   expect(find(ui, 'stranded-warning')).toBeNull();
-  expect(readBestScore()).toEqual({ starSystemsEscaped: 0, hopsFlown: 3 });
+  expect(readBestScore()).toEqual({ starSystemsEscaped: 0, hopsFlown: 4 });
 });
 
 it('New Run from a Stranded Run asks for a Chassis, then starts a new Star System', async () => {

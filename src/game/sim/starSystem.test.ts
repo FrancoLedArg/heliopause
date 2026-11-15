@@ -307,7 +307,7 @@ describe('Star System difficulty levels', { timeout: 60_000 }, () => {
     );
     // Re-pinned for #189: the Starting Moon replaces the Home Planet, and generation checks its opening.
     // Re-pinned for #247: the Chassis Isp rose, so more draws open fairly and some seeds settle sooner.
-    expect(stringSeed(json)).toBe(2762513547);
+    expect(stringSeed(json)).toBe(2438872959);
   });
 
   it('a higher difficulty level raises gravity', () => {

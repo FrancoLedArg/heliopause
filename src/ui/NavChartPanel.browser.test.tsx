@@ -253,12 +253,13 @@ it('keeps the tallest plan, with a 21-character target and a Margin warning, cle
   );
 });
 
-// Seed 10540 has the longest Moon name in 20,000 seeds: Drioldrionlael Minor (20 characters), a Moon
-// of Tioraevel Rho. Re-pinned for #188 (was seed 4171's Thirthiothux Minor).
+// Seed 7088 has the longest Moon name in 20,000 seeds: Quioxdrardriox Minor (20 characters), a Moon
+// of Riosxa. Re-pinned for #188 (was seed 4171's Thirthiothux Minor) and #247 (was seed 10540's
+// Drioldrionlael Minor): the Isp rise moves seed 10540 to another Star System.
 // Every line a name or subtitle appears on must show it whole, inside its frame, with slack for the
 // fonts CI draws, which are a little wider than the ones on a dev machine.
 const SLACK = 6;
-const [LONG_SEED, LONG_NAME, LONG_PARENT] = [10540, 'Drioldrionlael Minor', 'Tioraevel Rho'];
+const [LONG_SEED, LONG_NAME, LONG_PARENT] = [7088, 'Quioxdrardriox Minor', 'Riosxa'];
 
 /** Where the drawn text of a block ends, not the block's own box (which fills its container). */
 function textRight(el: HTMLElement): number {

@@ -123,7 +123,9 @@ describe('which Slot an install goes into', () => {
 });
 
 describe('the catalogue rows', () => {
-  const run = startRun(5, 'scout');
+  // Re-pinned for #247 (was seed 5): seed 5 now opens on a Rocky Moon that yields 26, over a New
+  // Run's 25 Materials; seed 3's Icy opening keeps exactly 25.
+  const run = startRun(3, 'scout');
 
   it('list every Component with its mass, Materials cost and effect', () => {
     const rows = panelRows(run);
@@ -274,7 +276,8 @@ describe('the preview before you pay', () => {
 });
 
 describe('the Jump Drive in the panel', () => {
-  const run = startRun(5, 'scout');
+  // Seed 3 starts with exactly a New Run's 25 Materials (re-pinned for #247, was seed 5).
+  const run = startRun(3, 'scout');
 
   it('is listed from the first screen with its cost, and the Run cannot afford it yet', () => {
     const row = panelRows(run).find((r) => r.id === 'jump-drive');
