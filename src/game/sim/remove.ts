@@ -1,7 +1,7 @@
+import { recordChoice } from './choiceLog.ts';
 import { COMPONENTS, componentCost } from './catalogue.ts';
 import { starSystemNumber, type Run } from './run.ts';
 import { refit, SLOT_COUNT } from './spacecraft.ts';
-import { deepFreeze } from './starSystem.ts';
 import { kilograms, materials, type Kilograms, type Materials } from './units.ts';
 
 /** Why a Component cannot be removed: expected outcomes a player causes, so results, not exceptions. */
@@ -54,7 +54,10 @@ export function remove(run: Run, slotIndex: number): RemoveResult {
   const refund = materials(Math.floor(componentCost(held, starSystemNumber(run)) / 2));
   return {
     kind: 'removed',
-    run: deepFreeze({ ...run, spacecraft, materials: materials(run.materials + refund) }),
+    run: recordChoice(
+      { ...run, spacecraft, materials: materials(run.materials + refund) },
+      { kind: 'remove', slot: slotIndex },
+    ),
     refund,
     fuelLost: kilograms(run.spacecraft.fuelMass - spacecraft.fuelMass),
   };

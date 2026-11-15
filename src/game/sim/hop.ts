@@ -1,5 +1,6 @@
 import { createRng, type Rng } from '../lib/rng.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
+import { recordChoice } from './choiceLog.ts';
 import { DISPERSION, SOURCED_CONSTANTS } from './data.ts';
 import { collectYield, type Collection } from './gather.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
@@ -336,7 +337,12 @@ export function launchHop(run: Run, target: HopTarget): LaunchResult {
   const planned = planHop(run, target);
   if (planned.kind !== 'planned') return planned;
   const rng = createRng(run.seed ^ stringSeed(`hop:${String(run.hopsFlown)}`));
-  return { kind: 'flown', ...flyHop(run, planned.plan, rng) };
+  const flown = flyHop(run, planned.plan, rng);
+  return {
+    kind: 'flown',
+    flight: flown.flight,
+    run: recordChoice(flown.run, { kind: 'hop', target }),
+  };
 }
 
 const BURN_NAMES: Readonly<Record<Burn, string>> = {
