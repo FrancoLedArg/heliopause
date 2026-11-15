@@ -82,6 +82,8 @@ export interface PipelineStatus {
   awaitingReview: PullSnapshot[];
   /** Approved, green PRs behind main: `pipeline merge` updates their branch; they return as mergeable once CI passes. */
   behindMain: PullSnapshot[];
+  /** Approved PRs whose required checks are still pending, or whose merge state is UNKNOWN: nothing to do, a later pass merges them. */
+  waitingForCi: PullSnapshot[];
   /** Approved PRs whose CI is green and up to date: merge them. */
   mergeable: PullSnapshot[];
   /** Approved PRs that cannot merge as they stand (conflict with main, or CI failing): back to their Builder. */
@@ -110,16 +112,33 @@ export function attentionReason(pull: PullSnapshot): string | null {
 
 export const isBehind = (pull: PullSnapshot): boolean => pull.mergeState === 'BEHIND';
 
+/**
+ * Approved, and CI is still running or GitHub has not settled the merge state. Failing CI and
+ * conflicts with main are never waiting: they need a Builder. A conflicting PR gets no workflow
+ * run, so its checks read pending forever; it is `needsAttention`, not waiting.
+ */
+export const isWaitingForCi = (pull: PullSnapshot): boolean =>
+  has(pull, Label.AgentApproved) &&
+  pull.checks !== 'failing' &&
+  !isDirty(pull) &&
+  (pull.checks === 'pending' || pull.mergeState === 'UNKNOWN');
+
 /** A PR as the Orchestrator sees it: no body, just the tickets it closes. */
 export type LeanPull = Omit<PullSnapshot, 'body'> & { closes: number[] };
 
 export type LeanStatus = Omit<
   PipelineStatus,
-  'inProgressTickets' | 'awaitingReview' | 'behindMain' | 'mergeable' | 'needsAttention'
+  | 'inProgressTickets'
+  | 'awaitingReview'
+  | 'behindMain'
+  | 'waitingForCi'
+  | 'mergeable'
+  | 'needsAttention'
 > & {
   inProgressTickets: { ticket: IssueSnapshot; pull: LeanPull | null }[];
   awaitingReview: LeanPull[];
   behindMain: LeanPull[];
+  waitingForCi: LeanPull[];
   mergeable: LeanPull[];
   needsAttention: (LeanPull & { reason: string })[];
 };
@@ -236,11 +255,13 @@ export function summarize(
     behindMain: pulls
       .filter((pull) => approvedAndGreen(pull) && isBehind(pull))
       .sort((a, b) => a.number - b.number),
+    waitingForCi: pulls.filter(isWaitingForCi).sort((a, b) => a.number - b.number),
     mergeable: pulls
       .filter((pull) => approvedAndGreen(pull) && pull.mergeState !== 'UNKNOWN' && !isBehind(pull))
       .sort((a, b) => a.number - b.number),
     needsAttention: pulls
       .flatMap((pull) => {
+        if (isWaitingForCi(pull)) return [];
         const reason = attentionReason(pull);
         return reason ? [{ ...pull, reason }] : [];
       })
@@ -310,6 +331,7 @@ export function leanStatus(status: PipelineStatus): LeanStatus {
     })),
     awaitingReview: status.awaitingReview.map(lean),
     behindMain: status.behindMain.map(lean),
+    waitingForCi: status.waitingForCi.map(lean),
     mergeable: status.mergeable.map(lean),
     needsAttention: status.needsAttention.map(({ reason, ...pull }) => ({
       ...lean(pull),

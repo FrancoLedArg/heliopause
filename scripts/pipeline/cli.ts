@@ -244,6 +244,10 @@ function formatStatus(status: PipelineStatus): string {
       status.behindMain.map((p) => `  PR #${String(p.number)} ${p.title}`),
     ),
     section(
+      'Waiting for CI (no action)',
+      status.waitingForCi.map((p) => `  PR #${String(p.number)} ${p.title} [checks: ${p.checks}]`),
+    ),
+    section(
       'Needs attention (back to Builder)',
       status.needsAttention.map((p) => `  PR #${String(p.number)} ${p.title} [${p.reason}]`),
     ),
