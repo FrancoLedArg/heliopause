@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { formatDeltaV, formatFuel, formatPlanDeltaV } from '../../src/ui/format.ts';
 import { availableDeltaV, install, launchHop, startRun } from '../../src/game/sim/index.ts';
+import { describeReport } from '../../src/ui/hopReportView.ts';
 
 // The whole loop of spec #14 on one seed: build, plan, Hop, gather, see the Body Depleted.
 const SEED = 123;
@@ -10,7 +11,8 @@ const moon = home?.moons[0];
 if (!home || !moon) throw new Error(`Seed ${SEED} has no Home Planet Moon`);
 
 // What the simulation says the starting Materials buy: a Drill (it multiplies what landing collects).
-const built = install(run, 2, 'drill-1');
+const slot = run.spacecraft.slots.findIndex((held) => held === null);
+const built = install(run, slot, 'drill-1');
 if (built.kind !== 'installed') throw new Error('The starting Materials should buy a Drill');
 const builtRun = built.run;
 const afterDeltaV = availableDeltaV(builtRun.spacecraft);
@@ -56,13 +58,22 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
 
   // 1. Start a Run.
   await page.goto(`/?seed=${String(SEED)}&chassis=scout`);
-  await page.getByRole('button', { name: 'New Run' }).click();
+  const newRun = page.getByRole('button', { name: 'New Run' });
+  await expect(newRun).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(newRun).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(page.getByTestId('delta-v')).toHaveText(
     formatDeltaV(availableDeltaV(run.spacecraft)),
   );
 
   // 2. Open the Spacecraft panel by keyboard.
-  await page.getByRole('button', { name: 'Spacecraft' }).focus();
+  const spacecraft = page.getByRole('button', { name: 'Spacecraft' });
+  for (let i = 0; i < 8; i += 1) {
+    if (((await page.locator(':focus').textContent()) ?? '').includes('Spacecraft')) break;
+    await page.keyboard.press('Tab');
+  }
+  await expect(spacecraft).toBeFocused();
   await page.keyboard.press('Enter');
   const panel = page.getByRole('dialog', { name: 'Spacecraft' });
   await expect(panel).toBeVisible();
@@ -92,11 +103,16 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   await expect(page.getByTestId('plan-available')).toHaveText(formatPlanDeltaV(afterDeltaV));
 
   // 5. Hop to the Icy Moon; the report says what was collected, naming the Drill.
-  await page.getByRole('button', { name: 'Launch' }).click();
+  // On the Hop plan, Tab goes to Cancel and then to Launch.
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Launch' })).toBeFocused();
+  await page.keyboard.press('Enter');
   const report = page.getByRole('dialog', { name: 'Arrived' });
   await expect(report).toBeVisible({ timeout: 30_000 });
-  await expect(report.getByTestId('hop-report-collected')).toContainText(/Collected .* t of Fuel/);
-  await expect(report.getByTestId('hop-report-collected')).toContainText('Drill ×');
+  await expect(report.getByTestId('hop-report-collected')).toHaveText(
+    describeReport(builtRun, hop.flight).collected ?? '',
+  );
   await page.keyboard.press('Enter');
   await expect(report).toBeHidden();
   await expect(page.getByTestId('fuel')).toHaveText(formatFuel(hop.run.spacecraft.fuelMass));
