@@ -6,6 +6,8 @@ export { collectYield, isDepleted } from './gather.ts';
 export type { Collection, Landing } from './gather.ts';
 export { install } from './install.ts';
 export type { InstallRefusal, InstallResult } from './install.ts';
+export { remove } from './remove.ts';
+export type { RemoveRefusal, RemoveResult } from './remove.ts';
 export type { Run, RunStatus } from './run.ts';
 export { BURNS, flyHop, launchHop, marginShare, planHop } from './hop.ts';
 export type {

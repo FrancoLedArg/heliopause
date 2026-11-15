@@ -10,6 +10,9 @@ import {
   type ComponentKind,
   type ComponentLevel,
   type InstallRefusal,
+  type Kilograms,
+  type Materials,
+  type RemoveRefusal,
   type Run,
   type Slot,
   type Spacecraft,
@@ -61,6 +64,31 @@ export function describeRefusal(reason: InstallRefusal): string {
     case 'not-enough-materials':
       return `Not enough Materials: it costs ${String(reason.cost)} and you have ${String(reason.have)}, ${String(reason.short)} short.`;
   }
+}
+
+/** Why a removal was refused, for the player. */
+export function describeRemoveRefusal(reason: RemoveRefusal): string {
+  switch (reason.kind) {
+    case 'empty-slot':
+      return `Slot ${String(reason.slot + 1)} is empty, so there is nothing to remove.`;
+    case 'last-engine':
+      return 'It is your last Engine, and without one you cannot fly.';
+    case 'last-fuel-tank':
+      return 'It is your last Fuel Tank, and without one you have no Fuel.';
+  }
+}
+
+/** The question the panel asks before it removes: what comes back, and what Fuel is lost. */
+export function describeRemoval(removal: {
+  readonly slot: number;
+  readonly held: ComponentId;
+  readonly refund: Materials;
+  readonly fuelLost: Kilograms;
+}): string {
+  const asked = `Remove ${componentLabel(removal.held)} from Slot ${String(removal.slot + 1)}? You get ${String(removal.refund)} Materials back.`;
+  return removal.fuelLost > 0
+    ? `${asked} ${formatFuel(removal.fuelLost)} of Fuel will be lost.`
+    : asked;
 }
 
 /** The Slot an install goes into: the selected one when it is empty, otherwise the first empty one. */

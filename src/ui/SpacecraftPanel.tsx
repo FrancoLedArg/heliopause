@@ -4,6 +4,7 @@ import {
   availableDeltaV,
   COMPONENTS,
   install,
+  remove,
   SLOT_COUNT,
   type Run,
   type Slot,
@@ -14,6 +15,8 @@ import { KitFrame } from './kit/KitFrame.tsx';
 import {
   componentLabel,
   describeRefusal,
+  describeRemoval,
+  describeRemoveRefusal,
   installTarget,
   massBar,
   panelRows,
@@ -25,9 +28,10 @@ const PANEL = { x: 8, y: 52, width: 624, height: 284 } as const;
 const TITLEBAR_HEIGHT = 14;
 const SLOT_SIZE = 36;
 const MASS_BAR_WIDTH = 220;
+const REMOVE_WIDTH = 56;
 const SLOT_CODES = { engine: 'ENG', 'fuel-tank': 'TANK', drill: 'DRL' } as const;
 
-/** What the last install attempt said; `undefined` before the first one. */
+/** What the last install or removal attempt said; `undefined` before the first one. */
 interface Outcome {
   readonly kind: 'installed' | 'refused';
   readonly text: string;
@@ -48,12 +52,17 @@ interface SpacecraftPanelProps {
 export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   const titleId = useId();
   const keysId = useId();
+  const captionId = useId();
   const { spacecraft } = run;
   const rows = panelRows(run);
 
   const [selected, setSelected] = useState(() => Math.max(0, spacecraft.slots.indexOf(null)));
   const [aboutId, setAboutId] = useState<PanelRow['id']>(() => firstAffordable(rows));
   const [outcome, setOutcome] = useState<Outcome | undefined>(undefined);
+  // The Slot whose removal is waiting for a yes or no; `undefined` when nothing is asked.
+  const [confirming, setConfirming] = useState<number | undefined>(undefined);
+  const removeRef = useRef<HTMLButtonElement>(null);
+  const keepRef = useRef<HTMLButtonElement>(null);
   const slotRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const panelRef = useRef<HTMLElement>(null);
 
@@ -94,8 +103,13 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
     }
   };
 
-  const selectSlot = (index: number): void => {
+  // The question belongs to one Slot, so choosing another Slot drops it.
+  const choose = (index: number): void => {
     setSelected(index);
+    setConfirming(undefined);
+  };
+  const selectSlot = (index: number): void => {
+    choose(index);
     slotRefs.current[index]?.focus();
   };
   const onSlotKey = (event: KeyboardEvent<HTMLElement>): void => {
@@ -122,7 +136,49 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
     setSelected(installTarget(result.run.spacecraft.slots, target) ?? target);
   };
 
+  const askRemoval = (): void => {
+    const result = remove(run, selected);
+    if (result.kind === 'refused') {
+      setConfirming(undefined);
+      setOutcome({
+        kind: 'refused',
+        text: `Can't remove. ${describeRemoveRefusal(result.reason)}`,
+      });
+      return;
+    }
+    setConfirming(selected);
+  };
+  const confirmRemoval = (): void => {
+    const held = spacecraft.slots[selected];
+    const result = remove(run, selected);
+    if (result.kind === 'refused' || !held) return;
+    EventBus.emit('component-remove-requested', selected);
+    setConfirming(undefined);
+    setOutcome({
+      kind: 'installed',
+      text: `Removed ${componentLabel(held)} from Slot ${String(selected + 1)}. Refunded ${String(result.refund)} Materials.`,
+    });
+    removeRef.current?.focus();
+  };
+  const cancelRemoval = (): void => {
+    setConfirming(undefined);
+    removeRef.current?.focus();
+  };
+  const onConfirmKey = (event: KeyboardEvent<HTMLElement>): void => {
+    if (event.key !== 'Escape') return;
+    // Escape answers the question only; the panel stays open.
+    event.preventDefault();
+    cancelRemoval();
+  };
+
+  // Asking moves the keyboard to Keep, the safe answer.
+  useEffect(() => {
+    if (confirming !== undefined) keepRef.current?.focus();
+  }, [confirming]);
+
   const target = installTarget(spacecraft.slots, selected);
+  const pending = confirming === selected ? remove(run, selected) : undefined;
+  const pendingHeld = spacecraft.slots[selected];
   const bar = massBar(spacecraft);
   const heldBySelected = spacecraft.slots[selected] ?? null;
   const about = rows.find((row) => row.id === aboutId);
@@ -165,19 +221,61 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                 slotRefs.current[index] = el;
               }}
               onSelect={() => {
-                setSelected(index);
+                choose(index);
               }}
             />
           ))}
         </div>
+        <KitButton
+          ref={removeRef}
+          width={REMOVE_WIDTH}
+          className="spacecraft-panel__remove"
+          aria-describedby={captionId}
+          onClick={askRemoval}
+        >
+          Remove
+        </KitButton>
         <p id={keysId} className="sr-only">
-          Left and Right arrow keys choose a Slot. Tab moves on to the Components. Escape closes.
+          Left and Right arrow keys choose a Slot. Tab moves on to Remove, then the Components.
+          Escape closes.
         </p>
-        <p className="spacecraft-panel__slot-caption" data-testid="slot-caption">
+        <p id={captionId} className="spacecraft-panel__slot-caption" data-testid="slot-caption">
           {heldBySelected === null
             ? `Slot ${String(selected + 1)} is empty.`
             : `Slot ${String(selected + 1)}: ${componentLabel(heldBySelected)}.`}
         </p>
+
+        {pending?.kind === 'removed' && pendingHeld && (
+          <div
+            className="spacecraft-panel__confirm"
+            role="group"
+            aria-label="Confirm removal"
+            data-testid="remove-confirm"
+            onKeyDown={onConfirmKey}
+          >
+            <p role="alert" className="spacecraft-panel__confirm-text">
+              {describeRemoval({
+                slot: selected,
+                held: pendingHeld,
+                refund: pending.refund,
+                fuelLost: pending.fuelLost,
+              })}
+            </p>
+            <div className="spacecraft-panel__confirm-buttons">
+              <KitButton ref={keepRef} width={96} onClick={cancelRemoval}>
+                Keep
+              </KitButton>
+              <KitButton
+                variant="danger"
+                width={96}
+                aria-label="Confirm remove"
+                onClick={confirmRemoval}
+              >
+                Remove
+              </KitButton>
+            </div>
+          </div>
+        )}
 
         <div
           className="spacecraft-panel__mass"

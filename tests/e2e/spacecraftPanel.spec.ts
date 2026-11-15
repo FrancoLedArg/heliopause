@@ -115,3 +115,53 @@ test('installing again is refused in words once the Materials run out', async ({
   );
   await expect(page.getByTestId('install-target')).toContainText('Slot 4');
 });
+
+test('a Component is removed by keyboard alone after a confirm, and Materials rise by half its cost', async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await page.setViewportSize({ width: 640, height: 360 });
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await startRunLanded(page);
+  const refund = Math.floor(cheapest.cost / 2);
+
+  await page.getByRole('button', { name: 'Spacecraft' }).focus();
+  await page.keyboard.press('Enter');
+  const panel = page.getByRole('dialog', { name: 'Spacecraft' });
+  await tabTo(page, /^Install Fuel Tank, level 1/);
+  await page.keyboard.press('Enter');
+  const afterInstall = STARTING_MATERIALS - cheapest.cost;
+  await expect(page.getByTestId('materials')).toHaveText(String(afterInstall));
+
+  // Choose the Tank's Slot, then Tab to Remove.
+  await panel.getByRole('radio', { name: /^Slot 3, Fuel Tank, level 1/ }).click();
+  await page.keyboard.press('Tab');
+  await expect(panel.getByRole('button', { name: 'Remove', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  // It asks first, and nothing has changed yet.
+  await expect(page.getByTestId('remove-confirm')).toContainText(
+    `You get ${String(refund)} Materials back.`,
+  );
+  await expect(page.getByTestId('materials')).toHaveText(String(afterInstall));
+  await page.keyboard.press('Tab');
+  await expect(panel.getByRole('button', { name: 'Confirm remove' })).toBeFocused();
+  await page.keyboard.press('Enter');
+
+  await expect(page.getByTestId('materials')).toHaveText(String(afterInstall + refund));
+  await expect(page.getByTestId('install-status')).toContainText(
+    `Removed Fuel Tank, level 1 from Slot 3. Refunded ${String(refund)} Materials.`,
+  );
+  await expect(panel.getByRole('radio', { name: /^Slot 3, empty/ })).toBeVisible();
+  await expect(page.getByTestId('remove-confirm')).toBeHidden();
+
+  // The last Engine stays, and the panel says why.
+  await panel.getByRole('radio', { name: /^Slot 1, Engine/ }).click();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  await expect(page.getByTestId('install-status')).toContainText(
+    "Can't remove. It is your last Engine, and without one you cannot fly.",
+  );
+  await expect(page.getByTestId('materials')).toHaveText(String(afterInstall + refund));
+  expect(errors).toEqual([]);
+});

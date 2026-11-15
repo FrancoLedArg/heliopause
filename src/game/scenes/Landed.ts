@@ -1,7 +1,7 @@
 import { Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
-import { install, launchHop, type HopFlight, type Run } from '../sim/index.ts';
+import { install, launchHop, remove, type HopFlight, type Run } from '../sim/index.ts';
 import { SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
 import { SceneKey } from './keys.ts';
 import type { FlightData } from './Flight.ts';
@@ -70,10 +70,20 @@ export class Landed extends Scene {
       this.run = installed.run;
       EventBus.emit('run-updated', this.run);
     });
+    const offRemove = EventBus.on('component-remove-requested', (slotIndex) => {
+      const removed = remove(this.run, slotIndex);
+      // The panel checks a removal before it asks, so a refusal here is a programmer error.
+      if (removed.kind !== 'removed') {
+        throw new Error(`Removal from Slot ${String(slotIndex)} refused: ${removed.reason.kind}`);
+      }
+      this.run = removed.run;
+      EventBus.emit('run-updated', this.run);
+    });
     // A destroyed game never shuts its scenes down, so unsubscribe on both events.
     const unsubscribe = (): void => {
       offOpen();
       offInstall();
+      offRemove();
       offLaunch();
       this.events.off(Scenes.Events.SHUTDOWN, unsubscribe);
       this.events.off(Scenes.Events.DESTROY, unsubscribe);

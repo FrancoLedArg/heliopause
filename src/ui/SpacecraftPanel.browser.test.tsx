@@ -1,4 +1,5 @@
 import { act, useEffect, useState } from 'react';
+import { userEvent } from 'vitest/browser';
 import { afterEach, expect, it } from 'vitest';
 import { EventBus } from '../game/EventBus.ts';
 import {
@@ -6,6 +7,8 @@ import {
   COMPONENTS,
   install,
   materials,
+  refit,
+  remove,
   startRun,
   type Run,
 } from '../game/sim/index.ts';
@@ -22,6 +25,14 @@ function Harness({ initial }: { initial: Run }) {
       EventBus.on('component-install-requested', (slot, id) => {
         const result = install(run, slot, id);
         if (result.kind === 'installed') setRun(result.run);
+      }),
+    [run],
+  );
+  useEffect(
+    () =>
+      EventBus.on('component-remove-requested', (slot) => {
+        const result = remove(run, slot);
+        if (result.kind === 'removed') setRun(result.run);
       }),
     [run],
   );
@@ -182,4 +193,161 @@ it('shows each Component’s effect as its Chassis scales it, never the catalogu
   expect(effects).toContain('Holds 66.0 t of Fuel.');
   expect(effects.join(' ')).not.toMatch(/(?<![\d.])6\.0 t of Fuel/);
   expect(effects.join(' ')).not.toContain('900 s');
+});
+
+/** A Hauler with `slots` fitted and every Tank full, so removing a Tank loses Fuel. */
+function fullRun(slots: Parameters<typeof refit>[1]): Run {
+  const base = startRun(2026, 'hauler');
+  const spacecraft = refit(base.spacecraft, slots);
+  return {
+    ...base,
+    materials: materials(0),
+    spacecraft: { ...spacecraft, fuelMass: spacecraft.fuelCapacity },
+  };
+}
+
+/** A button by its accessible name: its label when it has one, otherwise its text. */
+function button(host: HTMLElement, name: RegExp): HTMLButtonElement {
+  const found = [...host.querySelectorAll<HTMLButtonElement>('button')].find((b) =>
+    name.test(b.getAttribute('aria-label') ?? b.textContent),
+  );
+  if (!found) throw new Error(`no button matching ${String(name)}`);
+  return found;
+}
+
+function slotRadio(host: HTMLElement, label: RegExp): HTMLButtonElement {
+  return installButton(host, label);
+}
+
+function press(el: HTMLElement): void {
+  act(() => {
+    el.click();
+  });
+}
+
+/** Chooses a Slot as a keyboard player would, so Tab leaves from it. */
+function chooseSlot(host: HTMLElement, label: RegExp): void {
+  const slot = slotRadio(host, label);
+  press(slot);
+  slot.focus();
+}
+
+it('removes a Component by keyboard alone, asks first, and Materials rise by half its cost', async () => {
+  const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
+  const stock = (): string => byTestId(host, 'install-target').textContent;
+  act(() => {
+    installButton(host, /Install Fuel Tank, level 1/).click();
+  });
+  expect(stock()).toContain('5 Materials in stock');
+  // Slot 3 now holds the Tank. Focus it and press Remove with the keyboard.
+  chooseSlot(host, /^Slot 3, Fuel Tank/);
+  await userEvent.keyboard('{Tab}');
+  expect(document.activeElement?.textContent).toBe('Remove');
+  await userEvent.keyboard('{Enter}');
+  const ask = byTestId(host, 'remove-confirm');
+  expect(ask.textContent).toContain('Remove Fuel Tank, level 1 from Slot 3?');
+  expect(ask.textContent).toContain('You get 10 Materials back.');
+  // Nothing is removed until confirmed; the keyboard lands on Keep, the safe answer.
+  expect(byTestId(host, 'slot-caption').textContent).toContain('Fuel Tank, level 1');
+  expect(document.activeElement?.textContent).toBe('Keep');
+  await userEvent.keyboard('{Tab}{Enter}');
+  expect(byTestId(host, 'slot-caption').textContent).toBe('Slot 3 is empty.');
+  expect(stock()).toContain('15 Materials in stock');
+  expect(byTestId(host, 'install-status').textContent).toContain('Removed Fuel Tank, level 1');
+  expect(byTestId(host, 'install-status').textContent).toContain('Refunded 10 Materials');
+  // Focus is back on the Remove button, so the keyboard player is not lost.
+  expect(document.activeElement?.textContent).toBe('Remove');
+});
+
+it('Escape on the confirm step keeps the Component and leaves the panel open', async () => {
+  const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
+  act(() => {
+    installButton(host, /Install Fuel Tank, level 1/).click();
+  });
+  chooseSlot(host, /^Slot 3, Fuel Tank/);
+  await userEvent.keyboard('{Tab}{Enter}{Escape}');
+  expect(host.querySelector('[data-testid="remove-confirm"]')).toBeNull();
+  expect(byTestId(host, 'slot-caption').textContent).toContain('Fuel Tank, level 1');
+  expect(host.querySelector('.spacecraft-panel')).not.toBeNull();
+  expect(document.activeElement?.textContent).toBe('Remove');
+});
+
+it('refuses the last Engine and the last Fuel Tank in words, without asking', async () => {
+  const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
+  chooseSlot(host, /^Slot 1, Engine/);
+  await userEvent.keyboard('{Tab}{Enter}');
+  expect(byTestId(host, 'install-status').textContent).toBe(
+    "Can't remove. It is your last Engine, and without one you cannot fly.",
+  );
+  expect(host.querySelector('[data-testid="remove-confirm"]')).toBeNull();
+  press(slotRadio(host, /^Slot 2, Fuel Tank/));
+  press(button(host, /^Remove$/));
+  expect(byTestId(host, 'install-status').textContent).toBe(
+    "Can't remove. It is your last Fuel Tank, and without one you have no Fuel.",
+  );
+});
+
+it('says how much Fuel is lost before the player confirms', async () => {
+  const host = await renderUi(
+    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'fuel-tank-1', null])} />,
+  );
+  press(slotRadio(host, /^Slot 3, Fuel Tank/));
+  press(button(host, /^Remove$/));
+  const ask = byTestId(host, 'remove-confirm').textContent;
+  expect(ask).toContain('66.0 t of Fuel will be lost.');
+});
+
+it.each(CHASSIS_IDS)(
+  'keeps the longest removal refusal inside its box on the %s, with a line to spare',
+  async (chassis) => {
+    const host = await renderUi(<Harness initial={startRun(2026, chassis)} />);
+    const status = byTestId(host, 'install-status');
+    for (const [slot, reason] of [
+      [/^Slot 1, Engine/, 'last Engine'],
+      [/^Slot 2, Fuel Tank/, 'last Fuel Tank'],
+    ] as const) {
+      press(slotRadio(host, slot));
+      press(button(host, /^Remove$/));
+      expect(status.textContent).toContain(reason);
+      expect(status.scrollHeight).toBeLessThanOrEqual(status.clientHeight);
+      expect(status.scrollWidth).toBeLessThanOrEqual(status.clientWidth);
+      // The status box takes two 12 px lines: the sentence must not need more than that, even with a
+      // fallback font a little wider than VT323 (checked by the box clipping nothing above).
+      const range = document.createRange();
+      range.selectNodeContents(status);
+      expect(range.getBoundingClientRect().height).toBeLessThanOrEqual(24);
+      const panel = host.querySelector<HTMLElement>('.spacecraft-panel')?.getBoundingClientRect();
+      expect(status.getBoundingClientRect().bottom).toBeLessThanOrEqual((panel?.bottom ?? 0) - 8);
+    }
+  },
+);
+
+it('keeps the Fuel-loss warning and its buttons inside the panel, with room to spare', async () => {
+  const host = await renderUi(
+    <Harness initial={fullRun(['engine-1', 'fuel-tank-2', 'fuel-tank-2', null])} />,
+  );
+  press(slotRadio(host, /^Slot 3, Fuel Tank/));
+  press(button(host, /^Remove$/));
+  const ask = byTestId(host, 'remove-confirm');
+  expect(ask.textContent).toContain('of Fuel will be lost.');
+  for (const el of [ask, ...ask.querySelectorAll<HTMLElement>('*')]) {
+    expect(el.scrollWidth, el.className).toBeLessThanOrEqual(el.clientWidth);
+    expect(el.scrollHeight, el.className).toBeLessThanOrEqual(el.clientHeight);
+  }
+  const askBox = ask.getBoundingClientRect();
+  // It stays clear of the reserved About spot (#109) under it.
+  expect(askBox.bottom).toBeLessThanOrEqual(
+    byTestId(host, 'install-preview').getBoundingClientRect().top,
+  );
+  // 8 px of slack under the buttons: a wider fallback font can add a line of text above them.
+  const buttons = ask.querySelector<HTMLElement>('.spacecraft-panel__confirm-buttons');
+  const text = ask.querySelector<HTMLElement>('p');
+  if (!buttons || !text) throw new Error('the confirm step is missing a part');
+  expect(askBox.bottom - buttons.getBoundingClientRect().bottom).toBeGreaterThanOrEqual(8);
+  // The text, measured as it flows, leaves two more lines before it meets the buttons.
+  const range = document.createRange();
+  range.selectNodeContents(text);
+  expect(
+    buttons.getBoundingClientRect().top - range.getBoundingClientRect().bottom,
+  ).toBeGreaterThanOrEqual(24);
 });

@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from 'react';
+import type { ComponentPropsWithRef } from 'react';
 import { KitFrame } from './KitFrame.tsx';
 
 /** Default for secondary actions, primary (amber) for the main action on a screen, danger (red) for destructive ones. */
@@ -7,7 +7,7 @@ export type KitButtonVariant = 'default' | 'primary' | 'danger';
 const KIT_BUTTON_HEIGHT = 24;
 const FACES = ['normal', 'hover', 'pressed', 'disabled'] as const;
 
-interface KitButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'style'> {
+interface KitButtonProps extends Omit<ComponentPropsWithRef<'button'>, 'style'> {
   variant?: KitButtonVariant;
   /** Width in native pixels; the kit button stretches from its 96px default. */
   width?: number;
