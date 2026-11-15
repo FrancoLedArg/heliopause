@@ -9,6 +9,7 @@ import {
   type Seed,
   type StarSystem,
 } from './starSystem.ts';
+import { stringSeed } from '../lib/stringSeed.ts';
 import { materials, type Materials } from './units.ts';
 
 /**
@@ -25,6 +26,8 @@ export type RunStatus =
 /** One attempt from a fresh start. Replays identically from its seed. */
 export interface Run {
   readonly seed: Seed;
+  /** Which Star System the Run is in, from 1: it sets the difficulty level of generation. */
+  readonly starSystemNumber: number;
   readonly starSystem: StarSystem;
   readonly spacecraft: Spacecraft;
   readonly status: RunStatus;
@@ -44,9 +47,10 @@ export interface Run {
  * on the Home Planet.
  */
 export function startRun(seed: Seed, chassisId: ChassisId): Run {
-  const starSystem = generateStarSystem(seed);
+  const starSystem = generateStarSystem(starSystemSeed(seed, 1), 1);
   return deepFreeze({
     seed,
+    starSystemNumber: 1,
     starSystem,
     spacecraft: newSpacecraft(chassisId),
     status: { kind: 'landed', bodyId: starSystem.homePlanetId },
@@ -64,4 +68,19 @@ export function currentBody(run: Run): LandableBody {
     throw new Error(`Run is landed on ${run.status.bodyId}, which is not a landable Body`);
   }
   return body;
+}
+
+/** The Star System number the Run is in, from 1. */
+export function starSystemNumber(run: Run): number {
+  return run.starSystemNumber;
+}
+
+/**
+ * The seed a Run generates its Star System from. System 1 uses the Run's seed itself, so it is the
+ * System that seed has always generated; later Systems draw from a stream of their own, so they
+ * differ from System 1 and from each other, and replay identically.
+ */
+export function starSystemSeed(runSeed: Seed, systemNumber: number): Seed {
+  if (systemNumber <= 1) return runSeed;
+  return runSeed ^ stringSeed(`star-system:${systemNumber}`);
 }

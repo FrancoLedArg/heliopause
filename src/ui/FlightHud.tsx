@@ -74,6 +74,7 @@ export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }:
     return (
       <>
         <TopBar
+          systemNumber={before.starSystemNumber}
           systemName={before.starSystem.name}
           fuel={fuel}
           deltaV={deltaV}
@@ -94,6 +95,7 @@ export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }:
   return (
     <>
       <TopBar
+        systemNumber={before.starSystemNumber}
         systemName={before.starSystem.name}
         fuel={fuel}
         deltaV={deltaV}

@@ -213,3 +213,27 @@ export const CHASSIS_TUNING = {
   },
   lancer: { dryMass: kilograms(6_000), fuelCapacity: kilograms(36_000), engineIsp: seconds(1_280) },
 } as const satisfies Record<ChassisId, ChassisTuning>;
+
+/**
+ * Gameplay tuning: how each Star System after the first is harder. Every curve is a factor on the
+ * System 1 value, `1 + perLevel * (level - 1)` clamped to `floor`, so level 1 is the identity and
+ * the System 1 generation is untouched. Not real-world figures.
+ */
+export const DIFFICULTY_TUNING = {
+  /** Surface gravity and escape velocity grow together: a heavier Body is harder to leave. */
+  gravity: { perLevel: 0.06, floor: 1 },
+  /** The ice line moves outward, so fewer Bodies are Icy: the chance is d / (d + ice line). */
+  iceLineDistance: { perLevel: 0.25, floor: 1 },
+  /** Base yields of both types shrink. */
+  yield: { perLevel: -0.08, floor: 0.5 },
+  /** The Heliopause lies farther out. */
+  heliopauseRadius: { perLevel: 0.1, floor: 1 },
+} as const satisfies Record<string, { perLevel: number; floor: number }>;
+
+/** The factor a difficulty curve applies at a Star System number; exactly 1 for System 1. */
+export function difficultyFactor(
+  curve: { readonly perLevel: number; readonly floor: number },
+  level: number,
+): number {
+  return Math.max(curve.floor, 1 + curve.perLevel * (level - 1));
+}

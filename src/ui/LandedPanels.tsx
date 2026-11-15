@@ -58,6 +58,7 @@ export function LandedPanels({
   return (
     <>
       <TopBar
+        systemNumber={run.starSystemNumber}
         systemName={run.starSystem.name}
         fuel={run.spacecraft.fuelMass}
         deltaV={availableDeltaV(run.spacecraft)}

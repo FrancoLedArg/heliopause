@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { stringSeed } from '../lib/stringSeed.ts';
 import {
   BODY_TUNING,
   ICE_LINE,
@@ -217,5 +218,72 @@ describe('Icy and Rocky Bodies', () => {
     const away = landable.filter((b) => b.distanceFromStar > 5);
     expect(away.some((b) => b.composition === 'rocky')).toBe(true);
     expect(away.some((b) => b.composition === 'icy')).toBe(true);
+  });
+});
+
+describe('Star System difficulty levels', () => {
+  const at = (level: number) => SEEDS.map((seed) => generateStarSystem(seed, level));
+  const mean = (values: number[]) => values.reduce((a, b) => a + b, 0) / values.length;
+  const landable = (all: readonly StarSystem[]) =>
+    all.flatMap(listBodies).filter((body) => body.landable);
+
+  it("difficulty level 1 generates exactly today's Star System", () => {
+    // FNV-1a hash of these seeds' Systems as JSON, captured (and confirmed against a SHA-256)
+    // before levels existed.
+    expect(stringSeed(JSON.stringify(at(1)))).toBe(1599656541);
+    expect(JSON.stringify(systems)).toBe(JSON.stringify(at(1)));
+  });
+
+  it('a higher difficulty level raises gravity', () => {
+    for (const level of [2, 3, 5]) {
+      const lower = at(level - 1).flatMap(listBodies);
+      const higher = at(level).flatMap(listBodies);
+      expect(mean(higher.map((b) => b.surfaceGravity))).toBeGreaterThan(
+        mean(lower.map((b) => b.surfaceGravity)),
+      );
+      expect(mean(higher.map((b) => b.escapeVelocity))).toBeGreaterThan(
+        mean(lower.map((b) => b.escapeVelocity)),
+      );
+    }
+  });
+
+  it('a higher difficulty level lowers the Icy share', () => {
+    const share = (all: readonly StarSystem[]) => {
+      const bodies = landable(all);
+      return bodies.filter((b) => b.composition === 'icy').length / bodies.length;
+    };
+    expect(share(at(2))).toBeLessThan(share(at(1)));
+    expect(share(at(3))).toBeLessThan(share(at(2)));
+    expect(share(at(3))).toBeGreaterThan(0.2);
+  });
+
+  it('a higher difficulty level lowers yields', () => {
+    for (const composition of ['icy', 'rocky'] as const) {
+      const yields = (level: number) =>
+        mean(
+          landable(at(level))
+            .filter((b) => b.composition === composition)
+            .map((b) => b.baseYield),
+        );
+      expect(yields(2)).toBeLessThan(yields(1));
+      expect(yields(3)).toBeLessThan(yields(2));
+    }
+  });
+
+  it('a higher difficulty level pushes the Heliopause farther', () => {
+    expect(mean(at(2).map((s) => s.heliopauseRadius))).toBeGreaterThan(
+      mean(at(1).map((s) => s.heliopauseRadius)),
+    );
+    expect(mean(at(3).map((s) => s.heliopauseRadius))).toBeGreaterThan(
+      mean(at(2).map((s) => s.heliopauseRadius)),
+    );
+  });
+
+  it('generation is deterministic by seed at levels 1 to 3', () => {
+    for (const level of [1, 2, 3]) {
+      for (const seed of [1, 123, 2026]) {
+        expect(generateStarSystem(seed, level)).toEqual(generateStarSystem(seed, level));
+      }
+    }
   });
 });
