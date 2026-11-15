@@ -171,11 +171,16 @@ test('build a Radar to find the Heliopause, then a Jump Drive, reach it by keybo
     'true',
   );
   await page.keyboard.press('Enter');
-  await expect(page.getByTestId('target')).toContainText('None chosen');
+  // #193: no target, so no Hop plan; the card stays with its reason.
+  await expect(page.getByTestId('target')).toHaveCount(0);
+  await expect(page.getByTestId('verdict')).toContainText('Jump Drive');
   await testInfo.attach('heliopause-found-needs-a-jump-drive', {
     body: await page.screenshot(),
     contentType: 'image/png',
   });
+  // #193: the first Escape closes the Heliopause's card, the second the chart.
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('inspect')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await expect(chart).toBeHidden();
 
