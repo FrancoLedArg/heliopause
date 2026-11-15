@@ -34,9 +34,14 @@
   flex: none;
 }
 
-/* The help toggle is the icon alone. */
+/* The help toggle is the icon alone; open, it wears an amber ring, since it has no words to colour. */
 .disclosure-toggle:not(:has(span)) {
   padding: 0;
+  border-radius: 50%;
+}
+
+.disclosure-toggle:not(:has(span))[aria-expanded='true'] {
+  box-shadow: 0 0 0 1px var(--am3);
 }
 
 /* Closed stays closed, whatever display the panel's own class gives it. */

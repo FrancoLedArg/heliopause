@@ -87,7 +87,13 @@ export function TellMeMoreToggle({ className }: { className?: string | undefined
 }
 
 /** The kit's "?" toggle for one-off help: the help icon, with `label` as its accessible name. */
-export function HelpToggle({ label, className }: { label: string; className?: string }) {
+export function HelpToggle({
+  label,
+  className,
+}: {
+  label: string;
+  className?: string | undefined;
+}) {
   return (
     <DisclosureToggle className={className} aria-label={label}>
       <KitFrame frame="icon_help" className="disclosure-toggle__icon" />
