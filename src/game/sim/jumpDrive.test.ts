@@ -34,12 +34,25 @@ describe('the Jump Drive', () => {
     const after = installed(install(run, 2, 'jump-drive'));
     expect(after.spacecraft.slots).toEqual(['engine-1', 'fuel-tank-1', 'jump-drive', null]);
     expect(after.materials).toBe(500 - cost);
-    // With every Slot full there is nowhere to put another.
+    // With every Slot full, its Slot is one nothing else can have.
     const full = installed(install(after, 3, 'drill-1'));
-    expect(install(full, 0, 'jump-drive')).toEqual({
+    expect(install(full, 0, 'drill-1')).toEqual({
       kind: 'refused',
       reason: { kind: 'no-empty-slot' },
     });
+  });
+
+  it('a Spacecraft carries at most one Jump Drive', () => {
+    const run = rich('lancer');
+    const once = installed(install(run, 2, 'jump-drive'));
+    expect(install(once, 3, 'jump-drive')).toEqual({
+      kind: 'refused',
+      reason: { kind: 'jump-drive-installed' },
+    });
+    // Removing it frees the way for another.
+    const removed = remove(once, 2);
+    if (removed.kind !== 'removed') throw new Error('Expected a removal');
+    expect(install(removed.run, 3, 'jump-drive').kind).toBe('installed');
   });
 
   it('needs several Rocky Bodies yield, and more than a Run starts with', () => {

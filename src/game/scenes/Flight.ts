@@ -23,7 +23,13 @@ import { anchorFx } from './groundAnchor.ts';
 import { createFlightEffects, type FlightEffects } from './flightEffects.ts';
 import { SceneKey } from './keys.ts';
 import type { LandedData } from './Landed.ts';
-import { bodySprite, SCREEN_WIDTH, SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
+import {
+  bodySprite,
+  HELIOPAUSE_SPRITE,
+  SCREEN_WIDTH,
+  SHIP_PLACEMENT,
+  SHIP_SHADOW,
+} from './landedView.ts';
 import { buildLandscape, type LandscapeLayers } from './landscape.ts';
 import { onLeaveRun } from './leaveRun.ts';
 import {
@@ -152,7 +158,8 @@ const STREAK_ANGLE = Math.atan2(0.42, -1);
 const SPACE_STARS = 160;
 
 /**
- * Hop playback: the camera stays on the Spacecraft through all three Burns. Takeoff hovers up off the
+ * Hop playback: the camera stays on the Spacecraft through every Burn (a Hop to the Heliopause has
+ * no Landing: it ends in space, the Heliopause ahead). Takeoff hovers up off the
  * departure Body on downward thrust, tilts and boosts away; the Transfer crosses space at a 3/4 view,
  * the departure Body shrinking and the target growing; Landing hovers down onto the target, flat on its
  * legs, ending on exactly the Landed view's composition. One clock drives everything from the
@@ -173,10 +180,16 @@ export class Flight extends Scene {
   /** Where the playback is (ms from Launch). */
   playbackMs = 0;
 
-  /** The colour of the dust and smoke puffs on the departure and arrival grounds. */
-  private puffColors!: Readonly<Record<'departure' | 'arrival', PaletteColor>>;
-  /** The departure and arrival landscapes; tests read where the arrival ground sits. */
-  layers!: Readonly<Record<'departure' | 'arrival', LandscapeLayers>>;
+  /** The colour of the dust and smoke puffs on the departure and arrival grounds (none at the Heliopause). */
+  private puffColors!: {
+    readonly departure: PaletteColor;
+    readonly arrival: PaletteColor | undefined;
+  };
+  /**
+   * The departure and arrival landscapes; tests read where the arrival ground sits. A Hop to the
+   * Heliopause has no arrival ground: it ends in space.
+   */
+  layers!: { readonly departure: LandscapeLayers; readonly arrival: LandscapeLayers | undefined };
   private fxScroll: number = FX_SCROLL_FACTOR.departure;
   private stages!: Readonly<
     Record<'departure' | 'arrival' | 'space', readonly GameObjects.Container[]>
@@ -221,14 +234,15 @@ export class Flight extends Scene {
     this.playback = flightPlayback(this.before.spacecraft, this.flight, this.pace);
 
     const { layers: departure, puffColor: departurePuff } = this.buildGround(this.before);
+    const { plan } = this.flight;
     // The target's sky as seen from its own surface: where the Spacecraft is about to stand.
-    const atTarget: Run = {
-      ...this.before,
-      status: { kind: 'landed', bodyId: this.flight.plan.toId },
-    };
-    const { layers: arrival, puffColor: arrivalPuff } = this.buildGround(atTarget);
+    const atTarget =
+      plan.destination === 'body'
+        ? this.buildGround({ ...this.before, status: { kind: 'landed', bodyId: plan.toId } })
+        : undefined;
+    const arrival = atTarget?.layers;
     this.layers = { departure, arrival };
-    this.puffColors = { departure: departurePuff, arrival: arrivalPuff };
+    this.puffColors = { departure: departurePuff, arrival: atTarget?.puffColor };
     const space = this.buildSpace();
     this.shadow = this.add.ellipse(
       SHIP_PLACEMENT.x,
@@ -240,7 +254,7 @@ export class Flight extends Scene {
     );
     this.stages = {
       departure: [...Object.values(departure)],
-      arrival: [...Object.values(arrival)],
+      arrival: arrival ? [...Object.values(arrival)] : [],
       space: [space],
     };
     this.fx = this.pace === 'full' ? createFlightEffects(this) : undefined;
@@ -470,7 +484,8 @@ export class Flight extends Scene {
       this.cameras.main.fadeIn(STAGE_FADE_MS);
     }
     if (this.stage !== stage && stage !== 'space') {
-      this.fx?.setSurface(this.puffColors[stage]);
+      const puff = this.puffColors[stage];
+      if (puff !== undefined) this.fx?.setSurface(puff);
       this.fxScroll = FX_SCROLL_FACTOR[stage];
       this.fx?.setScrollFactor(this.fxScroll);
     }
@@ -501,22 +516,34 @@ export class Flight extends Scene {
   }
 
   /**
-   * Arrived goes on to the Landed view of the target, with the Fuel left and the report beside it. A
-   * failure ends the Run: the scene stays on its aftermath (drifting or crashed) behind the report.
+   * Arrived goes on to the Landed view of the target, with the Fuel left and the report beside it.
+   * Reaching the Heliopause holds on the Spacecraft at the edge of the Star System and hands over to
+   * its report (the Jump, #157, takes over from there). A failure ends the Run: the scene stays on
+   * its aftermath (drifting or crashed) behind the report.
    */
   private finish(): void {
     if (this.finished) return;
     this.finished = true;
-    if (this.flight.outcome.kind === 'arrived') {
-      const data: LandedData = {
-        run: this.after,
-        report: { before: this.before, flight: this.flight },
-      };
-      this.scene.start(SceneKey.Landed, data);
-    } else {
-      if (this.flight.outcome.kind === 'crashed') this.scatterDebris();
-      else this.drift();
-      EventBus.emit('hop-failed', this.flight);
+    switch (this.flight.outcome.kind) {
+      case 'arrived': {
+        const data: LandedData = {
+          run: this.after,
+          report: { before: this.before, flight: this.flight },
+        };
+        this.scene.start(SceneKey.Landed, data);
+        return;
+      }
+      case 'reached-heliopause':
+        EventBus.emit('hop-reached-heliopause', this.flight);
+        return;
+      case 'crashed':
+        this.scatterDebris();
+        EventBus.emit('hop-failed', this.flight);
+        return;
+      case 'fell-short':
+        this.drift();
+        EventBus.emit('hop-failed', this.flight);
+        return;
     }
   }
 
@@ -602,8 +629,12 @@ export class Flight extends Scene {
       if (!body) throw new Error(`No Body ${id}`);
       return this.add.image(0, 0, bodySprite(run, body));
     };
-    this.fromBody = sprite(this.before, this.flight.plan.fromId);
-    this.toBody = sprite(this.before, this.flight.plan.toId);
+    const { plan } = this.flight;
+    this.fromBody = sprite(this.before, plan.fromId);
+    this.toBody =
+      plan.destination === 'body'
+        ? sprite(this.before, plan.toId)
+        : this.add.image(0, 0, heliopauseTexture(this));
     space.add([this.fromBody, this.toBody]);
     if (this.pace === 'full') {
       const rng = createRng(this.before.seed ^ 0x57ea);
@@ -656,6 +687,34 @@ export class Flight extends Scene {
       ...ship.objects,
     ]);
   }
+}
+
+/** Size (px) of the Heliopause's art; the stand-in is drawn at the same size. */
+const HELIOPAUSE_SIZE = 64;
+
+/**
+ * The Heliopause seen ahead on the way out: its art once the manifest has it, until then a stand-in
+ * drawn once (a dashed violet ring, as the Nav Chart draws it, round a faint glow).
+ */
+function heliopauseTexture(scene: Scene): string {
+  if (hasAsset(HELIOPAUSE_SPRITE) || scene.textures.exists(HELIOPAUSE_SPRITE)) {
+    return HELIOPAUSE_SPRITE;
+  }
+  const graphics = scene.make.graphics({}, false);
+  const centre = HELIOPAUSE_SIZE / 2;
+  graphics.fillStyle(paletteNumber('vi0'), 0.6);
+  graphics.fillCircle(centre, centre, centre - 6);
+  graphics.lineStyle(2, paletteNumber('vi3'));
+  const dashes = 16;
+  for (let i = 0; i < dashes; i++) {
+    const from = (i / dashes) * 2 * Math.PI;
+    graphics.beginPath();
+    graphics.arc(centre, centre, centre - 2, from, from + Math.PI / dashes);
+    graphics.strokePath();
+  }
+  graphics.generateTexture(HELIOPAUSE_SPRITE, HELIOPAUSE_SIZE, HELIOPAUSE_SIZE);
+  graphics.destroy();
+  return HELIOPAUSE_SPRITE;
 }
 
 function clamp01(value: number): number {

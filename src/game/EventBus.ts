@@ -2,7 +2,7 @@ import { Events } from 'phaser';
 import type { SceneKey } from './scenes/keys.ts';
 import type { ChartCommand, ChartState } from './scenes/navChartView.ts';
 import type { FlightMoment, Pace } from './scenes/flightPlayback.ts';
-import type { BodyId, ChassisId, ComponentId, HopFlight, Run, Seed } from './sim/index.ts';
+import type { ChassisId, ComponentId, HopFlight, HopTarget, Run, Seed } from './sim/index.ts';
 
 /** Events crossing the React <-> Phaser boundary. Add an entry here before emitting a new event. */
 export interface GameEvents {
@@ -45,12 +45,13 @@ export interface GameEvents {
    * targets, and `undefined` when the target is cleared (the chart was closed). `nav-chart-state`'s
    * `selectedId` is the same value; the Hop plan (#30) reads `selectedId`, since it arrives with the rest of the panel's state.
    */
-  'nav-target-selected': [targetId: BodyId | undefined];
+  'nav-target-selected': [target: HopTarget | undefined];
   /**
-   * React -> Phaser: the player pressed Launch on the Hop plan for `targetId`, at any Success Chance.
-   * The Landed scene settles the Hop in the simulation and starts its playback.
+   * React -> Phaser: the player pressed Launch on the Hop plan for `target` (a Body or the
+   * Heliopause), at any Success Chance. The Landed scene settles the Hop in the simulation and starts
+   * its playback.
    */
-  'hop-launch-requested': [targetId: BodyId];
+  'hop-launch-requested': [target: HopTarget];
   /**
    * Phaser -> React: a Hop's playback begins (sent just before the Flight's `scene-ready`). `before`
    * is the Run at Launch; `flight` already holds the outcome; `pace` is how long each Burn plays.
@@ -65,6 +66,11 @@ export interface GameEvents {
    * Arrived Hop goes on to the Landed view instead.
    */
   'hop-failed': [flight: HopFlight];
+  /**
+   * Phaser -> React: the playback of a Hop that reached the Heliopause is over; the Spacecraft holds
+   * at the edge of the Star System. For now its report is a placeholder: the Jump (#157) takes over here.
+   */
+  'hop-reached-heliopause': [flight: HopFlight];
   /**
    * Phaser -> React: the Landed view on the new Body follows an Arrived Hop, so its report is shown beside
    * it (sent after the Landed view's `run-started`, before its `scene-ready`). `before` is the Run at Launch.

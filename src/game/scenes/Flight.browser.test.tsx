@@ -15,6 +15,7 @@ import {
   startRun,
   type BodyId,
   type ChassisId,
+  type HopTarget,
   type Run,
 } from '../sim/index.ts';
 import type { Flight, FlightData } from './Flight.ts';
@@ -68,7 +69,7 @@ const frame = (): Promise<void> =>
 /** Mounts the whole app and starts the playback of the Hop to the Home Planet's Moon on `chassis`. */
 async function fly(
   chassis: ChassisId,
-  pick: (run: Run) => BodyId | undefined = (run) => homePlanet(run.starSystem).moons[0]?.id,
+  pick: (run: Run) => HopTarget | undefined = (run) => homePlanet(run.starSystem).moons[0]?.id,
   from: (run: Run) => Run = (run) => run,
 ): Promise<{ scene: Flight; data: FlightData }> {
   host = document.createElement('div');
@@ -98,6 +99,13 @@ async function fly(
   await ready;
   await act(() => Promise.resolve());
   return { scene: game.scene.getScene<Flight>(SceneKey.Flight), data };
+}
+
+/** The arrival ground of a Hop to a Body. */
+function arrivalOf(scene: Flight): NonNullable<Flight['layers']['arrival']> {
+  const { arrival } = scene.layers;
+  if (!arrival) throw new Error('A Hop to a Body has an arrival ground');
+  return arrival;
 }
 
 /** Every HUD panel the UI layer draws, in native 640x360 stage pixels. */
@@ -241,7 +249,10 @@ it('the route inset names the two Bodies and shows how far along the Hop is', as
   await act(frame);
   const inset = document.querySelector('[data-testid="route-inset"]');
   expect(inset?.textContent).toContain(name(data.flight.plan.fromId) ?? '?');
-  expect(inset?.textContent).toContain(name(data.flight.plan.toId) ?? '?');
+  const { plan } = data.flight;
+  expect(inset?.textContent).toContain(
+    plan.destination === 'body' ? (name(plan.toId) ?? '?') : 'Heliopause',
+  );
   const bar = inset?.querySelector('[role="progressbar"]');
   const share = Number(bar?.getAttribute('aria-valuenow'));
   expect(share).toBeGreaterThan(30);
@@ -364,7 +375,7 @@ it.each(CHASSIS_IDS)(
   async (chassis) => {
     const { scene, data } = await fly(chassis);
     scene.seek(scene.playback.duration - 1);
-    const arrival = scene.layers.arrival;
+    const arrival = arrivalOf(scene);
     const cam = scene.cameras.main;
     const frame = {
       groundTop: arrival.ground.y - cam.scrollY,
@@ -526,7 +537,7 @@ const standOnHomeMoon = (run: Run): Run => {
 
 it("seed 123's Icy Home Moon: Landing on it and the Landed view after use the Icy strip", async () => {
   const { scene } = await fly('scout');
-  expect(groundKey(scene.layers.arrival)).toBe('surface_icy');
+  expect(groundKey(arrivalOf(scene))).toBe('surface_icy');
   expect(groundKey(scene.layers.departure)).toBe('surface_rocky');
   const landed = nextSceneReady(SceneKey.Landed);
   scene.seek(scene.playback.duration);

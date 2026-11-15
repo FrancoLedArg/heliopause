@@ -17,9 +17,13 @@ import { materials, type Materials } from './units.ts';
  */
 export const STARTING_MATERIALS: Materials = materials(25);
 
-/** Where the Run stands: landed on a Body and free to plan a Hop, or ended by a failed Hop. */
+/**
+ * Where the Run stands: landed on a Body and free to plan a Hop, at the Heliopause (where the Jump,
+ * #157, takes over), or ended by a failed Hop.
+ */
 export type RunStatus =
   | { readonly kind: 'landed'; readonly bodyId: BodyId }
+  | { readonly kind: 'at-heliopause' }
   | { readonly kind: 'ended'; readonly outcome: 'fell-short' | 'crashed' };
 
 /** One attempt from a fresh start. Replays identically from its seed. */
@@ -56,9 +60,10 @@ export function startRun(seed: Seed, chassisId: ChassisId): Run {
   });
 }
 
-/** The Body the Spacecraft is landed on. Throws for a Run that has ended: it is on no Body. */
+/** The Body the Spacecraft is landed on. Throws for a Run that is on no Body: ended, or at the Heliopause. */
 export function currentBody(run: Run): LandableBody {
   if (run.status.kind === 'ended') throw new Error(`Run ${run.seed} has ended`);
+  if (run.status.kind === 'at-heliopause') throw new Error(`Run ${run.seed} is at the Heliopause`);
   const body = findBody(run.starSystem, run.status.bodyId);
   if (!body?.landable) {
     throw new Error(`Run is landed on ${run.status.bodyId}, which is not a landable Body`);

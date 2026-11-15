@@ -11,19 +11,24 @@ export type { Preview, ProposedChange } from './preview.ts';
 export { remove } from './remove.ts';
 export type { RemoveRefusal, RemoveResult } from './remove.ts';
 export type { Run, RunStatus } from './run.ts';
-export { BURNS, flyHop, launchHop, marginShare, planHop } from './hop.ts';
+export { BURNS, flyHop, HELIOPAUSE, launchHop, marginShare, plannedBurns, planHop } from './hop.ts';
 export type {
+  BodyHopPlan,
   Burn,
   BurnResult,
+  HeliopauseHopPlan,
   HopFlight,
   HopOutcome,
   HopPlan,
   HopPlanResult,
+  HopTarget,
   InvalidTargetReason,
   LaunchResult,
+  PlannedBurn,
 } from './hop.ts';
 export {
   availableDeltaV,
+  carriesJumpDrive,
   componentEffect,
   drillMultiplier,
   fuelAfterBurning,

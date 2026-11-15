@@ -3,7 +3,7 @@ import { stringSeed } from '../lib/stringSeed.ts';
 import { DISPERSION, SOURCED_CONSTANTS } from './data.ts';
 import { collectYield, type Collection } from './gather.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
-import { availableDeltaV, fuelAfterBurning } from './spacecraft.ts';
+import { availableDeltaV, carriesJumpDrive, fuelAfterBurning } from './spacecraft.ts';
 import {
   deepFreeze,
   findBody,
@@ -13,18 +13,29 @@ import {
   type Planet,
   type StarSystem,
 } from './starSystem.ts';
-import { kilograms, metersPerSecond, type Kilograms, type MetersPerSecond } from './units.ts';
+import {
+  kilograms,
+  metersPerSecond,
+  type AstronomicalUnits,
+  type Kilograms,
+  type MetersPerSecond,
+} from './units.ts';
 
-/** The three Burns of a Hop, in the order they are flown. */
+/** The three Burns of a Hop to a Body, in the order they are flown. */
 export const BURNS = ['takeoff', 'transfer', 'landing'] as const;
 export type Burn = (typeof BURNS)[number];
 
-/** A Hop worked out before launch: what each Burn should cost against what the Fuel provides. */
-export interface HopPlan {
+/** The Burns of a Hop to the Heliopause: there is nothing there to land on. */
+const OPEN_SPACE_BURNS = ['takeoff', 'transfer'] as const;
+type OpenSpaceBurn = (typeof OPEN_SPACE_BURNS)[number];
+
+/** The Heliopause as a Hop target: the outer edge of the Star System, not a Body. */
+export const HELIOPAUSE = 'heliopause';
+/** Where a Hop can go: another Body, or the Heliopause. */
+export type HopTarget = BodyId | typeof HELIOPAUSE;
+
+interface HopPlanBase {
   readonly fromId: BodyId;
-  readonly toId: BodyId;
-  /** The estimated Δv of each Burn. */
-  readonly estimates: Readonly<Record<Burn, MetersPerSecond>>;
   readonly totalEstimate: MetersPerSecond;
   /** The Δv the Spacecraft's Fuel provides before the Hop. */
   readonly availableDeltaV: MetersPerSecond;
@@ -37,12 +48,47 @@ export interface HopPlan {
   readonly successChance: number;
 }
 
-/** Why a Body cannot be a Hop target. */
-export type InvalidTargetReason = 'no-surface' | 'current-body';
+/** A Hop to a Body: Takeoff, Transfer and Landing. */
+export interface BodyHopPlan extends HopPlanBase {
+  readonly destination: 'body';
+  readonly toId: BodyId;
+  /** The estimated Δv of each Burn. */
+  readonly estimates: Readonly<Record<Burn, MetersPerSecond>>;
+}
+
+/** A Hop to the Heliopause: Takeoff and Transfer, and no Landing. */
+export interface HeliopauseHopPlan extends HopPlanBase {
+  readonly destination: 'heliopause';
+  readonly toId: typeof HELIOPAUSE;
+  /** The estimated Δv of each Burn. */
+  readonly estimates: Readonly<Record<OpenSpaceBurn, MetersPerSecond>>;
+}
+
+/** A Hop worked out before launch: what each Burn should cost against what the Fuel provides. */
+export type HopPlan = BodyHopPlan | HeliopauseHopPlan;
+
+/** One Burn of a plan, with its estimated Δv. */
+export interface PlannedBurn {
+  readonly burn: Burn;
+  readonly estimate: MetersPerSecond;
+}
+
+/** The Burns a plan flies, in the order they are flown, each with its estimate. */
+export function plannedBurns(plan: HopPlan): readonly PlannedBurn[] {
+  if (plan.destination === 'heliopause') {
+    const { estimates } = plan;
+    return OPEN_SPACE_BURNS.map((burn) => ({ burn, estimate: estimates[burn] }));
+  }
+  const { estimates } = plan;
+  return BURNS.map((burn) => ({ burn, estimate: estimates[burn] }));
+}
+
+/** Why a Body, or the Heliopause, cannot be a Hop target. */
+export type InvalidTargetReason = 'no-surface' | 'current-body' | 'no-jump-drive';
 
 /** Planning a Hop either works out a plan, or explains why the target cannot be chosen. */
-export type HopPlanResult =
-  | { readonly kind: 'planned'; readonly plan: HopPlan }
+export type HopPlanResult<P extends HopPlan = HopPlan> =
+  | { readonly kind: 'planned'; readonly plan: P }
   | {
       readonly kind: 'invalid-target';
       readonly reason: InvalidTargetReason;
@@ -51,11 +97,18 @@ export type HopPlanResult =
     };
 
 /**
- * Plans a Hop from the Body the Spacecraft is on to `targetId`. A Gas Giant or the current Body is
- * an expected failure, returned as `invalid-target`. Throws for an id the Star System does not have
- * or a Run that has ended: both are programmer errors.
+ * Plans a Hop from the Body the Spacecraft is on to `target`. A Gas Giant, the current Body, or the
+ * Heliopause without a Jump Drive is an expected failure, returned as `invalid-target`. Throws for an
+ * id the Star System does not have or a Run that is not on a Body: both are programmer errors.
  */
-export function planHop(run: Run, targetId: BodyId): HopPlanResult {
+export function planHop(run: Run, target: BodyId): HopPlanResult<BodyHopPlan>;
+export function planHop(run: Run, target: typeof HELIOPAUSE): HopPlanResult<HeliopauseHopPlan>;
+export function planHop(run: Run, target: HopTarget): HopPlanResult;
+export function planHop(run: Run, target: HopTarget): HopPlanResult {
+  return target === HELIOPAUSE ? planToHeliopause(run) : planToBody(run, target);
+}
+
+function planToBody(run: Run, targetId: BodyId): HopPlanResult<BodyHopPlan> {
   const from = currentBody(run);
   const target = findBody(run.starSystem, targetId);
   if (!target) throw new Error(`Star System ${run.starSystem.name} has no Body ${targetId}`);
@@ -73,25 +126,61 @@ export function planHop(run: Run, targetId: BodyId): HopPlanResult {
       why: `The Spacecraft is already on ${target.name}.`,
     };
   }
-
   const estimates = {
     takeoff: surfaceBurn(from),
     transfer: transferBurn(run.starSystem, from, target),
     landing: surfaceBurn(target),
   };
-  const totalEstimate = metersPerSecond(estimates.takeoff + estimates.transfer + estimates.landing);
-  const available = availableDeltaV(run.spacecraft);
   return {
     kind: 'planned',
     plan: {
+      destination: 'body',
       fromId: from.id,
       toId: target.id,
       estimates,
-      totalEstimate,
-      availableDeltaV: available,
-      margin: metersPerSecond(available - totalEstimate),
-      successChance: successChance(Object.values(estimates), available),
+      ...odds(run, Object.values(estimates)),
     },
+  };
+}
+
+/**
+ * The Hop to the Heliopause: Takeoff, then a Transfer out to the edge of the Star System, and no
+ * Landing. Only a Spacecraft carrying a Jump Drive may target it: nothing else can use it.
+ */
+function planToHeliopause(run: Run): HopPlanResult<HeliopauseHopPlan> {
+  const from = currentBody(run);
+  if (!carriesJumpDrive(run.spacecraft)) {
+    return {
+      kind: 'invalid-target',
+      reason: 'no-jump-drive',
+      why: 'Only a Spacecraft with a Jump Drive can Hop to the Heliopause: install one first.',
+    };
+  }
+  const estimates = {
+    takeoff: surfaceBurn(from),
+    transfer: heliopauseTransferBurn(run.starSystem, from),
+  };
+  return {
+    kind: 'planned',
+    plan: {
+      destination: 'heliopause',
+      fromId: from.id,
+      toId: HELIOPAUSE,
+      estimates,
+      ...odds(run, Object.values(estimates)),
+    },
+  };
+}
+
+/** What the Spacecraft's Fuel makes of a Hop's Burn estimates: their total, the Margin and the Success Chance. */
+function odds(run: Run, estimates: readonly MetersPerSecond[]): Omit<HopPlanBase, 'fromId'> {
+  const totalEstimate = metersPerSecond(estimates.reduce((sum, estimate) => sum + estimate, 0));
+  const available = availableDeltaV(run.spacecraft);
+  return {
+    totalEstimate,
+    availableDeltaV: available,
+    margin: metersPerSecond(available - totalEstimate),
+    successChance: successChance(estimates, available),
   };
 }
 
@@ -120,6 +209,11 @@ export type BurnResult =
 /** How a Hop ended. */
 export type HopOutcome =
   | { readonly kind: 'arrived' }
+  /**
+   * The Transfer carried the Spacecraft out to the Heliopause. The Jump (#157) follows it; until then
+   * the Run waits there.
+   */
+  | { readonly kind: 'reached-heliopause' }
   /** Fuel ran out during Takeoff or Transfer. */
   | {
       readonly kind: 'fell-short';
@@ -133,13 +227,13 @@ export type HopOutcome =
 export interface HopFlight {
   readonly plan: HopPlan;
   readonly outcome: HopOutcome;
-  /** Takeoff, Transfer and Landing, in the order they are flown. */
+  /** Each Burn of the plan (Takeoff, Transfer, and Landing for a Body), in the order they are flown. */
   readonly burns: readonly BurnResult[];
   /** The Fuel on board before Takeoff. */
   readonly fuelAtLaunch: Kilograms;
   /** The Fuel left by the Hop itself: what landing then collected is in `collection`. */
   readonly fuelRemaining: Kilograms;
-  /** What landing on the target collected; `null` when the Hop did not arrive. */
+  /** What landing on the target collected; `null` when the Hop did not land on a Body. */
   readonly collection: Collection | null;
   readonly deltaVRemaining: MetersPerSecond;
   /** Plain language: what the Burns cost against their estimates, and why the Hop ended as it did. */
@@ -149,7 +243,8 @@ export interface HopFlight {
 /**
  * Flies a planned Hop: resolves the Burns in order, each costing its estimate times a factor drawn
  * from `rng` within the dispersion range. Arrived lands the Spacecraft on the target with the Fuel
- * left; Fell Short or Crashed ends the Run. Throws for a plan made for another Run state.
+ * left; a Hop to the Heliopause that the Fuel covers leaves it there; Fell Short or Crashed ends the
+ * Run. Throws for a plan made for another Run state.
  */
 export function flyHop(
   run: Run,
@@ -161,17 +256,19 @@ export function flyHop(
   if (plan.fromId !== from.id || plan.availableDeltaV !== available) {
     throw new Error(`The plan to ${plan.toId} was made for another Run state; plan the Hop again`);
   }
-  const target = findBody(run.starSystem, plan.toId);
-  if (!target?.landable) throw new Error(`${plan.toId} is not a Hop target`);
+  const target = plan.destination === 'body' ? findBody(run.starSystem, plan.toId) : undefined;
+  if (plan.destination === 'body' && !target?.landable) {
+    throw new Error(`${plan.toId} is not a Hop target`);
+  }
+  const success: HopOutcome = { kind: target ? 'arrived' : 'reached-heliopause' };
 
   let remaining = available;
-  let outcome: HopOutcome = { kind: 'arrived' };
+  let outcome: HopOutcome = success;
   const burns: BurnResult[] = [];
-  for (const burn of BURNS) {
+  for (const { burn, estimate: estimated } of plannedBurns(plan)) {
     // Every Burn draws its factor, flown or not, so a Hop always consumes the Rng the same way.
     const factor = DISPERSION.min + (DISPERSION.max - DISPERSION.min) * rng.next();
-    const estimated = plan.estimates[burn];
-    if (outcome.kind !== 'arrived') {
+    if (outcome.kind !== success.kind) {
       burns.push({ status: 'not-flown', burn, estimated });
       continue;
     }
@@ -190,7 +287,7 @@ export function flyHop(
   }
 
   const fuelRemaining =
-    outcome.kind === 'arrived'
+    outcome.kind === success.kind
       ? fuelAfterBurning(run.spacecraft, metersPerSecond(available - remaining))
       : kilograms(0);
   const flight: HopFlight = {
@@ -201,21 +298,26 @@ export function flyHop(
     fuelRemaining,
     collection: null,
     deltaVRemaining: remaining,
-    why: explain(plan, outcome, burns, target.name),
+    why: explain(plan, outcome, burns, target?.name ?? 'the Heliopause'),
   };
-  const status: RunStatus =
-    outcome.kind === 'arrived'
-      ? { kind: 'landed', bodyId: target.id }
-      : { kind: 'ended', outcome: outcome.kind };
-  const flown: Run = {
+  const flown = (status: RunStatus): Run => ({
     ...run,
     spacecraft: { ...run.spacecraft, fuelMass: fuelRemaining },
     status,
     hopsFlown: run.hopsFlown + 1,
-  };
-  if (outcome.kind !== 'arrived') return deepFreeze({ flight, run: flown });
-  const landed = collectYield(flown, target.id);
-  return deepFreeze({ flight: { ...flight, collection: landed.collection }, run: landed.run });
+  });
+  switch (outcome.kind) {
+    case 'fell-short':
+    case 'crashed':
+      return deepFreeze({ flight, run: flown({ kind: 'ended', outcome: outcome.kind }) });
+    case 'reached-heliopause':
+      return deepFreeze({ flight, run: flown({ kind: 'at-heliopause' }) });
+    case 'arrived': {
+      if (!target) throw new Error('Arrived on no Body');
+      const landed = collectYield(flown({ kind: 'landed', bodyId: target.id }), target.id);
+      return deepFreeze({ flight: { ...flight, collection: landed.collection }, run: landed.run });
+    }
+  }
 }
 
 /** Launching either flies the Hop, or explains why the target cannot be chosen. */
@@ -224,12 +326,12 @@ export type LaunchResult =
   | Extract<HopPlanResult, { kind: 'invalid-target' }>;
 
 /**
- * Launches a Hop to `targetId`: plans it exactly as the player saw it, then flies it with Burns drawn
+ * Launches a Hop to `target`: plans it exactly as the player saw it, then flies it with Burns drawn
  * from the Run's seed and how many Hops it has flown, so the same Run always flies the same Hop and
  * a seed replays a whole Run. The outcome is settled here, before any playback.
  */
-export function launchHop(run: Run, targetId: BodyId): LaunchResult {
-  const planned = planHop(run, targetId);
+export function launchHop(run: Run, target: HopTarget): LaunchResult {
+  const planned = planHop(run, target);
   if (planned.kind !== 'planned') return planned;
   const rng = createRng(run.seed ^ stringSeed(`hop:${String(run.hopsFlown)}`));
   return { kind: 'flown', ...flyHop(run, planned.plan, rng) };
@@ -249,7 +351,8 @@ function explain(
   targetName: string,
 ): string {
   switch (outcome.kind) {
-    case 'arrived': {
+    case 'arrived':
+    case 'reached-heliopause': {
       const actual = burns.reduce(
         (sum, burn) => sum + (burn.status === 'not-flown' ? 0 : burn.actual),
         0,
@@ -259,7 +362,9 @@ function explain(
         change === 0
           ? 'about the estimated Δv'
           : `${Math.abs(change)}% ${change > 0 ? 'more' : 'less'} Δv than estimated`;
-      return `Arrived on ${targetName}. The Burns took ${cost}; you had ${marginPhrase(plan)}.`;
+      const arrival =
+        outcome.kind === 'arrived' ? `Arrived on ${targetName}.` : 'Reached the Heliopause.';
+      return `${arrival} The Burns took ${cost}; you had ${marginPhrase(plan)}.`;
     }
     case 'fell-short':
       return `Fuel ran out during the ${BURN_NAMES[outcome.burn]}. ${failureCause(plan, burns)}`;
@@ -373,26 +478,51 @@ function surfaceBurn(body: LandableBody): MetersPerSecond {
 /**
  * The Transfer, Hohmann-like: the boost that puts the Spacecraft on an ellipse from its orbit to the
  * target's (matching the target is part of Landing). Between a planet and its own Moons, or two
- * Moons of one planet, the orbits are around that planet. Otherwise the ellipse is around the star,
- * and the boost starts deep in the departure planet's gravity (its low orbit, where Takeoff ends, or
- * the Moon's orbit), so it must also climb out of that well. Farther orbits cost more, and the same
- * climb costs more the deeper in the star's gravity it starts.
+ * Moons of one planet, the orbits are around that planet. Otherwise the ellipse is around the star
+ * (see `starTransferBurn`).
  */
 function transferBurn(system: StarSystem, from: Body, to: Body): MetersPerSecond {
   const fromPlanet = planetOf(system, from);
-  const toPlanet = planetOf(system, to);
+  if (fromPlanet.id === planetOf(system, to).id) {
+    return departureBurn(
+      gravitationalParameter(fromPlanet),
+      orbitAroundPlanet(fromPlanet, from),
+      orbitAroundPlanet(fromPlanet, to),
+    );
+  }
+  return starTransferBurn(system, from, to.distanceFromStar);
+}
+
+/**
+ * The Transfer to the Heliopause, escape-style: the boost onto the ellipse around the star whose far
+ * end touches the Heliopause, climbing out of the departure planet's gravity on the way, exactly as a
+ * Transfer between planets. Nothing waits there to be matched, so that is the whole cost. Around the
+ * star the boost is v·(√(2R / (r + R)) − 1), v the circular speed at the departure distance r and R
+ * the Heliopause's: for a Heliopause far beyond the planets, nearly the (√2 − 1)·v of escaping the
+ * star outright. Circular speed falls as 1/√r, so the farther out the Spacecraft starts, the cheaper
+ * the Hop: the game's lesson to climb outward before escaping.
+ */
+function heliopauseTransferBurn(system: StarSystem, from: Body): MetersPerSecond {
+  return starTransferBurn(system, from, system.heliopauseRadius);
+}
+
+/**
+ * The boost onto an ellipse around the star, from the departure Body's distance to `toDistance`. It
+ * starts deep in the departure planet's gravity (its low orbit, where Takeoff ends, or the Moon's
+ * orbit), so it must also climb out of that well. Farther orbits cost more, and the same climb costs
+ * more the deeper in the star's gravity it starts.
+ */
+function starTransferBurn(
+  system: StarSystem,
+  from: Body,
+  toDistance: AstronomicalUnits,
+): MetersPerSecond {
+  const fromPlanet = planetOf(system, from);
   const mu = gravitationalParameter(fromPlanet);
   const radius = orbitAroundPlanet(fromPlanet, from);
-  if (fromPlanet.id === toPlanet.id) {
-    return departureBurn(mu, radius, orbitAroundPlanet(fromPlanet, to));
-  }
   // Every star is Sun-like in this slice: a circular orbit at 1 AU moves as fast as Earth's.
   const starGravitationalParameter = SOURCED_CONSTANTS.orbitalVelocityAt1Au.value ** 2; // (m/s)²·AU
-  const excessSpeed = departureBurn(
-    starGravitationalParameter,
-    from.distanceFromStar,
-    to.distanceFromStar,
-  );
+  const excessSpeed = departureBurn(starGravitationalParameter, from.distanceFromStar, toDistance);
   // Patched conics: from a circular orbit of radius r, leaving with speed v∞ to spare takes
   // √(v∞² + 2μ/r) − √(μ/r).
   return metersPerSecond(Math.sqrt(excessSpeed ** 2 + (2 * mu) / radius) - Math.sqrt(mu / radius));

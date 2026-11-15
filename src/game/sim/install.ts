@@ -1,6 +1,6 @@
-import { componentCost, type ComponentId } from './catalogue.ts';
+import { COMPONENTS, componentCost, type ComponentId } from './catalogue.ts';
 import { starSystemNumber, type Run } from './run.ts';
-import { refit, SLOT_COUNT } from './spacecraft.ts';
+import { carriesJumpDrive, refit, SLOT_COUNT } from './spacecraft.ts';
 import { deepFreeze } from './starSystem.ts';
 import { materials, type Materials } from './units.ts';
 
@@ -10,6 +10,8 @@ export type InstallRefusal =
   | { readonly kind: 'no-empty-slot' }
   /** The chosen Slot is taken while another is empty. */
   | { readonly kind: 'slot-taken'; readonly slot: number; readonly holds: ComponentId }
+  /** A Jump Drive is already installed: one is all the Jump needs, and it burns out only one. */
+  | { readonly kind: 'jump-drive-installed' }
   /** The Run's Materials do not cover the cost. */
   | {
       readonly kind: 'not-enough-materials';
@@ -24,8 +26,8 @@ export type InstallResult =
 
 /**
  * Installs `componentId` in Slot `slotIndex` (0-based) by paying its Materials, and refits the
- * Spacecraft so its mass, Fuel capacity and Isp follow. Refuses when no Slot is empty, when the
- * chosen Slot is taken, or when the Run cannot afford it. Throws for a Slot that does not exist:
+ * Spacecraft so its mass, Fuel capacity and Isp follow. Refuses a second Jump Drive, and refuses
+ * when no Slot is empty, when the chosen Slot is taken, or when the Run cannot afford it. Throws for a Slot that does not exist:
  * a programmer error.
  */
 export function install(run: Run, slotIndex: number, componentId: ComponentId): InstallResult {
@@ -33,6 +35,9 @@ export function install(run: Run, slotIndex: number, componentId: ComponentId): 
     throw new RangeError(`A Spacecraft has Slots 0 to ${String(SLOT_COUNT - 1)}, not ${slotIndex}`);
   }
   const slots = run.spacecraft.slots;
+  if (COMPONENTS[componentId].kind === 'jump-drive' && carriesJumpDrive(run.spacecraft)) {
+    return refused({ kind: 'jump-drive-installed' });
+  }
   if (!slots.includes(null)) return refused({ kind: 'no-empty-slot' });
   const holds = slots[slotIndex];
   if (holds !== null && holds !== undefined) {

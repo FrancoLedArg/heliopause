@@ -3,8 +3,12 @@ import { createRng } from '../lib/rng.ts';
 import {
   BURNS,
   flyHop,
+  HELIOPAUSE,
   homePlanet,
+  install,
   kilograms,
+  launchHop,
+  materials,
   planHop,
   startRun,
   type BodyId,
@@ -196,5 +200,30 @@ describe('Hop playback', () => {
       'transfer',
       'landing',
     ]);
+  });
+});
+
+describe('the playback of a Hop to the Heliopause', () => {
+  const built = install({ ...startRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+  if (built.kind !== 'installed') throw new Error('Expected an install');
+  const launched = launchHop(built.run, HELIOPAUSE);
+  if (launched.kind !== 'flown') throw new Error('Expected a flight');
+  const { flight } = launched;
+
+  it('plays Takeoff then Transfer, never a Landing, and reaches the end of the route', () => {
+    const playback = flightPlayback(built.run.spacecraft, flight, 'full');
+    expect(flight.outcome.kind).toBe('reached-heliopause');
+    expect(playback.duration).toBe(PHASE_MS.full.takeoff + PHASE_MS.full.transfer);
+    const shown = [...new Set(samples(playback).map((moment) => moment.burn))];
+    expect(shown).toEqual(['takeoff', 'transfer']);
+    const end = playback.at(playback.duration);
+    expect(end).toMatchObject({ burn: 'transfer', route: 1, logged: 2, ended: true });
+    expect(end.fuel).toBeCloseTo(flight.fuelRemaining);
+  });
+
+  it('is shorter under reduced motion, and still has no Landing', () => {
+    const playback = flightPlayback(built.run.spacecraft, flight, 'reduced');
+    expect(playback.duration).toBe(PHASE_MS.reduced.takeoff + PHASE_MS.reduced.transfer);
+    expect(samples(playback).some((moment) => moment.burn === 'landing')).toBe(false);
   });
 });
