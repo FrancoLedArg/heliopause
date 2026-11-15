@@ -1,5 +1,5 @@
 """Generates public/assets/sprites/res_science.png: a 16x16 pixel-art flask in kit palette colours.
-Run: python3 scripts/assets/genScienceIcon.py (needs Pillow). Pixels are fully opaque or fully transparent."""
+Run: python3 docs/design/sprites/gen_science_icon.py (needs Pillow). Pixels are fully opaque or fully transparent."""
 import json
 from PIL import Image
 
