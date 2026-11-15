@@ -1,5 +1,5 @@
 // What the Spacecraft panel says, as plain data: the catalogue rows, each Component's effect in one
-// sentence, the Mass bar and the reasons an install is refused. No React here, so it is unit tested.
+// sentence, the stat bars and the reasons an install is refused. No React here, so it is unit tested.
 import {
   availableDeltaV,
   COMPONENT_IDS,
@@ -9,10 +9,9 @@ import {
   kilograms,
   metersPerSecond,
   preview,
-  SLOT_COUNT,
+  seconds,
   standingRefusal,
   starSystemNumber,
-  type Preview,
   type ProposedChange,
   type ChassisId,
   type ComponentId,
@@ -28,11 +27,11 @@ import {
 } from '../game/sim/index.ts';
 import {
   chassisName,
-  deltaVUnit,
-  formatDeltaV,
+  formatDeltaVKmS,
   formatFuel,
   formatIsp,
   formatMass,
+  kmPerSecondFigure,
 } from './format.ts';
 
 const KIND_NAMES: Readonly<Record<ComponentKind, string>> = {
@@ -57,7 +56,10 @@ export function componentTitle(id: ComponentId): string {
  * The drawn Spacecraft in words, for its text alternative: its Chassis, then each installed
  * Component in Slot order, a repeat counted once ("Hauler: Engine 1, Fuel Tank 1 ×2, Drill 2").
  */
-export function describeSpacecraft(spacecraft: Pick<Spacecraft, 'chassisId' | 'slots'>): string {
+export function describeSpacecraft(spacecraft: {
+  readonly chassisId: ChassisId;
+  readonly slots: readonly Slot[];
+}): string {
   const counts = new Map<ComponentId, number>();
   for (const id of spacecraft.slots) if (id !== null) counts.set(id, (counts.get(id) ?? 0) + 1);
   const parts = [...counts].map(([id, n]) =>
@@ -148,6 +150,8 @@ export interface PanelRow {
   readonly title: string;
   readonly mass: string;
   readonly cost: string;
+  /** The cost as a bare number, for beside the Materials icon. */
+  readonly costAmount: number;
   /** The one-sentence effect on this Chassis. */
   readonly effect: string;
   /** Whether the Run's Materials cover the cost (the panel still says so in words). */
@@ -175,6 +179,7 @@ export function panelRows(run: Run): readonly PanelRow[] {
       title: componentTitle(id),
       mass: formatMass(component.mass),
       cost: `${String(cost)} Materials`,
+      costAmount: cost,
       effect: describeEffect(run.spacecraft.chassisId, id),
       affordable: run.materials >= cost,
       short: Math.max(0, cost - run.materials),
@@ -186,69 +191,37 @@ export function panelRows(run: Run): readonly PanelRow[] {
 /** Which way a figure moves in a preview. The panel says it in words, never by colour alone. */
 export type Trend = 'up' | 'down' | 'same';
 
-/** One figure in a preview: before → after, and the difference in words. */
-export interface PreviewLine {
-  readonly label: string;
-  /** Which figure it is, so the panel need not read the label to treat Δv differently. */
-  readonly kind: 'mass' | 'fuel' | 'delta-v';
-  readonly before: string;
-  readonly after: string;
-  /** "+1.5 t", "−0.8 t", "Drops 3.1 km/s", "Rises 1.0 km/s" or "No change". */
-  readonly change: string;
-  readonly trend: Trend;
-}
-
-/** What the panel shows before the player pays for, or confirms, a change. */
+/** What the panel shows above the stat bars before the player pays for, or confirms, a change. */
 export interface PanelPreview {
   readonly heading: string;
-  /** Dry mass, Fuel capacity and Δv, in that order. */
-  readonly lines: readonly PreviewLine[];
-  /** The lesson the change teaches, or an empty string. */
+  /** Why Δv moves, in one short line beside the bars; an empty string when it does not. */
   readonly note: string;
+  /** The rest of the lesson, behind "Tell me more": one sentence per entry. */
+  readonly more: readonly string[];
 }
 
-function trendOf(before: string, after: string, from: number, to: number): Trend {
-  if (before === after) return 'same';
-  return to > from ? 'up' : 'down';
-}
-
-function massLine(
-  kind: 'mass' | 'fuel',
-  label: string,
-  from: Kilograms,
-  to: Kilograms,
-): PreviewLine {
-  const [before, after] = [formatMass(from), formatMass(to)];
-  const trend = trendOf(before, after, from, to);
-  const size = formatMass(kilograms(Math.abs(to - from)));
-  const change = { same: 'No change', up: `+${size}`, down: `−${size}` }[trend];
-  return { label, kind, before, after, change, trend };
-}
+const nbsp = (text: string): string =>
+  text.replaceAll(' km/s', '\u00a0km/s').replaceAll(' m/s', '\u00a0m/s');
 
 /**
- * The two lines under a preview. A Fuel Tank teaches the rocket equation both ways: its mass
- * costs Δv while it is empty, and it gives more Δv once the Spacecraft has refuelled. Any other
- * Component installed says in one sentence why you might want it. A removal says nothing more.
+ * Why Δv moves, in one short line: the rocket equation in the player's words. A Fuel Tank starts
+ * empty, so its mass costs Δv at once; a better Engine gains more Δv than its mass costs.
  */
-function noteFor(
-  spacecraft: Spacecraft,
-  change: ProposedChange,
-  after: Preview,
-  component: (typeof COMPONENTS)[ComponentId],
-): string {
-  if (change.kind === 'remove') return '';
-  if (component.kind !== 'fuel-tank') return component.explanation;
-  const filledNow = availableDeltaV({ ...spacecraft, fuelMass: spacecraft.fuelCapacity });
-  const direction = after.filledDeltaV >= filledNow ? 'up' : 'down';
-  return `Starts empty, so Δv drops. Filled up: ${formatDeltaV(after.filledDeltaV)}, ${direction} from ${formatDeltaV(filledNow)}.`
-    .replaceAll(' km/s', '\u00a0km/s')
-    .replaceAll(' m/s', '\u00a0m/s');
+function whyLine(change: ProposedChange, kind: ComponentKind, trend: Trend): string {
+  if (trend === 'same') return '';
+  if (change.kind === 'install') {
+    if (kind === 'fuel-tank') return 'Starts empty, so Δv drops.';
+    return trend === 'up' ? 'Better Isp, so Δv rises.' : 'More mass, so Δv drops.';
+  }
+  if (trend === 'up') return 'Less mass, so Δv rises.';
+  return kind === 'fuel-tank' ? 'Its Fuel is lost, so Δv drops.' : 'Lower Isp, so Δv drops.';
 }
 
 /**
- * The Spacecraft's dry mass, Fuel capacity and Δv after `change`, as before → after with the
- * difference. The figures come from the simulation's `preview`, so they are what the change would
- * really do. A drop in Δv says "Drops". `undefined` when there is nothing to change.
+ * What a change would do, as a heading, one short line saying why Δv moves, and the rest of the
+ * lesson for "Tell me more". A Fuel Tank teaches the rocket equation both ways: its mass costs Δv
+ * while it is empty, and it gives more Δv once the Spacecraft has refuelled. `undefined` when there
+ * is nothing to change.
  */
 export function describePreview(
   spacecraft: Spacecraft,
@@ -256,51 +229,173 @@ export function describePreview(
 ): PanelPreview | undefined {
   const after = preview(spacecraft, change);
   if (!after) return undefined;
-  const [from, to] = [availableDeltaV(spacecraft), after.deltaV];
-  const [deltaBefore, deltaAfter] = [formatDeltaV(from), formatDeltaV(to)];
-  const trend = trendOf(deltaBefore, deltaAfter, from, to);
-  // The difference reads in the unit of the figures beside it, so 22.1 → 19.0 km/s drops 3.1 km/s.
-  const size = formatDeltaV(
-    metersPerSecond(Math.abs(to - from)),
-    deltaVUnit(metersPerSecond(Math.max(from, to))),
-  );
-  const deltaChange = { same: 'No change', up: `Rises ${size}`, down: `Drops ${size}` }[trend];
   const held = change.kind === 'remove' ? spacecraft.slots[change.slot] : change.component;
   if (!held) return undefined;
   const component = COMPONENTS[held];
+  const [from, to] = [formatDeltaVKmS(availableDeltaV(spacecraft)), formatDeltaVKmS(after.deltaV)];
+  const trend = trendOf(from, to, availableDeltaV(spacecraft), after.deltaV);
+  const more: string[] = change.kind === 'install' ? [component.explanation] : [];
+  if (change.kind === 'install' && component.kind === 'fuel-tank') {
+    const filledNow = availableDeltaV({ ...spacecraft, fuelMass: spacecraft.fuelCapacity });
+    const direction = after.filledDeltaV >= filledNow ? 'up' : 'down';
+    more.push(
+      nbsp(
+        `Filled up: ${formatDeltaVKmS(after.filledDeltaV)}, ${direction} from ${formatDeltaVKmS(filledNow)}.`,
+      ),
+    );
+  }
   return {
     heading: `${change.kind === 'install' ? 'Install' : 'Remove'} ${componentTitle(held)}`,
-    lines: [
-      massLine('mass', 'Dry mass', spacecraft.dryMass, after.dryMass),
-      massLine('fuel', 'Fuel cap.', spacecraft.fuelCapacity, after.fuelCapacity),
-      {
-        label: 'Δv',
-        kind: 'delta-v',
-        before: deltaBefore,
-        after: deltaAfter,
-        change: deltaChange,
-        trend,
-      },
-    ],
-    note: noteFor(spacecraft, change, after, component),
+    note: whyLine(change, component.kind, trend),
+    more,
   };
 }
+
+function trendOf(before: string, after: string, from: number, to: number): Trend {
+  if (before === after) return 'same';
+  return to > from ? 'up' : 'down';
+}
+
+export type StatKind = 'mass' | 'fuel' | 'delta-v';
+
+/** A figure after a proposed change, as its bar shows it. */
+export interface StatChange {
+  readonly value: string;
+  readonly share: number;
+  /** The difference as a signed number in the unit of the value: "+1.5", "−3.1", "±0". */
+  readonly change: string;
+  readonly trend: Trend;
+  /** Whether the change helps: more Fuel or Δv, or less mass. */
+  readonly good: boolean;
+}
+
+/** One of the panel's three stat bars: dry mass, Fuel capacity or Δv. */
+export interface StatBar {
+  readonly kind: StatKind;
+  /** The short word beside the bar. */
+  readonly label: string;
+  readonly value: string;
+  /** How full the bar is, 0 to 1, against the most this Chassis could reach. */
+  readonly share: number;
+  /** The same figure after the change being previewed; `undefined` with nothing previewed. */
+  readonly after?: StatChange | undefined;
+  /** Everything the bar shows, in words, for a screen reader. */
+  readonly name: string;
+}
+
+const STAT_NAMES: Readonly<Record<StatKind, string>> = {
+  mass: 'Dry mass',
+  fuel: 'Fuel capacity',
+  'delta-v': 'Δv',
+};
+const STAT_LABELS: Readonly<Record<StatKind, string>> = {
+  mass: 'Mass',
+  fuel: 'Fuel',
+  'delta-v': 'Δv',
+};
 
 const HEAVIEST_COMPONENT = Math.max(...COMPONENT_IDS.map((id) => COMPONENTS[id].mass));
 
 /**
- * The Mass bar: the Spacecraft's dry mass against the most it could weigh on its Chassis, every
- * Slot holding the heaviest Component. `label` is the same figure in words.
+ * What each bar is measured against: the most this Chassis could reach with every Slot used for it.
+ * Mass: the heaviest Component in every Slot. Fuel: the largest Fuel Tank in every Slot but the
+ * Engine's. Δv: the best Engine and those Tanks, full.
  */
-export function massBar(spacecraft: Spacecraft): { fraction: number; label: string } {
-  const installed = spacecraft.slots.reduce(
+function ceilings(spacecraft: Spacecraft): Record<StatKind, number> {
+  const { chassisId, slots } = spacecraft;
+  const installed = slots.reduce(
     (sum, slot) => sum + (slot === null ? 0 : COMPONENTS[slot].mass),
     0,
   );
   const chassisMass = spacecraft.dryMass - installed;
-  const heaviest = chassisMass + SLOT_COUNT * HEAVIEST_COMPONENT;
+  const of = (kind: ComponentKind) => COMPONENT_IDS.filter((id) => COMPONENTS[id].kind === kind);
+  const tank = Math.max(
+    ...of('fuel-tank').map((id) => {
+      const effect = componentEffect(chassisId, id);
+      return effect.kind === 'fuel-tank' ? effect.fuelCapacity : 0;
+    }),
+  );
+  const tankMass = Math.max(...of('fuel-tank').map((id) => COMPONENTS[id].mass));
+  const isp = Math.max(
+    ...of('engine').map((id) => {
+      const effect = componentEffect(chassisId, id);
+      return effect.kind === 'engine' ? effect.isp : 0;
+    }),
+  );
+  const engineMass = Math.max(...of('engine').map((id) => COMPONENTS[id].mass));
+  const tanks = Math.max(1, slots.length - 1);
   return {
-    fraction: Math.min(1, spacecraft.dryMass / heaviest),
-    label: `Dry mass ${formatMass(spacecraft.dryMass)}`,
+    mass: chassisMass + slots.length * HEAVIEST_COMPONENT,
+    fuel: tanks * tank,
+    'delta-v': availableDeltaV({
+      ...spacecraft,
+      engineIsp: seconds(isp),
+      dryMass: kilograms(chassisMass + engineMass + tanks * tankMass),
+      fuelMass: kilograms(tanks * tank),
+    }),
   };
+}
+
+const figure = (kind: StatKind, amount: number): string =>
+  kind === 'delta-v' ? formatDeltaVKmS(metersPerSecond(amount)) : formatMass(kilograms(amount));
+
+const signed = (kind: StatKind, size: number): string =>
+  kind === 'delta-v'
+    ? kmPerSecondFigure(metersPerSecond(size))
+    : formatMass(kilograms(size)).replace(' t', '');
+
+/**
+ * The dry mass, Fuel capacity and Δv as bars, Δv in km/s as the top bar shows it. With a `change`,
+ * each bar also carries the figure after it, from the simulation's `preview`, so the bars show what
+ * the change would really do.
+ */
+export function statBars(spacecraft: Spacecraft, change?: ProposedChange): readonly StatBar[] {
+  const now: Record<StatKind, number> = {
+    mass: spacecraft.dryMass,
+    fuel: spacecraft.fuelCapacity,
+    'delta-v': availableDeltaV(spacecraft),
+  };
+  const previewed = change && preview(spacecraft, change);
+  const then: Record<StatKind, number> | undefined = previewed && {
+    mass: previewed.dryMass,
+    fuel: previewed.fuelCapacity,
+    'delta-v': previewed.deltaV,
+  };
+  const ceiling = ceilings(spacecraft);
+  const kinds: readonly StatKind[] = ['mass', 'fuel', 'delta-v'];
+  return kinds.map((kind): StatBar => {
+    const scale = Math.max(ceiling[kind], now[kind], then?.[kind] ?? 0);
+    const share = (amount: number): number => (scale > 0 ? amount / scale : 0);
+    const value = figure(kind, now[kind]);
+    if (!then) {
+      return {
+        kind,
+        label: STAT_LABELS[kind],
+        value,
+        share: share(now[kind]),
+        name: `${STAT_NAMES[kind]}: ${value}`,
+      };
+    }
+    const afterValue = figure(kind, then[kind]);
+    const trend = trendOf(value, afterValue, now[kind], then[kind]);
+    const size = signed(kind, Math.abs(then[kind] - now[kind]));
+    const words =
+      kind === 'delta-v'
+        ? { same: 'No change', up: `Rises ${size} km/s`, down: `Drops ${size} km/s` }[trend]
+        : { same: 'No change', up: `Up ${size} t`, down: `Down ${size} t` }[trend];
+    return {
+      kind,
+      label: STAT_LABELS[kind],
+      value,
+      share: share(now[kind]),
+      after: {
+        value: afterValue,
+        share: share(then[kind]),
+        change: { same: '±0', up: `+${size}`, down: `−${size}` }[trend],
+        trend,
+        good: kind === 'mass' ? trend === 'down' : trend === 'up',
+      },
+      name: `${STAT_NAMES[kind]}: ${value} now, ${afterValue} after. ${words}.`,
+    };
+  });
 }
