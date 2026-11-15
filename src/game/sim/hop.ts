@@ -21,6 +21,7 @@ import {
   type CruiseEventKind,
 } from './data.ts';
 import { collectYield, type Collection } from './gather.ts';
+import { isInHopRange } from './hopRange.ts';
 import { jump } from './jump.ts';
 import { bodyKnowledge, revealOnLanding, type Reveal } from './knowledge.ts';
 import { currentBody, type Run, type RunStatus } from './run.ts';
@@ -123,7 +124,14 @@ export function plannedBurns(plan: HopPlan): readonly PlannedBurn[] {
  * Heliopause before it is found, are not on the chart: only a forged choice could name them.
  */
 export type InvalidTargetReason =
-  'no-surface' | 'current-body' | 'no-jump-drive' | 'not-detected' | 'not-found';
+  'no-surface' | 'current-body' | 'no-jump-drive' | 'not-detected' | 'not-found' | 'out-of-range';
+
+/** Why a target past the Hop range cannot be chosen: one line, the chart shows the rest (#283). */
+const OUT_OF_RANGE = {
+  kind: 'invalid-target',
+  reason: 'out-of-range',
+  why: 'Out of Hop range.',
+} as const;
 
 /** Planning a Hop either works out a plan, or explains why the target cannot be chosen. */
 export type HopPlanResult<P extends HopPlan = HopPlan> =
@@ -185,6 +193,7 @@ function planToBody(run: Run, targetId: BodyId): HopPlanResult<BodyHopPlan> {
       why: `The Spacecraft is already on ${target.name}.`,
     };
   }
+  if (!isInHopRange(run, target.id)) return OUT_OF_RANGE;
   const unsurveyed = bodyKnowledge(run, target.id) !== 'surveyed';
   const estimates = {
     takeoff: surfaceBurn(from),
@@ -228,6 +237,7 @@ function planToHeliopause(run: Run): HopPlanResult<HeliopauseHopPlan> {
       why: 'The Heliopause has not been found yet: the Spacecraft does not know where it is.',
     };
   }
+  if (!isInHopRange(run, HELIOPAUSE)) return OUT_OF_RANGE;
   if (!carriesJumpDrive(run.spacecraft)) {
     return {
       kind: 'invalid-target',

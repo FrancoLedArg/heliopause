@@ -1,6 +1,7 @@
 // Test fixtures for the simulation's own tests. Not part of the module's public interface: the UI
 // never imports this file.
 import { AT_ESTIMATE, withDetected } from './generation.ts';
+import { withinHopRange } from './hopRange.ts';
 import { startingRun } from './opening.ts';
 import {
   assessStranding,
@@ -10,7 +11,9 @@ import {
   findBody,
   firstDetectedBody,
   flyHop,
+  HELIOPAUSE,
   install,
+  isInHopRange,
   kilograms,
   launchHop,
   listBodies,
@@ -22,7 +25,6 @@ import {
   type StarSystem,
   type BodyHopPlan,
   type BodyId,
-  type HELIOPAUSE,
   type HeliopauseHopPlan,
   type HopPlan,
   type HopTarget,
@@ -118,11 +120,18 @@ export function onInnerPlanet(from: Run): Run {
   return landedOn(knowingEverything(from), innerPlanet(from).id);
 }
 
-/** Landable Bodies of the Star System, other than the innermost planet and its Moons. */
+/**
+ * Landable Bodies of the Star System, other than the innermost planet and its Moons, that a Hop from
+ * the innermost planet can reach: those of the next planet out (#283's Hop range).
+ */
 export function farLandables(from: Run): Body[] {
   const inner = innerPlanet(from);
   return listBodies(from.starSystem).filter(
-    (body) => body.landable && body.id !== inner.id && !inner.moons.some((m) => m.id === body.id),
+    (body) =>
+      body.landable &&
+      body.id !== inner.id &&
+      !inner.moons.some((m) => m.id === body.id) &&
+      withinHopRange(from.starSystem, inner, body),
   );
 }
 
@@ -162,18 +171,23 @@ export function withJumpDrive(from: Run): Run {
 
 export { startingRun };
 
-/** The same Run as if a Radar had found the Heliopause, for rules about the Hop there. */
+/**
+ * The same Run as if a Radar had found the Heliopause, for rules about the Hop there: within its Hop
+ * range too, as it is where a level-1 Radar finds it (see `heliopauseInRange`).
+ */
 export function heliopauseFound(from: Run): Run {
-  return { ...from, knowledge: { ...from.knowledge, heliopauseFound: true } };
+  return heliopauseInRange({ ...from, knowledge: { ...from.knowledge, heliopauseFound: true } });
 }
 
 /**
  * A Run played the way out by a careful explorer, through the real rules from a New Run on `seed`:
  * it builds a level-1 Radar before its first Hop, then Hops only at a 100% Success Chance to the
- * nearest Body it knows of and has not landed on, out from the star where it can, until the Radar has
- * found the Heliopause and the Materials pay for a Jump Drive; then it installs one. `undefined` when
- * that explorer cannot get there on this seed (no sure Hop left). Its choices replay to the same Run,
- * so tests of the Jump and the end-to-end flow start from a real way out.
+ * nearest Body it knows of and has not landed on, out from the star where it can (back through a
+ * Body it has landed on when nothing new is in sure reach), until the Radar has found the Heliopause,
+ * the Heliopause is within the Hop range (#283) and the Materials pay for a Jump Drive; then it
+ * installs one. `undefined` when that explorer cannot get there on this seed (no sure Hop left). Its
+ * choices replay to the same Run, so tests of the Jump and the end-to-end flow start from a real way
+ * out, and its Hop count is how long a careful Run takes to get out.
  */
 export function readyToJump(seed: number, chassisId: ChassisId): Run | undefined {
   const start = startRun(seed, chassisId);
@@ -182,19 +196,22 @@ export function readyToJump(seed: number, chassisId: ChassisId): Run | undefined
   let run = radar.run;
   const visited = new Set<BodyId>([currentBody(run).id]);
   for (let hops = 0; hops < 40 && run.status.kind === 'landed'; hops += 1) {
-    if (run.knowledge.heliopauseFound) {
+    if (run.knowledge.heliopauseFound && isInHopRange(run, HELIOPAUSE)) {
       const built = install(run, run.spacecraft.slots.indexOf(null), 'jump-drive');
       if (built.kind === 'installed') return built.run;
     }
     const here = currentBody(run);
-    const sure = run.knowledge.detected.flatMap((id) => {
-      const body = findBody(run.starSystem, id);
-      if (!body?.landable || visited.has(id)) return [];
-      const planned = planHop(run, id);
-      return planned.kind === 'planned' && planned.plan.successChance === 1 ? [body] : [];
-    });
-    const outward = sure.filter((body) => body.distanceFromStar >= here.distanceFromStar);
-    const [next] = (outward.length > 0 ? outward : sure).sort(
+    const sure = (onward: (body: Body) => boolean) =>
+      run.knowledge.detected.flatMap((id) => {
+        const body = findBody(run.starSystem, id);
+        if (!body?.landable || !onward(body)) return [];
+        const planned = planHop(run, id);
+        return planned.kind === 'planned' && planned.plan.successChance === 1 ? [body] : [];
+      });
+    const fresh = sure((body) => !visited.has(body.id));
+    const outward = fresh.filter((body) => body.distanceFromStar >= here.distanceFromStar);
+    const back = sure((body) => body.distanceFromStar > here.distanceFromStar);
+    const [next] = (outward.length > 0 ? outward : fresh.length > 0 ? fresh : back).sort(
       (a, b) => distanceBetween(run.starSystem, here, a) - distanceBetween(run.starSystem, here, b),
     );
     if (!next) return undefined;
@@ -204,4 +221,17 @@ export function readyToJump(seed: number, chassisId: ChassisId): Run | undefined
     visited.add(next.id);
   }
   return undefined;
+}
+
+/**
+ * The same Run with every planet beyond the one the Spacecraft is at taken out, so the Heliopause is
+ * within its Hop range (#283). A Hop to the Heliopause costs only what leaving that Body and climbing
+ * out to the Heliopause radius do, so every Burn there costs exactly what it did before.
+ */
+export function heliopauseInRange(from: Run): Run {
+  const here = currentBody(from);
+  const planetId = here.kind === 'moon' ? here.planetId : here.id;
+  const { planets } = from.starSystem;
+  const band = planets.findIndex((planet) => planet.id === planetId);
+  return { ...from, starSystem: { ...from.starSystem, planets: planets.slice(0, band + 1) } };
 }

@@ -3,6 +3,7 @@
 // the seed; this is what the Spacecraft has learned of it, and it only ever grows.
 import { kilometersToAu } from './data.ts';
 import type { Run } from './run.ts';
+import { withinHopRange } from './hopRange.ts';
 import { radarReach } from './spacecraft.ts';
 import {
   findBody,
@@ -124,15 +125,22 @@ export function revealOnLanding(
   };
 }
 
-/** The landable Body nearest to `from` that the player has not Detected; ties go to the first listed. */
+/**
+ * The landable Body nearest to `from` that the player has not Detected, within the Hop range when
+ * any is left there (#283), so Comms always points at a Hop the Spacecraft can make; ties go to the
+ * first listed.
+ */
 export function nearestUndetected(
   system: StarSystem,
   knowledge: Knowledge,
   from: Body,
 ): LandableBody | undefined {
+  const undetected = listBodies(system).filter(
+    (body): body is LandableBody => body.landable && !knowledge.detected.includes(body.id),
+  );
+  const inRange = undetected.filter((body) => withinHopRange(system, from, body));
   let nearest: { body: LandableBody; distance: number } | undefined;
-  for (const body of listBodies(system)) {
-    if (!body.landable || knowledge.detected.includes(body.id)) continue;
+  for (const body of inRange.length > 0 ? inRange : undetected) {
     const distance = distanceBetween(system, from, body);
     if (!nearest || distance < nearest.distance) nearest = { body, distance };
   }

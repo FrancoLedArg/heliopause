@@ -34,12 +34,13 @@ import { readBestScore } from '../lib/bestScore.ts';
 import { JUMP_FLAVOUR_TEXT } from '../../ui/jumpFlavour.ts';
 import { SceneKey } from './keys.ts';
 import '../../style.css';
+import { heliopauseFound } from '../sim/testing.ts';
 
-/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
-const found = (run: Run): Run => ({
-  ...run,
-  knowledge: { ...run.knowledge, heliopauseFound: true },
-});
+/**
+ * The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target, and
+ * only within the Hop range (#283).
+ */
+const found = heliopauseFound;
 
 let root: Root | undefined;
 let game: Phaser.Game | undefined;
@@ -740,10 +741,11 @@ it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clea
           launched.flight.outcome.burn === 'transfer'
         );
       })?.id,
-    // No Hop of a full hauler from seed 2046's innermost planet falls short; half its Fuel.
+    // No Hop of a full hauler from seed 2046's innermost planet falls short; a tenth of its Fuel, since
+    // half still reaches every Body within the Hop range (#283).
     (run) => ({
       ...run,
-      spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 2) },
+      spacecraft: { ...run.spacecraft, fuelMass: kilograms(run.spacecraft.fuelMass / 10) },
     }),
   );
   expect(data.flight.outcome.kind).toBe('fell-short');

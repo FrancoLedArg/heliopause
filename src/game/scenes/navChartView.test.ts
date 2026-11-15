@@ -38,6 +38,7 @@ import {
   targetStatus,
   type Direction,
 } from './navChartView.ts';
+import { heliopauseInRange } from '../sim/testing.ts';
 
 /** A New Run as the player starts it: on its Starting Moon, knowing only the opening. */
 const freshRun = (seed: number): Run => startRun(seed, 'scout');
@@ -228,11 +229,14 @@ describe('choosing a Hop target on the Nav Chart', () => {
   it('accepts a Moon of a Gas Giant, and the Moon of the Home Planet', () => {
     let checked = 0;
     for (const seed of SEEDS) {
-      const run = newRun(seed);
-      const giantMoon = run.starSystem.planets
-        .filter((p) => p.kind === 'gas-giant')
-        .flatMap((p) => p.moons)[0];
-      if (giantMoon) {
+      const full = newRun(seed);
+      const { planets } = full.starSystem;
+      const giant = planets.findIndex((p) => p.kind === 'gas-giant');
+      const giantMoon = planets[giant]?.moons[0];
+      const before = planets[giant - 1];
+      if (giantMoon && before) {
+        // Stood on the planet before it, so the Moon is within the Hop range (#283).
+        const run: Run = { ...full, status: { kind: 'landed', bodyId: before.id } };
         expect(targetStatus(run, giantMoon.id)).toEqual({ valid: true });
         checked += 1;
       }
@@ -350,7 +354,7 @@ describe('the Heliopause on the Nav Chart', () => {
   });
 
   it('says why the Heliopause cannot be the target without a Jump Drive', () => {
-    const run = newRun(5);
+    const run = heliopauseInRange(newRun(5));
     const status = targetStatus(run, HELIOPAUSE);
     expect(status).toMatchObject({ valid: false, reason: 'no-jump-drive' });
     expect(status.valid ? '' : status.why).toMatch(/Jump Drive/);
@@ -358,7 +362,7 @@ describe('the Heliopause on the Nav Chart', () => {
   });
 
   it('Enter on the focused Heliopause makes it the target only with a Jump Drive', () => {
-    const run = newRun(5);
+    const run = heliopauseInRange(newRun(5));
     const layout = layoutChart(run);
     const focused = chartReducer(run, layout, initialChartState(run), {
       kind: 'focus',
@@ -683,15 +687,16 @@ describe('Body labels on the Nav Chart', () => {
   });
 
   // Re-pinned for #189 (was seed 292's Zarla-2) and #247 (was seed 155's Vutho): generation changed.
-  // Seed 86 is the fullest 7-planet chart of the first 400 (29 Bodies), its far Moon Prota the target.
-  it('keep off every Body even on a chart too full to label well (seed 86, Prota as the target)', () => {
-    const run = newRun(86);
-    const layout = layoutFor(86);
+  // Re-pinned for #283 (was seed 86's Prota): fairness within the Hop range keeps another draw for 86.
+  // Seed 256 is the fullest 7-planet chart of the first 400 (29 Bodies), its far Moon Zaerlaemor the target.
+  it('keep off every Body even on a chart too full to label well (seed 256, Zaerlaemor as the target)', () => {
+    const run = newRun(256);
+    const layout = layoutFor(256);
     const target = layout.nodes.find((n) => n.body.id === 'planet-7-moon-3');
-    if (!target) throw new Error('seed 86 has no planet-7-moon-3');
+    if (!target) throw new Error('seed 256 has no planet-7-moon-3');
     const problems = layout.nodes.flatMap((n) =>
       labelClashes(
-        chartCase(86, {
+        chartCase(256, {
           hereId: currentBody(run).id,
           targetId: target.body.id,
           focusedId: n.body.id,

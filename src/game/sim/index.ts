@@ -38,6 +38,8 @@ export {
   planHop,
   reachVerdict,
 } from './hop.ts';
+export { hopRange, isInHopRange } from './hopRange.ts';
+export type { HopRange } from './hopRange.ts';
 export { rushRepair, startRepair } from './repair.ts';
 export type { RepairRefusal, RepairResult, RushResult } from './repair.ts';
 export type {
