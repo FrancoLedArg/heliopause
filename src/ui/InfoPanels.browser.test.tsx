@@ -18,7 +18,7 @@ async function show(panel: 'credits' | 'about'): Promise<HTMLElement> {
   return renderUi(
     <>
       {panel === 'credits' ? <CreditsPanel onBack={onBack} /> : <AboutPanel onBack={onBack} />}
-      <p className="hud-tag ai-label">AI-generated art</p>
+      <p className="hud-tag ai-label">AI-generated art and music</p>
     </>,
   );
 }
@@ -45,7 +45,7 @@ it('Credits & References fits the 640x360 stage and keeps the AI-art label visib
   expect(body.scrollHeight).toBeGreaterThan(body.clientHeight);
   expect(body.scrollWidth).toBeLessThanOrEqual(body.clientWidth);
 
-  expect(label.textContent).toBe('AI-generated art');
+  expect(label.textContent).toBe('AI-generated art and music');
   expect(getComputedStyle(label).visibility).toBe('visible');
   expect(inside(label.getBoundingClientRect())).toBe(true);
   expect(apart(label.getBoundingClientRect(), plate.getBoundingClientRect())).toBe(true);
