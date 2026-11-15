@@ -11,7 +11,11 @@ import {
   type Seconds,
 } from './units.ts';
 
-/** Every Component the Spacecraft can carry: Engine, Fuel Tank and Drill at levels 1 and 2, and the Jump Drive. */
+/**
+ * Every Component the Spacecraft can carry: Engine, Fuel Tank and Drill at levels 1 and 2, and the
+ * Jump Drive. These ids are stored in choice logs (see `choiceLog.ts`): never rename or reuse one,
+ * or stored logs stop parsing or replay a different Component. Add new ids instead.
+ */
 export const COMPONENT_IDS = [
   'engine-1',
   'engine-2',

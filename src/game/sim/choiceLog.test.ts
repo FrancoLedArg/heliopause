@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { createRng, type Rng } from '../lib/rng.ts';
 import {
   CHASSIS_IDS,
+  CHOICE_LOG_VERSION,
   COMPONENT_IDS,
   HELIOPAUSE,
   install,
   launchHop,
   listBodies,
+  parseChoiceLog,
   planHop,
   remove,
   replay,
@@ -14,7 +16,9 @@ import {
   score,
   SLOT_COUNT,
   startRun,
+  storedChoiceLog,
   type BodyId,
+  type ChassisId,
   type ChoiceLog,
   type ComponentId,
   type HopTarget,
@@ -176,6 +180,15 @@ describe('replay', () => {
     expect(rejectedAt([{ kind: 'hop', target: HELIOPAUSE }])).toBe(0);
   });
 
+  it('a seed that is not a safe integer, or an unknown Chassis, cannot be replayed', () => {
+    for (const seed of [Number.NaN, 1.5, Infinity, 2 ** 60]) {
+      expect(replay(seed, 'scout', [])).toMatchObject({ kind: 'unplayable' });
+    }
+    // Test fixture: a Chassis id from a tampered record.
+    expect(replay(1, 'warp' as ChassisId, [])).toMatchObject({ kind: 'unplayable' });
+    expect(replay(-7, 'scout', [])).toMatchObject({ kind: 'replayed' });
+  });
+
   it('no choice follows the end of a Run', () => {
     const start = startRun(101, 'lancer');
     const mined = hopped(start, bodyId('planet-3-moon-1'));
@@ -192,17 +205,49 @@ describe('replay', () => {
     expect(result.why).toMatch(/not landed/);
   });
 
-  it('the choice log is plain data: it survives a trip through JSON', () => {
+  it('a stored choice log survives a trip through JSON and back into a replay', () => {
     const start = startRun(84, 'scout');
     const mined = hopped(start, bodyId('planet-4-moon-3'));
     const run = hopped(
       installed(mined, mined.spacecraft.slots.indexOf(null), 'jump-drive'),
       HELIOPAUSE,
     );
-    // Test fixture: the Daily Best's own parser will check a stored log; here it is known good.
-    const stored = JSON.parse(JSON.stringify(run.choices)) as ChoiceLog;
-    expect(stored).toEqual(run.choices);
-    expect(replay(84, 'scout', stored)).toMatchObject({ kind: 'replayed', run });
+    const json = JSON.stringify(storedChoiceLog(run.choices));
+    expect(JSON.parse(json)).toMatchObject({ version: CHOICE_LOG_VERSION });
+    const parsed = parseChoiceLog(JSON.parse(json));
+    expect(parsed).toEqual(run.choices);
+    if (!parsed) return;
+    expect(replay(84, 'scout', parsed)).toMatchObject({ kind: 'replayed', run });
+  });
+
+  it('stored data that is not a choice log of this version does not parse', () => {
+    const stored = (choices: unknown): unknown => ({ version: CHOICE_LOG_VERSION, choices });
+    const junk: unknown[] = [
+      null,
+      'x',
+      42,
+      [],
+      { choices: [] },
+      { version: CHOICE_LOG_VERSION + 1, choices: [] },
+      { version: '1', choices: [] },
+      stored(null),
+      stored('x'),
+      stored([null]),
+      stored([42]),
+      stored([{}]),
+      stored([{ kind: 'jump' }]),
+      stored([{ kind: 'INSTALL', slot: 2, componentId: 'drill-1' }]),
+      stored([{ kind: 'install' }]),
+      stored([{ kind: 'install', slot: 2, componentId: 'warp' }]),
+      stored([{ kind: 'install', slot: 2, componentId: 'toString' }]),
+      stored([{ kind: 'install', slot: 0.5, componentId: 'drill-1' }]),
+      stored([{ kind: 'remove', slot: '2' }]),
+      stored([{ kind: 'hop', target: 5 }]),
+      stored([{ kind: 'hop' }]),
+      stored([{ kind: 'hop', target: 'planet-1' }, null]),
+    ];
+    for (const value of junk) expect(parseChoiceLog(value), JSON.stringify(value)).toBeUndefined();
+    expect(parseChoiceLog(stored([]))).toEqual([]);
   });
 
   it('over many seeds, replaying random choices gives the same Run, Score and end', () => {
