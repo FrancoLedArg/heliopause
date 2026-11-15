@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { waitForOpening } from './opening.ts';
-import { formatDeltaV, formatDeltaVKmS } from '../../src/ui/format.ts';
+import { formatDeltaVKmS } from '../../src/ui/format.ts';
 import {
   availableDeltaV,
   COMPONENTS,
@@ -72,7 +72,10 @@ test('the cheapest Component can be installed with the starting Materials using 
   await expect(page.getByRole('radio', { name: /^Slot 3, Fuel Tank, level 1/ })).toBeVisible();
   await expect(page.getByTestId('materials')).toHaveText(String(installed.run.materials));
   await expect(page.getByTestId('delta-v')).toHaveText(formatDeltaVKmS(afterDeltaV));
-  await expect(page.getByTestId('panel-delta-v')).toHaveText(formatDeltaV(afterDeltaV));
+  // #224: the panel reads Δv in km/s, as the top bar does.
+  await expect(page.getByTestId('panel-delta-v')).toHaveText(formatDeltaVKmS(afterDeltaV));
+  // The new Fuel Tank shows in its Slot's callout on the picture, and in the picture's words.
+  await expect(panel.getByRole('img', { name: 'Scout: Engine 1, Fuel Tank 1 ×2' })).toBeVisible();
   await testInfo.attach('spacecraft-panel', {
     body: await page.screenshot(),
     contentType: 'image/png',
