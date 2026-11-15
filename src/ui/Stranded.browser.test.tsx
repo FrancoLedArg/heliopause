@@ -79,7 +79,9 @@ it('a Run Stranded on Landing goes straight to the End-of-Run screen with the St
     'However you change its Components, your Spacecraft has at most 5.3 km/s of Δv, and the ' +
       'cheapest Hop needs 5.8 km/s.',
   );
-  expect(find(ui, 'end-of-run-score')?.textContent).toBe('0 Star Systems escaped, 3 Hops flown');
+  expect(find(ui, 'end-of-run-score')?.getAttribute('aria-label')).toBe(
+    'Score: 0 Star Systems escaped, 3 Hops flown',
+  );
   // No Hop report, and nothing left to plan with: the Run is over.
   expect(find(ui, 'hop-report')).toBeNull();
   expect(ui.querySelector('.landed-plate')).toBeNull();
@@ -107,7 +109,9 @@ it('a Run that arrives in a new Star System with no way out ends there too, what
   expect(arrived.status).toMatchObject({ kind: 'ended', end: { kind: 'stranded' } });
   const ui = await land({ run: arrived });
   expect(find(ui, 'end-of-run')?.querySelector('h2')?.textContent).toBe('Stranded');
-  expect(find(ui, 'end-of-run-score')?.textContent).toBe('1 Star System escaped, 1 Hop flown');
+  expect(find(ui, 'end-of-run-score')?.getAttribute('aria-label')).toBe(
+    'Score: 1 Star System escaped, 1 Hop flown',
+  );
   expect(readBestScore()).toEqual({ starSystemsEscaped: 1, hopsFlown: 1 });
 });
 
