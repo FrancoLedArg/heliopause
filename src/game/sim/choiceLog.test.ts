@@ -310,7 +310,8 @@ describe('replay', () => {
     let heliopauseHops = 0;
     let endedRuns = 0;
     let destroyedRuns = 0;
-    for (let seed = 1; seed <= 300; seed++) {
+    // 900 seeds: mild Debris now always hits (#320), so random Runs end earlier and fewer reach a fire.
+    for (let seed = 1; seed <= 900; seed++) {
       const chassisId = CHASSIS_IDS[seed % CHASSIS_IDS.length] ?? 'scout';
       // Every tenth Run starts where a careful explorer has found the Heliopause (when it can), so
       // the random player also tries the Hop there: only the Radar finds it (#191).

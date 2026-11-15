@@ -6,6 +6,7 @@ import type { CruiseEventKind, Run } from '../sim/index.ts';
  */
 export const STRIKE_CUES: Readonly<Partial<Record<CruiseEventKind, string>>> = {
   'fuel-leak': 'sfx_leak',
+  'debris-field': 'sfx_debris',
   'engine-fire': 'sfx_fire',
 };
 

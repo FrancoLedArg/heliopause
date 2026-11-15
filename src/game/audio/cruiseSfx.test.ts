@@ -49,6 +49,7 @@ describe('cruiseCues', () => {
   it('has a recipe for every cue', () => {
     for (const key of [
       'sfx_leak',
+      'sfx_debris',
       'sfx_fire',
       'sfx_explosion',
       'sfx_repair_start',
