@@ -40,7 +40,7 @@ function UnsurveyedBadge() {
 /** Flame, neutral dot or snowflake: how hot or cold the target is (#335). */
 function BandGlyph({ band }: { band: ArrivalView['band'] }) {
   return (
-    <svg className="hop-plan__band" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+    <svg className="hop-plan__band" width="10" height="10" viewBox="0 0 12 12" aria-hidden="true">
       {band === 'scorching' && (
         <path
           d="M6 1 C7 4 10 5 9 8 C8.5 10 7 11 6 11 C4.5 11 3 10 3 8 C3 6.5 4 6 4.5 4.5 C5 5 5.5 5 6 4 Z"
@@ -75,7 +75,7 @@ function ArrivalChip({ arrival }: { arrival: ArrivalView }) {
         fraction={arrival.fraction}
         day={arrival.day}
         label={arrival.label}
-        size={18}
+        size={14}
         decorative
       />
       <BandGlyph band={arrival.band} />

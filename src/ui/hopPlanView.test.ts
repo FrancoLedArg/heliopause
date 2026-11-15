@@ -336,7 +336,9 @@ describe('the local time on arrival (#334)', () => {
     const fraction = arrivalDayFraction(run.starSystem, moon, run.gameHours, distance);
     expect(view.arrival?.fraction).toBe(fraction);
     expect(view.arrival?.label).toMatch(
-      new RegExp(`^Arrives at ${timeOfDayWords(fraction)}, (Scorching|Mild|Freezing)(: harsh)?$`),
+      new RegExp(
+        `^(Arrives at ${timeOfDayWords(fraction)}, (Scorching|Mild|Freezing)|Harsh arrival: (scorching day|freezing night))$`,
+      ),
     );
     expect(view.arrival?.band).toBe(temperatureBand(moon));
   });

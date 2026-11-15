@@ -133,7 +133,9 @@ function arrivalView(run: Run, from: Body, to: Body | undefined): ArrivalView | 
     day,
     band,
     harsh,
-    label: `Arrives at ${words}, ${bandWords}${harsh ? ': harsh' : ''}`,
+    label: harsh
+      ? `Harsh arrival: ${band} ${day ? 'day' : 'night'}`
+      : `Arrives at ${words}, ${bandWords}`,
   };
 }
 

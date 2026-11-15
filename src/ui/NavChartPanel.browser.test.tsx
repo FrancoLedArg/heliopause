@@ -849,9 +849,9 @@ it('shows the arrival time as a sun or moon chip named for the time, for a day a
     const chip = byTestId(host, 'plan-arrival');
     const name = chip.getAttribute('aria-label');
     expect(name).toMatch(
-      /^Arrives at (morning|midday|evening|night), (Scorching|Mild|Freezing)(: harsh)?$/,
+      /^(Arrives at (morning|midday|evening|night), (Scorching|Mild|Freezing)|Harsh arrival: (scorching day|freezing night))$/,
     );
-    names.add(name?.startsWith('Arrives at night') ? 'night' : 'day');
+    names.add(name?.includes('night') ? 'night' : 'day');
     const plan = byTestId(host, 'hop-plan').getBoundingClientRect();
     const box = chip.getBoundingClientRect();
     expect(box.right).toBeLessThanOrEqual(plan.right);
@@ -871,7 +871,9 @@ it('shows a band glyph, and a hazard mark only for a Freezing night or a Scorchi
     for (const day of [true, false]) {
       const harsh = isHarshArrival(band, day);
       const word = band.charAt(0).toUpperCase() + band.slice(1);
-      const label = `Arrives at ${day ? 'midday' : 'night'}, ${word}${harsh ? ': harsh' : ''}`;
+      const label = harsh
+        ? `Harsh arrival: ${band} ${day ? 'day' : 'night'}`
+        : `Arrives at ${day ? 'midday' : 'night'}, ${word}`;
       const view = { ...base, arrival: { fraction: day ? 0.5 : 0, day, band, harsh, label } };
       const host = await renderUi(<HopPlan view={view} />);
       const chip = byTestId(host, 'plan-arrival');
@@ -881,6 +883,13 @@ it('shows a band glyph, and a hazard mark only for a Freezing night or a Scorchi
       const box = chip.getBoundingClientRect();
       const plan = byTestId(host, 'hop-plan').getBoundingClientRect();
       expect(box.right).toBeLessThanOrEqual(plan.right);
+      const chance = host.querySelector<HTMLElement>('.hop-plan__chance');
+      if (!chance) throw new Error('no chance');
+      expect(chance.getBoundingClientRect().right).toBeLessThanOrEqual(plan.right);
+      expect(chance.scrollWidth).toBeLessThanOrEqual(chance.clientWidth);
+      expect(chip.getBoundingClientRect().right).toBeLessThanOrEqual(
+        chance.getBoundingClientRect().left,
+      );
       seen.add(`${band}-${day ? 'day' : 'night'}-${harsh ? 'harsh' : 'ok'}`);
       cleanUp();
     }
