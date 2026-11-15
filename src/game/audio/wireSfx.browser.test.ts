@@ -44,6 +44,31 @@ describe('wireSfx', () => {
     expect(played).toEqual(['sfx_gather', 'sfx_install', 'sfx_remove', 'sfx_jump']);
   });
 
+  it('plays the leak on the Cruise update that strikes it, and nothing when muted', () => {
+    const run = (struck: unknown[]) =>
+      ({
+        materials: 0,
+        spacecraft: { damage: [] },
+        status: { kind: 'cruising', cruise: { struck } },
+      }) as never;
+    const { played, off } = setup();
+    undo = off;
+    EventBus.emit('cruise-updated', run([]));
+    EventBus.emit('cruise-updated', run([{ kind: 'fuel-leak' }]));
+    expect(played).toEqual(['sfx_leak']);
+
+    const settings = new MusicSettingsStore(null, 'm');
+    settings.set({ muted: true });
+    const quiet: string[] = [];
+    const muted = new Sfx({ settings, has: () => true });
+    muted.attach({ play: (key) => quiet.push(key) });
+    const offMuted = wireSfx(muted);
+    EventBus.emit('cruise-updated', run([]));
+    EventBus.emit('cruise-updated', run([{ kind: 'fuel-leak' }]));
+    offMuted();
+    expect(quiet).toEqual([]);
+  });
+
   it('stops listening once undone', () => {
     const { played, off } = setup();
     off();

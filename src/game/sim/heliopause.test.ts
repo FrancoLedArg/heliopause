@@ -13,6 +13,7 @@ import {
   type Run,
 } from './index.ts';
 import {
+  heliopauseInRange,
   innerMoon,
   innerPlanet,
   landedOn,
@@ -23,7 +24,8 @@ import {
   withJumpDrive,
 } from './testing.ts';
 
-const run: Run = onInnerPlanet(startRun(2026, 'scout'));
+// Within the Hop range of the Heliopause (#283): its Burns cost what they did from the inner planet.
+const run: Run = heliopauseInRange(onInnerPlanet(startRun(2026, 'scout')));
 
 describe('the Heliopause as a Hop target', () => {
   it('the Heliopause cannot be targeted without a Jump Drive', () => {

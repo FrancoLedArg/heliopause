@@ -3,6 +3,7 @@ import { userEvent } from 'vitest/browser';
 import {
   currentBody,
   HELIOPAUSE,
+  isInHopRange,
   firstDetectedBody,
   install,
   kilograms,
@@ -19,6 +20,7 @@ import {
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
 import { expectTextBudget } from './textBudget.ts';
+import { heliopauseFound } from '../game/sim/testing.ts';
 import {
   chartReducer,
   initialChartState,
@@ -29,11 +31,11 @@ import {
 import { toScreen } from '../game/scenes/navChartMap.ts';
 import { EventBus } from '../game/EventBus.ts';
 
-/** The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target. */
-const found = (run: Run): Run => ({
-  ...run,
-  knowledge: { ...run.knowledge, heliopauseFound: true },
-});
+/**
+ * The same Run as if a Radar had found the Heliopause (#191): only then is it a Hop target, and
+ * only within the Hop range (#283).
+ */
+const found = heliopauseFound;
 
 afterEach(cleanUp);
 
@@ -147,15 +149,16 @@ it.each([
 // zero with its stronger warning) must keep every gauge and line inside the plan area, above the
 // buttons, with its details open as well as closed, and the Δv help under the chart must fit the frame.
 // Re-pinned for #189: from seed 123's innermost planet a half-fuelled Spacecraft is short of Rexsio
-// (was Sircer, from the Home Planet).
+// (was Sircer, from the Home Planet). Re-pinned for #283: Rexsio is past the Hop range, so a fifth of
+// the Fuel falls short of Tiosli.
 it.each(['scout', 'hauler'] as const)(
-  'keeps the whole Hop plan above Cancel and Launch, open or closed, and the Δv help inside the frame (%s, seed 123 Rexsio, half the Fuel)',
+  'keeps the whole Hop plan above Cancel and Launch, open or closed, and the Δv help inside the frame (%s, seed 123 Tiosli, a fifth of the Fuel)',
   async (chassis) => {
     const full = newRun(123, chassis);
-    const fuelMass = kilograms(full.spacecraft.fuelMass / 2);
+    const fuelMass = kilograms(full.spacecraft.fuelMass / 5);
     const run = { ...full, spacecraft: { ...full.spacecraft, fuelMass } };
-    const far = listBodies(run.starSystem).find((b) => b.name === 'Rexsio');
-    if (!far) throw new Error('seed 123 has no Rexsio');
+    const far = listBodies(run.starSystem).find((b) => b.name === 'Tiosli');
+    if (!far) throw new Error('seed 123 has no Tiosli');
     const host = await renderUi(<Panel run={run} focusedId={far.id} selectedId={far.id} />);
     const plan = byTestId(host, 'hop-plan');
     const warning = byTestId(host, 'plan-warning');
@@ -248,6 +251,13 @@ function opening(run: Run): { home: Planet; moon: Body } {
   return { home, moon };
 }
 
+/** The same Run stood beside `moon`, on its planet or a sibling Moon: within the Hop range (#283). */
+function besideMoon(run: Run, home: Planet, moon: Body): Run {
+  const stand = home.landable ? home : home.moons.find((m) => m.id !== moon.id);
+  if (!stand) throw new Error('No Body beside the Moon');
+  return { ...run, status: { kind: 'landed', bodyId: stand.id } };
+}
+
 // The tallest the side panel gets: a 21-character target name (two lines, so the plan moves down) with
 // the strongest warning (a Margin below zero, here from almost no Fuel). Baselines differ by platform,
 // so the last line keeps real room inside the plan and the plan stays clear of the buttons.
@@ -260,11 +270,15 @@ it('keeps the tallest plan, with a 21-character target and a Margin warning, cle
       ? { ...planet, moons: planet.moons.map((m) => (m.id === moon.id ? { ...m, name } : m)) }
       : planet,
   );
-  const run = {
-    ...base,
-    starSystem: { ...base.starSystem, planets },
-    spacecraft: { ...base.spacecraft, fuelMass: kilograms(1) },
-  };
+  const run = besideMoon(
+    {
+      ...base,
+      starSystem: { ...base.starSystem, planets },
+      spacecraft: { ...base.spacecraft, fuelMass: kilograms(1) },
+    },
+    home,
+    moon,
+  );
   const host = await renderUi(<Panel run={run} focusedId={moon.id} selectedId={moon.id} />);
   expect(byTestId(host, 'plan-warning').textContent).not.toBe('');
   const targetName = host.querySelector<HTMLElement>('.nav-chart__target-name');
@@ -446,12 +460,16 @@ it('keeps the tallest plan, 21-character target, Margin warning and Depleted, cl
       ? { ...planet, moons: planet.moons.map((m) => (m.id === moon.id ? { ...m, name } : m)) }
       : planet,
   );
-  const run = {
-    ...base,
-    starSystem: { ...base.starSystem, planets },
-    spacecraft: { ...base.spacecraft, fuelMass: kilograms(1) },
-    depleted: [moon.id],
-  };
+  const run = besideMoon(
+    {
+      ...base,
+      starSystem: { ...base.starSystem, planets },
+      spacecraft: { ...base.spacecraft, fuelMass: kilograms(1) },
+      depleted: [moon.id],
+    },
+    home,
+    moon,
+  );
   const host = await renderUi(<Panel run={run} focusedId={moon.id} selectedId={moon.id} />);
   expect(byTestId(host, 'plan-warning').textContent).not.toBe('');
   // The live summary still says the Hop will yield nothing; the head badge shows it.
@@ -517,7 +535,7 @@ it('lists no Heliopause until the Radar finds it', async () => {
 
 it('says on the chart why the focused Heliopause cannot be the target without a Jump Drive', async () => {
   const host = await renderUi(
-    <Panel run={newRun(1, 'lancer')} focusedId={HELIOPAUSE} selectedId={undefined} />,
+    <Panel run={found(newRun(1, 'lancer'))} focusedId={HELIOPAUSE} selectedId={undefined} />,
   );
   const tooltip = byTestId(host, 'inspect');
   expect(tooltip.querySelector('h2')?.textContent).toBe('Heliopause');
@@ -625,12 +643,12 @@ it('opens the Hop plan details by keyboard: each Burn with its reason, and the m
 it('the text-budget helper passes on the Hop plan, in every state, and on the chart under it', async () => {
   const scout = newRun(123, 'scout');
   const full = newRun(123, 'hauler');
-  // Half-fuelled, the hauler is short of Rexsio (see the fit test above).
+  // With a fifth of its Fuel, the hauler is short of Tiosli (see the fit test above).
   const hauler = {
     ...full,
-    spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 2) },
+    spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 5) },
   };
-  const sircer = listBodies(scout.starSystem).find((b) => b.name === 'Rexsio');
+  const sircer = listBodies(scout.starSystem).find((b) => b.name === 'Tiosli');
   // The landable Body with the lowest Success Chance from the innermost planet.
   const far = listBodies(scout.starSystem)
     .flatMap((body) => {
@@ -921,13 +939,22 @@ it('marks known Bodies off screen at the edge, named, and a click on one sends i
   record.stop();
 });
 
+/**
+ * The farthest Body on the chart that a Hop can target: the outermost is past the Hop range from the
+ * innermost planet (#283), and a plan opens only for a target in range.
+ */
+function farthestInRange(run: Run, layout: ReturnType<typeof layoutChart>): BodyId | undefined {
+  return layout.nodes.filter((n) => n.body.landable && isInHopRange(run, n.body.id)).at(-1)?.body
+    .id;
+}
+
 // The #188 fold-in: seeds 346 and 267 were where the old tooltip hid the "you" marker.
 it('the card never covers its Body, where the Spacecraft is, or the target', async () => {
   for (const seed of [123, 267, 346]) {
     const run = newRun(seed, 'scout');
     const layout = layoutChart(run);
     const here = currentBody(run).id;
-    const target = layout.nodes.at(-1)?.body.id;
+    const target = farthestInRange(run, layout);
     if (!target) throw new Error('an empty chart');
     for (const node of layout.nodes.filter((n) => n.body.id !== target)) {
       let state = initialChartState(run, layout);
@@ -956,7 +983,7 @@ it('the card never covers its Body, where the Spacecraft is, or the target', asy
 it('fits at 640x360: nothing of the chart, its card or its plan spills off the screen', async () => {
   const run = newRun(123, 'scout');
   const layout = layoutChart(run);
-  const far = layout.nodes.at(-1)?.body.id;
+  const far = farthestInRange(run, layout);
   if (!far) throw new Error('an empty chart');
   const opened = initialChartState(run, layout);
   const carded = chartReducer(run, layout, opened, { kind: 'click', id: far });

@@ -110,6 +110,33 @@ export const RECIPES: Readonly<Record<string, readonly Layer[]>> = {
     },
     { kind: 'tone', wave: 'sine', from: 90, to: 28, start: 1.1, dur: 1.4, gain: 0.9 },
   ],
+  // Cruise events (#264): the leak's hiss, a Repair's start and finish, and a Rush.
+  sfx_leak: [
+    {
+      kind: 'noise',
+      filter: 'highpass',
+      from: 6000,
+      to: 2500,
+      start: 0,
+      dur: 1.4,
+      gain: 0.4,
+      attack: 0.08,
+    },
+    { kind: 'tone', wave: 'square', from: 220, to: 160, start: 0, dur: 0.18, gain: 0.2 },
+  ],
+  sfx_repair_start: [
+    { kind: 'tone', wave: 'square', from: 300, to: 360, start: 0, dur: 0.08, gain: 0.25 },
+    { kind: 'tone', wave: 'square', from: 300, to: 360, start: 0.12, dur: 0.08, gain: 0.25 },
+    { kind: 'noise', filter: 'bandpass', from: 2000, to: 3500, start: 0.2, dur: 0.3, gain: 0.25 },
+  ],
+  sfx_repair_done: [
+    { kind: 'tone', wave: 'triangle', from: 660, to: 660, start: 0, dur: 0.16, gain: 0.35 },
+    { kind: 'tone', wave: 'triangle', from: 990, to: 990, start: 0.14, dur: 0.3, gain: 0.35 },
+  ],
+  sfx_rush: [
+    { kind: 'tone', wave: 'sawtooth', from: 300, to: 1500, start: 0, dur: 0.3, gain: 0.25 },
+    { kind: 'tone', wave: 'triangle', from: 990, to: 1320, start: 0.28, dur: 0.3, gain: 0.35 },
+  ],
 };
 
 export function hasRecipe(key: string): boolean {
