@@ -63,7 +63,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   const [selected, setSelected] = useState(() => Math.max(0, spacecraft.slots.indexOf(null)));
   const held = spacecraft.slots[selected] ?? null;
 
-  const [aboutId, setAboutId] = useState<PanelRow['id']>(() => firstAffordable(rows));
+  const [focusedId, setFocusedId] = useState<PanelRow['id']>(() => firstAffordable(rows));
   // What the preview is about: the catalogue entry last focused or hovered, or the chosen Slot's Component.
   const [previewing, setPreviewing] = useState<'catalogue' | 'slot'>('catalogue');
   const [outcome, setOutcome] = useState<Outcome | undefined>(undefined);
@@ -136,13 +136,16 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
 
   const tryInstall = (row: PanelRow): void => {
     const target = installTarget(spacecraft.slots, selected);
-    // With no empty Slot any index gives the same refusal; the sim names it.
-    const result = install(run, target ?? 0, row.id);
+    if (target === undefined) {
+      const full = describeRefusal({ kind: 'no-empty-slot' });
+      setOutcome({ kind: 'refused', text: `Can't install. ${full}` });
+      return;
+    }
+    const result = install(run, target, row.id);
     if (result.kind === 'refused') {
       setOutcome({ kind: 'refused', text: `Can't install. ${describeRefusal(result.reason)}` });
       return;
     }
-    if (target === undefined) return;
     EventBus.emit('component-install-requested', target, row.id);
     setOutcome({
       kind: 'installed',
@@ -192,7 +195,9 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
   const bar = massBar(spacecraft);
   // The chosen Slot's Component is previewed as removed (or why it cannot be); otherwise the
   // catalogue entry as installed.
-  const previewingRemoval = previewing === 'slot' && removal !== undefined;
+  // An open remove question keeps its preview: focusing the catalogue does not switch it.
+  const previewingRemoval =
+    (previewing === 'slot' || confirming !== undefined) && removal !== undefined;
   const forecast =
     previewingRemoval && removal.kind === 'refused'
       ? undefined
@@ -202,7 +207,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
             ? { kind: 'remove', slot: selected }
             : {
                 kind: 'install',
-                component: aboutId,
+                component: focusedId,
                 ...(target === undefined ? {} : { slot: target }),
               },
         );
@@ -356,12 +361,12 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                       </span>
                       <span
                         className={
-                          line.label === 'Δv'
+                          line.kind === 'delta-v'
                             ? `spacecraft-panel__change spacecraft-panel__change--${line.trend}`
                             : 'spacecraft-panel__change'
                         }
                       >
-                        {line.label === 'Δv' ? line.change : `(${line.change})`}
+                        {line.kind === 'delta-v' ? line.change : `(${line.change})`}
                       </span>
                     </dd>
                   </div>
@@ -395,7 +400,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
               }
               data-testid="component-row"
               onMouseEnter={() => {
-                setAboutId(row.id);
+                setFocusedId(row.id);
                 setPreviewing('catalogue');
               }}
             >
@@ -425,7 +430,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                 aria-label={`Install ${componentLabel(row.id)}, ${row.mass}, ${row.cost}`}
                 aria-describedby={`${titleId}-effect-${row.id}`}
                 onFocus={() => {
-                  setAboutId(row.id);
+                  setFocusedId(row.id);
                   setPreviewing('catalogue');
                 }}
                 onClick={() => {

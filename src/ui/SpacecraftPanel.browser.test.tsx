@@ -417,7 +417,8 @@ it('previews a Fuel Tank dropping Δv, in words, when its Install button is focu
   expect(text).toContain('Install Fuel Tank 1');
   expect(text).toContain('22.1 km/s → 19.0 km/s');
   expect(text).toContain('Drops 3.1 km/s');
-  expect(text).toContain('starts empty');
+  expect(text).toContain('Starts empty, so Δv drops.');
+  expect(text).toContain('Filled up: 26.0 km/s, up from 22.1 km/s.');
   // Nothing was paid: the Materials and the Δv in the figures are as they were.
   expect(byTestId(host, 'install-target').textContent).toContain('25 Materials in stock');
   expect(byTestId(host, 'panel-delta-v').textContent).toBe('22.1 km/s');
@@ -494,4 +495,22 @@ it('shows no figures, only a sentence, when every Slot is full and a catalogue e
   );
   await tabTo(/Install Engine, level 2/);
   expect(previewText(host)).toContain('Every Slot is full');
+});
+
+it('keeps the removal preview while the remove question is open, even when the catalogue is focused', async () => {
+  const host = await renderUi(
+    <Harness initial={fullRun(['engine-1', 'fuel-tank-1', 'drill-1', null])} />,
+  );
+  await focusSlot(/^Slot 3, Drill/);
+  await userEvent.keyboard('{Tab}{Enter}');
+  expect(previewText(host)).toContain('Remove Drill 1');
+  await tabTo(/Install Engine, level 2/);
+  expect(host.querySelector('[data-testid="remove-confirm"]')).not.toBeNull();
+  expect(previewText(host)).toContain('Remove Drill 1');
+});
+
+it('says in a plain sentence why you might want an Engine, in the preview', async () => {
+  const host = await renderUi(<Harness initial={startRun(2026, 'scout')} />);
+  await tabTo(/Install Engine, level 2/);
+  expect(previewText(host)).toContain(COMPONENTS['engine-2'].explanation);
 });

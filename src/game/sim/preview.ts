@@ -12,6 +12,8 @@ export interface Preview {
   readonly dryMass: Kilograms;
   readonly fuelCapacity: Kilograms;
   readonly deltaV: MetersPerSecond;
+  /** The Δv after the change with every Tank full: what the Spacecraft gives once it has refuelled. */
+  readonly filledDeltaV: MetersPerSecond;
 }
 
 /**
@@ -35,5 +37,6 @@ export function preview(spacecraft: Spacecraft, change: ProposedChange): Preview
     dryMass: after.dryMass,
     fuelCapacity: after.fuelCapacity,
     deltaV: availableDeltaV(after),
+    filledDeltaV: availableDeltaV({ ...after, fuelMass: after.fuelCapacity }),
   };
 }

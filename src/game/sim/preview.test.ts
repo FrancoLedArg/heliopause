@@ -19,6 +19,13 @@ describe('previewing a change', () => {
     expect(result.fuelCapacity).toBeGreaterThan(little.fuelCapacity);
   });
 
+  it('a Fuel Tank previews more Δv once filled', () => {
+    const result = preview(run.spacecraft, { kind: 'install', component: 'fuel-tank-1' });
+    const filledNow = availableDeltaV({ ...run.spacecraft, fuelMass: run.spacecraft.fuelCapacity });
+    expect(result?.deltaV).toBeLessThan(filledNow);
+    expect(result?.filledDeltaV).toBeGreaterThan(filledNow);
+  });
+
   it('reads the same figures as a refit would give', () => {
     const result = preview(run.spacecraft, { kind: 'install', component: 'drill-1' });
     const refitted = refit(run.spacecraft, ['engine-1', 'fuel-tank-1', 'drill-1', null]);
@@ -26,6 +33,7 @@ describe('previewing a change', () => {
       dryMass: refitted.dryMass,
       fuelCapacity: refitted.fuelCapacity,
       deltaV: availableDeltaV(refitted),
+      filledDeltaV: availableDeltaV({ ...refitted, fuelMass: refitted.fuelCapacity }),
     });
   });
 

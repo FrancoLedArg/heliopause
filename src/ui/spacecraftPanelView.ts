@@ -9,6 +9,7 @@ import {
   metersPerSecond,
   preview,
   SLOT_COUNT,
+  type Preview,
   type ProposedChange,
   type ChassisId,
   type ComponentId,
@@ -22,7 +23,7 @@ import {
   type Slot,
   type Spacecraft,
 } from '../game/sim/index.ts';
-import { formatDeltaV, formatFuel, formatIsp, formatMass } from './format.ts';
+import { deltaVUnit, formatDeltaV, formatFuel, formatIsp, formatMass } from './format.ts';
 
 const KIND_NAMES: Readonly<Record<ComponentKind, string>> = {
   engine: 'Engine',
@@ -112,8 +113,6 @@ export interface PanelRow {
   readonly cost: string;
   /** The one-sentence effect on this Chassis. */
   readonly effect: string;
-  /** The catalogue's plain explanation of why you might want it. */
-  readonly explanation: string;
   /** Whether the Run's Materials cover the cost (the panel still says so in words). */
   readonly affordable: boolean;
   /** How many more Materials the Run needs to afford it; 0 when it can. */
@@ -131,7 +130,6 @@ export function panelRows(run: Run): readonly PanelRow[] {
       mass: formatMass(component.mass),
       cost: `${String(component.cost)} Materials`,
       effect: describeEffect(run.spacecraft.chassisId, id),
-      explanation: component.explanation,
       affordable: run.materials >= component.cost,
       short: Math.max(0, component.cost - run.materials),
     };
@@ -144,6 +142,8 @@ export type Trend = 'up' | 'down' | 'same';
 /** One figure in a preview: before → after, and the difference in words. */
 export interface PreviewLine {
   readonly label: string;
+  /** Which figure it is, so the panel need not read the label to treat Δv differently. */
+  readonly kind: 'mass' | 'fuel' | 'delta-v';
   readonly before: string;
   readonly after: string;
   /** "+1.5 t", "−0.8 t", "Drops 3.1 km/s", "Rises 1.0 km/s" or "No change". */
@@ -165,12 +165,35 @@ function trendOf(before: string, after: string, from: number, to: number): Trend
   return to > from ? 'up' : 'down';
 }
 
-function massLine(label: string, from: Kilograms, to: Kilograms): PreviewLine {
+function massLine(
+  kind: 'mass' | 'fuel',
+  label: string,
+  from: Kilograms,
+  to: Kilograms,
+): PreviewLine {
   const [before, after] = [formatMass(from), formatMass(to)];
   const trend = trendOf(before, after, from, to);
   const size = formatMass(kilograms(Math.abs(to - from)));
   const change = { same: 'No change', up: `+${size}`, down: `−${size}` }[trend];
-  return { label, before, after, change, trend };
+  return { label, kind, before, after, change, trend };
+}
+
+/**
+ * The two lines under a preview. A Fuel Tank teaches the rocket equation both ways: its mass
+ * costs Δv while it is empty, and it gives more Δv once the Spacecraft has refuelled. Any other
+ * Component installed says in one sentence why you might want it. A removal says nothing more.
+ */
+function noteFor(
+  spacecraft: Spacecraft,
+  change: ProposedChange,
+  after: Preview,
+  component: (typeof COMPONENTS)[ComponentId],
+): string {
+  if (change.kind === 'remove') return '';
+  if (component.kind !== 'fuel-tank') return component.explanation;
+  const filledNow = availableDeltaV({ ...spacecraft, fuelMass: spacecraft.fuelCapacity });
+  const direction = after.filledDeltaV >= filledNow ? 'up' : 'down';
+  return `Starts empty, so Δv drops. Filled up: ${formatDeltaV(after.filledDeltaV)}, ${direction} from ${formatDeltaV(filledNow)}.`;
 }
 
 /**
@@ -190,7 +213,7 @@ export function describePreview(
   // The difference reads in the unit of the figures beside it, so 22.1 → 19.0 km/s drops 3.1 km/s.
   const size = formatDeltaV(
     metersPerSecond(Math.abs(to - from)),
-    Math.max(from, to) >= 10_000 ? 'km/s' : 'm/s',
+    deltaVUnit(metersPerSecond(Math.max(from, to))),
   );
   const deltaChange = { same: 'No change', up: `Rises ${size}`, down: `Drops ${size}` }[trend];
   const held = change.kind === 'remove' ? spacecraft.slots[change.slot] : change.component;
@@ -199,14 +222,18 @@ export function describePreview(
   return {
     heading: `${change.kind === 'install' ? 'Install' : 'Remove'} ${componentName(held)} ${String(component.level)}`,
     lines: [
-      massLine('Dry mass', spacecraft.dryMass, after.dryMass),
-      massLine('Fuel cap.', spacecraft.fuelCapacity, after.fuelCapacity),
-      { label: 'Δv', before: deltaBefore, after: deltaAfter, change: deltaChange, trend },
+      massLine('mass', 'Dry mass', spacecraft.dryMass, after.dryMass),
+      massLine('fuel', 'Fuel cap.', spacecraft.fuelCapacity, after.fuelCapacity),
+      {
+        label: 'Δv',
+        kind: 'delta-v',
+        before: deltaBefore,
+        after: deltaAfter,
+        change: deltaChange,
+        trend,
+      },
     ],
-    note:
-      change.kind === 'install' && component.kind === 'fuel-tank'
-        ? 'A new Tank starts empty, so Δv falls.'
-        : '',
+    note: noteFor(spacecraft, change, after, component),
   };
 }
 

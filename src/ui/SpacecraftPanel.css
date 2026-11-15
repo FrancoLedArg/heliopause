@@ -53,7 +53,7 @@
 .spacecraft-panel__left {
   left: 14px;
   width: 228px;
-  height: 242px;
+  height: 248px;
 }
 
 .spacecraft-panel__right {
@@ -207,9 +207,9 @@
 /* The before-you-pay preview: dry mass, Fuel capacity and Δv before → after, then one lesson line. */
 .spacecraft-panel__preview {
   left: 0;
-  top: 156px;
+  top: 154px;
   width: 228px;
-  height: 88px;
+  height: 92px;
 }
 
 .spacecraft-panel__preview > * {
@@ -224,9 +224,9 @@
 }
 
 .spacecraft-panel__forecast {
-  top: 12px;
+  top: 11px;
   display: grid;
-  row-gap: 1px;
+  row-gap: 0;
   font: 12px/12px var(--font-pixel-body);
 }
 
@@ -266,7 +266,7 @@
 }
 
 .spacecraft-panel__note {
-  top: 63px;
+  top: 60px;
   font: 12px/12px var(--font-pixel-body);
   color: var(--wh3);
 }
@@ -395,7 +395,7 @@
 
 .spacecraft-panel__confirm {
   left: 0;
-  top: 56px;
+  top: 54px;
   width: 228px;
   height: 100px;
   box-sizing: border-box;

@@ -84,8 +84,7 @@ export const COMPONENTS = {
     mass: kilograms(1_000),
     cost: materials(30),
     baseIsp: seconds(900),
-    explanation:
-      'A reactor heats hydrogen Fuel and shoots it out the back, at least twice as efficient as the best chemical rocket.',
+    explanation: 'Burns Fuel to push you, and your best Engine sets how far it goes.',
     provenance: {
       kind: 'sourced',
       source: `Isp about 900 s, a nuclear thermal engine: ${PROPULSION} §5 and §1.2, ${BOROWSKI}. ${CHASSIS_SCALES} Isp.`,
@@ -99,8 +98,7 @@ export const COMPONENTS = {
     cost: materials(60),
     // A quarter better than level 1, past any tested nuclear thermal engine.
     baseIsp: seconds(1_125),
-    explanation:
-      'A hotter reactor that gets more Δv from every kilogram of Fuel, but it is heavier and costs more.',
+    explanation: 'Goes farther on the same Fuel than level 1, but weighs more.',
     provenance: { kind: 'gameplay-tuning' },
   },
   'fuel-tank-1': {
@@ -137,8 +135,7 @@ export const COMPONENTS = {
     mass: kilograms(800),
     cost: materials(25),
     yieldMultiplier: 1.5,
-    explanation:
-      'Digs into every Body you land on so it yields half as much again, but you carry its mass on every Hop, and only your best Drill counts.',
+    explanation: 'Makes every Body yield half as much again, but adds mass.',
     provenance: { kind: 'gameplay-tuning' },
   },
   'drill-2': {
@@ -148,8 +145,7 @@ export const COMPONENTS = {
     mass: kilograms(1_600),
     cost: materials(50),
     yieldMultiplier: 2,
-    explanation:
-      'Digs deeper so every Body yields twice as much, but it weighs twice as much as the level-1 Drill.',
+    explanation: 'Makes every Body yield twice as much, but weighs more.',
     provenance: { kind: 'gameplay-tuning' },
   },
 } as const satisfies { readonly [Id in ComponentId]: Component & { readonly id: Id } };
