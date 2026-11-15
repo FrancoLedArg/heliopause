@@ -11,6 +11,10 @@ describe('the test-only Cruise leak from the URL', () => {
     ]);
   });
 
+  it('gives every Cruise no events for `none`', () => {
+    expect(chooseCruiseLeak('?cruiseLeak=none', spacecraft)).toEqual([]);
+  });
+
   it('leaves the seed its own schedule when it names no tick the Cruise has', () => {
     for (const search of [
       '?seed=5',

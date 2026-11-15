@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { FAST_CRUISE } from './cruise.ts';
+import { FAST_CRUISE, NO_CRUISE_EVENTS } from './cruise.ts';
 import {
   findBody,
   firstDetectedBody,
@@ -21,17 +21,19 @@ import { JUMP_FLAVOUR_TEXT } from '../../src/ui/jumpFlavour.ts';
 // it, Jump to Star System 2 and Hop on from its Starting Moon. Re-pinned for #189 (was seed 35's
 // Tisquul): seed 1033's first target, Hytol Minor, pays for the Jump Drive (was seed 62's Sekus
 // before a Rocky opening stopped adding Materials over a New Run's).
+// Flown with no Cruise events (#250): this pins the way out on the seed's Burns alone.
+const CALM = { schedule: [] } as const;
 const SEED = 1033;
 const run = startRun(SEED, 'scout');
 const rocky = firstDetectedBody(run.starSystem);
-const gathered = launchHop(run, rocky.id);
+const gathered = launchHop(run, rocky.id, CALM);
 if (gathered.kind !== 'flown' || gathered.flight.outcome.kind !== 'arrived') {
   throw new Error(`Seed ${String(SEED)}: the Hop to ${rocky.name} should Arrive`);
 }
 const built = install(gathered.run, gathered.run.spacecraft.slots.indexOf(null), 'jump-drive');
 if (built.kind !== 'installed') throw new Error(`${rocky.name} should pay for the Jump Drive`);
 const planned = planHop(built.run, HELIOPAUSE);
-const escape = launchHop(built.run, HELIOPAUSE);
+const escape = launchHop(built.run, HELIOPAUSE, CALM);
 if (planned.kind !== 'planned' || escape.kind !== 'flown') throw new Error('Expected a plan');
 if (escape.flight.outcome.kind !== 'reached-heliopause') {
   throw new Error(`Seed ${String(SEED)}: the Hop to the Heliopause should reach it`);
@@ -39,7 +41,7 @@ if (escape.flight.outcome.kind !== 'reached-heliopause') {
 // The Jump maroons the Run on System 2's Starting Moon, with Fuel for a sure Hop to its first target.
 const system2 = escape.run;
 const nextMoon = firstDetectedBody(system2.starSystem);
-const onward = launchHop(system2, nextMoon.id);
+const onward = launchHop(system2, nextMoon.id, CALM);
 if (onward.kind !== 'flown' || onward.run.status.kind !== 'landed') {
   throw new Error(`Seed ${String(SEED)}: the Hop on from System 2's Starting Moon should land`);
 }
@@ -48,7 +50,7 @@ if (onward.kind !== 'flown' || onward.run.status.kind !== 'landed') {
 const doomedId = onward.flight.reveal?.detected[0];
 const doomed = doomedId && findBody(system2.starSystem, doomedId);
 if (!doomed) throw new Error(`Seed ${String(SEED)}: Comms should Detect a Body in System 2`);
-const doomedHop = launchHop(onward.run, doomed.id);
+const doomedHop = launchHop(onward.run, doomed.id, CALM);
 if (doomedHop.kind !== 'flown') throw new Error('unreachable');
 const finalEnd = runEnd(doomedHop.run);
 if (finalEnd?.kind !== 'crashed') throw new Error('The doomed Hop should end the Run');
@@ -94,7 +96,7 @@ test('build a Jump Drive, reach the Heliopause by keyboard, Jump to System 2 and
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
 
-  await page.goto(`/?seed=${String(SEED)}&chassis=scout&${FAST_CRUISE}`);
+  await page.goto(`/?seed=${String(SEED)}&chassis=scout&${FAST_CRUISE}&${NO_CRUISE_EVENTS}`);
   await expect(page.getByRole('button', { name: 'New Run' })).toBeVisible();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
@@ -200,7 +202,7 @@ test('a Run that escaped a Star System ends in the next one with its Score, and 
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
 
-  await page.goto(`/?seed=${String(SEED)}&chassis=scout&${FAST_CRUISE}`);
+  await page.goto(`/?seed=${String(SEED)}&chassis=scout&${FAST_CRUISE}&${NO_CRUISE_EVENTS}`);
   await expect(page.getByRole('button', { name: 'New Run' })).toBeVisible();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');

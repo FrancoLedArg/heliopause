@@ -4,3 +4,9 @@
  * to the page URL: `/?seed=5&${FAST_CRUISE}`.
  */
 export const FAST_CRUISE = 'cruiseSpeed=60';
+
+/**
+ * Test only (`?cruiseLeak=none`, see `src/game/lib/cruiseLeak.ts`): every Cruise has no events, for
+ * flows pinned on a seed's Burns that test something else. Fly the Node side with `schedule: []`.
+ */
+export const NO_CRUISE_EVENTS = 'cruiseLeak=none';
