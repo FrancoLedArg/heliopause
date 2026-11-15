@@ -296,6 +296,9 @@ it('shows Depleted in the tooltip of the longest-named Body, inside its frame', 
   const words = byTestId(host, 'tip-composition');
   expect(words.textContent).toContain('Depleted');
   expect(words.textContent).not.toMatch(/Icy|Rocky/);
+  // The same amber warning style as the plan head and the plate, not the green Landable one.
+  expect(badge.className).toContain('nav-chart__badge--warn');
+  expect(badge.className).not.toContain('nav-chart__badge--ok');
   expect(badge.scrollWidth).toBeLessThanOrEqual(badge.clientWidth);
   expect(textRight(words)).toBeLessThanOrEqual(frame.right - SLACK);
   expect(badge.getBoundingClientRect().bottom).toBeLessThanOrEqual(frame.bottom - 3);
@@ -352,7 +355,7 @@ it('keeps the tallest plan, 21-character target, Margin warning and Depleted, cl
   expect(plan.getBoundingClientRect().bottom).toBeLessThanOrEqual(
     buttons.getBoundingClientRect().top,
   );
-  // The head badge reads "Landable · Depleted" on one row beside the label, inside the block.
+  // The head badge reads "Depleted · no yield" on one row beside the label, inside the block.
   const head = byTestId(host, 'target');
   const words = byTestId(host, 'target-composition');
   expect(words.textContent).toBe('Depleted · no yield');

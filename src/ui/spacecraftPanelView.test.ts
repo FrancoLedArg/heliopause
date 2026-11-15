@@ -218,7 +218,7 @@ describe('the preview before you pay', () => {
       trend: 'down',
     });
     expect(preview?.note).toBe(
-      'Starts empty, so Δv drops. Filled up: 26.0 km/s, up from 22.1 km/s.',
+      'Starts empty, so Δv drops. Filled up: 26.0\u00a0km/s, up from 22.1\u00a0km/s.',
     );
   });
 

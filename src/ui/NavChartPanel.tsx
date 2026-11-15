@@ -264,10 +264,18 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
           {formatGravity(focused.surfaceGravity)} · {formatDistanceAu(focused.distanceFromStar)}
         </p>
         <p
-          className={`nav-chart__badge ${focused.landable ? 'nav-chart__badge--ok' : 'nav-chart__badge--warn'}`}
+          className={`nav-chart__badge ${focused.landable && !isDepleted(run, focused.id) ? 'nav-chart__badge--ok' : 'nav-chart__badge--warn'}`}
           data-testid="landable"
         >
-          <KitFrame frame={focused.landable ? 'badge_ok' : 'badge_lock'} />
+          <KitFrame
+            frame={
+              !focused.landable
+                ? 'badge_lock'
+                : isDepleted(run, focused.id)
+                  ? 'badge_warning'
+                  : 'badge_ok'
+            }
+          />
           {focused.landable ? 'Landable' : 'No surface'}
           {bodyStatusLabel(run, focused) && (
             <span data-testid="tip-composition">{` · ${bodyStatusLabel(run, focused)}`}</span>
