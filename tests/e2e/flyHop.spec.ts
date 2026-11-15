@@ -107,8 +107,11 @@ test('a Hop to the Home Planet’s Moon plays Takeoff, Transfer and Landing, the
   }
   await expect(report.getByTestId('hop-report-margin')).toContainText('Margin left');
   await expect(report).toContainText(moonHop.flight.why);
-  // Landing on the Icy Moon collected its Fuel, and said why that is plausible.
-  await expect(report.getByTestId('hop-report-collected')).toContainText(/Collected .* t of Fuel/);
+  // Landing on the Icy Moon collected its Fuel (the report opens once the gathering moment has played):
+  // "+N t" beside the Fuel icon, the words in its accessible name. And it says why that is plausible.
+  const gain = report.getByRole('img', { name: /^Collected .* t of Fuel/ });
+  await expect(gain).toContainText(/^\+\d+\.\d t$/);
+  await expect(gain.locator('[data-resource="fuel"]')).toBeVisible();
   await expect(report).toContainText('so rockets could refuel on the Moon');
   await expect(page.getByTestId('materials')).toHaveText(String(run.materials));
   await testInfo.attach('arrived-report', {
