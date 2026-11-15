@@ -63,6 +63,8 @@ test('click the leaking Tank: the Repair ring runs, the leak stops, and the repo
   await expect(page.getByTestId('systems-lights').getByRole('button')).toHaveCount(0, {
     timeout: 8_000,
   });
+  // The gauge moves in small steps: let the last one land, then it holds.
+  await page.waitForTimeout(300);
   const fixed = await cruiseFuel(page);
   expect(fixed).toBeLessThan(leaking);
   await page.waitForTimeout(600);
