@@ -295,7 +295,7 @@ export const HOW_TO_PLAY: { heading: string; steps: readonly HowToPlayStep[]; ba
       heading: 'Goal',
       body: [
         'Build a Jump Drive, Hop to the Heliopause and make the Jump.',
-        'Then keep escaping, one Star System after another.',
+        'The Jump burns the Drive out, so build a new one in every Star System; you always arrive with enough Fuel to reach the new Icy Moon.',
       ],
     },
     {
@@ -309,7 +309,7 @@ export const HOW_TO_PLAY: { heading: string; steps: readonly HowToPlayStep[]; ba
       heading: 'Hop',
       body: [
         'Open the Nav Chart, pick a target, read its Δv, Success Chance and Margin, then Launch.',
-        'If no Hop could have any Success Chance, the Run ends as Stranded, and you are warned first.',
+        'You are Stranded when no Hop can have any chance, whatever Components you could still install or remove, and you are warned first.',
       ],
     },
     {
@@ -344,7 +344,7 @@ export const HOW_TO_PLAY: { heading: string; steps: readonly HowToPlayStep[]; ba
       heading: 'Keys',
       body: [
         'Tab moves between buttons, Enter presses one and Esc goes back.',
-        'M opens the Nav Chart: arrow keys look at a Body, Page Up and Page Down step through them.',
+        'M (when landed) opens the Nav Chart: arrow keys look at a Body, Page Up and Page Down step through them.',
       ],
     },
   ],
