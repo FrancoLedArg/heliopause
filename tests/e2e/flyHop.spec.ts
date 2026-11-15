@@ -39,14 +39,16 @@ interface Failure {
 // Found by a scan over seeds and paths. Re-pinned for #247 (was seed 1442), #280 (was seed 46, then
 // seed 4 after the Hop range, #283) and #298: every Chassis now flies alike, so the scout and the
 // hauler can no longer fail differently on one path, and each failure has its own seed.
-/** Seed 1: the scout Crashes on Xistal after Thiolsaer-7, Mamil and Thiolsaer-7 again. */
+/** Seed 70: the scout Crashes on Kionprexror Prime after Rurnoscael and Mema. */
 const CRASH: Failure = {
-  seed: 1,
-  path: ['Thiolsaer-7', 'Mamil', 'Thiolsaer-7'],
-  far: 'Xistal',
+  seed: 70,
+  path: ['Kionprexror Prime', 'Rurnoscael', 'Mema'],
+  far: 'Kionprexror Prime',
 };
 /** Seed 130: the hauler Falls Short in the Transfer to Xose after Tiothael, Xose and Saethux. */
 const SHORT: Failure = { seed: 130, path: ['Tiothael', 'Xose', 'Saethux'], far: 'Xose' };
+// Flown with no Cruise events (#250): a Fuel leak on the way would move where it fails.
+const CALM = { schedule: [] } as const;
 
 /** The last Hop of `chassis` on a failure's seed, to its far Body, as the simulation settles it. */
 function lastHop(
@@ -62,13 +64,13 @@ function lastHop(
     return body.id;
   };
   for (const name of path) {
-    const hop = launchHop(before, id(name));
+    const hop = launchHop(before, id(name), CALM);
     if (hop.kind !== 'flown' || hop.flight.outcome.kind !== 'arrived') {
       throw new Error(`Seed ${String(seed)}: the ${chassis}'s Hop to ${name} should Arrive`);
     }
     before = hop.run;
   }
-  const last = launchHop(before, id(far));
+  const last = launchHop(before, id(far), CALM);
   if (last.kind !== 'flown') throw new Error('unreachable');
   return { before, why: last.flight.why };
 }

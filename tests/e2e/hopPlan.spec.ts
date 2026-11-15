@@ -96,13 +96,13 @@ test('the Hop plan for the first target shows Success Chance, a Δv bar of three
   // The first target is Unsurveyed, so its Landing is hatched and named a guess (#193).
   const bar = page.getByRole('img', { name: /^Δv: / });
   await expect(bar).toHaveAccessibleName(
-    /^Δv: Takeoff \d+\.\d{1,2} km\/s, Transfer \d+\.\d{1,2} km\/s, Landing \d+\.\d{1,2} km\/s\. Needs \d+\.\d{1,2} of 28\.8 km\/s, Margin \+\d+\.\d{1,2} km\/s\. Landing is a guess, Unsurveyed\.$/,
+    /^Δv: Takeoff \d+\.\d{1,2} km\/s, Transfer \d+\.\d{1,2} km\/s, Landing \d+\.\d{1,2} km\/s\. Needs \d+\.\d{1,2} of 36\.1 km\/s, Margin \+\d+\.\d{1,2} km\/s\. Landing is a guess, Unsurveyed\.$/,
   );
-  await expect(page.getByTestId('plan-available')).toHaveText('28.8 km/s');
-  await expect(page.getByTestId('delta-v')).toHaveText('28.8 km/s');
+  await expect(page.getByTestId('plan-available')).toHaveText('36.1 km/s');
+  await expect(page.getByTestId('delta-v')).toHaveText('36.1 km/s');
   // The Margin is bigger than the estimate, so it shows plain Δv, with no percentage.
   await expect(page.getByTestId('plan-margin')).toHaveText(/^\+\d+\.\d{1,2} km\/s$/);
-  await expect(page.getByRole('img', { name: /^Fuel: 21\.0 t now, / })).toBeVisible();
+  await expect(page.getByRole('img', { name: /^Fuel: 36\.0 t now, / })).toBeVisible();
   // The Δv help is behind the "?" in the chart's title bar.
   await expect(page.getByTestId('plan-explain')).toBeHidden();
   await page.getByRole('button', { name: 'What is Δv?' }).click();

@@ -62,7 +62,7 @@ test('the cheapest Component can be installed with the starting Materials using 
   // The Components say what they cost and do, before anything is paid.
   await expect(panel).toContainText('Fuel Tank 1');
   await expect(panel).toContainText(`${String(cheapest.cost)} Materials`);
-  await expect(panel).toContainText('Holds 21.0 t of Fuel.');
+  await expect(panel).toContainText('Holds 36.0 t of Fuel.');
 
   await tabTo(page, /^Install Fuel Tank, level 1/);
   await page.keyboard.press('Enter');

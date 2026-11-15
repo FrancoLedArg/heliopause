@@ -34,9 +34,9 @@ test('New Run from the title screen lands on the Starting Moon, seeded from the 
     `Moon of ${findBody(system, home.planetId)?.name ?? '?'}`,
   );
   await expect(page.getByTestId('landed-depleted')).toBeVisible();
-  await expect(page.getByTestId('fuel')).toHaveText('21.0 t');
-  // Scout: 1600 s Isp (#247), 4 t dry + 21 t Fuel: 1600 × 9.80665 × ln(25 / 4) is about 28.8 km/s.
-  await expect(page.getByTestId('delta-v')).toHaveText('28.8 km/s');
+  await expect(page.getByTestId('fuel')).toHaveText('36.0 t');
+  // Every Chassis (#298): 1600 s Isp, 4 t dry + 36 t Fuel: 1600 × 9.80665 × ln(40 / 4) is about 36.1 km/s.
+  await expect(page.getByTestId('delta-v')).toHaveText('36.1 km/s');
   await expect(page.getByTestId('game-ui')).toHaveAttribute('data-run-seed', '123');
   await expect(page.getByText('AI-generated art and music')).toBeVisible();
   await expect(newRun).toBeHidden();
@@ -78,8 +78,8 @@ test('?chassis= in the URL skips the picker and lands on that Chassis', async ({
   await page.getByRole('button', { name: 'New Run' }).click();
 
   await expect(page.getByTestId('fuel')).toHaveText('36.0 t');
-  // Lancer: 1665 s Isp (#247), 6 t dry + 36 t Fuel: 1665 × 9.80665 × ln(42 / 6) is about 31.8 km/s.
-  await expect(page.getByTestId('delta-v')).toHaveText('31.8 km/s');
+  // The Lancer flies as every Chassis does since #298 (was 31.8 km/s): 36.1 km/s.
+  await expect(page.getByTestId('delta-v')).toHaveText('36.1 km/s');
   await testInfo.attach('landed-lancer', {
     body: await page.screenshot(),
     contentType: 'image/png',
@@ -97,31 +97,26 @@ test('the picker shows each Chassis and its numbers, and picking by keyboard sta
   const picker = page.getByRole('region', { name: 'Choose a Chassis' });
   await expect(picker).toBeVisible();
   await expect(picker.getByRole('radio')).toHaveCount(3);
-  await expect(picker.getByText('Dry mass')).toHaveCount(3);
-  await expect(picker.getByText('4.0 t', { exact: true })).toBeVisible();
-  await expect(picker.getByText('15.0 t', { exact: true })).toBeVisible();
-  await expect(picker.getByText('66.0 t', { exact: true })).toBeVisible();
+  // A Chassis is cosmetic (#298): each card shows its name and look, and no figures.
+  await expect(picker.getByText('Dry mass')).toHaveCount(0);
   await expect(picker.getByText('Selected')).toHaveCount(1);
-  await expect(picker.getByText(/More mass, less/)).toBeVisible();
   await testInfo.attach('picker', { body: await page.screenshot(), contentType: 'image/png' });
 
-  // The first Chassis is focused and chosen; the arrow keys move the choice, Tab reaches Tell me more, Back, then Launch.
+  // The first Chassis is focused and chosen; the arrow keys move the choice, Tab reaches Back, then Launch.
   await expect(page.getByRole('radio', { name: /Scout/ })).toBeFocused();
   await expect(page.getByRole('radio', { name: /Scout/ })).toBeChecked();
   await page.keyboard.press('ArrowRight');
   await expect(page.getByRole('radio', { name: /Hauler/ })).toBeChecked();
   await expect(page.getByRole('radio', { name: /Hauler/ })).toHaveCount(1);
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('button', { name: 'Tell me more' })).toBeFocused();
-  await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'Back' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(page.getByRole('button', { name: 'Launch' })).toBeFocused();
   await page.keyboard.press('Enter');
 
-  await expect(page.getByTestId('fuel')).toHaveText('66.0 t');
-  // Hauler: 1575 s Isp (#247), 15 t dry + 66 t Fuel: 1575 × 9.80665 × ln(81 / 15) is about 26.0 km/s.
-  await expect(page.getByTestId('delta-v')).toHaveText('26.0 km/s');
+  // The Hauler flies as the Scout does (#298): only its look differs.
+  await expect(page.getByTestId('fuel')).toHaveText('36.0 t');
+  await expect(page.getByTestId('delta-v')).toHaveText('36.1 km/s');
 });
 
 test('Back from the picker returns focus to New Run', async ({ page }) => {

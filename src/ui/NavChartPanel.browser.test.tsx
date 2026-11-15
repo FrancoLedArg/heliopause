@@ -126,12 +126,13 @@ async function showFocused(seed: number, focusedId: string): Promise<HTMLElement
 
 // Seed 2024's Gas Giants were the ones the review saw overflow; seed 1008's Quaessaxthaex Prime has
 // the longest reason in 3000 seeds. Re-pinned for #188: the same seeds' Gas Giants under the new
-// generation, and seed 1008 for seed 533's Priosprysmur Minor.
+// generation, and seed 1008 for seed 533's Priosprysmur Minor. Re-pinned for #280/#298: seed 2024
+// keeps another draw, so its Gas Giants are Tioxnaeno and Quaesdri (were Cele and Hicyn).
 it.each([
-  [2024, 'planet-4', 'Cele'],
+  [2024, 'planet-4', 'Tioxnaeno'],
   [12, 'planet-5', 'Dryxquur-9'],
   [1008, 'planet-3', 'Quaessaxthaex Prime'],
-  [2024, 'planet-5', 'Hicyn'],
+  [2024, 'planet-5', 'Quaesdri'],
 ])('fits the reason inside the tooltip frame (seed %i, %s)', async (seed, id, name) => {
   const tooltip = await showFocused(seed, id);
   const verdict = tooltip.querySelector<HTMLElement>('[data-testid="verdict"]');
@@ -595,19 +596,19 @@ it('leads the Hop plan with Success Chance, then the Δv bar, then the Fuel gaug
   const top = (id: string): number => byTestId(host, id).getBoundingClientRect().top;
   expect(top('plan-success')).toBeLessThan(top('dv-bar'));
   expect(top('dv-bar')).toBeLessThan(top('plan-fuel'));
-  // Seed 123's innermost planet to its Moon: 5.4 of 28.8 km/s, and the bar's segments, gap and words
+  // Seed 123's innermost planet to its Moon: 5.4 of 36.1 km/s (#298's tuning), and the bar's segments, gap and words
   // agree (re-pinned for #189; was the Home Planet's Moon).
   const bar = byTestId(host, 'dv-bar');
   expect(bar.getAttribute('role')).toBe('img');
   expect(bar.getAttribute('aria-label')).toBe(
-    'Δv: Takeoff 3.8 km/s, Transfer 1.3 km/s, Landing 0.24 km/s. Needs 5.4 of 28.8 km/s, Margin +23.4 km/s.',
+    'Δv: Takeoff 3.8 km/s, Transfer 1.3 km/s, Landing 0.24 km/s. Needs 5.4 of 36.1 km/s, Margin +30.8 km/s.',
   );
   expect(byTestId(host, 'plan-needed').textContent).toBe('5.4');
-  expect(byTestId(host, 'plan-available').textContent).toBe('28.8 km/s');
-  expect(byTestId(host, 'plan-margin').textContent).toBe('+23.4 km/s');
+  expect(byTestId(host, 'plan-available').textContent).toBe('36.1 km/s');
+  expect(byTestId(host, 'plan-margin').textContent).toBe('+30.8 km/s');
   const fuel = byTestId(host, 'plan-fuel');
   expect(fuel.getAttribute('role')).toBe('img');
-  expect(fuel.getAttribute('aria-label')).toMatch(/^Fuel: 21\.0 t now, \d+\.\d t after the Hop\.$/);
+  expect(fuel.getAttribute('aria-label')).toMatch(/^Fuel: 36\.0 t now, \d+\.\d t after the Hop\.$/);
   // The bar's segments sit end to end, in Burn order, and the Margin fills the rest of the bar.
   const [takeoff, transfer, landing] = [...bar.querySelectorAll<HTMLElement>('[data-burn]')].map(
     (el) => el.getBoundingClientRect(),
@@ -635,7 +636,7 @@ it('opens the Hop plan details by keyboard: each Burn with its reason, and the m
   const reasons = [...host.querySelectorAll<HTMLElement>('[data-testid="burn-reason"]')];
   expect(reasons.map((r) => r.checkVisibility())).toEqual([true, true, true]);
   expect(reasons[1]?.textContent).toBe("stay in one planet's pull");
-  expect(byTestId(host, 'plan-basis').textContent).toBe('from 4.0 t craft + 21.0 t Fuel');
+  expect(byTestId(host, 'plan-basis').textContent).toBe('from 4.0 t craft + 36.0 t Fuel');
   await press(toggle, ' ');
   expect(byTestId(host, 'plan-basis').checkVisibility()).toBe(false);
 });
