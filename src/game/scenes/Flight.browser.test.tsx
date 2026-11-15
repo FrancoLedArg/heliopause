@@ -358,6 +358,13 @@ it('under reduced motion a Spacecraft that Fell Short in the Transfer rests clea
   expect(scene.ship.getBounds().left).toBeGreaterThanOrEqual(reportRight);
 }, 60_000);
 
+it('the Heliopause is drawn from its real sprite, not the code-drawn stand-in', async () => {
+  const { scene } = await fly('lancer', () => HELIOPAUSE, readyForTheHeliopause);
+  expect(scene.toBody.texture.key).toBe('body_heliopause');
+  // The loaded PNG is an image element; the stand-in is a canvas.
+  expect(scene.toBody.texture.getSourceImage()).toBeInstanceOf(HTMLImageElement);
+});
+
 it('the particles use the real sprites, tinted: dust and smoke by surface, sparks amber', async () => {
   const { scene } = await fly('scout');
   scene.seek(900);
