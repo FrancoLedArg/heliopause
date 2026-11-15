@@ -22,6 +22,8 @@ interface FirstRunHintProps {
   seen: ReadonlySet<HintId>;
   /** The player clicked or pressed Esc: this hint is done for good. */
   onDismiss: (id: HintId) => void;
+  /** The Heliopause's mark on the open chart, in stage pixels, when it is on screen. */
+  heliopauseSpot?: { x: number; y: number } | undefined;
 }
 
 /**
@@ -29,11 +31,11 @@ interface FirstRunHintProps {
  * click or Esc dismisses it, and the click or key still does its own work. Its line is announced
  * through a polite live region that is always in the page, so a hint appearing is read out.
  */
-export function FirstRunHint({ wanted, seen, onDismiss }: FirstRunHintProps) {
+export function FirstRunHint({ wanted, seen, onDismiss, heliopauseSpot }: FirstRunHintProps) {
   const id = nextHint(wanted, seen);
   const calloutRef = useRef<HTMLDivElement>(null);
   const [place, setPlace] = useState<Place | undefined>(undefined);
-  const anchor = id === undefined ? undefined : anchorFor(id);
+  const anchor = id === undefined ? undefined : anchorFor(id, heliopauseSpot);
 
   // Finds the anchor now and once more after panels have settled; the arrow tracks it.
   useLayoutEffect(() => {
@@ -45,11 +47,13 @@ export function FirstRunHint({ wanted, seen, onDismiss }: FirstRunHintProps) {
       const scale = stage.getBoundingClientRect().width / STAGE_WIDTH || 1;
       const box = target.getBoundingClientRect();
       const frame = stage.getBoundingClientRect();
-      const next: Place = {
-        id,
-        x: (box.left + box.width / 2 - frame.left) / scale,
-        y: ((anchor.side === 'above' ? box.top : box.bottom) - frame.top) / scale,
-      };
+      const next: Place = anchor.point
+        ? { id, x: anchor.point.x, y: anchor.point.y }
+        : {
+            id,
+            x: (box.left + box.width / 2 - frame.left) / scale,
+            y: ((anchor.side === 'above' ? box.top : box.bottom) - frame.top) / scale,
+          };
       setPlace((now) => (now?.id === next.id && now.x === next.x && now.y === next.y ? now : next));
     };
     measure();
@@ -57,7 +61,7 @@ export function FirstRunHint({ wanted, seen, onDismiss }: FirstRunHintProps) {
     return () => {
       window.clearTimeout(later);
     };
-  }, [anchor, id]);
+  }, [anchor, id, anchor?.point?.x, anchor?.point?.y]);
 
   // Any click or Esc dismisses; neither is swallowed.
   useEffect(() => {

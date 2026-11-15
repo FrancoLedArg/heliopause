@@ -30,6 +30,10 @@ export function wantedHints(moment: HintMoment): HintId[] {
       wanted.push('first-build');
     }
   }
+  // On the open chart the Heliopause hint points at its mark; a chosen target's plan hint comes first.
+  if (moment.chartOpen && !moment.targetChosen && !moment.spacecraftOpen && !moment.reportOpen) {
+    if (run.knowledge.heliopauseFound) wanted.push('heliopause-found');
+  }
   if (moment.chartOpen && moment.targetChosen) wanted.push('first-hop-plan');
   return wanted;
 }
