@@ -18,4 +18,18 @@ describe('the Δv bar once Burns are flown', () => {
     expect(bar.segments[1]?.estimateTick).toBeUndefined();
     expect(bar.margin).toBe(2800);
   });
+
+  it('reads each flown Burn with its estimate, and lets a report say what was used', () => {
+    const burns = [
+      { burn: 'takeoff', estimate: mps(1000), actual: mps(1200) },
+      { burn: 'transfer', estimate: mps(4000), actual: mps(3800) },
+    ] as const;
+    expect(deltaVBar(burns, mps(8000), { verb: 'Used' }).label).toBe(
+      'Δv: Takeoff 1.2 km/s (est. 1.0), Transfer 3.8 km/s (est. 4.0). Used 5.0 of 8.0 km/s, Margin +3.0 km/s.',
+    );
+    // A plan, with no actual costs yet, reads its estimates and what it needs.
+    expect(deltaVBar([{ burn: 'takeoff', estimate: mps(800) }], mps(8000)).label).toBe(
+      'Δv: Takeoff 0.80 km/s. Needs 0.80 of 8.0 km/s, Margin +7.2 km/s.',
+    );
+  });
 });

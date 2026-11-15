@@ -46,10 +46,16 @@ export const BURN_LABEL: Record<Burn, string> = {
   landing: 'Landing',
 };
 
+/** How the bar's name reads the Burns' total: what a plan needs, or what a flown Hop used. */
+export interface DeltaVBarOptions {
+  readonly verb?: 'Needs' | 'Used';
+}
+
 /** The bar for these Burns, in the order flown, against the available Δv. */
 export function deltaVBar(
   burns: readonly DeltaVBarBurn[],
   available: MetersPerSecond,
+  { verb = 'Needs' }: DeltaVBarOptions = {},
 ): DeltaVBarView {
   const needed = burns.reduce((total, b) => total + (b.actual ?? b.estimate), 0);
   const scale = Math.max(needed, available);
@@ -74,8 +80,14 @@ export function deltaVBar(
   const short = margin < 0;
   const availableAt = at(available);
   const end = at(needed);
-  const parts = segments.map((s) => `${s.label} ${formatDeltaVKmS(s.deltaV)}`).join(', ');
-  const total = `Needs ${kmPerSecondFigure(metersPerSecond(needed))} of ${formatDeltaVKmS(available)}`;
+  // A flown Burn reads its estimate too, as the tick on the bar shows it.
+  const parts = burns
+    .map((b) => {
+      const cost = `${BURN_LABEL[b.burn]} ${formatDeltaVKmS(b.actual ?? b.estimate)}`;
+      return b.actual === undefined ? cost : `${cost} (est. ${kmPerSecondFigure(b.estimate)})`;
+    })
+    .join(', ');
+  const total = `${verb} ${kmPerSecondFigure(metersPerSecond(needed))} of ${formatDeltaVKmS(available)}`;
   const gapWords = short
     ? `short by ${formatDeltaVKmS(metersPerSecond(needed - available))}`
     : `Margin +${formatDeltaVKmS(margin)}`;
