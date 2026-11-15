@@ -920,9 +920,25 @@ body {
   position: absolute;
 }
 
-/* Mouse clicks fall through to the chart in the canvas below; only the buttons take them. */
-.nav-chart > *:not(.nav-chart__actions, .disclosure-toggle) {
+/* Over the map, clicks fall through to the canvas (drag, zoom, pick a Body); the card, the plan and
+   the chart's bar take their own, so a click on them never lands on the map under them. */
+.nav-chart__chart,
+.nav-chart__label,
+.nav-chart__unsurveyed,
+.nav-chart__titlebar,
+.nav-chart__bar {
   pointer-events: none;
+}
+
+.nav-chart__bar-buttons,
+.nav-chart__marker,
+.nav-chart__card,
+.nav-chart__side,
+.nav-chart__target,
+.nav-chart__plan,
+.nav-chart__help,
+.nav-chart__legend {
+  pointer-events: auto;
 }
 
 .nav-chart__titlebar {
@@ -981,20 +997,143 @@ body {
   color: var(--wh3);
 }
 
+/* Asked for, over the bottom of the map left of the plan, clear of the plan's own controls. */
 .nav-chart__help {
-  left: 24px;
-  top: 305px;
-  width: 404px;
-  height: 30px;
+  left: 8px;
+  top: 288px;
+  width: 428px;
+  height: 34px;
+  padding: 4px;
+  box-sizing: border-box;
   overflow: hidden;
+  background: var(--scr0);
   font: 12px/10px var(--font-pixel-body);
   color: var(--gm5);
 }
 
-/* The "?" for the Δv help, in the chart's title bar just after its title. */
+/* The "?" for the Δv help, at the right of the Hop plan's title bar. */
 .nav-chart__help-toggle {
-  left: 92px;
+  left: 604px;
   top: 59px;
+}
+
+/* The chart's bar along the bottom: its name, then zoom, re-centre, the legend's "?" and Close. */
+.nav-chart__bar {
+  left: 8px;
+  top: 335px;
+  width: 624px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.nav-chart__bar-buttons {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* The legend, above the bar: a blip is Detected, a sprite Surveyed. */
+.nav-chart__legend {
+  position: absolute;
+  right: 60px;
+  bottom: 28px;
+  padding: 4px 6px;
+  background: var(--scr0);
+  box-shadow: 0 0 0 1px var(--cy1);
+  font: 8px/12px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--gm6);
+  white-space: nowrap;
+}
+
+.nav-chart__legend ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nav-chart__legend li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nav-chart__legend-blip,
+.nav-chart__legend-sprite {
+  display: inline-block;
+  border-radius: 50%;
+}
+
+.nav-chart__legend-blip {
+  width: 6px;
+  height: 6px;
+  margin: 0 3px;
+  background: var(--cy3);
+  box-shadow:
+    0 0 0 2px var(--scr0),
+    0 0 0 3px var(--cy2);
+}
+
+.nav-chart__legend-sprite {
+  width: 12px;
+  height: 12px;
+  background: radial-gradient(circle at 35% 35%, var(--gm6), var(--gm3));
+}
+
+/* A "?" over each Unsurveyed Body: only its place is known. */
+.nav-chart__unsurveyed {
+  font: 8px/8px var(--font-pixel);
+  color: var(--cy4);
+  text-shadow: 0 1px 0 var(--void);
+}
+
+/* A known Body off screen: an arrow at the map's edge, pointing to it. A click brings it into view. */
+.nav-chart__marker {
+  width: 12px;
+  height: 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--scr0);
+  box-shadow: 0 0 0 1px var(--cy2);
+  cursor: pointer;
+}
+
+.nav-chart__marker--here {
+  box-shadow: 0 0 0 1px var(--am3);
+}
+
+.nav-chart__marker--target {
+  box-shadow: 0 0 0 1px var(--cy4);
+}
+
+.nav-chart__marker-arrow {
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 6px;
+  height: 6px;
+  /* A right-pointing arrowhead, turned toward the Body. */
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+  background: var(--cy3);
+}
+
+.nav-chart__marker--here .nav-chart__marker-arrow {
+  background: var(--am3);
+}
+
+.nav-chart__card .nav-chart__plan-hop {
+  top: auto;
+  bottom: 6px;
+}
+
+.nav-chart__tip-reach {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* The tooltip for the focused Body, on the chart (wireframe callout 4). */

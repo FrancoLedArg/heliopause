@@ -26,6 +26,7 @@ export function DeltaVBar({
   bar,
   className,
   drained,
+  unsureLanding = false,
 }: {
   bar: DeltaVBarView;
   className?: string;
@@ -34,19 +35,21 @@ export function DeltaVBar({
    * behind a bright edge. Left out, the bar is whole (a plan, or a Hop already flown).
    */
   drained?: number;
+  /** The target is Unsurveyed: its Landing is a cautious guess, drawn hatched and named so. */
+  unsureLanding?: boolean;
 }) {
   return (
     <div
       className={className ? `dv-bar ${className}` : 'dv-bar'}
       role="img"
-      aria-label={bar.label}
+      aria-label={unsureLanding ? `${bar.label} Landing is a guess, Unsurveyed.` : bar.label}
       data-testid="dv-bar"
       data-drained={drained === undefined ? undefined : drained.toFixed(3)}
     >
       {bar.segments.map((segment) => (
         <span
           key={segment.burn}
-          className={`dv-bar__segment dv-bar__segment--${segment.burn}`}
+          className={`dv-bar__segment dv-bar__segment--${segment.burn}${unsureLanding && segment.burn === 'landing' ? ' dv-bar__segment--unsure' : ''}`}
           style={at(segment)}
           data-burn={segment.burn}
         >
