@@ -10,7 +10,6 @@ import {
   advanceCruise,
   CRUISE_TUNING,
   findBody,
-  listBodies,
   rushRepair,
   startRepair,
   type BeginResult,
@@ -195,18 +194,6 @@ const TARGET_AHEAD = {
   heliopause: { from: 18, to: 36 },
 } as const;
 /**
- * Distant Bodies of the Star System passing far behind the Spacecraft (presentation tuning): the
- * first after `first` ms of Cruise, then one every `every` ms, each taking `crossMs` to cross the
- * screen against the heading through the open sky above the Spacecraft (`y` px), `size` px across.
- */
-const PASSING = {
-  first: 6000,
-  every: 15_000,
-  crossMs: 12_000,
-  y: { min: 60, max: 110 },
-  size: { min: 8, max: 22 },
-} as const;
-/**
  * The star's light behind the Spacecraft, off the left edge: a soft warm glow that breathes slowly
  * (where, how big across, how bright). Drawn in code; `fx_flare` is the solar flare's art (#210).
  */
@@ -231,18 +218,6 @@ const VENT = {
  * Landing the ground rises into view with them, so they move with it.
  */
 const FX_SCROLL_FACTOR = { departure: 0.3, arrival: 1 } as const;
-/**
- * The departure Body in the Cruise: large at the left, receding toward the left edge over `ms` of
- * Cruise, then drifting off it. It stays in the open sky between the top bar and phase strip (above y
- * 78 right of x 170) and the flight log (below y 212), so the player sees it shrink the whole way.
- */
-const DEPARTURE = {
-  from: { x: 96, y: 132, size: 136 },
-  to: { x: 34, y: 118, size: 26 },
-  ms: 30_000,
-  /** After receding, how fast it drifts off the left edge (px per ms). */
-  drift: 0.0006,
-} as const;
 /**
  * The Approach (presentation tuning, px of the 640x360 frame): the target Body big at lower right,
  * its centre at `body.at`, growing from `body.from` to `body.to` px across. The small Spacecraft
@@ -391,8 +366,7 @@ export class Flight extends Scene {
   /** One plume per nozzle in each pose: down from the standing ship, back along the heading in flight. */
   private plumes!: Readonly<Record<ShipPose, readonly Plume[]>>;
   private shadow!: GameObjects.Ellipse;
-  /** The Cruise's departure and target Bodies; tests check the HUD never hides them. */
-  fromBody!: GameObjects.Image;
+  /** The Cruise's target Body, small and far ahead; tests check the HUD never hides it. */
   toBody!: GameObjects.Image;
   /**
    * The Cruise's event layer, drawn between the starfield and the Spacecraft: where timed Cruise
@@ -402,11 +376,7 @@ export class Flight extends Scene {
   eventLayer!: GameObjects.Container;
   /** The Cruise's star layers, far to near, each drifting at its own pace. */
   private starLayers: GameObjects.TileSprite[] = [];
-  /** A distant Body passing far behind the Spacecraft, and the sprites it is drawn from. */
-  private passing!: { readonly image: GameObjects.Image; readonly sprites: readonly string[] };
   private glint!: GameObjects.Image;
-  /** The Body crossing now: which one in turn, and its size and height on screen. */
-  private passer: { readonly index: number; readonly size: number; readonly y: number } | undefined;
   /** The attitude thruster's puff, on the Spacecraft; `undefined` under reduced motion. */
   private vent: GameObjects.Image | undefined;
   private stage: Stage | undefined;
@@ -445,7 +415,6 @@ export class Flight extends Scene {
     this.fast = false;
     this.streaks = [];
     this.starLayers = [];
-    this.passer = undefined;
     this.played = new Set();
     this.flash = 0;
     this.rumble = 0;
@@ -861,22 +830,11 @@ export class Flight extends Scene {
         )
         .setAlpha(streak.alpha * (boosting ? 1 : COAST_STREAKS));
     }
-    this.pass(live);
     this.glint.setAlpha(
       GLINT.alpha.min + (GLINT.alpha.max - GLINT.alpha.min) * (calm ? 0.5 : (1 + wave(GLINT)) / 2),
     );
 
-    // Behind, the departure Body shrinks away toward the left edge, then drifts off it; ahead, the
-    // target stays small and far. Both stay in the open sky, clear of the HUD.
-    const recede = smooth(live / DEPARTURE.ms);
-    const fromDiameter = DEPARTURE.from.size + (DEPARTURE.to.size - DEPARTURE.from.size) * recede;
-    const offEdge = Math.max(0, live - DEPARTURE.ms) * DEPARTURE.drift;
-    this.fromBody
-      .setScale(fromDiameter / this.fromBody.width)
-      .setPosition(
-        Math.round(DEPARTURE.from.x + (DEPARTURE.to.x - DEPARTURE.from.x) * recede - offEdge),
-        Math.round(DEPARTURE.from.y + (DEPARTURE.to.y - DEPARTURE.from.y) * recede),
-      );
+    // The target stays small and far ahead, in the open sky clear of the HUD.
     const ahead =
       this.flight.plan.destination === 'body' ? TARGET_AHEAD.body : TARGET_AHEAD.heliopause;
     const closing = Math.min(flown / window.length, 1);
@@ -940,33 +898,6 @@ export class Flight extends Scene {
     vent.setPosition(at.x, at.y).setAngle(FLIGHT_ANGLE + spot.angle);
     if (vent.texture.key === 'fx_vent') vent.setFrame(`spray_${String(frame)}`);
     else vent.setAlpha(1 - frame / VENT.frames);
-  }
-
-  /** Now and then a distant Body of the Star System crosses far behind the Spacecraft, against the heading. */
-  private pass(live: number): void {
-    const { image, sprites } = this.passing;
-    const since = live - PASSING.first;
-    const index = Math.floor(since / PASSING.every);
-    const t = (since - index * PASSING.every) / PASSING.crossMs;
-    const sprite = sprites[index % Math.max(1, sprites.length)];
-    const on = since >= 0 && t < 1 && sprite !== undefined;
-    image.setVisible(on);
-    if (!on) return;
-    // Each passing Body's size and height are drawn once, when it starts to cross.
-    if (this.passer?.index !== index) {
-      const rng = createRng(this.before.seed ^ (0xb0d1 + index));
-      this.passer = {
-        index,
-        size: rng.int(PASSING.size.min, PASSING.size.max),
-        y: rng.int(PASSING.y.min, PASSING.y.max),
-      };
-      image.setTexture(sprite);
-    }
-    const x = 660 - 700 * t;
-    image
-      .setScale(this.passer.size / image.width)
-      .setPosition(Math.round(x), Math.round(this.passer.y + (660 - x) * 0.04))
-      .setAlpha(0.75);
   }
 
   /**
@@ -1298,8 +1229,8 @@ export class Flight extends Scene {
   }
 
   /**
-   * Deep space, fixed on screen: the star layers, the sun's glint, a passing Body, the two Bodies of
-   * the Hop and the speed streaks. Everything is built once; the Cruise only moves it.
+   * Deep space, fixed on screen: the star layers, the sun's glint, the Hop's target Body and the
+   * speed streaks. Everything is built once; the Cruise only moves it.
    */
   private buildSpace(): GameObjects.Container {
     const space = this.add.container(0, 0).setScrollFactor(0);
@@ -1326,29 +1257,18 @@ export class Flight extends Scene {
       .setDisplaySize(GLINT.size, GLINT.size)
       .setTint(paletteNumber('am3'))
       .setBlendMode(BlendModes.ADD);
-    // Any Body of the Star System but the two of this Hop.
+    space.add(this.glint);
     const { plan } = this.flight;
-    const sprites = listBodies(this.before.starSystem)
-      .filter(
-        (body) => body.id !== plan.fromId && (plan.destination !== 'body' || body.id !== plan.toId),
-      )
-      .map((body) => bodySprite(this.before, body));
-    this.passing = {
-      image: this.add.image(0, 0, sprites[0] ?? glowTexture(this)).setVisible(false),
-      sprites,
-    };
-    space.add([this.glint, this.passing.image]);
     const sprite = (run: Run, id: BodyId): GameObjects.Image => {
       const body = findBody(run.starSystem, id);
       if (!body) throw new Error(`No Body ${id}`);
       return this.add.image(0, 0, bodySprite(run, body));
     };
-    this.fromBody = sprite(this.before, plan.fromId);
     this.toBody =
       plan.destination === 'body'
         ? sprite(this.before, plan.toId)
         : this.add.image(0, 0, heliopauseTexture(this));
-    space.add([this.fromBody, this.toBody]);
+    space.add(this.toBody);
     if (this.pace === 'full') {
       const rng = createRng(this.before.seed ^ 0x57ea);
       for (let i = 0; i < STREAK_COUNT; i++) {
