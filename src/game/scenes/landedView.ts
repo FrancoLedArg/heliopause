@@ -3,6 +3,7 @@
 import { stringSeed } from '../lib/stringSeed.ts';
 import { createRng } from '../lib/rng.ts';
 import { standingExtent } from './chassisArt.ts';
+import { composeSpacecraft } from './spacecraftComposition.ts';
 import { DRIFT_RANGE } from './landedMotion.ts';
 import {
   astronomicalUnits,
@@ -13,6 +14,8 @@ import {
 } from '../sim/index.ts';
 import type {
   AstronomicalUnits,
+  ChassisId,
+  Slot,
   Body,
   BodyId,
   LandableBody,
@@ -66,6 +69,18 @@ export const SHIP_SWEEP = (() => {
     bottom: SHIP_PLACEMENT.baseY + SHIP_SHADOW.dy + SHIP_SHADOW.height / 2,
   };
 })();
+
+/**
+ * The left edge (px, from the left of the view) of the Spacecraft actually drawn for these Slots,
+ * at the far end of its drift: the leftmost piece of Chassis art or Component art in either standing
+ * frame. Beside-the-ship panels anchor to this, not to the widest Chassis's `SHIP_SWEEP`.
+ */
+export function shipLeftEdge(chassisId: ChassisId, slots: readonly Slot[]): number {
+  const reach = (['landed', 'landed_lit'] as const).flatMap((frame) =>
+    composeSpacecraft(chassisId, slots, frame).layers.map((layer) => layer.rect.x),
+  );
+  return SHIP_SWEEP_X.min + Math.min(...reach);
+}
 
 const SHIP_EXTENT = standingExtent(CHASSIS_IDS);
 /** Gameplay tuning: space kept either side of the widest standing Spacecraft. */

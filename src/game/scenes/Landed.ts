@@ -1,15 +1,20 @@
 import { Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
+import { chooseCruiseLeak } from '../lib/cruiseLeak.ts';
 import {
+  beginHop,
   currentBody,
   install,
   landedDayFraction,
-  launchHop,
   remove,
+  rushRepair,
+  startRepair,
   type HopFlight,
   type Run,
 } from '../sim/index.ts';
+import { anyDamaged } from '../../ui/repairView.ts';
+import { createDamageMarks, repairClickAt, type DamageMarks } from './damageMarks.ts';
 import { addSkyLight, localTimeAnnouncer, type SkyLight } from './skyLight.ts';
 import { standingExtent } from './chassisArt.ts';
 import { describeGathering, type Gathering } from './gathering.ts';
@@ -17,7 +22,7 @@ import { playGatheringMoment } from './gatheringMoment.ts';
 import { SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
 import { SceneKey } from './keys.ts';
 import type { Point } from './chassisArt.ts';
-import type { FlightData } from './Flight.ts';
+import { flightDataFor } from './Flight.ts';
 import type { NavChartData } from './NavChart.ts';
 import { createLandedAmbient, type LandedAmbient } from './landedAmbient.ts';
 import { buildLandscape, LAYER_X, SKY_X } from './landscape.ts';
@@ -104,6 +109,8 @@ export class Landed extends Scene {
   private announceTime = localTimeAnnouncer();
   /** The Spacecraft's layer, where the gathering moment flows in. */
   private shipLayer!: GameObjects.Container;
+  /** The Damage drawn on the standing Spacecraft. */
+  marks!: DamageMarks;
 
   constructor() {
     super(SceneKey.Landed);
@@ -141,13 +148,35 @@ export class Landed extends Scene {
     });
     // Launch settles the Hop in the simulation, then hands it to the Flight to play back. Starting
     // the Flight shuts this scene down, and the Nav Chart with it.
-    const offLaunch = EventBus.on('hop-launch-requested', (targetId) => {
+    // Launch flies the Takeoff and the Transfer; the Flight then plays the Cruise live (#250).
+    const offLaunch = EventBus.on('hop-launch-requested', (targetId, daily = false) => {
       if (this.run.status.kind !== 'landed') return;
-      const launched = launchHop(this.run, targetId);
+      const schedule = chooseCruiseLeak(window.location.search, this.run.spacecraft, daily);
+      const begun = beginHop(this.run, targetId, schedule ? { schedule } : {});
       // The plan only offers Launch for a valid target; the chart already says why one is not.
-      if (launched.kind !== 'flown') return;
-      const data: FlightData = { before: this.run, flight: launched.flight, after: launched.run };
-      this.scene.start(SceneKey.Flight, data);
+      if (begun.kind === 'invalid-target') return;
+      this.scene.start(SceneKey.Flight, flightDataFor(this.run, begun));
+    });
+    // A Damaged Component is Repaired here too (#210): the Repair waits for the next Cruise, a Rush
+    // is done at once. Asked from the Spacecraft panel, or by clicking the part.
+    const offRepair = EventBus.on('repair-requested', (slot) => {
+      const started = startRepair(this.run, slot);
+      if (started.kind === 'repairing') this.changed(started.run);
+    });
+    const offRush = EventBus.on('rush-requested', (slot) => {
+      const rushed = rushRepair(this.run, slot);
+      if (rushed.kind === 'rushed') this.changed(rushed.run);
+    });
+    this.input.on('pointerdown', (pointer: { x: number; y: number }) => {
+      if (this.run.status.kind !== 'landed' || this.scene.isActive(SceneKey.NavChart)) return;
+      const click = this.repairClick(pointer);
+      if (click) EventBus.emit(`${click.action}-requested`, click.slot);
+    });
+    this.events.once(Scenes.Events.SHUTDOWN, () => {
+      this.input.setDefaultCursor('');
+    });
+    this.input.on('pointermove', (pointer: { x: number; y: number }) => {
+      this.input.setDefaultCursor(this.repairClick(pointer) ? 'pointer' : '');
     });
     // The Spacecraft panel asks for installs; the Run lives here, so this is where it changes.
     const offInstall = EventBus.on('component-install-requested', (slotIndex, componentId) => {
@@ -183,6 +212,8 @@ export class Landed extends Scene {
       offInstall();
       offRemove();
       offLaunch();
+      offRepair();
+      offRush();
       this.events.off(Scenes.Events.SHUTDOWN, unsubscribe);
       this.events.off(Scenes.Events.DESTROY, unsubscribe);
     };
@@ -204,6 +235,8 @@ export class Landed extends Scene {
     });
     this.ambient = ambient;
     this.reducedMotion = ambient.reducedMotion;
+    this.marks = createDamageMarks(this, this.reducedMotion);
+    this.showDamage();
     // A destroyed game never shuts its scenes down, so stop on both; whichever fires first removes the other.
     const stop = (): void => {
       ambient.dispose();
@@ -263,8 +296,12 @@ export class Landed extends Scene {
     this.announceTime(fraction);
   }
 
-  /** The sky is never still: game time drifts on while Landed, unless the player prefers reduced motion. */
+  /**
+   * Each frame: the Damage marks follow the drifting Spacecraft, and the sky is never still. Game
+   * time drifts on while Landed, unless the player prefers reduced motion.
+   */
   override update(_time: number, delta: number): void {
+    if (anyDamaged(this.run)) this.showDamage();
     if (this.reducedMotion) return;
     this.landedSeconds += delta / 1000;
     this.applyLocalTime();
@@ -373,8 +410,28 @@ export class Landed extends Scene {
   private changed(run: Run): void {
     this.run = run;
     this.redrawShip();
+    this.showDamage();
     if (run.status.kind === 'ended') EventBus.emit('run-stranded', run);
     else EventBus.emit('run-updated', run);
+  }
+
+  /** What a click asks of a Damaged Component: a Repair or a Rush, if anything. */
+  private repairClick(pointer: { x: number; y: number }): ReturnType<typeof repairClickAt> {
+    const { scrollX, scrollY } = this.cameras.main;
+    return repairClickAt(
+      this.run,
+      this.spacecraft.componentBounds(),
+      pointer.x + scrollX,
+      pointer.y + scrollY,
+    );
+  }
+
+  /**
+   * The Damage on the standing Spacecraft: its marks follow the ship as it drifts, posed each frame
+   * from the scene's clock.
+   */
+  private showDamage(): void {
+    this.marks.show(this.run, this.spacecraft.componentBounds(), this.time.now);
   }
 
   /** Where the standing Spacecraft's engines idle: every nozzle exit of its art. */

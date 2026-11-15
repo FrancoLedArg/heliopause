@@ -103,6 +103,8 @@ const requestClose = (): void => {
 interface NavChartPanelProps {
   run: Run;
   state: ChartState;
+  /** A Daily Run: its Launch never takes the test-only Cruise leak. */
+  daily?: boolean;
 }
 
 /**
@@ -111,7 +113,7 @@ interface NavChartPanelProps {
  * picked, then the Hop plan once they choose "Plan Hop", the chart's bar (re-centre, zoom, legend,
  * close) and the keyboard. It opens with nothing but the map: no card until the player asks.
  */
-export function NavChartPanel({ run, state }: NavChartPanelProps) {
+export function NavChartPanel({ run, state, daily = false }: NavChartPanelProps) {
   const layout = useMemo(() => layoutChart(run), [run]);
   const here = currentBody(run);
   const bodyOf = (id: HopTarget): Body | undefined =>
@@ -387,7 +389,7 @@ export function NavChartPanel({ run, state }: NavChartPanelProps) {
           onLaunch={() => {
             // The Landed scene flies the Hop and starts its playback, which closes this panel.
             if (state.selectedId !== undefined) {
-              EventBus.emit('hop-launch-requested', state.selectedId);
+              EventBus.emit('hop-launch-requested', state.selectedId, daily);
             }
           }}
         />
@@ -694,7 +696,7 @@ function PlanPanel({
         <KitButton width={76} onClick={onCancel}>
           Cancel
         </KitButton>
-        <KitButton width={80} variant="primary" onClick={onLaunch}>
+        <KitButton width={80} variant="primary" data-testid="hop-launch" onClick={onLaunch}>
           Launch
         </KitButton>
       </div>

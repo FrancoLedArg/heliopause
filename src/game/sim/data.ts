@@ -342,15 +342,15 @@ export const CRUISE_TUNING = {
   /** The Cruise lasts 120 s: 1,200 ticks. */
   ticks: 1_200,
   /**
-   * The kinds a real Run schedules. Empty until #250 turns the Fuel leak on: until then real Runs
-   * have no Cruise events, and the game is unchanged.
+   * The kinds a real Run schedules: the Fuel leak since #250, the first playable Cruise. The other
+   * kinds switch on with their own tickets (#251 to #253).
    */
-  enabledKinds: [] as readonly CruiseEventKind[],
+  enabledKinds: ['fuel-leak'] as readonly CruiseEventKind[],
   /**
    * The first Hops of a Run are mild: only `mildKinds`, a Debris field only ever hits a Fuel Tank,
-   * and a leak is slow and stops at the Fuel the Hop needs to end no worse than at its estimates
-   * (`Cruise.fuelFloor`). So the Engine fire, and with it Destroyed, never strikes on them, and no
-   * mild event can Crash or Strand a Hop the plan shows at 100% (#188).
+   * and a leak is slower and stops at the Fuel the Landing needs at its worst plus a Hop back with
+   * a chance (`Cruise.fuelFloor`). So the Engine fire, and with it Destroyed, never strikes on them,
+   * and no mild event can Crash or Strand a Hop the plan shows at 100% (#188).
    */
   mildHops: 3,
   mildKinds: MILD_KINDS,
@@ -366,8 +366,11 @@ export const CRUISE_TUNING = {
   startTicks: { min: 100, max: 1_000, engineFireMax: 800, apart: 200 },
   /** A Debris field hits one Component this often, and misses otherwise. */
   debrisHitChance: 0.6,
-  /** A leak loses this share of the Spacecraft's Fuel capacity per second: slower in a mild Cruise. */
-  leakPerSecond: { mild: 0.0005, harsh: 0.0025 },
+  /**
+   * A leak loses this share of the Spacecraft's Fuel capacity per second: slower in a mild Cruise,
+   * yet fast enough that one left alone visibly drains the Fuel gauge (#250).
+   */
+  leakPerSecond: { mild: 0.0015, harsh: 0.0025 },
   /** A Damaged Engine's Isp factor (#197). */
   damagedEngineIsp: 0.85,
   /** A burning Engine with no Repair started for this long explodes: 30 s. */

@@ -66,7 +66,10 @@ function fittedWith(from: Run, slots: readonly Slot[]): Run {
  * #189 (was seed 57's Hop to Vekyr): Runs open on a Starting Moon and Hop only to Bodies Comms
  * Detected. Re-pinned for #247 (was seed 12's Laquun, Prahen and Laquun): the Chassis Isp rose 30%,
  * so that Run is no longer Stranded. The last Hop's plan is sure, yet it Arrives Stranded as built.
+ * Flown with no Cruise events (#250 turned the Fuel leak on): this pins Stranded on the Burns alone.
  */
+const NO_EVENTS = { events: [] } as const;
+
 function backOnDryli(extra: number): Run {
   let run = startRun(27, 'scout');
   // Stranded follows the plans the player sees (#190): every Body but the three flown to is Surveyed,
@@ -83,7 +86,7 @@ function backOnDryli(extra: number): Run {
   for (const name of ['Dryli', 'Siolmel', 'Teskae', 'Dryli']) {
     const body = listBodies(run.starSystem).find((b) => b.name === name);
     if (!body) throw new Error(`Seed 27 has no ${name}`);
-    const landed = launchHop(run, body.id);
+    const landed = launchHop(run, body.id, NO_EVENTS);
     if (landed.kind !== 'flown' || landed.flight.outcome.kind !== 'arrived') {
       throw new Error(`Seed 27: the Hop to ${name} should Arrive`);
     }
@@ -324,7 +327,8 @@ describe('the simulation settles Stranded itself', () => {
     const start = onSmallPlanet(startRun(199, 'scout'));
     const body = listBodies(start.starSystem).find(({ name }) => name === 'Mionzox Nova');
     if (!body) throw new Error('Seed 199 has no Mionzox Nova');
-    const flown = launchHop(start, body.id);
+    // Flown with no Cruise events (#250 turned the Fuel leak on): Stranded here is the Burns' doing.
+    const flown = launchHop(start, body.id, NO_EVENTS);
     if (flown.kind !== 'flown') throw new Error('expected a Hop');
     expect(flown.flight.outcome).toEqual({ kind: 'arrived' });
     expect(flown.run.status).toEqual({
@@ -361,25 +365,28 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('a replayed Run ends Stranded where the game did, and takes no choice after it', () => {
+    // Flown with no Cruise events (#250): this pins Stranded on the Burns alone.
     // Seed 4, played as the player sees it (every Body Unsurveyed until landed on): the fourth Hop strands it. Re-pinned for #247 (was seed 1): the Chassis Isp rose 30%.
     let run = startRun(4, 'scout');
     for (const name of ['Ludran', 'Tynvael Tau', 'Prumal', 'Nionyr']) {
       const body = listBodies(run.starSystem).find((b) => b.name === name);
       if (!body) throw new Error(`Seed 4 has no ${name}`);
-      const flown = launchHop(run, body.id);
+      const flown = launchHop(run, body.id, NO_EVENTS);
       if (flown.kind !== 'flown') throw new Error(`Seed 4: no Hop to ${name}`);
       run = flown.run;
     }
     expect(run.status).toMatchObject(stranded);
-    const replayed = replay(4, 'scout', run.choices);
+    const replayed = replay(4, 'scout', run.choices, NO_EVENTS);
     expect(replayed).toMatchObject({ kind: 'replayed', end: { kind: 'stranded' } });
     if (replayed.kind !== 'replayed') return;
     expect(replayed.run.status).toEqual(run.status);
     // A choice made after the end is refused.
-    const after = replay(4, 'scout', [
-      ...run.choices,
-      { kind: 'install', slot: 2, componentId: 'drill-1' },
-    ]);
+    const after = replay(
+      4,
+      'scout',
+      [...run.choices, { kind: 'install', slot: 2, componentId: 'drill-1' }],
+      NO_EVENTS,
+    );
     expect(after).toMatchObject({ kind: 'rejected', at: 4 });
   });
 
