@@ -312,6 +312,43 @@ body {
   color: var(--gm6);
 }
 
+/* The Stranded warning: under the top bar, above the plate, left of the Spacecraft's sweep. An
+   Arrived Hop's report covers it while it is open. */
+.stranded-warning {
+  position: absolute;
+  top: 54px;
+  left: 12px;
+}
+
+.stranded-warning > .kit-frame:first-child {
+  position: absolute;
+  inset: 0;
+}
+
+.stranded-warning__title {
+  position: absolute;
+  top: 7px;
+  left: 9px;
+  right: 9px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font: 8px/12px var(--font-pixel);
+  text-transform: uppercase;
+  color: var(--am3);
+}
+
+.stranded-warning__advice {
+  position: absolute;
+  top: 21px;
+  left: 9px;
+  right: 9px;
+  margin: 0;
+  font: 14px/12px var(--font-pixel-body);
+  color: var(--wh2);
+}
+
 /* ---- Chassis picker ---- */
 
 .chassis-picker__title {

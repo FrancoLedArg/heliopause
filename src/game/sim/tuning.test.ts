@@ -46,6 +46,8 @@ function cautiousHops(start: Run, seed: number): number {
     if (!next) return hops;
     const { flight, run: after } = flyHop(run, next, rng);
     if (flight.outcome.kind !== 'arrived') return hops;
+    // Arrived, but Stranded there: that Hop counts, and no other follows.
+    if (after.status.kind !== 'landed') return hops + 1;
     visited.add(next.toId);
     run = after;
   }

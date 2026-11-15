@@ -1,4 +1,5 @@
 import {
+  assessStranding,
   availableDeltaV,
   currentBody,
   isDepleted,
@@ -14,6 +15,8 @@ import { TopBar } from './TopBar.tsx';
 
 const PLATE_WIDTH = 284;
 const PLATE_HEIGHT = 62;
+/** The Stranded warning: as wide as the plate, tall enough for its heading and three lines of advice. */
+const WARNING = { width: 284, height: 62 } as const;
 
 interface LandedPanelsProps {
   run: Run;
@@ -38,6 +41,8 @@ export function LandedPanels({
   const body = currentBody(run);
   const type = bodyFullLabel(run, body);
   const depleted = isDepleted(run, body.id);
+  // Kept per Run by the simulation, so asking on every render costs nothing.
+  const stranding = assessStranding(run);
 
   // Closing the Nav Chart hands focus back to the button that opened it.
   const buttonSlot = useRef<HTMLDivElement>(null);
@@ -73,6 +78,24 @@ export function LandedPanels({
 
       {!chartOpen && !spacecraftOpen && (
         <>
+          {stranding.kind === 'warning' && (
+            <section
+              className="stranded-warning"
+              role="alert"
+              aria-labelledby="stranded-warning-title"
+              data-testid="stranded-warning"
+              style={{ width: WARNING.width, height: WARNING.height }}
+            >
+              <KitFrame frame="tooltip_warn" width={WARNING.width} height={WARNING.height} />
+              <h2 id="stranded-warning-title" className="stranded-warning__title">
+                <KitFrame frame="badge_warning" />
+                No Hop possible
+              </h2>
+              <p className="stranded-warning__advice" data-testid="stranded-advice">
+                {stranding.warning}
+              </p>
+            </section>
+          )}
           <section
             className="landed-plate"
             aria-labelledby="landed-title"

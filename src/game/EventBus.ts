@@ -76,6 +76,13 @@ export interface GameEvents {
    * it (sent after the Landed view's `run-started`, before its `scene-ready`). `before` is the Run at Launch.
    */
   'hop-arrived': [before: Run, flight: HopFlight];
+  /**
+   * Phaser -> React: the simulation ended the Run as Stranded (`ended`) on the Body the Landed view
+   * shows: no change to the Spacecraft could give any Hop a chance. Sent when the view comes up on a
+   * Run that ended on arrival (instead of `run-started` and `hop-arrived`), or after an install or a
+   * removal that strands it (instead of `run-updated`).
+   */
+  'run-stranded': [ended: Run];
   /** React -> Phaser: the player confirmed leaving the Run from the in-Run Menu; go back to the Title scene. */
   'leave-run-requested': [];
 }
