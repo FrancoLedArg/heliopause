@@ -21,14 +21,21 @@ import {
   type HopFlight,
   type Run,
 } from './index.ts';
-import { firstTarget, landedOn, plan, withDeltaV, withJumpDrive } from './testing.ts';
+import {
+  firstTarget,
+  heliopauseFound,
+  landedOn,
+  plan,
+  withDeltaV,
+  withJumpDrive,
+} from './testing.ts';
 
 /**
  * `from` with a Jump Drive and Fuel for `share` of the Hop's estimate, flown out to the Heliopause:
  * the Run at Launch, the flight, and the Run the Jump left in the next Star System.
  */
 function escape(from: Run, share = 1.3): { before: Run; flight: HopFlight; run: Run } {
-  const ready = withJumpDrive(from);
+  const ready = heliopauseFound(withJumpDrive(from));
   const before = withDeltaV(ready, plan(ready, HELIOPAUSE).totalEstimate * share);
   const launched = launchHop(before, HELIOPAUSE);
   if (launched.kind !== 'flown' || launched.flight.outcome.kind !== 'reached-heliopause') {

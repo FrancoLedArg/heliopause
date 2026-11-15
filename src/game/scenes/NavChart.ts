@@ -1,7 +1,15 @@
 import { Geom, Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
-import { currentBody, HELIOPAUSE, isDepleted, type HopTarget, type Run } from '../sim/index.ts';
+import { prefersReducedMotion } from '../lib/motion.ts';
+import {
+  currentBody,
+  HELIOPAUSE,
+  isDepleted,
+  type HopTarget,
+  type Run,
+  type StarSystem,
+} from '../sim/index.ts';
 import { bodySprite } from './landedView.ts';
 import {
   BRACKET_ARM,
@@ -10,6 +18,7 @@ import {
   chartReducer,
   crossSegments,
   dashedSegments,
+  HELIOPAUSE_MARK_RADIUS,
   initialChartState,
   labelContextOf,
   layoutChart,
@@ -42,6 +51,12 @@ const MIN_HIT_RADIUS = 9;
  * chart's contents (rings, real `body_*` sprites, focus, target, route) and takes mouse input; React owns
  * the panel frame, labels and the keyboard, and the two talk only through the `EventBus`.
  */
+/** The Heliopause's reveal on the chart (gameplay tuning, ms): its fade-in and the ping from its mark. */
+const HELIOPAUSE_REVEAL = { fadeMs: 900, pingMs: 1_100, pingScale: 5 } as const;
+
+/** The Star Systems whose found Heliopause the chart has already revealed: it fades in once. */
+const REVEALED = new WeakSet<StarSystem>();
+
 export class NavChart extends Scene {
   private run!: Run;
   private layout!: ChartLayout;
@@ -68,11 +83,15 @@ export class NavChart extends Scene {
       this.add.rectangle(0, 0, CHART.width, CHART.height, paletteNumber('scr0'), 0.95).setOrigin(0),
     );
     chart.add(this.drawRings());
+    const heliopauseRing = this.drawHeliopauseRing();
+    if (heliopauseRing) chart.add(heliopauseRing);
     chart.add(
       this.add.image(this.layout.star.x, this.layout.star.y, 'body_star').setOrigin(0.5, 0.5),
     );
     for (const node of this.layout.nodes) chart.add(this.addBody(node));
-    chart.add(this.addHeliopauseMark());
+    const mark = this.addHeliopauseMark();
+    if (mark) chart.add(mark);
+    if (heliopauseRing && mark) this.revealHeliopause(chart, heliopauseRing, mark);
     this.yieldMarks = this.add.container(0, 0);
     this.yieldStrikes = this.add.graphics();
     chart.add([this.yieldMarks, this.yieldStrikes]);
@@ -122,7 +141,7 @@ export class NavChart extends Scene {
     }
   }
 
-  /** The orbit rings of known planets, and the Heliopause (dashed violet), clipped to the chart. */
+  /** The orbit rings of known planets, clipped to the chart. */
   private drawRings(): GameObjects.Graphics {
     const graphics = this.add.graphics();
     graphics.lineStyle(1, paletteNumber('cy0'));
@@ -135,6 +154,13 @@ export class NavChart extends Scene {
         graphics.lineBetween(...from, ...to);
       }
     }
+    return graphics;
+  }
+
+  /** The Heliopause's ring, dashed violet and clipped to the chart; none until the Radar finds it. */
+  private drawHeliopauseRing(): GameObjects.Graphics | undefined {
+    if (!this.layout.heliopause) return undefined;
+    const graphics = this.add.graphics();
     graphics.lineStyle(1, paletteNumber('vi2'));
     const segments = ringSegments(this.layout.star, this.layout.heliopauseRadius);
     // Every other short segment: a dashed ring.
@@ -142,6 +168,40 @@ export class NavChart extends Scene {
       if (index % 4 < 2) graphics.lineBetween(...from, ...to);
     }
     return graphics;
+  }
+
+  /**
+   * The first time the chart shows a found Heliopause, its ring and mark fade in and a ping grows from
+   * the mark: the way out, shown rather than told (#191). Under reduced motion they are simply there.
+   */
+  private revealHeliopause(
+    chart: GameObjects.Container,
+    ring: GameObjects.Graphics,
+    mark: GameObjects.Graphics,
+  ): void {
+    if (REVEALED.has(this.run.starSystem)) return;
+    REVEALED.add(this.run.starSystem);
+    if (prefersReducedMotion()) return;
+    this.tweens.add({
+      targets: [ring, mark],
+      alpha: { from: 0, to: 1 },
+      duration: HELIOPAUSE_REVEAL.fadeMs,
+    });
+    const ping = this.add.graphics({ x: mark.x, y: mark.y });
+    ping.lineStyle(1, paletteNumber('vi4'));
+    ping.strokeCircle(0, 0, HELIOPAUSE_MARK_RADIUS + 2);
+    chart.add(ping);
+    this.tweens.add({
+      targets: ping,
+      delay: HELIOPAUSE_REVEAL.fadeMs / 2,
+      scale: { from: 1, to: HELIOPAUSE_REVEAL.pingScale },
+      alpha: { from: 1, to: 0 },
+      duration: HELIOPAUSE_REVEAL.pingMs,
+      ease: 'Sine.easeOut',
+      onComplete: () => {
+        ping.destroy();
+      },
+    });
   }
 
   /** A Body's real sprite at 1x, with a hit circle for the mouse. */
@@ -165,9 +225,10 @@ export class NavChart extends Scene {
 
   /**
    * The Heliopause's mark: a violet diamond on its ring (a shape, not just a colour), with a hit
-   * circle for the mouse like a Body's.
+   * circle for the mouse like a Body's. None until the Radar finds it.
    */
-  private addHeliopauseMark(): GameObjects.Graphics {
+  private addHeliopauseMark(): GameObjects.Graphics | undefined {
+    if (!this.layout.heliopause) return undefined;
     const { x, y, radius } = this.layout.heliopause;
     const mark = this.add.graphics({ x, y });
     mark.fillStyle(paletteNumber('vi4'));
