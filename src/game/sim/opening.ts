@@ -82,8 +82,10 @@ export function maroon(arriving: Arriving, starSystem: StarSystem): Run {
 /**
  * A Chassis's new Spacecraft marooned in `system` at a difficulty level, with a New Run's Materials:
  * the Run a New Run starts as, and what the generator checks a fair opening with. A new Spacecraft
- * lands short of a full Tank by what an Icy Starting Moon gives, so it is full once the yield is in:
- * the first thing a player sees is Fuel flowing in from the ice (#96, show don't tell).
+ * lands short of a full Tank by what an Icy Starting Moon gives, and short of a New Run's Materials by
+ * what a Rocky one gives (never below none), so either way the yield brings it up to them: the first
+ * thing a player sees is Fuel or Materials flowing in (#96, show don't tell), and no opening pays
+ * for a Jump Drive before the first Hop (#189 review).
  */
 export function startingRun(
   system: StarSystem,
@@ -93,14 +95,16 @@ export function startingRun(
 ): Run {
   const spacecraft = newSpacecraft(chassisId);
   const moon = startingMoon(system);
-  const short = moon.composition === 'icy' ? Math.min(moon.baseYield, spacecraft.fuelMass) : 0;
+  const fuelShort = moon.composition === 'icy' ? Math.min(moon.baseYield, spacecraft.fuelMass) : 0;
+  const materialsShort =
+    moon.composition === 'rocky' ? Math.min(moon.baseYield, STARTING_MATERIALS) : 0;
   return maroon(
     {
       seed,
       starSystemNumber: level,
-      spacecraft: { ...spacecraft, fuelMass: kilograms(spacecraft.fuelMass - short) },
+      spacecraft: { ...spacecraft, fuelMass: kilograms(spacecraft.fuelMass - fuelShort) },
       hopsFlown: 0,
-      materials: STARTING_MATERIALS,
+      materials: materials(STARTING_MATERIALS - materialsShort),
       choices: [],
     },
     system,

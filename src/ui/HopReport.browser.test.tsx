@@ -1,15 +1,20 @@
 import { afterEach, expect, it } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import {
+  HELIOPAUSE,
   install,
   kilograms,
   launchHop,
   listBodies,
+  materials,
   startRun,
+  type ChassisId,
   type HopFlight,
   type Run,
 } from '../game/sim/index.ts';
-import { cleanUp, renderUi } from './browserTestKit.tsx';
+import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { HopReport } from './HopReport.tsx';
+import { expectTextBudget, visibleSentences } from './textBudget.ts';
 
 afterEach(cleanUp);
 
@@ -79,4 +84,109 @@ it('the worst report with a Drill fits with room to spare: ice line, left-behind
     collection: { ...flight.collection, leftBehind: kilograms(4_321) },
   };
   expect(await spareBelowContinue(before, worst)).toBeGreaterThanOrEqual(8);
+});
+
+// Show, don't tell (#223): the report's visible prose is its one why line, whatever the outcome.
+/** The Heliopause Hop of a lancer with a Jump Drive and `share` of its Fuel. */
+function heliopauseHop(share: number): [Run, HopFlight] {
+  for (let seed = 1; seed < 200; seed++) {
+    const start = startRun(seed, 'lancer');
+    const built = install({ ...start, materials: materials(100) }, 2, 'jump-drive');
+    if (built.kind !== 'installed') throw new Error('Expected an install');
+    const { spacecraft } = built.run;
+    const run = {
+      ...built.run,
+      spacecraft: { ...spacecraft, fuelMass: kilograms(spacecraft.fuelMass * share) },
+    };
+    const launched = launchHop(run, HELIOPAUSE);
+    if (launched.kind === 'flown') return [run, launched.flight];
+  }
+  throw new Error('No seed has a Heliopause Hop');
+}
+
+/**
+ * A Hop that ends `kind`, from seed 123's innermost planet with every Body known and `share` of the
+ * Fuel: a Run's first Hop never fails since #189, so these start where Runs opened before it.
+ */
+function halfFuelledHop(
+  kind: 'fell-short' | 'crashed',
+  chassis: ChassisId,
+  share = 0.5,
+): [Run, HopFlight] {
+  const start = startRun(123, chassis);
+  const ids = listBodies(start.starSystem).map((body) => body.id);
+  const inner = start.starSystem.planets[0];
+  if (!inner) throw new Error('A Star System has planets');
+  const run: Run = {
+    ...start,
+    status: { kind: 'landed', bodyId: inner.id },
+    knowledge: { detected: ids, surveyed: ids, heliopauseFound: true },
+    spacecraft: { ...start.spacecraft, fuelMass: kilograms(start.spacecraft.fuelMass * share) },
+  };
+  for (const body of listBodies(run.starSystem)) {
+    const launched = launchHop(run, body.id);
+    if (launched.kind === 'flown' && launched.flight.outcome.kind === kind) {
+      return [run, launched.flight];
+    }
+  }
+  throw new Error(`No ${kind} Hop`);
+}
+
+const reports: [string, () => [Run, HopFlight]][] = [
+  [
+    'Arrived (first Fuel, so the fact exists)',
+    () => {
+      const before = startRun(786, 'hauler');
+      return [before, hop(before, 'Laelresmaen Minor').flight];
+    },
+  ],
+  ['Fell Short', () => halfFuelledHop('fell-short', 'hauler')],
+  // 0.45 of the Fuel, not half, is what Crashes from there (as in hopReportView.test.ts).
+  ['Crashed', () => halfFuelledHop('crashed', 'scout', 0.45)],
+  ['the Heliopause', () => heliopauseHop(1)],
+];
+
+it.each(reports)('%s: one visible sentence, which is the why line', async (_name, make) => {
+  const [before, flight] = make();
+  const host = await renderUi(
+    <HopReport
+      before={before}
+      flight={flight}
+      actions={[{ label: 'Continue', onClick: () => undefined, primary: true }]}
+    />,
+  );
+  expectTextBudget(host);
+  const why = host.querySelector('.hop-report__why')?.textContent;
+  expect(why).toBeTruthy();
+  expect(visibleSentences(host)).toEqual([why]);
+  // The Δv bar is there, with the estimate against the actual in its name.
+  expect(byTestId(host, 'dv-bar').getAttribute('aria-label')).toMatch(/^Δv: /);
+});
+
+it('"Tell me more" opens the Burn table, the Margin and the fact by keyboard, and they still fit', async () => {
+  const before = startRun(786, 'hauler');
+  const { flight } = hop(before, 'Laelresmaen Minor');
+  const host = await renderUi(
+    <HopReport
+      before={before}
+      flight={flight}
+      actions={[{ label: 'Continue', onClick: () => undefined, primary: true }]}
+    />,
+  );
+  const toggle = [...host.querySelectorAll('button')].find((b) => b.textContent === 'Tell me more');
+  if (!toggle) throw new Error('no Tell me more');
+  expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  expect(host.querySelector('.hop-report__table')?.checkVisibility()).toBe(false);
+  // Focus starts on Continue; Tab wraps to the toggle.
+  await userEvent.keyboard('{Tab}');
+  expect(document.activeElement).toBe(toggle);
+  await userEvent.keyboard('{Enter}');
+  expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  expect(host.querySelector('.hop-report__table')?.checkVisibility()).toBe(true);
+  expect(byTestId(host, 'hop-report-margin').checkVisibility()).toBe(true);
+  expect(byTestId(host, 'hop-report-fact').textContent).toMatch(/water ice/);
+  // Continue stays inside the panel with the details open.
+  const panel = byTestId(host, 'hop-report').getBoundingClientRect();
+  const actions = host.querySelector<HTMLElement>('.hop-report__actions');
+  expect(actions?.getBoundingClientRect().bottom).toBeLessThanOrEqual(panel.bottom);
 });

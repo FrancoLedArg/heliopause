@@ -1114,3 +1114,134 @@ body {
   align-items: center;
   gap: 4px;
 }
+
+/* The music controls: one speaker icon that opens a popover with mute and volume, kit frames only. */
+.music-controls {
+  position: absolute;
+  pointer-events: auto;
+}
+
+/* In the top bar, on the value row between the Materials and the Menu button: the bare icon, no button frame. */
+.music-controls--bar {
+  top: 19px;
+  left: 532px;
+}
+
+.music-controls--bar > .music-controls__button {
+  width: 18px;
+  height: 18px;
+}
+
+.music-controls--bar > .music-controls__button .music-controls__face {
+  display: none;
+}
+
+.music-controls--bar > .music-controls__button .music-controls__icon {
+  top: 1px;
+  left: 1px;
+}
+
+.music-controls--bar > .music-controls__button:is(:hover, :focus-visible, [aria-expanded='true']) {
+  outline: 1px solid var(--cy3);
+  outline-offset: 0;
+}
+
+.music-controls--title {
+  top: 8px;
+  right: 8px;
+}
+
+.music-controls__button {
+  position: relative;
+  display: block;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.music-controls__face {
+  position: absolute;
+  inset: 0;
+}
+
+.music-controls__face--hover,
+.music-controls__face--pressed {
+  visibility: hidden;
+}
+
+.music-controls__button:is(:hover, :focus-visible) .music-controls__face--hover,
+.music-controls__button:active .music-controls__face--pressed {
+  visibility: visible;
+}
+
+.music-controls__button:focus-visible {
+  outline: 1px solid var(--cy3);
+  outline-offset: 1px;
+}
+
+.music-controls__icon {
+  position: absolute;
+  top: 3px;
+  left: 4px;
+}
+
+.music-controls__button:active .music-controls__icon {
+  transform: translateY(2px);
+}
+
+/* Opens under the icon, its right edge level with the icon's. */
+.music-controls__popover {
+  position: absolute;
+  top: 24px;
+  right: 0;
+  z-index: 1;
+}
+
+.music-controls__popover > .kit-frame:first-child {
+  position: absolute;
+  inset: 0;
+}
+
+.music-controls__mute {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+}
+
+.music-controls__slider {
+  position: absolute;
+  top: 9px;
+  left: 34px;
+  height: 14px;
+}
+
+.music-controls__track {
+  position: absolute;
+  top: 4px;
+  left: 0;
+}
+
+.music-controls__knob {
+  position: absolute;
+  top: 0;
+  left: var(--knob-left);
+}
+
+/* The real input sits invisibly over the drawing, so pointer, touch and arrow keys all work. */
+.music-controls__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.music-controls__slider:has(.music-controls__input:focus-visible) {
+  outline: 1px solid var(--cy3);
+  outline-offset: 1px;
+}

@@ -150,21 +150,18 @@ export function CreditsPanel({ onBack }: InfoPanelProps) {
   );
 }
 
-/** The resources a How to play line can show as an icon, by placeholder. */
-const INLINE_ICONS = { '{fuel}': 'fuel', '{materials}': 'materials' } as const;
+/** The resources a How to play line can show as an icon, by placeholder, with the words they stand for. */
+const INLINE_ICONS = {
+  '{fuel}': { resource: 'fuel', label: 'Fuel' },
+  '{materials}': { resource: 'materials', label: 'Materials' },
+} as const;
 
 /** A How to play line with its `{fuel}` and `{materials}` placeholders drawn as the yield icons. */
 function withIcons(line: string): ReactNode[] {
   return line.split(/(\{fuel\}|\{materials\})/).map((part, index) => {
     if (part !== '{fuel}' && part !== '{materials}') return part;
-    const resource = INLINE_ICONS[part];
-    return (
-      <ResourceIcon
-        key={`${part}-${String(index)}`}
-        resource={resource}
-        label={resource === 'fuel' ? 'Fuel' : 'Materials'}
-      />
-    );
+    const { resource, label } = INLINE_ICONS[part];
+    return <ResourceIcon key={`${part}-${String(index)}`} resource={resource} label={label} />;
   });
 }
 

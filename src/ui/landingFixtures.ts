@@ -53,12 +53,13 @@ export function landing(
 }
 
 /**
- * Seed 11 with a level-1 Drill, landed on Thaervirdry by way of Niodri and Raevyr-4: no Hop as
- * built, but removing the Drill saves the Run. Re-pinned for #189 (was seed 45's Mavar).
+ * Seed 15 with a level-1 Drill, back on Pripro after Pripro and Lylion: no Hop as built, but removing
+ * the Drill saves the Run. Re-pinned for #189 (was seed 45's Mavar, then seed 11 before a Rocky
+ * opening stopped adding Materials over a New Run's).
  */
 export const SAVE_BY_REMOVING = {
-  seed: 11,
-  path: ['Niodri', 'Raevyr-4', 'Thaervirdry'],
+  seed: 15,
+  path: ['Pripro', 'Lylion', 'Pripro'],
   fit: 'drill-1',
 } as const;
 
@@ -70,10 +71,10 @@ export const SAVE_BY_REMOVING = {
 export const STRANDED_ON_LANDING = { seed: 12, path: ['Laquun', 'Prahen', 'Laquun'] } as const;
 
 /**
- * Seed 12's same path with 1 Material more than it would have (60, not 59): only swapping in the
+ * Seed 12's same path with 16 Materials more than it would have (60, not 44): only swapping in the
  * level-2 Engine (60) saves the Run, so spending any of them on another Component strands it.
  * Without it, the Landing itself strands it. Re-pinned for #189 (was seed 57's Vekyr).
  */
 export function saveByRefitting(): Run {
-  return landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path, undefined, 1).run;
+  return landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.path, undefined, 16).run;
 }
