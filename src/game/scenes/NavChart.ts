@@ -46,17 +46,17 @@ export interface NavChartData {
 /** Smallest hit circle (px): a 12 px Moon would be fiddly to click otherwise. */
 const MIN_HIT_RADIUS = 9;
 
-/**
- * The Nav Chart: the whole Star System in miniature, drawn over the dimmed Landed scene. Phaser draws the
- * chart's contents (rings, real `body_*` sprites, focus, target, route) and takes mouse input; React owns
- * the panel frame, labels and the keyboard, and the two talk only through the `EventBus`.
- */
 /** The Heliopause's reveal on the chart (gameplay tuning, ms): its fade-in and the ping from its mark. */
 const HELIOPAUSE_REVEAL = { fadeMs: 900, pingMs: 1_100, pingScale: 5 } as const;
 
 /** The Star Systems whose found Heliopause the chart has already revealed: it fades in once. */
 const REVEALED = new WeakSet<StarSystem>();
 
+/**
+ * The Nav Chart: the whole Star System in miniature, drawn over the dimmed Landed scene. Phaser draws the
+ * chart's contents (rings, real `body_*` sprites, focus, target, route) and takes mouse input; React owns
+ * the panel frame, labels and the keyboard, and the two talk only through the `EventBus`.
+ */
 export class NavChart extends Scene {
   private run!: Run;
   private layout!: ChartLayout;

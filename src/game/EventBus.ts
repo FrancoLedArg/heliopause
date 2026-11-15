@@ -47,6 +47,8 @@ export interface GameEvents {
   'new-run-requested': [seed: Seed, chassisId: ChassisId];
   /** React -> Phaser: the player asked to open the Nav Chart over the Landed view. */
   'nav-chart-open-requested': [];
+  /** React -> Phaser: the Spacecraft panel closed over the Landed view. */
+  'spacecraft-panel-closed': [];
   /** React -> Phaser: the player asked to close the Nav Chart. */
   'nav-chart-close-requested': [];
   /** React -> Phaser: a key press on the Nav Chart (move between Bodies, select). */
