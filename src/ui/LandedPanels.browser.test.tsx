@@ -1,6 +1,7 @@
 import { afterEach, expect, it } from 'vitest';
-import { listBodies, startRun } from '../game/sim/index.ts';
+import { listBodies, startRun, type Run } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
+import { landing, SAVE_BY_REMOVING, saveByRefitting } from './landingFixtures.ts';
 import { LandedPanels } from './LandedPanels.tsx';
 
 afterEach(cleanUp);
@@ -76,4 +77,68 @@ it('the top bar says which Star System the Run is in, clear of the other items',
   // Above the System name, and with slack before the Fuel icon (and so before the Menu button).
   expect(box.bottom).toBeLessThanOrEqual(name.getBoundingClientRect().top + 1);
   expect(box.right).toBeLessThanOrEqual(fuelIcon.getBoundingClientRect().left - SLACK);
+});
+
+const landed = (run: Run) =>
+  renderUi(
+    <LandedPanels
+      run={run}
+      chartOpen={false}
+      spacecraftOpen={false}
+      onOpenSpacecraft={() => undefined}
+    />,
+  );
+
+it('warns in words, on the Landed view, when no Hop is possible as built but removing a Component would save the Run', async () => {
+  const { seed, body, fit } = SAVE_BY_REMOVING;
+  const host = await landed(landing(seed, body, fit).run);
+  const warning = byTestId(host, 'stranded-warning');
+  // Text, not colour alone: a heading that says it, and what to do.
+  expect(warning.getAttribute('role')).toBe('alert');
+  expect(warning.querySelector('h2')?.textContent).toBe('No Hop possible');
+  expect(byTestId(host, 'stranded-advice').textContent).toBe(
+    'No Hop is possible as built. Remove Components to lighten the Spacecraft.',
+  );
+  // On the stage, clear of the top bar, the location plate and both buttons, and nothing clipped.
+  const box = warning.getBoundingClientRect();
+  const stage = host.getBoundingClientRect();
+  expect(box.left).toBeGreaterThanOrEqual(stage.left);
+  expect(box.bottom).toBeLessThanOrEqual(stage.top + 360);
+  for (const selector of [
+    '.top-bar',
+    '.landed-plate',
+    '.landed-spacecraft-button',
+    '.landed-nav-button',
+  ]) {
+    const other = host.querySelector(selector)?.getBoundingClientRect();
+    if (!other) throw new Error(`no ${selector}`);
+    const overlaps =
+      box.left < other.right &&
+      other.left < box.right &&
+      box.top < other.bottom &&
+      other.top < box.bottom;
+    expect(overlaps, selector).toBe(false);
+  }
+  for (const line of warning.querySelectorAll<HTMLElement>('h2, p')) {
+    expect(line.scrollWidth).toBeLessThanOrEqual(line.clientWidth);
+    expect(line.getBoundingClientRect().bottom).toBeLessThanOrEqual(box.bottom - 4);
+  }
+});
+
+it('the longer warning, when only a new Component would save the Run, fits its frame too', async () => {
+  const host = await landed(saveByRefitting());
+  const warning = byTestId(host, 'stranded-warning');
+  const advice = byTestId(host, 'stranded-advice');
+  expect(advice.textContent).toBe(
+    'No Hop is possible as built. Change its Components: a different build could still make one.',
+  );
+  expect(advice.scrollWidth).toBeLessThanOrEqual(advice.clientWidth);
+  expect(advice.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+    warning.getBoundingClientRect().bottom - 4,
+  );
+});
+
+it('shows no Stranded warning while a Hop is possible', async () => {
+  const host = await landed(startRun(123, 'scout'));
+  expect(host.querySelector('[data-testid="stranded-warning"]')).toBeNull();
 });

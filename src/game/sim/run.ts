@@ -21,12 +21,13 @@ export const STARTING_MATERIALS: Materials = materials(25);
 
 /**
  * How a Run ended, each with its plain-language reason. Fell Short and Crashed come from a flown Hop
- * (the reason is the Hop's why); Stranded is set when no Hop could have any Success Chance.
+ * (the reason is the Hop's why); Stranded is set when no Hop could have any Success Chance, on the
+ * Body the Spacecraft is left standing on.
  */
 export type RunEnd =
   | { readonly kind: 'fell-short'; readonly reason: string }
   | { readonly kind: 'crashed'; readonly reason: string }
-  | { readonly kind: 'stranded'; readonly reason: string };
+  | { readonly kind: 'stranded'; readonly reason: string; readonly bodyId: BodyId };
 
 /**
  * Where the Run stands: landed on a Body and free to plan a Hop, at the Heliopause (where the Jump,
