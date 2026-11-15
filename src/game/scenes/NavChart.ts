@@ -5,6 +5,7 @@ import { prefersReducedMotion } from '../lib/motion.ts';
 import {
   bodyKnowledge,
   currentBody,
+  type BodyId,
   isDepleted,
   isInHopRange,
   type HopTarget,
@@ -25,6 +26,7 @@ import {
   MARK_GAP,
   ringSegments,
   routeEnds,
+  starfield,
   type ChartCommand,
   type ChartLayout,
   type ChartNode,
@@ -39,6 +41,8 @@ import { yieldIcon } from '../../ui/yieldIcon.ts';
 export interface NavChartData {
   /** The Run whose Star System the chart shows. */
   readonly run: Run;
+  /** Bodies Comms just Detected on the landing this chart follows: each gets one ping ring. */
+  readonly newBlips?: readonly BodyId[];
 }
 
 /** Screen pixels a press may move and still count as a click, not a drag (touch wobbles). */
@@ -56,6 +60,12 @@ const REVEALED = new WeakSet<StarSystem>();
 /** Gameplay tuning: a Detected Body's blip, and its pulse (ms). */
 const BLIP = { radius: 3, pulseMs: 1_600, pulseScale: 3 } as const;
 
+/** The backdrop stars sit below every other chart object. */
+const STARFIELD_DEPTH = -10;
+
+/** Gameplay tuning: the ping on a newly Detected Body (ms, and how far it grows). */
+const NEW_BLIP_PING = { ms: 1_400, scale: 6 } as const;
+
 /**
  * The Nav Chart (#193): the whole known Star System as a map several screens big, over the dimmed
  * Landed scene. Phaser draws the map (rings, the star, Surveyed Bodies' real sprites, Detected Bodies'
@@ -65,6 +75,7 @@ const BLIP = { radius: 3, pulseMs: 1_600, pulseScale: 3 } as const;
  */
 export class NavChart extends Scene {
   private run!: Run;
+  private newBlips: readonly BodyId[] = [];
   private layout!: ChartLayout;
   private chartState!: ChartState;
   private marks!: GameObjects.Graphics;
@@ -82,6 +93,7 @@ export class NavChart extends Scene {
 
   init(data: NavChartData): void {
     this.run = data.run;
+    this.newBlips = data.newBlips ?? [];
     this.layout = layoutChart(data.run);
     this.chartState = initialChartState(data.run, this.layout);
     this.sprites = new Map();
@@ -94,10 +106,12 @@ export class NavChart extends Scene {
     // Full screen and opaque: while it is open, the map is the whole view.
     this.cameras.main.setBackgroundColor(paletteNumber('scr0'));
     this.drawHopBand();
+    this.drawStarfield();
     this.drawRings();
     const heliopauseRing = this.drawHeliopauseRing();
     this.add.image(this.layout.star.x, this.layout.star.y, 'body_star');
     for (const node of this.layout.nodes) this.addBody(node);
+    this.pingNewBlips();
     const mark = this.addHeliopauseMark();
     if (heliopauseRing && mark) this.revealHeliopause(heliopauseRing, mark);
     this.drawYieldMarks();
@@ -267,6 +281,42 @@ export class NavChart extends Scene {
       for (const { from, to } of ringSegments(this.layout.star, radius, this.layout.world)) {
         graphics.lineBetween(...from, ...to);
       }
+    }
+  }
+
+  /**
+   * Faint layered stars behind everything (depth -10): the far layer barely follows the camera, the
+   * near one a little more, which is the parallax. Under reduced motion they are stuck to the map.
+   */
+  private drawStarfield(): void {
+    const still = prefersReducedMotion();
+    for (const layer of starfield(this.run.seed, this.layout.world)) {
+      const graphics = this.add.graphics().setDepth(STARFIELD_DEPTH).setName('starfield');
+      graphics.setScrollFactor(still ? 1 : layer.parallax);
+      graphics.fillStyle(paletteNumber('cy4'), layer.alpha);
+      for (const { x, y } of layer.stars) graphics.fillRect(x, y, layer.size, layer.size);
+    }
+  }
+
+  /** A ring grows once from each Body Comms just Detected: the new blip, shown, not told. */
+  private pingNewBlips(): void {
+    if (prefersReducedMotion()) return;
+    for (const id of this.newBlips) {
+      const spot = spotOf(this.layout, id);
+      if (!spot) continue;
+      const ring = this.add.graphics({ x: spot.x, y: spot.y }).setName('new-blip-ping');
+      ring.lineStyle(1, paletteNumber('cy4'));
+      ring.strokeCircle(0, 0, BLIP.radius + 2);
+      this.tweens.add({
+        targets: ring,
+        scale: { from: 1, to: NEW_BLIP_PING.scale },
+        alpha: { from: 1, to: 0 },
+        duration: NEW_BLIP_PING.ms,
+        ease: 'Sine.easeOut',
+        onComplete: () => {
+          ring.destroy();
+        },
+      });
     }
   }
 

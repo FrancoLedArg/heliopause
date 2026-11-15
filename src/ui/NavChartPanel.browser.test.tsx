@@ -3,6 +3,7 @@ import { userEvent } from 'vitest/browser';
 import {
   currentBody,
   HELIOPAUSE,
+  isInHopRange,
   firstDetectedBody,
   install,
   kilograms,
@@ -938,13 +939,22 @@ it('marks known Bodies off screen at the edge, named, and a click on one sends i
   record.stop();
 });
 
+/**
+ * The farthest Body on the chart that a Hop can target: the outermost is past the Hop range from the
+ * innermost planet (#283), and a plan opens only for a target in range.
+ */
+function farthestInRange(run: Run, layout: ReturnType<typeof layoutChart>): BodyId | undefined {
+  return layout.nodes.filter((n) => n.body.landable && isInHopRange(run, n.body.id)).at(-1)?.body
+    .id;
+}
+
 // The #188 fold-in: seeds 346 and 267 were where the old tooltip hid the "you" marker.
 it('the card never covers its Body, where the Spacecraft is, or the target', async () => {
   for (const seed of [123, 267, 346]) {
     const run = newRun(seed, 'scout');
     const layout = layoutChart(run);
     const here = currentBody(run).id;
-    const target = layout.nodes.at(-1)?.body.id;
+    const target = farthestInRange(run, layout);
     if (!target) throw new Error('an empty chart');
     for (const node of layout.nodes.filter((n) => n.body.id !== target)) {
       let state = initialChartState(run, layout);
@@ -973,7 +983,7 @@ it('the card never covers its Body, where the Spacecraft is, or the target', asy
 it('fits at 640x360: nothing of the chart, its card or its plan spills off the screen', async () => {
   const run = newRun(123, 'scout');
   const layout = layoutChart(run);
-  const far = layout.nodes.at(-1)?.body.id;
+  const far = farthestInRange(run, layout);
   if (!far) throw new Error('an empty chart');
   const opened = initialChartState(run, layout);
   const carded = chartReducer(run, layout, opened, { kind: 'click', id: far });

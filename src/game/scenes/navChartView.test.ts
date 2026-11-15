@@ -20,7 +20,10 @@ import {
   dashedSegments,
   initialChartState,
   layoutChart,
+  MARK_BOX,
   moveFocus,
+  starfield,
+  unsurveyedMarkAt,
   routeEnds,
   TOOLTIP_SIZE,
   tooltipHeight,
@@ -605,4 +608,40 @@ describe('the Hop range band', () => {
       expect(band.outer).toBeGreaterThan(band.inner);
     },
   );
+});
+
+describe('the Nav Chart starfield (#303)', () => {
+  const world = { width: 800, height: 600 };
+
+  it('is the same stars for the same seed, and reaches past the map so parallax never shows an edge', () => {
+    const a = starfield(123, world);
+    expect(starfield(123, world)).toEqual(a);
+    expect(starfield(124, world)).not.toEqual(a);
+    const stars = a.flatMap((layer) => layer.stars);
+    expect(stars.length).toBeGreaterThan(40);
+    expect(Math.min(...stars.map((s) => s.x))).toBeLessThan(0);
+    expect(Math.max(...stars.map((s) => s.x))).toBeGreaterThan(world.width);
+  });
+
+  it('has a far layer and a nearer one that moves more, none stuck to the map', () => {
+    const [far, near] = starfield(123, world);
+    expect(far?.parallax).toBeLessThan(near?.parallax ?? 0);
+    expect(near?.parallax).toBeLessThan(1);
+  });
+});
+
+describe('the "?" on an Unsurveyed Body (#303)', () => {
+  it.each([123, 267, 346])('never touches the focus brackets, at any zoom (seed %i)', (seed) => {
+    const layout = layoutChart(startRun(seed, 'scout'));
+    for (const zoom of [0.5, 1, 2]) {
+      for (const node of layout.nodes) {
+        const mark = unsurveyedMarkAt(zoom, node);
+        // The bracket square round the Body, relative to the Body's screen position.
+        const half = (node.radius + BRACKET_GAP) * zoom + 1;
+        const clearRight = mark.dx >= half;
+        const clearAbove = mark.dy + MARK_BOX.h <= -half;
+        expect(clearRight || clearAbove).toBe(true);
+      }
+    }
+  });
 });

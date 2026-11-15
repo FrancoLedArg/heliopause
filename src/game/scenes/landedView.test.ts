@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CHASSIS_IDS,
+  newSpacecraft,
   currentBody,
   findBody,
   firstDetectedBody,
@@ -15,6 +16,7 @@ import {
   SHIP_SWEEP,
   SHIP_SWEEP_X,
   SKY_VISIBLE,
+  shipLeftEdge,
   SPRITE_SIZE,
   horizonY,
   skyBodies,
@@ -337,5 +339,23 @@ describe('the Spacecraft sweep', () => {
     expect(SHIP_SWEEP.bottom).toBeGreaterThan(SHIP_PLACEMENT.baseY);
     expect(SHIP_SWEEP.bottom).toBeLessThan(SHIP_PLACEMENT.baseY + 12);
     expect(SHIP_SWEEP.top).toBeLessThan(SHIP_PLACEMENT.baseY - 120);
+  });
+});
+
+describe('shipLeftEdge', () => {
+  it('is the leftmost drawn piece, inside the widest sweep and reaching further with a pod on the side', () => {
+    for (const id of CHASSIS_IDS) {
+      const { slots } = newSpacecraft(id);
+      const edge = shipLeftEdge(id, slots);
+      expect(edge).toBeGreaterThanOrEqual(SHIP_SWEEP.left);
+      expect(edge).toBeLessThan(SHIP_SWEEP_X.min);
+      // An empty Spacecraft shows only its Chassis art: no wider than with Components on it.
+      expect(
+        shipLeftEdge(
+          id,
+          slots.map(() => null),
+        ),
+      ).toBeGreaterThanOrEqual(edge);
+    }
   });
 });
