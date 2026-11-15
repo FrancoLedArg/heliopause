@@ -3,6 +3,7 @@ import { DISPERSION } from './data.ts';
 import { planHop } from './hop.ts';
 import { generateSystem, type Run } from './run.ts';
 import { fuelForDeltaV, refit } from './spacecraft.ts';
+import { endIfStranded } from './stranded.ts';
 import { deepFreeze, homePlanet } from './starSystem.ts';
 import { kilograms, metersPerSecond, type Kilograms } from './units.ts';
 
@@ -11,7 +12,8 @@ import { kilograms, metersPerSecond, type Kilograms } from './units.ts';
  * Spacecraft to the next Star System, one difficulty level up. The Jump Drive burns out; the
  * Spacecraft lands on the new Home Planet with its other Components, its Materials and its Fuel,
  * topped up when it arrives too low to reach one of the Home Planet's Moons for sure (see
- * `arrivalFuel`). Every other part of the Run, its choice log included, carries over.
+ * `arrivalFuel`). Every other part of the Run, its choice log included, carries over. Should no Hop
+ * be possible from there even so, the Run ends Stranded (`endIfStranded`).
  */
 export function jump(run: Run): Run {
   // The Jump Drive burns out: its Slot is emptied, and nothing is refunded for it.
@@ -29,10 +31,13 @@ export function jump(run: Run): Run {
     // A new Star System: none of its Bodies has given up its yield yet (Body ids repeat between Systems).
     depleted: [],
   };
-  return deepFreeze({
-    ...arrived,
-    spacecraft: { ...arrived.spacecraft, fuelMass: arrivalFuel(arrived) },
-  });
+  // Landing on the new Home Planet is judged like any landing: it ends the Run if no Hop is left.
+  return endIfStranded(
+    deepFreeze({
+      ...arrived,
+      spacecraft: { ...arrived.spacecraft, fuelMass: arrivalFuel(arrived) },
+    }),
+  );
 }
 
 /**

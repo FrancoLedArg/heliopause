@@ -47,7 +47,8 @@ const LONG_REASON =
   'cheapest Hop needs 1.9 km/s. Remove nothing more: there is nothing left to remove.';
 
 it('shows the Score, how the Run ended and why, the Best Score, the rule and both ways on, inside its panel', async () => {
-  const host = await show(ended({ kind: 'stranded', reason: LONG_REASON }, 3, 12));
+  const bodyId = startRun(5, 'scout').starSystem.homePlanetId;
+  const host = await show(ended({ kind: 'stranded', reason: LONG_REASON, bodyId }, 3, 12));
   const screen = byTestId(host, 'end-of-run');
   expect(screen.querySelector('h2')?.textContent).toBe('Stranded');
   expect(byTestId(host, 'end-of-run-why').textContent).toBe(LONG_REASON);

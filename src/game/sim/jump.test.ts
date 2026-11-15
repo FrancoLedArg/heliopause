@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  assessStranding,
   carriesJumpDrive,
+  CHASSIS_IDS,
   componentCost,
   COMPONENTS,
   currentBody,
@@ -143,5 +145,41 @@ describe('the Jump', () => {
     expect(first.third.starSystem).toEqual(generateSystem(77, 3));
     expect(first.third.starSystem.name).not.toBe(first.second.starSystem.name);
     expect(play(78).third.starSystem.name).not.toBe(first.third.starSystem.name);
+  });
+
+  it('with the Fuel floor, an escape never lands where no Hop has a chance', () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      for (const chassisId of CHASSIS_IDS) {
+        // Fuel for the Heliopause's worst case only: the Spacecraft gets there nearly dry.
+        const { run } = escape(startRun(seed, chassisId), 1.105);
+        expect(run.status.kind).toBe('landed');
+        expect(assessStranding(run)).toEqual({ kind: 'clear' });
+      }
+    }
+  });
+
+  it('a Jump that lands where no Hop could ever have a chance ends the Run as Stranded', () => {
+    // Test fixture: deep into a Run, at difficulty level 25, with no Materials left to change the
+    // Spacecraft. Level 26's gravity puts every Hop out of reach even with a full Tank.
+    const deep = (() => {
+      const starSystem = generateSystem(2026, 25);
+      const at: Run = {
+        ...start,
+        starSystemNumber: 25,
+        starSystem,
+        status: { kind: 'landed', bodyId: starSystem.homePlanetId },
+      };
+      return { ...escape(at).before, materials: materials(0) };
+    })();
+    const launched = launchHop(deep, HELIOPAUSE);
+    if (launched.kind !== 'flown') throw new Error('Expected the Hop to the Heliopause');
+    expect(launched.flight.outcome.kind).toBe('reached-heliopause');
+    const { run } = launched;
+    expect(run.starSystemNumber).toBe(26);
+    expect(run.status).toMatchObject({
+      kind: 'ended',
+      end: { kind: 'stranded', bodyId: run.starSystem.homePlanetId },
+    });
+    expect(score(run).starSystemsEscaped).toBe(25);
   });
 });
