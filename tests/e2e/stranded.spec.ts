@@ -6,10 +6,16 @@ import { landing, SAVE_BY_REMOVING, STRANDED_ON_LANDING } from '../../src/ui/lan
 // a Hop a chance ends the Run; one that a lighter Spacecraft could leave warns instead.
 const strandedLanding = landing(STRANDED_ON_LANDING.seed, STRANDED_ON_LANDING.body);
 const strandedVerdict = runEnd(strandedLanding.run);
-if (strandedVerdict?.kind !== 'stranded') throw new Error('Seed 2 should strand on Quydril');
+if (strandedVerdict?.kind !== 'stranded')
+  throw new Error(
+    `Seed ${String(STRANDED_ON_LANDING.seed)} should strand on ${STRANDED_ON_LANDING.body}`,
+  );
 const saveable = landing(SAVE_BY_REMOVING.seed, SAVE_BY_REMOVING.body, SAVE_BY_REMOVING.fit);
 const warning = assessStranding(saveable.run);
-if (warning.kind !== 'warning') throw new Error('Seed 1 with a Drill should warn on Korli');
+if (warning.kind !== 'warning')
+  throw new Error(
+    `Seed ${String(SAVE_BY_REMOVING.seed)} with a Drill should warn on ${SAVE_BY_REMOVING.body}`,
+  );
 
 async function startRun(page: Page, seed: number): Promise<void> {
   await page.setViewportSize({ width: 640, height: 360 });
@@ -64,7 +70,7 @@ test('a Run that removing a Component would save warns in words, and the warning
   await startRun(page, SAVE_BY_REMOVING.seed);
   await expect(page.getByTestId('stranded-warning')).toHaveCount(0);
 
-  // A Drill on the Home Planet, then the Hop to Korli.
+  // A Drill on the Home Planet, then the Hop to the fixture's Body.
   await page.getByRole('button', { name: 'Spacecraft' }).click();
   await page.getByRole('button', { name: /^Install Drill, level 1/ }).click();
   await expect(page.getByTestId('install-status')).toContainText('Installed Drill, level 1');
