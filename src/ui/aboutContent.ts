@@ -171,6 +171,15 @@ export const CREDITS: {
       ],
     },
     {
+      heading: 'Music',
+      entries: [
+        {
+          name: 'Music',
+          detail: 'Abandoned Craft and Jagged Pulse, generated with Suno by FrancoLedArg',
+        },
+      ],
+    },
+    {
       heading: 'Inspiration',
       entries: [
         {
