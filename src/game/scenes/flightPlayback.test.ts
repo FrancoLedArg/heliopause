@@ -122,6 +122,21 @@ describe('Hop playback', () => {
     expect(new Set(coasting.map((m) => m.fuel)).size).toBe(1);
   });
 
+  it('the Landing engine cuts at touchdown, leaving a beat for the Spacecraft to settle before the hand-off', () => {
+    const playback = flightPlayback(run.spacecraft, arrived, 'full');
+    const landing = samples(playback).filter((m) => m.burn === 'landing');
+    const lastThrust = landing.findLast((m) => m.thrusting);
+    expect(lastThrust?.progress).toBeGreaterThan(0.7);
+    expect(lastThrust?.progress).toBeLessThan(0.95);
+    // The Fuel the simulation left is shown from touchdown on, and the Landing is logged there.
+    const settled = landing.filter((m) => !m.thrusting);
+    expect(settled.length * 10).toBeGreaterThanOrEqual(300);
+    for (const moment of settled) {
+      expect(moment.fuel).toBeCloseTo(arrived.fuelRemaining, 6);
+      expect(moment.logged).toBe(3);
+    }
+  });
+
   it('adds each Burn to the flight log only once it is done', () => {
     const moments = samples(flightPlayback(run.spacecraft, arrived, 'full'));
     expect(moments[0]?.logged).toBe(0);

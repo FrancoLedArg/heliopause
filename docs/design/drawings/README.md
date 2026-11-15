@@ -11,7 +11,7 @@ The human's rough scene sketches. They set composition and mood only; agents gen
 
 - **Landscape, not a diagram**: wide shots that show a lot of the surface, and the complete Spacecraft with a little perspective.
 - **Never quite still**: very slow camera drift with parallax, sky Bodies creeping, low blowing dust, blinking Spacecraft lights and a faint engine glow.
-- **Sci-fi videogame look**: a player picks one of three Chassis, each with a distinct silhouette. Spacecraft hover on thrusters to take off and land; no tail-first rocket landings.
+- **Sci-fi videogame look**: a player picks one of three Chassis, each with a distinct silhouette. Spacecraft take off and land upright on their engines: straight up off the ground and straight down onto it, x fixed, never tilting or drifting sideways (the human's direction, 2026-11-15, spec #200).
 - **Spacecraft style reference**: [Voxel Spaceships by Max Parata](https://maxparata.itch.io/voxel-spaceships): chunky, blocky shapes, glowing thrusters, cockpit glass, a 3/4 view. The pack is CC BY-ND 4.0, so it is a **style reference only**: never trace, convert, render, recolour or ship its models or sprites. Our Chassis are original designs in the kit palette (gunmetal plating, cyan glass and lights, amber thruster glow).
 
 ## Ground (decided 2026-11-14, replaces the curved horizon)

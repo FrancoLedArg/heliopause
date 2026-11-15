@@ -2,7 +2,6 @@ import {
   assessStranding,
   availableDeltaV,
   currentBody,
-  isDepleted,
   starSystemNumber,
   type Run,
 } from '../game/sim/index.ts';
@@ -11,6 +10,8 @@ import { EventBus } from '../game/EventBus.ts';
 import { bodyFullLabel, formatDistanceAu, formatGravity } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { ResourceIcon } from './ResourceIcon.tsx';
+import { yieldIcon } from './yieldIcon.ts';
 import { TopBar } from './TopBar.tsx';
 
 const PLATE_WIDTH = 284;
@@ -43,7 +44,7 @@ export function LandedPanels({
 }: LandedPanelsProps) {
   const body = currentBody(run);
   const type = bodyFullLabel(run, body);
-  const depleted = isDepleted(run, body.id);
+  const yields = yieldIcon(run, body);
   // Kept per Run by the simulation, so asking on every render costs nothing.
   const stranding = assessStranding(run);
 
@@ -110,12 +111,15 @@ export function LandedPanels({
               {body.name}
             </h1>
             <p className="landed-plate__kind" data-testid="landed-kind">
-              {type}
-              {depleted && (
-                <span className="landed-plate__depleted" data-testid="landed-depleted">
-                  {' · Depleted'}
-                </span>
+              {yields && (
+                <ResourceIcon
+                  resource={yields.resource}
+                  depleted={yields.depleted}
+                  className="resource-icon--inline"
+                  testId={yields.depleted ? 'landed-depleted' : 'resource-icon'}
+                />
               )}
+              <span>{type}</span>
             </p>
             <p className="landed-plate__detail">
               Gravity {formatGravity(body.surfaceGravity)} ·{' '}
