@@ -3,7 +3,8 @@ import { EventBus } from '../game/EventBus.ts';
 import { chooseUrlChassis } from '../game/lib/runChassis.ts';
 import { chooseRunSeed } from '../game/lib/runSeed.ts';
 import type { FlightMoment } from '../game/scenes/flightPlayback.ts';
-import type { ChassisId, HopFlight, Run, Seed } from '../game/sim/index.ts';
+import { readBestScore } from '../game/lib/bestScore.ts';
+import type { ChassisId, HopFlight, Run, Score, Seed } from '../game/sim/index.ts';
 import { SceneKey } from '../game/scenes/keys.ts';
 import type { ChartState } from '../game/scenes/navChartView.ts';
 import { ChassisPicker } from './ChassisPicker.tsx';
@@ -24,6 +25,8 @@ export function GameUI() {
   const [scene, setScene] = useState<SceneKey | undefined>(undefined);
   const [runSeed, setRunSeed] = useState<Seed | undefined>(undefined);
   const [run, setRun] = useState<Run | undefined>(undefined);
+  // The Best Score on this device, read each time the title comes up.
+  const [bestScore, setBestScore] = useState<Score | undefined>(undefined);
   const [picking, setPicking] = useState(false);
   const [info, setInfo] = useState<'about' | 'credits' | undefined>(undefined);
   // The title button to focus when the menu comes back from the screen it opened.
@@ -32,7 +35,7 @@ export function GameUI() {
   const [menuOpen, setMenuOpen] = useState(false);
   // The Hop being played back: the Run at Launch, the flight, where the playback is, and whether it failed.
   const [flight, setFlight] = useState<
-    { before: Run; flight: HopFlight; moment?: FlightMoment; failed: boolean } | undefined
+    { before: Run; flight: HopFlight; moment?: FlightMoment; ended?: Run } | undefined
   >(undefined);
 
   // The report of the Hop that just Arrived, shown beside the Landed view of its target until dismissed.
@@ -58,6 +61,7 @@ export function GameUI() {
           setLaunching(false);
         }
         if (key === SceneKey.Title) {
+          setBestScore(readBestScore());
           setRunSeed(undefined);
           setRun(undefined);
           setInfo(undefined);
@@ -104,13 +108,13 @@ export function GameUI() {
   useEffect(() => {
     const offs = [
       EventBus.on('hop-flight-started', (before, hop) => {
-        setFlight({ before, flight: hop, failed: false });
+        setFlight({ before, flight: hop });
       }),
       EventBus.on('hop-flight-moment', (moment) => {
         setFlight((now) => now && { ...now, moment });
       }),
-      EventBus.on('hop-failed', () => {
-        setFlight((now) => now && { ...now, failed: true });
+      EventBus.on('hop-failed', (_failed, ended) => {
+        setFlight((now) => now && { ...now, ended });
       }),
     ];
     return () => {
@@ -203,12 +207,13 @@ export function GameUI() {
           onCredits={() => {
             setInfo('credits');
           }}
+          best={bestScore}
           focus={focus}
         />
       )}
       {scene === SceneKey.Title && info === 'about' && <AboutPanel onBack={closeInfo} />}
       {scene === SceneKey.Title && info === 'credits' && <CreditsPanel onBack={closeInfo} />}
-      {(scene === SceneKey.Title || (scene === SceneKey.Flight && flight?.failed === true)) &&
+      {(scene === SceneKey.Title || (scene === SceneKey.Flight && flight?.ended !== undefined)) &&
         picking && (
           <ChassisPicker
             launching={launching}
@@ -256,7 +261,7 @@ export function GameUI() {
           before={flight.before}
           flight={flight.flight}
           moment={flight.moment}
-          failed={flight.failed}
+          ended={flight.ended}
           onNewRun={startNewRun}
           onLeave={leaveRun}
         />

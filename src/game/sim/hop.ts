@@ -206,7 +206,7 @@ export function flyHop(
   const status: RunStatus =
     outcome.kind === 'arrived'
       ? { kind: 'landed', bodyId: target.id }
-      : { kind: 'ended', outcome: outcome.kind };
+      : { kind: 'ended', end: { kind: outcome.kind, reason: flight.why } };
   const flown: Run = {
     ...run,
     spacecraft: { ...run.spacecraft, fuelMass: fuelRemaining },

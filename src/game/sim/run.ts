@@ -10,6 +10,7 @@ import {
   type StarSystem,
 } from './starSystem.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
+import type { RunEnd } from './score.ts';
 import { materials, type Materials } from './units.ts';
 
 /**
@@ -21,7 +22,7 @@ export const STARTING_MATERIALS: Materials = materials(25);
 /** Where the Run stands: landed on a Body and free to plan a Hop, or ended by a failed Hop. */
 export type RunStatus =
   | { readonly kind: 'landed'; readonly bodyId: BodyId }
-  | { readonly kind: 'ended'; readonly outcome: 'fell-short' | 'crashed' };
+  | { readonly kind: 'ended'; readonly end: RunEnd };
 
 /** One attempt from a fresh start. Replays identically from its seed. */
 export interface Run {

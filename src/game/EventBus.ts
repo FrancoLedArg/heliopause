@@ -64,7 +64,7 @@ export interface GameEvents {
    * Phaser -> React: the playback of a Fell Short or Crashed Hop is over, and the Run with it. An
    * Arrived Hop goes on to the Landed view instead.
    */
-  'hop-failed': [flight: HopFlight];
+  'hop-failed': [flight: HopFlight, ended: Run];
   /**
    * Phaser -> React: the Landed view on the new Body follows an Arrived Hop, so its report is shown beside
    * it (sent after the Landed view's `run-started`, before its `scene-ready`). `before` is the Run at Launch.

@@ -516,7 +516,7 @@ export class Flight extends Scene {
     } else {
       if (this.flight.outcome.kind === 'crashed') this.scatterDebris();
       else this.drift();
-      EventBus.emit('hop-failed', this.flight);
+      EventBus.emit('hop-failed', this.flight, this.after);
     }
   }
 
