@@ -1,6 +1,7 @@
 import { AUTO, Core, Game, Scale } from 'phaser';
 import { paletteCss } from '../ui/kit/palette.ts';
 import { bindMusic } from './audio/bindMusic.ts';
+import { bindSfx } from './audio/bindSfx.ts';
 import { EventBus } from './EventBus.ts';
 import { Boot } from './scenes/Boot.ts';
 import { Flight } from './scenes/Flight.ts';
@@ -34,6 +35,7 @@ export function startGame(parent: string | HTMLElement): Game {
   });
   startNewRuns(game);
   bindMusic(game);
+  bindSfx(game);
   return game;
 }
 
