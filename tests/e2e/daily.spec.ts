@@ -4,11 +4,14 @@ import { dailySeed } from '../../src/game/lib/dailyStarSystem.ts';
 import {
   startingMoon,
   knownBodies,
-  launchHop,
+  advanceCruise,
+  beginHop,
+  CRUISE_TUNING,
   runEnd,
   score,
   startRun,
   type Body,
+  type BodyId,
   type Run,
   type Score,
 } from '../../src/game/sim/index.ts';
@@ -25,6 +28,13 @@ const JUST_AFTER_MIDNIGHT = '2026-11-16T00:00:30Z';
 const run = startRun(dailySeed(DAY), 'scout');
 const home = startingMoon(run.starSystem);
 const nextHome = startingMoon(startRun(dailySeed(NEXT_DAY), 'scout').starSystem);
+
+/** A Hop flown with nothing done in its Cruise: Fell Short at launch, or flown to its end (or Destroyed). */
+function flownUntouched(from: Run, target: BodyId) {
+  const begun = beginHop(from, target);
+  if (begun.kind !== 'cruising') return begun;
+  return advanceCruise(begun.run, CRUISE_TUNING.ticks);
+}
 
 /**
  * The shortest run of Hops on the day's Star System that ends the Run: every Hop but the last
@@ -47,7 +57,8 @@ function endingHops(): {
     const here = from.status.bodyId;
     for (const body of knownBodies(from)) {
       if (!body.landable || body.id === here) continue;
-      const flown = launchHop(from, body.id);
+      // The player in this flow never Repairs, so a Hop an Engine fire would Destroy is no way on (#251).
+      const flown = flownUntouched(from, body.id);
       if (flown.kind !== 'flown') continue;
       const { kind } = flown.flight.outcome;
       if (kind === 'crashed' || kind === 'fell-short') {
