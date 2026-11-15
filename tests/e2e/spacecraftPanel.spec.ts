@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { waitForOpening } from './opening.ts';
 import { formatDeltaV, formatPlanDeltaV } from '../../src/ui/format.ts';
 import {
   availableDeltaV,
@@ -23,6 +24,7 @@ const afterDeltaV = availableDeltaV(installed.run.spacecraft);
 async function startRunLanded(page: Page): Promise<void> {
   await page.goto(`/?seed=${String(SEED)}&chassis=scout`);
   await page.getByRole('button', { name: 'New Run' }).click();
+  await waitForOpening(page);
   await expect(page.getByRole('button', { name: 'Spacecraft' })).toBeVisible();
 }
 
@@ -93,9 +95,10 @@ test('the cheapest Component can be installed with the starting Materials using 
   // The Hop plan reflects the new loadout.
   await page.keyboard.press('m');
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
-  for (let i = 0; i < 40; i += 1) {
-    if (await page.getByRole('heading', { name: homeMoon.name, level: 2 }).isVisible()) break;
-    await page.keyboard.press('PageDown');
+  // PageDown, then back with PageUp: the first target can sit before the Starting Moon.
+  const shown = page.getByRole('heading', { name: homeMoon.name, level: 2 });
+  for (const key of ['PageDown', 'PageUp']) {
+    for (let i = 0; i < 40 && !(await shown.isVisible()); i += 1) await page.keyboard.press(key);
   }
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('plan-available')).toHaveText(formatPlanDeltaV(afterDeltaV));

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { waitForOpening } from './opening.ts';
 import { firstDetectedBody, startRun } from '../../src/game/sim/index.ts';
 
 // Re-pinned for #189 (was 305): a Run opens knowing one Body, always In reach, so the far Body is
@@ -14,6 +15,7 @@ const NEAR = 'Xylxen';
 async function openNavChart(page: Page, chassis = 'scout'): Promise<void> {
   await page.goto(`/?seed=${String(SEED)}&chassis=${chassis}`);
   await page.getByRole('button', { name: 'New Run' }).click();
+  await waitForOpening(page);
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
 }
@@ -31,11 +33,14 @@ async function openNavChartAfterFirstHop(page: Page, chassis: string): Promise<v
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
 }
 
-/** Presses PageDown until the inspector shows `name`, then Enter makes it the target. */
+/**
+ * Steps through the Bodies (PageDown, then back with PageUp: they do not wrap, and the first target
+ * can sit before the Starting Moon) until the inspector shows `name`; Enter makes it the target.
+ */
 async function target(page: Page, name: string): Promise<void> {
-  for (let i = 0; i < 40; i += 1) {
-    if (await page.getByRole('heading', { name, level: 2 }).isVisible()) break;
-    await page.keyboard.press('PageDown');
+  const shown = page.getByRole('heading', { name, level: 2, exact: true });
+  for (const key of ['PageDown', 'PageUp']) {
+    for (let i = 0; i < 40 && !(await shown.isVisible()); i += 1) await page.keyboard.press(key);
   }
   await page.keyboard.press('Enter');
   await expect(page.getByTestId('target')).toContainText(name);

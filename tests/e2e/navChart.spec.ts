@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { waitForOpening } from './opening.ts';
 import { CHART, layoutChart } from '../../src/game/scenes/navChartView.ts';
 import {
   findBody,
@@ -22,15 +23,22 @@ const homeName = home.name;
 async function openNavChart(page: Page): Promise<void> {
   await page.goto(`/?seed=${SEED}&chassis=scout`);
   await page.getByRole('button', { name: 'New Run' }).click();
+  await waitForOpening(page);
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
 }
 
-/** Presses PageDown until the inspector shows `body`, the way a keyboard player steps through the chart. */
+/**
+ * Steps through the chart (PageDown, then back with PageUp: they do not wrap) until the inspector
+ * shows `body`, the way a keyboard player steps through it.
+ */
 async function stepTo(page: Page, body: Body): Promise<void> {
-  for (let i = 0; i < 40; i += 1) {
-    if (await page.getByRole('heading', { name: body.name, level: 2 }).isVisible()) return;
-    await page.keyboard.press('PageDown');
+  const shown = page.getByRole('heading', { name: body.name, level: 2 });
+  for (const key of ['PageDown', 'PageUp']) {
+    for (let i = 0; i < 40; i += 1) {
+      if (await shown.isVisible()) return;
+      await page.keyboard.press(key);
+    }
   }
   throw new Error(`Never reached ${body.name}`);
 }
@@ -171,6 +179,7 @@ test('with the mouse: hover inspects a Body, a click on the Moon selects it, a G
 test('M while the in-Run Menu is open does not open the Nav Chart under it', async ({ page }) => {
   await page.goto(`/?seed=${SEED}&chassis=scout`);
   await page.getByRole('button', { name: 'New Run' }).click();
+  await waitForOpening(page);
   await page.getByRole('button', { name: 'Menu' }).click();
   await expect(page.getByRole('dialog', { name: 'Menu' })).toBeVisible();
   await page.keyboard.press('m');

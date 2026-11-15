@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { waitForOpening } from './opening.ts';
 import { formatFuel } from '../../src/ui/format.ts';
 import {
   findBody,
@@ -50,6 +51,7 @@ const shortFlight = secondHop('hauler');
 async function openNavChart(page: Page, seed = SEED): Promise<void> {
   await page.goto(`/?seed=${String(seed)}&chassis=scout`);
   await page.getByRole('button', { name: 'New Run' }).click();
+  await waitForOpening(page);
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
 }
@@ -79,6 +81,7 @@ async function hopAndLand(page: Page, name: string): Promise<void> {
 async function onTheWayToFail(page: Page): Promise<void> {
   await page.goto(`/?seed=${String(FAIL_SEED)}&chassis=scout`);
   await page.getByRole('button', { name: 'New Run' }).click();
+  await waitForOpening(page);
   await hopAndLand(page, FIRST);
   await page.getByRole('button', { name: /Nav Chart/ }).click();
   await target(page, FAR);

@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { waitForOpening } from './opening.ts';
 import { generateStarSystem, startingMoon } from '../../src/game/sim/index.ts';
 
 test('the in-Run Menu leads back to the title, and a New Run works again', async ({
@@ -8,6 +9,7 @@ test('the in-Run Menu leads back to the title, and a New Run works again', async
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto('/?seed=123&chassis=scout');
   await page.getByRole('button', { name: 'New Run' }).click();
+  await waitForOpening(page);
   const home = startingMoon(generateStarSystem(123));
   await expect(page.getByRole('heading', { name: home.name })).toBeVisible();
 
@@ -52,6 +54,7 @@ test('the in-Run Menu leads back to the title, and a New Run works again', async
 test('Tab stays inside the open Menu', async ({ page }) => {
   await page.goto('/?seed=5&chassis=scout');
   await page.getByRole('button', { name: 'New Run' }).click();
+  await waitForOpening(page);
   await expect(page.getByTestId('fuel')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('button', { name: 'Resume' })).toBeFocused();
