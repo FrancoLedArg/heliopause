@@ -5,6 +5,7 @@
 import {
   currentBody,
   HELIOPAUSE,
+  hopRange,
   planHop,
   type Body,
   type BodyId,
@@ -567,6 +568,26 @@ export function targetStatus(run: Run, id: HopTarget): TargetStatus {
   return result.kind === 'planned'
     ? { valid: true }
     : { valid: false, reason: result.reason, why: result.why };
+}
+
+/** The Hop range as two rings round the star, in map pixels (0 inner means the star itself). */
+export interface HopBand {
+  readonly inner: number;
+  readonly outer: number;
+}
+
+/**
+ * Where `hopRange(run)`'s inner and outer distances fall on the map: a planet's distance is that
+ * planet's orbit ring, the Heliopause's is the Heliopause ring, and the star is 0.
+ */
+export function hopBand(run: Run, layout: ChartLayout): HopBand {
+  const range = hopRange(run);
+  const radiusOf = (au: number): number => {
+    if (au === 0) return 0;
+    const planet = run.starSystem.planets.find((p) => p.distanceFromStar === au);
+    return planet ? layout.orbitRadius(planet.id) : layout.heliopauseRadius;
+  };
+  return { inner: radiusOf(range.inner), outer: radiusOf(range.outer) };
 }
 
 export type Direction = 'left' | 'right' | 'up' | 'down';

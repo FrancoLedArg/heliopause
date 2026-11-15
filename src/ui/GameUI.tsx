@@ -19,7 +19,8 @@ import {
   type Seed,
 } from '../game/sim/index.ts';
 import { SceneKey } from '../game/scenes/keys.ts';
-import type { ChartState } from '../game/scenes/navChartView.ts';
+import { SCREEN, toScreen } from '../game/scenes/navChartMap.ts';
+import { layoutChart, type ChartState } from '../game/scenes/navChartView.ts';
 import { readoutAt, type Gathering, type GatheringReadout } from '../game/scenes/gathering.ts';
 import { ChassisPicker } from './ChassisPicker.tsx';
 import { commsAnnouncement } from './commsView.ts';
@@ -426,6 +427,13 @@ export function GameUI() {
     !menuOpen &&
     !picking &&
     flight === undefined;
+  // The Heliopause's mark on the open chart, in stage pixels, while it is on screen.
+  const heliopause = chart && run ? layoutChart(run).heliopause : undefined;
+  const spot = chart && heliopause ? toScreen(chart.view, heliopause) : undefined;
+  const heliopauseSpot =
+    spot && spot.x >= 0 && spot.x <= SCREEN.width && spot.y >= 0 && spot.y <= SCREEN.height
+      ? spot
+      : undefined;
   const wanted = wantedHints({
     quiet,
     run,
@@ -574,7 +582,12 @@ export function GameUI() {
           live={flight.live}
         />
       )}
-      <FirstRunHint wanted={wanted} seen={seenHints} onDismiss={markSeen} />
+      <FirstRunHint
+        wanted={wanted}
+        seen={seenHints}
+        onDismiss={markSeen}
+        heliopauseSpot={heliopauseSpot}
+      />
       <p className="hud-tag ai-label">AI-generated art and music</p>
     </div>
   );

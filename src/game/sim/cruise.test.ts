@@ -95,7 +95,7 @@ describe('the Cruise event schedule', () => {
     }
   });
 
-  it('every Cruise of a real Run has one or two events, and an Engine fire only after the mild Hops (#251)', () => {
+  it('every Cruise of a real Run has one or two events, mild ones on the first Hops and an Engine fire only after them (#250, #251, #252, #253)', () => {
     const later: CruiseEventKind[] = [];
     for (const hop of [1, 2, 3, 6]) {
       for (const seed of SEEDS) {
@@ -103,8 +103,12 @@ describe('the Cruise event schedule', () => {
         expect(schedule.length).toBeGreaterThanOrEqual(1);
         expect(schedule.length).toBeLessThanOrEqual(2);
         const kinds = schedule.map((event) => event.kind);
-        if (hop <= CRUISE_TUNING.mildHops) expect(kinds).not.toContain('engine-fire');
-        else later.push(...kinds);
+        const allowed: readonly CruiseEventKind[] =
+          hop <= CRUISE_TUNING.mildHops
+            ? ['fuel-leak', 'debris-field']
+            : ['fuel-leak', 'debris-field', 'solar-flare', 'engine-fire'];
+        expect(kinds.every((kind) => allowed.includes(kind))).toBe(true);
+        if (hop > CRUISE_TUNING.mildHops) later.push(...kinds);
       }
     }
     expect(later).toContain('engine-fire');
@@ -119,6 +123,40 @@ describe('the Cruise event schedule', () => {
     const withFlare = fires(['fuel-leak', 'engine-fire', 'solar-flare']);
     expect(alone).toBeGreaterThan(0);
     expect(Math.abs(alone - withFlare)).toBeLessThanOrEqual(withFlare * 0.25);
+  });
+
+  it('a later Debris field hits or misses, and what it hits is an Engine, a Fuel Tank or a Drill', () => {
+    const struck = new Set<string>();
+    let hits = 0;
+    let misses = 0;
+    for (const seed of SEEDS) {
+      for (const event of cruiseSchedule(seed, 8, 1, fullSpacecraft, ['debris-field'])) {
+        if (event.slot === null) {
+          misses++;
+          continue;
+        }
+        hits++;
+        struck.add(String(fullSpacecraft.slots[event.slot]).replace(/-\d+$/, ''));
+      }
+    }
+    expect(misses).toBeGreaterThan(0);
+    expect(hits).toBeGreaterThan(misses / 4);
+    expect([...struck].sort()).toEqual(['drill', 'engine', 'fuel-tank']);
+  });
+
+  it('a solar flare strikes the Radar when one is aboard, and passes harmlessly without one', () => {
+    const withRadar = refit(newSpacecraft('scout'), ['engine-1', 'fuel-tank-1', 'radar-1', null]);
+    let hit = 0;
+    for (const seed of SEEDS) {
+      for (const event of cruiseSchedule(seed, 8, 2, withRadar, ['solar-flare'])) {
+        expect(event.slot).toBe(2);
+        hit++;
+      }
+      for (const event of cruiseSchedule(seed, 8, 2, fullSpacecraft, ['solar-flare'])) {
+        expect(event.slot).toBeNull();
+      }
+    }
+    expect(hit).toBeGreaterThan(0);
   });
 
   it('the Jump Drive is never a target', () => {
