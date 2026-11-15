@@ -11,6 +11,10 @@ export interface EndOfRunView {
   readonly score: string;
   /** The Best Score, which includes this Run's when it is the best. */
   readonly best: string;
+  /** The Score's figures with their accessible names, for the icons ("2 Star Systems escaped"). */
+  readonly scoreFigures: ScoreFigures;
+  /** The Best Score's figures. */
+  readonly bestFigures: ScoreFigures;
   /** What the best row is called: the Best Score, or Today's Daily Best for a Daily Run. */
   readonly bestLabel: 'Best Score' | 'Today’s Daily Best';
   /** The words that mark the best as set by this Run. */
@@ -19,6 +23,25 @@ export interface EndOfRunView {
   readonly newBest: boolean;
   /** How Scores are compared, said once on the screen. */
   readonly rule: string;
+}
+
+/** One Score as two figures, each with the words that are its accessible name. */
+export interface ScoreFigures {
+  readonly starSystems: { readonly count: number; readonly name: string };
+  readonly hops: { readonly count: number; readonly name: string };
+}
+
+/** "2 Star Systems escaped" and "5 Hops flown", as the icons' numbers and names. */
+export function scoreFigures(score: Score): ScoreFigures {
+  const systems = score.starSystemsEscaped === 1 ? 'Star System' : 'Star Systems';
+  const hops = score.hopsFlown === 1 ? 'Hop' : 'Hops';
+  return {
+    starSystems: {
+      count: score.starSystemsEscaped,
+      name: `${String(score.starSystemsEscaped)} ${systems} escaped`,
+    },
+    hops: { count: score.hopsFlown, name: `${String(score.hopsFlown)} ${hops} flown` },
+  };
 }
 
 /** "2 Star Systems escaped, 5 Hops flown". */
@@ -53,6 +76,8 @@ export function describeEndOfRun(
     reason: end.reason,
     score: formatScore(score),
     best: formatScore(best),
+    scoreFigures: scoreFigures(score),
+    bestFigures: scoreFigures(best),
     bestLabel: daily ? 'Today’s Daily Best' : 'Best Score',
     newBestMarker: daily ? 'new Daily Best' : 'new Best Score',
     newBest,

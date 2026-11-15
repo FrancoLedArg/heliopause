@@ -50,8 +50,9 @@ test('a Run Stranded on Landing goes straight to the End-of-Run screen, which sa
   const end = page.getByRole('alertdialog', { name: 'Stranded' });
   await expect(end).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId('end-of-run-why')).toHaveText(strandedVerdict.reason);
-  await expect(page.getByTestId('end-of-run-score')).toHaveText(
-    '0 Star Systems escaped, 1 Hop flown',
+  await expect(page.getByTestId('end-of-run-score')).toHaveAttribute(
+    'aria-label',
+    'Score: 0 Star Systems escaped, 1 Hop flown',
   );
   // There was no failed Hop to report: no Hop report, and nothing to plan with.
   await expect(page.getByTestId('hop-report')).toHaveCount(0);
