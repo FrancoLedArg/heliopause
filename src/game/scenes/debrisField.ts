@@ -17,6 +17,9 @@ export const DEBRIS_FIELD = {
   clearance: 44,
 } as const;
 
+/** Under reduced motion the held field sits where it would be this many ticks before the strike. */
+const CALM_TICKS_BEFORE = 30;
+
 /** The way the rocks travel: leftward and a little down. */
 const HEADING = { x: -1, y: 0.18 } as const;
 const HEADING_LENGTH = Math.hypot(HEADING.x, HEADING.y);
@@ -34,16 +37,22 @@ export interface RockPose {
 /**
  * The rocks of a Debris field that strikes (or passes) at Cruise tick `strike`, as shown at tick
  * `now` (fractions allowed), aimed at `target`, the struck Component's centre or the Spacecraft's.
- * Empty outside the field's time on screen.
+ * Empty outside the field's time on screen. `calm` (reduced motion) holds the rocks still.
  */
 export function debrisRocks(
   strike: number,
   now: number,
   target: { readonly x: number; readonly y: number },
   hit: boolean,
+  calm = false,
 ): readonly RockPose[] {
   const { leadTicks, tailTicks, pxPerTick, clearance } = DEBRIS_FIELD;
   if (now < strike - leadTicks || now > strike + tailTicks) return [];
+  // Reduced motion: the field holds still, off to the side, until its strike tick, with no spin.
+  if (calm) {
+    if (now > strike) return [];
+    now = strike - CALM_TICKS_BEFORE;
+  }
   const rng = createRng(strike ^ 0xdeb7);
   const along = { x: HEADING.x / HEADING_LENGTH, y: HEADING.y / HEADING_LENGTH };
   const across = { x: -along.y, y: along.x };
@@ -62,7 +71,7 @@ export function debrisRocks(
     rocks.push({
       x: target.x + across.x * offset + along.x * (stagger + travelled),
       y: target.y + across.y * offset + along.y * (stagger + travelled),
-      angle: spin + (now - strike) * 3,
+      angle: spin + (calm ? 0 : (now - strike) * 3),
       chunk,
       hits: lead,
     });

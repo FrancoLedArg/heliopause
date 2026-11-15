@@ -642,7 +642,13 @@ export class Flight extends Scene {
       const target = rect
         ? { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 }
         : { x: this.ship.x, y: this.ship.y };
-      for (const pose of debrisRocks(field.tick, now, target, rect !== undefined)) {
+      for (const pose of debrisRocks(
+        field.tick,
+        now,
+        target,
+        rect !== undefined,
+        this.pace === 'reduced',
+      )) {
         const rock = this.rocks[used++];
         if (!rock) break;
         if ('setFrame' in rock) rock.setFrame(`chunk_${String(pose.chunk % DEBRIS_CHUNKS)}`);

@@ -34,4 +34,12 @@ describe('the Debris field drifting through the Cruise', () => {
   it('the same field is posed the same way every time', () => {
     expect(debrisRocks(250, 240, target, false)).toEqual(debrisRocks(250, 240, target, false));
   });
+
+  it('under reduced motion the field holds still, without spin, until its strike tick', () => {
+    const early = debrisRocks(100, 70, target, false, true);
+    expect(early.length).toBeGreaterThan(0);
+    expect(debrisRocks(100, 95, target, false, true)).toEqual(early);
+    expect(early.every((rock) => rock.angle % 90 === 0)).toBe(true);
+    expect(debrisRocks(100, 101, target, false, true)).toEqual([]);
+  });
 });
