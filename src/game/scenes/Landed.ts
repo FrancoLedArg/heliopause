@@ -2,6 +2,9 @@ import { Scene, Scenes, type GameObjects } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
 import { install, launchHop, remove, type HopFlight, type Run } from '../sim/index.ts';
+import { standingExtent } from './chassisArt.ts';
+import { describeGathering, type Gathering } from './gathering.ts';
+import { playGatheringMoment } from './gatheringMoment.ts';
 import { SHIP_PLACEMENT, SHIP_SHADOW } from './landedView.ts';
 import { SceneKey } from './keys.ts';
 import type { FlightData } from './Flight.ts';
@@ -18,6 +21,12 @@ export interface LandedData {
   readonly report?: { readonly before: Run; readonly flight: HopFlight };
   /** Set when the view follows the Jump: it comes up out of the black the Jump ended on. */
   readonly afterJump?: boolean;
+  /**
+   * A gathering moment to play as the view comes up (see `describeGathering`): the hook for a Run start
+   * that collects a yield (#189's Starting Moon). After an Arrived Hop it is read from `report`'s
+   * collection when absent, so the Flight need not pass it.
+   */
+  readonly gathering?: Gathering;
 }
 
 /** How long the Landed view takes to come up out of the black after the Jump (ms). Under reduced motion too: a fade is calm. */
@@ -28,12 +37,15 @@ export class Landed extends Scene {
   private run!: Run;
   private report: LandedData['report'];
   private afterJump = false;
+  private gathering: Gathering | undefined;
   /** The layers, back to front: ambient motion (parallax drift) moves these. */
   layers!: Readonly<Record<'sky' | 'ground' | 'ship', GameObjects.Container>>;
   /** Whether the ambient life was left still; read once at create from `prefers-reduced-motion`. */
   reducedMotion = false;
   /** The ambient life: tests use it to seek the drift to a chosen moment. */
   ambient!: LandedAmbient;
+  /** The Spacecraft's layer, where the gathering moment flows in. */
+  private shipLayer!: GameObjects.Container;
 
   constructor() {
     super(SceneKey.Landed);
@@ -43,11 +55,15 @@ export class Landed extends Scene {
     this.run = data.run;
     this.report = data.report;
     this.afterJump = data.afterJump ?? false;
+    this.gathering =
+      data.gathering ??
+      (data.report ? describeGathering(data.run, data.report.flight.collection) : undefined);
   }
 
   create(): void {
     const landscape = buildLandscape(this, standingOn(this.run));
     const ship = this.buildShip();
+    this.shipLayer = ship.container;
     this.layers = { ...landscape.layers, ship: ship.container };
 
     // The Nav Chart runs as its own scene over this one, which keeps running (dimmed) beneath it.
@@ -141,8 +157,41 @@ export class Landed extends Scene {
     } else {
       EventBus.emit('run-started', this.run);
       if (this.report) EventBus.emit('hop-arrived', this.report.before, this.report.flight);
+      // Under reduced motion the view already shows the end state: the Run's own values.
+      if (this.gathering && !this.reducedMotion) this.playGathering(this.gathering);
     }
     EventBus.emit('scene-ready', SceneKey.Landed);
+  }
+
+  /**
+   * The resource flows from the ground into the Spacecraft and on into the top bar, which React counts
+   * up from the events; any key or click (`gathering-skip-requested`) jumps to the end.
+   */
+  private playGathering(gathering: Gathering): void {
+    EventBus.emit('gathering-started', gathering);
+    const moment = playGatheringMoment(
+      this,
+      gathering,
+      { ship: this.shipLayer, shipExtent: standingExtent([this.run.spacecraft.chassisId]) },
+      (readout) => {
+        EventBus.emit('gathering-readout', readout);
+      },
+      () => {
+        stop();
+        EventBus.emit('gathering-ended');
+      },
+    );
+    const offSkip = EventBus.on('gathering-skip-requested', () => {
+      moment.skip();
+    });
+    // Leaving the view mid-moment drops the listener; the scene clears its own tweens and timers.
+    const stop = (): void => {
+      offSkip();
+      this.events.off(Scenes.Events.SHUTDOWN, stop);
+      this.events.off(Scenes.Events.DESTROY, stop);
+    };
+    this.events.once(Scenes.Events.SHUTDOWN, stop);
+    this.events.once(Scenes.Events.DESTROY, stop);
   }
 
   /** An install or a removal changed the Run: it may have left the Spacecraft Stranded. */

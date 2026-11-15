@@ -1,0 +1,76 @@
+/* ---- Δv bar: Burns as cyan segments, the Margin as a hatched gap (green spare, red short) ---- */
+
+.dv-bar {
+  position: relative;
+  height: 10px;
+  box-sizing: border-box;
+  border: 1px solid var(--gm3);
+  background: var(--scr0);
+}
+
+.dv-bar > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.dv-bar__segment {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  /* A dark seam between Burns, so neighbours read as separate pieces. */
+  box-shadow: inset -1px 0 0 var(--scr0);
+  container-type: inline-size;
+}
+
+.dv-bar__segment--takeoff {
+  background: var(--cy3);
+}
+
+.dv-bar__segment--transfer {
+  background: var(--cy2);
+}
+
+.dv-bar__segment--landing {
+  background: var(--cy1);
+}
+
+.dv-bar__glyph {
+  flex: none;
+  fill: var(--scr0);
+}
+
+.dv-bar__segment--landing .dv-bar__glyph {
+  fill: var(--cy4);
+}
+
+/* A segment too thin for its arrow shows the colour alone; the bar's name still reads every Burn. */
+@container (max-width: 10px) {
+  .dv-bar__glyph {
+    display: none;
+  }
+}
+
+.dv-bar__gap--spare {
+  background: repeating-linear-gradient(135deg, var(--gr1) 0 2px, var(--gr0) 2px 4px);
+}
+
+/* Over the Burns it cannot cover, which still show through its stripes. */
+.dv-bar__gap--short {
+  background: repeating-linear-gradient(135deg, var(--rd2) 0 2px, transparent 2px 4px);
+}
+
+/* Where the Fuel's Δv ends, inside Burns it cannot cover. */
+.dv-bar__limit {
+  width: 1px;
+  margin-left: -1px;
+  background: var(--wh3);
+}
+
+.dv-bar > .dv-bar__tick {
+  top: -2px;
+  bottom: -2px;
+  width: 1px;
+  background: var(--am3);
+}

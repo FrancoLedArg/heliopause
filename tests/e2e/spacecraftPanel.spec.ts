@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { formatDeltaV, formatPlanDeltaV } from '../../src/ui/format.ts';
+import { formatDeltaV, formatDeltaVKmS } from '../../src/ui/format.ts';
 import {
   availableDeltaV,
   COMPONENTS,
@@ -47,7 +47,7 @@ test('the cheapest Component can be installed with the starting Materials using 
   await startRunLanded(page);
   await expect(page.getByTestId('materials')).toHaveText(String(STARTING_MATERIALS));
   await expect(page.getByTestId('delta-v')).toHaveText(
-    formatDeltaV(availableDeltaV(run.spacecraft)),
+    formatDeltaVKmS(availableDeltaV(run.spacecraft)),
   );
 
   const button = page.getByRole('button', { name: 'Spacecraft' });
@@ -70,7 +70,7 @@ test('the cheapest Component can be installed with the starting Materials using 
   );
   await expect(page.getByRole('radio', { name: /^Slot 3, Fuel Tank, level 1/ })).toBeVisible();
   await expect(page.getByTestId('materials')).toHaveText(String(installed.run.materials));
-  await expect(page.getByTestId('delta-v')).toHaveText(formatDeltaV(afterDeltaV));
+  await expect(page.getByTestId('delta-v')).toHaveText(formatDeltaVKmS(afterDeltaV));
   await expect(page.getByTestId('panel-delta-v')).toHaveText(formatDeltaV(afterDeltaV));
   await testInfo.attach('spacecraft-panel', {
     body: await page.screenshot(),
@@ -99,7 +99,7 @@ test('the cheapest Component can be installed with the starting Materials using 
     await page.keyboard.press('PageDown');
   }
   await page.keyboard.press('Enter');
-  await expect(page.getByTestId('plan-available')).toHaveText(formatPlanDeltaV(afterDeltaV));
+  await expect(page.getByTestId('plan-available')).toHaveText(formatDeltaVKmS(afterDeltaV));
   expect(errors).toEqual([]);
 });
 
