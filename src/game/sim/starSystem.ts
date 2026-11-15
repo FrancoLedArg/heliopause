@@ -1,6 +1,14 @@
 import { createRng, type Rng } from '../lib/rng.ts';
 import { stringSeed } from '../lib/stringSeed.ts';
-import { BODY_TUNING, GENERATION_TUNING, ICE_LINE, SOURCED_RANGES, type Range } from './data.ts';
+import {
+  BODY_TUNING,
+  DIFFICULTY_TUNING,
+  GENERATION_TUNING,
+  ICE_LINE,
+  SOURCED_RANGES,
+  difficultyFactor,
+  type Range,
+} from './data.ts';
 import {
   astronomicalUnits,
   kilograms,
@@ -101,7 +109,13 @@ export interface StarSystem {
   readonly heliopauseRadius: AstronomicalUnits;
 }
 
-export function generateStarSystem(seed: Seed): StarSystem {
+/**
+ * The Star System a seed generates at a difficulty level (the Star System number, from 1). Level 1
+ * is the baseline and every higher level only scales its values, so the same seed gives the same
+ * layout, names and rolls at every level, just harder.
+ */
+export function generateStarSystem(seed: Seed, level = 1): StarSystem {
+  const gravityFactor = difficultyFactor(DIFFICULTY_TUNING.gravity, level);
   const rng = createRng(seed);
   const nextName = createNamer(rng);
   const name = nextName();
@@ -119,7 +133,7 @@ export function generateStarSystem(seed: Seed): StarSystem {
     kind: 'rocky-planet' as const,
     landable: true as const,
     distanceFromStar: astronomicalUnits(distance),
-    ...sampleBodySize(rng, SOURCED_RANGES.rockyPlanet),
+    ...sampleBodySize(rng, SOURCED_RANGES.rockyPlanet, gravityFactor),
   }));
   const gasGiants = spreadOrbits(
     rng,
@@ -129,7 +143,7 @@ export function generateStarSystem(seed: Seed): StarSystem {
     kind: 'gas-giant' as const,
     landable: false as const,
     distanceFromStar: astronomicalUnits(distance),
-    ...sampleBodySize(rng, SOURCED_RANGES.gasGiant),
+    ...sampleBodySize(rng, SOURCED_RANGES.gasGiant, gravityFactor),
   }));
 
   // The Home Planet is the smallest rocky planet: close to its star and easy to leave.
@@ -158,13 +172,14 @@ export function generateStarSystem(seed: Seed): StarSystem {
         id,
         planet.distanceFromStar,
         isHome ? Math.max(1, moonCount) : moonCount,
-        (moonId) => rollResource(seed, moonId, planet.distanceFromStar, forced),
+        gravityFactor,
+        (moonId) => rollResource(seed, moonId, planet.distanceFromStar, forced, level),
       );
     if (planet.kind === 'gas-giant') return { ...planet, ...shared, moons: moonsFor(undefined) };
     return {
       ...planet,
       ...shared,
-      ...rollResource(seed, id, planet.distanceFromStar, isHome ? 'rocky' : undefined),
+      ...rollResource(seed, id, planet.distanceFromStar, isHome ? 'rocky' : undefined, level),
       // The Home Planet's Moons are Icy, so the first Hop pays off with Fuel.
       moons: moonsFor(isHome ? 'icy' : undefined),
     };
@@ -175,7 +190,9 @@ export function generateStarSystem(seed: Seed): StarSystem {
   if (!outermostGasGiant) throw new Error(`Star System ${name} generated no Gas Giant`);
   const outermost = outermostGasGiant.distanceFromStar;
   const heliopauseRadius = astronomicalUnits(
-    outermost * sampleFloat(rng, GENERATION_TUNING.heliopausePerOutermostPlanet),
+    outermost *
+      sampleFloat(rng, GENERATION_TUNING.heliopausePerOutermostPlanet) *
+      difficultyFactor(DIFFICULTY_TUNING.heliopauseRadius, level),
   );
 
   // Frozen: Bodies do not move, and nothing outside the rules can change them.
@@ -195,6 +212,7 @@ function generateMoons(
   planetId: BodyId,
   distanceFromStar: AstronomicalUnits,
   count: number,
+  gravityFactor: number,
   roll: (id: BodyId) => Resource,
 ): Moon[] {
   return spreadOrbits(rng, count, GENERATION_TUNING.moonDistanceFromPlanet).map(
@@ -209,7 +227,7 @@ function generateMoons(
         distanceFromStar,
         distanceFromPlanet: kilometers(distanceFromPlanet),
         orbitAngle: randomAngle(rng),
-        ...sampleBodySize(rng, SOURCED_RANGES.moon),
+        ...sampleBodySize(rng, SOURCED_RANGES.moon, gravityFactor),
         ...roll(id),
       };
     },
@@ -225,16 +243,25 @@ function rollResource(
   id: BodyId,
   distanceFromStar: AstronomicalUnits,
   forced: BodyComposition | undefined,
+  level: number,
 ): Resource {
   const rng = createRng(seed ^ stringSeed(`${id}:resource`));
   const roll = rng.next();
-  const icyChance = distanceFromStar / (distanceFromStar + ICE_LINE.distance.value);
+  const iceLine =
+    ICE_LINE.distance.value * difficultyFactor(DIFFICULTY_TUNING.iceLineDistance, level);
+  const icyChance = distanceFromStar / (distanceFromStar + iceLine);
+  const yieldFactor = difficultyFactor(DIFFICULTY_TUNING.yield, level);
   const composition = forced ?? (roll < icyChance ? 'icy' : 'rocky');
   return composition === 'icy'
-    ? { composition, baseYield: kilograms(Math.round(sampleFloat(rng, BODY_TUNING.baseYield.icy))) }
+    ? {
+        composition,
+        baseYield: kilograms(Math.round(sampleFloat(rng, BODY_TUNING.baseYield.icy) * yieldFactor)),
+      }
     : {
         composition,
-        baseYield: materials(Math.round(sampleFloat(rng, BODY_TUNING.baseYield.rocky))),
+        baseYield: materials(
+          Math.round(sampleFloat(rng, BODY_TUNING.baseYield.rocky) * yieldFactor),
+        ),
       };
 }
 
@@ -267,11 +294,12 @@ function sampleBodySize(
     readonly surfaceGravity: Range<MetersPerSecondSquared>;
     readonly escapeVelocity: Range<MetersPerSecond>;
   },
+  gravityFactor: number,
 ): { surfaceGravity: MetersPerSecondSquared; escapeVelocity: MetersPerSecond } {
   const size = rng.next();
   return {
-    surfaceGravity: metersPerSecondSquared(lerp(ranges.surfaceGravity, size)),
-    escapeVelocity: metersPerSecond(lerp(ranges.escapeVelocity, size)),
+    surfaceGravity: metersPerSecondSquared(lerp(ranges.surfaceGravity, size) * gravityFactor),
+    escapeVelocity: metersPerSecond(lerp(ranges.escapeVelocity, size) * gravityFactor),
   };
 }
 

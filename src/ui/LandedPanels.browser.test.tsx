@@ -54,3 +54,26 @@ it('does not mark a fresh Body on the Landed plate', async () => {
   );
   expect(host.querySelector('[data-testid="landed-depleted"]')).toBeNull();
 });
+
+it('the top bar says which Star System the Run is in, clear of the other items', async () => {
+  const run = startRun(4171, 'scout');
+  const host = await renderUi(
+    <LandedPanels
+      run={{ ...run, starSystemNumber: 12 }}
+      chartOpen={false}
+      spacecraftOpen={false}
+      onOpenSpacecraft={() => undefined}
+    />,
+  );
+  const label = byTestId(host, 'system-number');
+  expect(label.textContent).toBe('System 12');
+  const text = document.createRange();
+  text.selectNodeContents(label);
+  const box = text.getBoundingClientRect();
+  const name = host.querySelector<HTMLElement>('.top-bar__system');
+  const fuelIcon = host.querySelector<HTMLElement>('.top-bar__fuel-icon');
+  if (!name || !fuelIcon) throw new Error('no top bar');
+  // Above the System name, and with slack before the Fuel icon (and so before the Menu button).
+  expect(box.bottom).toBeLessThanOrEqual(name.getBoundingClientRect().top + 1);
+  expect(box.right).toBeLessThanOrEqual(fuelIcon.getBoundingClientRect().left - SLACK);
+});
