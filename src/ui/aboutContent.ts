@@ -30,14 +30,7 @@ export interface CreditGroup {
 
 const REPO_BLOB = 'https://github.com/FrancoLedArg/heliopause/blob/main';
 
-// TODO(human): replace the placeholder with the real team members (name and role). Never invent names.
-const TEAM: readonly TeamMember[] = [
-  {
-    name: 'TEAM MEMBERS TO BE ADDED',
-    role: 'Placeholder: the team fills this list in',
-    placeholder: true,
-  },
-];
+const TEAM: readonly TeamMember[] = [{ name: 'FrancoLedArg', role: 'Solo team (GitHub handle)' }];
 
 export const ABOUT = {
   heading: 'About',
@@ -99,6 +92,10 @@ export const ABOUT = {
   back: 'Back',
 };
 
+function ref(label: string, detail: string, url: string): CreditEntry {
+  return { name: label, detail, link: { label: 'Source', url } };
+}
+
 export const CREDITS: {
   heading: string;
   /** The generated notices file the build writes next to the game; a relative URL, so it works under any base path. */
@@ -106,7 +103,7 @@ export const CREDITS: {
   groups: readonly CreditGroup[];
   back: string;
 } = {
-  heading: 'Credits',
+  heading: 'Credits & References',
   licenses: {
     label: 'Full licence texts of everything shipped (THIRD-PARTY-LICENSES.txt)',
     url: './THIRD-PARTY-LICENSES.txt',
@@ -166,18 +163,86 @@ export const CREDITS: {
         },
       ],
     },
-    // TODO(human): add an "Inspiration" group crediting the Space Apps project that inspired the
-    // game once it is identified with certainty. docs/research/space-debris.md names "Astro Sweepers"
-    // (2025 Galactic Impact) as a probable match only, and says it may not be the project you
-    // remember, so it is deliberately left out.
     {
-      heading: 'Research',
+      heading: 'Inspiration',
       entries: [
         {
-          name: 'Research notes and sources',
-          detail: 'Every figure we use, with its source',
-          link: { label: 'docs/research on GitHub', url: `${REPO_BLOB}/docs/research/` },
+          name: 'NASA Space Apps Challenge 2026: "Lunar Landing Site Navigator"',
+          detail:
+            'The challenge behind our day and night and temperature ideas (a challenge, not a team project)',
+          link: {
+            label: 'Challenge page',
+            url: 'https://www.spaceappschallenge.org/2026/challenges/lunar-landing-site-navigator/',
+          },
         },
+        {
+          name: 'Astro Sweepers: We Catch What Space Leaves Behind',
+          detail: 'NASA Space Apps Challenge 2025 project that inspired our space debris ideas',
+          link: {
+            label: 'Project page',
+            url: 'https://www.spaceappschallenge.org/2025/find-a-team/astro-sweepers-we-catch-what-space-leaves-behind/',
+          },
+        },
+      ],
+    },
+    {
+      heading: 'References (the sources behind the game data)',
+      entries: [
+        ref(
+          'NASA NSSDCA planetary fact sheets',
+          'Planet and moon gravity, escape and orbital velocity, distances',
+          'https://nssdc.gsfc.nasa.gov/planetary/factsheet/',
+        ),
+        ref(
+          'NASA NSSDCA Mars fact sheet',
+          'Mars escape velocity',
+          'https://nssdc.gsfc.nasa.gov/planetary/factsheet/marsfact.html',
+        ),
+        ref(
+          'NASA NSSDCA Galilean satellite fact sheet',
+          'Io, Europa, Ganymede and Callisto figures',
+          'https://nssdc.gsfc.nasa.gov/planetary/factsheet/galileanfact_table.html',
+        ),
+        ref(
+          'NASA NSSDCA Saturnian satellite fact sheet',
+          'Enceladus mass and radius',
+          'https://nssdc.gsfc.nasa.gov/planetary/factsheet/saturniansatfact.html',
+        ),
+        ref(
+          'NASA Glenn: Specific Impulse',
+          'Standard gravity and Isp',
+          'https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/specific-impulse/',
+        ),
+        ref(
+          'NASA Glenn: Ideal Rocket Equation',
+          'The Δv rule behind every Hop',
+          'https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/ideal-rocket-equation/',
+        ),
+        ref(
+          'NASA NTRS: Mars Landing Vehicles, Descent and Ascent Propulsion Design Issues (Palaszewski)',
+          'Mars ascent Δv',
+          'https://ntrs.nasa.gov/citations/20210026187',
+        ),
+        ref(
+          'NASA NTRS: Borowski et al., nuclear thermal propulsion',
+          'Engine Isp and the drop tank',
+          'https://ntrs.nasa.gov/citations/20120003776',
+        ),
+        ref(
+          'NASA/JPL Solar System Dynamics: Astrodynamic Parameters',
+          'The astronomical unit',
+          'https://ssd.jpl.nasa.gov/astro_par.html',
+        ),
+        ref(
+          'Lecar et al. 2006, ApJ 640, 1115',
+          'The Solar System ice line',
+          'https://doi.org/10.1086/500159',
+        ),
+        ref(
+          'Our research notes',
+          'Every figure we use, with its source',
+          `${REPO_BLOB}/docs/research/`,
+        ),
       ],
     },
   ],
