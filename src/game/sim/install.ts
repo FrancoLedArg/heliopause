@@ -1,5 +1,6 @@
 import { COMPONENTS, componentCost, type ComponentId } from './catalogue.ts';
 import { recordChoice } from './choiceLog.ts';
+import { revealDiscoveries, type DiscoveryReveal } from './discoveries.ts';
 import { radarSweep, type RadarSweep } from './knowledge.ts';
 import type { Run } from './run.ts';
 import { carriesJumpDrive, refit, SLOT_COUNT } from './spacecraft.ts';
@@ -28,6 +29,8 @@ export type InstallResult =
       readonly run: Run;
       /** What a Radar's sweep taught on install; `undefined` for any other Component. */
       readonly sweep: RadarSweep | undefined;
+      /** What an Instrument installed while landed revealed on the current Body at once (#318). */
+      readonly discoveries: readonly DiscoveryReveal[];
     }
   | { readonly kind: 'refused'; readonly reason: InstallRefusal };
 
@@ -78,7 +81,16 @@ export function install(run: Run, slotIndex: number, componentId: ComponentId): 
     COMPONENTS[componentId].kind === 'radar'
       ? radarSweep(installed)
       : { run: installed, sweep: undefined };
-  return { kind: 'installed', run: endIfStranded(swept.run), sweep: swept.sweep };
+  const found =
+    COMPONENTS[componentId].kind === 'instrument' && swept.run.status.kind === 'landed'
+      ? revealDiscoveries(swept.run, swept.run.status.bodyId)
+      : { run: swept.run, revealed: [] };
+  return {
+    kind: 'installed',
+    run: endIfStranded(found.run),
+    sweep: swept.sweep,
+    discoveries: found.revealed,
+  };
 }
 
 /** Why `install` would refuse, or `undefined` when it would install. */

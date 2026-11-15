@@ -31,6 +31,8 @@ export function jump(run: Run): Run {
       gameHours: run.gameHours,
       materials: run.materials,
       choices: run.choices,
+      science: run.science,
+      discoveries: run.discoveries,
     },
     generateSystem(run.seed, starSystemNumber),
   );

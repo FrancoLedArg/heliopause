@@ -22,6 +22,7 @@ import {
   type Rect,
 } from '../game/scenes/navChartView.ts';
 import {
+  bodyDiscoveryCount,
   bodyKnowledge,
   carriesJumpDrive,
   currentBody,
@@ -514,6 +515,9 @@ function BodyCard({
         className="nav-chart__tooltip-frame"
       />
       <h2 className="nav-chart__tip-name">{inspect.name}</h2>
+      {focused && bodyKnowledge(run, focused.id) === 'surveyed' && (
+        <DiscoveryPips {...bodyDiscoveryCount(run, focused.id)} />
+      )}
       <p className="nav-chart__tip-kind">{inspect.kind}</p>
       <p className="nav-chart__tip-fact" data-testid="card-distance">
         {inspect.fact}
@@ -589,6 +593,28 @@ function BodyCard({
       },
     };
   }
+}
+
+/**
+ * A Surveyed Body's Discoveries (#318): one pip for each it hides, filled for each found, with
+ * "N of M found" as the accessible name. No names or Instruments: only how many.
+ */
+export function DiscoveryPips({ found, hidden }: { found: number; hidden: number }) {
+  return (
+    <p
+      className="nav-chart__pips"
+      role="img"
+      aria-label={`Discoveries: ${String(found)} of ${String(hidden)} found`}
+      data-testid="discovery-pips"
+    >
+      {Array.from({ length: hidden }, (_, i) => (
+        <span
+          key={i}
+          className={i < found ? 'nav-chart__pip nav-chart__pip--found' : 'nav-chart__pip'}
+        />
+      ))}
+    </p>
+  );
 }
 
 /** The Hop plan, on the right of the map once a target is chosen: target, plan, Cancel and Launch. */

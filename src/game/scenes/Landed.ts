@@ -190,6 +190,9 @@ export class Landed extends Scene {
         );
       }
       this.changed(installed.run);
+      if (installed.discoveries.length > 0) {
+        EventBus.emit('discoveries-revealed', installed.run, installed.discoveries);
+      }
       // A Radar sweeps as soon as it is installed: the ring shows it, React says what it found.
       if (installed.sweep) {
         this.playRadarSweep(ship.container);
