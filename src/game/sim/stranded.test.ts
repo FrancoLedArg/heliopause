@@ -68,7 +68,17 @@ function fittedWith(from: Run, slots: readonly Slot[]): Run {
  */
 function backOnLaquun(extra: number): Run {
   let run = startRun(12, 'scout');
-  run = { ...run, materials: materials(run.materials + extra) };
+  // Stranded follows the plans the player sees (#190): every Body but the two flown to is Surveyed,
+  // so the others' plans are the real ones and the Hops land (and Survey) as they did before.
+  const flownTo = new Set(['Laquun', 'Prahen']);
+  const surveyed = listBodies(run.starSystem)
+    .filter((b) => !flownTo.has(b.name))
+    .map((b) => b.id);
+  run = {
+    ...run,
+    materials: materials(run.materials + extra),
+    knowledge: { ...run.knowledge, surveyed: [...run.knowledge.surveyed, ...surveyed] },
+  };
   for (const name of ['Laquun', 'Prahen', 'Laquun']) {
     const body = listBodies(run.starSystem).find((b) => b.name === name);
     if (!body) throw new Error(`Seed 12 has no ${name}`);
@@ -348,19 +358,26 @@ describe('the simulation settles Stranded itself', () => {
   });
 
   it('a replayed Run ends Stranded where the game did, and takes no choice after it', () => {
-    const saveable = backOnLaquun(0);
-    expect(saveable.status).toMatchObject(stranded);
-    // Seed 12's own log: the three Hops, the last of which strands it.
-    const replayed = replay(12, 'scout', saveable.choices);
+    // Seed 1, played as the player sees it (every Body Unsurveyed until landed on): the fourth Hop strands it.
+    let run = startRun(1, 'scout');
+    for (const name of ['Prinu-3', 'Talryx Minor', 'Vunzae', 'Talryx Minor']) {
+      const body = listBodies(run.starSystem).find((b) => b.name === name);
+      if (!body) throw new Error(`Seed 1 has no ${name}`);
+      const flown = launchHop(run, body.id);
+      if (flown.kind !== 'flown') throw new Error(`Seed 1: no Hop to ${name}`);
+      run = flown.run;
+    }
+    expect(run.status).toMatchObject(stranded);
+    const replayed = replay(1, 'scout', run.choices);
     expect(replayed).toMatchObject({ kind: 'replayed', end: { kind: 'stranded' } });
     if (replayed.kind !== 'replayed') return;
-    expect(replayed.run.status).toEqual(saveable.status);
+    expect(replayed.run.status).toEqual(run.status);
     // A choice made after the end is refused.
-    const after = replay(12, 'scout', [
-      ...saveable.choices,
+    const after = replay(1, 'scout', [
+      ...run.choices,
       { kind: 'install', slot: 2, componentId: 'drill-1' },
     ]);
-    expect(after).toMatchObject({ kind: 'rejected', at: 3 });
+    expect(after).toMatchObject({ kind: 'rejected', at: 4 });
   });
 
   it('a New Run is never Stranded', () => {

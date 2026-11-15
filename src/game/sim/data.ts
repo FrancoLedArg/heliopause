@@ -217,18 +217,25 @@ export const DISPERSION = { min: 0.9, max: 1.1 } as const satisfies TuningRange;
  * have, with a wider dispersion than a Surveyed Body's. The flight itself uses the Body's real values.
  */
 export const UNSURVEYED = {
-  landingDispersion: { min: 0.8, max: 1.2 },
+  /** The top of the dispersion a plan assumes for an Unsurveyed Landing (a Surveyed one: `DISPERSION.max`). */
+  landingMax: 1.2,
+  /** The escape velocity a plan assumes for the Landing: the high end of what a landable Body of its kind can have. */
   cautiousEscapeVelocity: {
     moon: SOURCED_RANGES.moon.escapeVelocity.max,
     'rocky-planet': ROCKY_PLANET_SIZE.largestEscapeVelocity,
   },
+  /** The low end of it, for the plan's best case: so a plan shown at 0% is a Hop that has no chance for real. */
+  leastEscapeVelocity: {
+    moon: SOURCED_RANGES.moon.escapeVelocity.min,
+    'rocky-planet': SOURCED_RANGES.rockyPlanet.escapeVelocity.min,
+  },
 } as const;
 
 /**
- * Gameplay tuning (#190): the Success Chance at or above which a Hop is In reach, and the one at or
- * above which it is Marginal; below that it is Out of reach.
+ * Gameplay tuning (#190): the Success Chance at or above which a Hop is In reach. Below it, any
+ * chance is Marginal; Out of reach means exactly 0%.
  */
-export const REACH_VERDICT = { inReach: 0.7, marginal: 0.2 } as const;
+export const REACH_VERDICT = { inReach: 0.7 } as const;
 
 /** The three Chassis a New Run can pick from. */
 export const CHASSIS_IDS = ['scout', 'hauler', 'lancer'] as const;

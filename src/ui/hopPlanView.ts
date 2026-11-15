@@ -1,6 +1,5 @@
 // The Hop plan as words and numbers for the player. Every figure comes from the simulation's `HopPlan`;
 // this file only formats it and decides how loudly to flag a low Success Chance.
-import { REACH_VERDICT } from '../game/sim/data.ts';
 import {
   astronomicalUnits,
   findBody,
@@ -10,6 +9,7 @@ import {
   metersPerSecond,
   plannedBurns,
   reachVerdict,
+  REACH_VERDICT,
   BURNS,
   type Body,
   type Burn,

@@ -75,11 +75,23 @@ function isDeadEnd(start: Run, body: Body): boolean {
   return flyHop(knowing, planned.plan, AT_ESTIMATE).run.status.kind === 'ended';
 }
 
-/** The same Run, with `body` Detected too. Exported only for the sim's test fixtures (testing.ts). */
+/**
+ * The same Run, with `body` Detected and every other Body Surveyed: fairness weighs a Hop, and the
+ * Stranded check after it, at the Bodies' real values, not the cautious estimates an Unsurveyed plan
+ * shows (#190). `body` itself stays Unsurveyed, so landing on it still Surveys it and yields.
+ * Exported only for the sim's test fixtures (testing.ts).
+ */
 export function withDetected(run: Run, body: Body): Run {
-  if (run.knowledge.detected.includes(body.id)) return run;
+  const { detected } = run.knowledge;
+  const surveyed = listBodies(run.starSystem)
+    .map((other) => other.id)
+    .filter((id) => id !== body.id);
   return {
     ...run,
-    knowledge: { ...run.knowledge, detected: [...run.knowledge.detected, body.id] },
+    knowledge: {
+      ...run.knowledge,
+      detected: detected.includes(body.id) ? detected : [...detected, body.id],
+      surveyed: run.knowledge.surveyed.includes(body.id) ? [...surveyed, body.id] : surveyed,
+    },
   };
 }

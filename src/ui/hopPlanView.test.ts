@@ -264,7 +264,7 @@ describe('the Hop plan as the player reads it', () => {
   it('shows the reach verdict as a shape and a short word, harsher when the Fuel cannot cover the estimate', () => {
     const plan = planFor(moon.id);
     const low = describeHopPlan(run, { ...plan, margin: mps(100), successChance: 0.5 });
-    const short = describeHopPlan(run, { ...plan, margin: mps(-100), successChance: 0.02 });
+    const short = describeHopPlan(run, { ...plan, margin: mps(-100), successChance: 0 });
     expect(low.reach).toMatchObject({ word: 'Marginal', frame: 'badge_warning' });
     expect(short.reach).toMatchObject({
       word: 'Out of reach',

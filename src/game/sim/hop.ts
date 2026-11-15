@@ -45,6 +45,8 @@ interface HopPlanBase {
   readonly availableDeltaV: MetersPerSecond;
   /** Available Δv minus the total estimate; negative when the Fuel cannot cover even the estimate. */
   readonly margin: MetersPerSecond;
+  /** The Δv below which the plan has no chance: every Burn at its best case. */
+  readonly bestCase: MetersPerSecond;
   /**
    * The probability, from 0 to 1, that the Fuel covers the actual Δv of every Burn under the
    * dispersion rule. Exact, so the same plan always shows the same Success Chance.
@@ -175,10 +177,15 @@ function planToBody(run: Run, targetId: BodyId): HopPlanResult<BodyHopPlan> {
       estimates,
       ...odds(
         run,
-        BURNS.map((burn) => ({
-          estimate: estimates[burn],
-          ...(unsurveyed && burn === 'landing' ? UNSURVEYED.landingDispersion : DISPERSION),
-        })),
+        BURNS.map((burn) =>
+          unsurveyed && burn === 'landing'
+            ? {
+                estimate: estimates.landing,
+                max: UNSURVEYED.landingMax,
+                best: leastLandingBurn(target) * DISPERSION.min,
+              }
+            : evenBurn(estimates[burn]),
+        ),
       ),
     },
   };
@@ -215,10 +222,7 @@ function planToHeliopause(run: Run): HopPlanResult<HeliopauseHopPlan> {
       fromId: from.id,
       toId: HELIOPAUSE,
       estimates,
-      ...odds(
-        run,
-        Object.values(estimates).map((estimate) => ({ estimate, ...DISPERSION })),
-      ),
+      ...odds(run, Object.values(estimates).map(evenBurn)),
     },
   };
 }
@@ -227,19 +231,15 @@ function planToHeliopause(run: Run): HopPlanResult<HeliopauseHopPlan> {
 function odds(run: Run, burns: readonly EstimatedBurn[]): Omit<HopPlanBase, 'fromId'> {
   const totalEstimate = metersPerSecond(burns.reduce((sum, burn) => sum + burn.estimate, 0));
   const available = availableDeltaV(run.spacecraft);
+  const bestCase = metersPerSecond(
+    totalEstimate * DISPERSION.min - burns.reduce((sum, burn) => sum + lowerBest(burn), 0),
+  );
   return {
     totalEstimate,
     availableDeltaV: available,
     margin: metersPerSecond(available - totalEstimate),
-    successChance: successChance(
-      burns,
-      available,
-      // The best case: `leastDeltaV`, less what a wider dispersion takes off a Burn's best case.
-      metersPerSecond(
-        leastDeltaV({ totalEstimate }) +
-          burns.reduce((sum, burn) => sum + burn.estimate * (burn.min - DISPERSION.min), 0),
-      ),
-    ),
+    bestCase,
+    successChance: successChance(burns, available, bestCase),
   };
 }
 
@@ -248,30 +248,35 @@ function odds(run: Run, burns: readonly EstimatedBurn[]): Omit<HopPlanBase, 'fro
  * Landing of an Unsurveyed plan. A hair over, so rounding never leaves it short of certain.
  */
 export function certainDeltaV(plan: HopPlan): MetersPerSecond {
-  const wider = plannedBurns(plan).reduce(
-    (sum, { burn, estimate }) =>
-      plan.destination === 'body' && plan.unsurveyed && burn === 'landing'
-        ? sum + estimate * (UNSURVEYED.landingDispersion.max - DISPERSION.max)
-        : sum,
-    0,
-  );
-  return metersPerSecond((plan.totalEstimate * DISPERSION.max + wider) * (1 + 1e-9));
+  const total = plannedBurns(plan).reduce((sum, { burn, estimate }) => {
+    const unsurveyedLanding = plan.destination === 'body' && plan.unsurveyed && burn === 'landing';
+    return sum + estimate * (unsurveyedLanding ? UNSURVEYED.landingMax : DISPERSION.max);
+  }, 0);
+  return metersPerSecond(total * (1 + 1e-9));
 }
 
-/** A Burn's estimate with the range of factors its actual Δv is drawn from. */
+/** A Burn's estimate, the top of its dispersion, and the Δv of its best case. */
 interface EstimatedBurn {
   readonly estimate: MetersPerSecond;
-  readonly min: number;
   readonly max: number;
+  readonly best: number;
 }
+
+/** A Burn whose estimate is as sure as its dispersion: best and worst case are the usual ones. */
+function evenBurn(estimate: MetersPerSecond): EstimatedBurn {
+  return { estimate, max: DISPERSION.max, best: estimate * DISPERSION.min };
+}
+
+/** How far below `estimate × DISPERSION.min` a Burn's best case lies: 0 unless it is an Unsurveyed Landing. */
+const lowerBest = ({ estimate, best }: EstimatedBurn): number => estimate * DISPERSION.min - best;
 
 /**
  * The least Δv that gives a plan any Success Chance: every Burn at the best case of the dispersion.
  * A plan's Success Chance is above 0% exactly when the Fuel gives more than this. It depends on the
  * Burns alone, so it holds for any Spacecraft flying the same Hop.
  */
-export function leastDeltaV(plan: Pick<HopPlan, 'totalEstimate'>): MetersPerSecond {
-  return metersPerSecond(plan.totalEstimate * DISPERSION.min);
+export function leastDeltaV(plan: Pick<HopPlan, 'bestCase'>): MetersPerSecond {
+  return plan.bestCase;
 }
 
 /** What happened to one Burn of a flown Hop. */
@@ -553,7 +558,7 @@ function successChance(
   bestCase: MetersPerSecond,
 ): number {
   const widths = burns
-    .map(({ estimate, min, max }) => estimate * (max - min))
+    .map((burn) => burn.estimate * (burn.max - DISPERSION.min) + lowerBest(burn))
     .filter((width) => width > 0);
   const slack = available - bestCase;
   if (slack >= widths.reduce((sum, width) => sum + width, 0)) return 1;
@@ -584,9 +589,14 @@ function successChance(
  * Landing is Takeoff in reverse.
  */
 function surfaceBurn(body: LandableBody): MetersPerSecond {
+  return escapeBurn(body.escapeVelocity);
+}
+
+/** A Burn to or from a surface with this escape velocity (see `surfaceBurn`). */
+function escapeBurn(escapeVelocity: MetersPerSecond): MetersPerSecond {
   const perEscapeVelocity =
     SOURCED_CONSTANTS.marsAscentDeltaV.value / SOURCED_CONSTANTS.marsEscapeVelocity.value;
-  return metersPerSecond(perEscapeVelocity * body.escapeVelocity);
+  return metersPerSecond(perEscapeVelocity * escapeVelocity);
 }
 
 /**
@@ -685,7 +695,7 @@ export type ReachVerdict = 'in-reach' | 'marginal' | 'out-of-reach';
 
 export function reachVerdict(plan: Pick<HopPlan, 'successChance'>): ReachVerdict {
   if (plan.successChance >= REACH_VERDICT.inReach) return 'in-reach';
-  return plan.successChance >= REACH_VERDICT.marginal ? 'marginal' : 'out-of-reach';
+  return plan.successChance > 0 ? 'marginal' : 'out-of-reach';
 }
 
 /**
@@ -693,8 +703,10 @@ export function reachVerdict(plan: Pick<HopPlan, 'successChance'>): ReachVerdict
  * velocity a landable Body of its kind can have, since its real gravity is not yet known.
  */
 function cautiousLandingBurn(target: LandableBody): MetersPerSecond {
-  const perEscapeVelocity =
-    SOURCED_CONSTANTS.marsAscentDeltaV.value / SOURCED_CONSTANTS.marsEscapeVelocity.value;
-  const cautious = UNSURVEYED.cautiousEscapeVelocity[target.kind];
-  return metersPerSecond(perEscapeVelocity * Math.max(cautious, target.escapeVelocity));
+  return escapeBurn(UNSURVEYED.cautiousEscapeVelocity[target.kind]);
+}
+
+/** The Landing Burn at the low end of that, before dispersion: the plan's best case. */
+function leastLandingBurn(target: LandableBody): MetersPerSecond {
+  return escapeBurn(UNSURVEYED.leastEscapeVelocity[target.kind]);
 }
