@@ -4,7 +4,7 @@ Space mission design game for NASA Space Apps 2026 (Vite + React + Phaser 4 + Ty
 
 - **Workflow** (roles, labels, lifecycle, escalation): `docs/agents/workflow.md`. Binding for every agent.
 - **Code rules**: `CODING_STANDARDS.md`. **Assets**: `docs/agents/assets.md`.
-- **Gate**: `pnpm verify` (typecheck, lint, format, unit, browser, build, e2e) must pass before any PR. Run `pnpm` with no args to see scripts.
+- **Gate**: CI runs the full `pnpm verify` (typecheck, lint, format, unit, browser, build, e2e) on every PR, and nothing merges until it is green. Locally, run `pnpm verify --quick` (no browser or e2e suites) plus only the browser and e2e specs your change touches. The laptop is the bottleneck. Run `pnpm` with no args to see scripts.
 - **Library APIs**: check Context7 before writing code against Phaser, React, Vite, Vitest or Playwright. Phaser is v4: load the matching Phaser 4 skill first.
 - **AI disclosure**: keep `AI-USAGE.md` current when how AI is used changes.
 
