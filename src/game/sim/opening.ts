@@ -1,6 +1,7 @@
 // The opening of a Star System (#96): the Spacecraft marooned on the Starting Moon, what it knows
 // there, and the yield it gathers before the player's first choice. A New Run and the Jump both
 // open this way, and so does the generator's own check of a fair opening.
+import { EVERY_BLUEPRINT } from './blueprints.ts';
 import type { ChassisId } from './data.ts';
 import { collectYield } from './gather.ts';
 import { distanceBetween, radarSweep, type Knowledge } from './knowledge.ts';
@@ -92,6 +93,7 @@ export function startingRun(
   chassisId: ChassisId,
   level: number,
   seed: Seed = system.seed,
+  scienceCarriedIn: number = EVERY_BLUEPRINT,
 ): Run {
   const spacecraft = newSpacecraft(chassisId);
   const moon = startingMoon(system);
@@ -109,6 +111,7 @@ export function startingRun(
       choices: [],
       science: 0,
       discoveries: [],
+      scienceCarriedIn,
     },
     system,
   );

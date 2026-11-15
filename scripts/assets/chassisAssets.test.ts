@@ -13,6 +13,7 @@ import {
   type ShipPose,
 } from '../../src/game/scenes/chassisArt.ts';
 import { COMPONENT_IDS, COMPONENTS } from '../../src/game/sim/index.ts';
+import { ART_STAND_IN } from '../../src/game/scenes/spacecraftComposition.ts';
 
 // Seam: the committed Chassis art as the game sees it, through manifest.json, the atlas JSON and the PNGs.
 const ASSETS = new URL('../../public/assets/', import.meta.url);
@@ -135,8 +136,9 @@ describe('Spacecraft sprites', () => {
       // The Chassis art and every Component art the game can install (and the Radar's, drawn ahead of #191).
       expect(listed.map((p) => p.name)).toContain('chassis.landed');
       // Instruments have no Spacecraft art yet (asset request).
+      // Nor do Components drawn with another's art (`ART_STAND_IN`).
       for (const componentId of COMPONENT_IDS.filter(
-        (id) => COMPONENTS[id].kind !== 'instrument',
+        (id) => COMPONENTS[id].kind !== 'instrument' && ART_STAND_IN[id] === undefined,
       )) {
         expect(listed.map((p) => p.name)).toContain(`${componentId}.0.front.flight`);
       }

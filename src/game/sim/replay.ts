@@ -170,6 +170,8 @@ function installRefused(reason: InstallRefusal): string {
       return `Slot ${String(reason.slot)} already held a Component (${reason.holds}).`;
     case 'jump-drive-installed':
       return 'A Jump Drive was already installed.';
+    case 'blueprint-locked':
+      return `Its blueprint needed ${String(reason.scienceNeeded)} more Science.`;
     case 'not-enough-materials':
       return `It cost ${String(reason.cost)} Materials and the Run had ${String(reason.have)}.`;
   }

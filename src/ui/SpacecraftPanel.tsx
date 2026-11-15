@@ -24,6 +24,7 @@ import {
   type StatBar,
 } from './spacecraftPanelView.ts';
 import './SpacecraftPanel.css';
+import { BlueprintProgress } from './BlueprintLock.tsx';
 
 const PANEL = { x: 8, y: 52, width: 624, height: 292 } as const;
 const TITLEBAR_HEIGHT = 14;
@@ -407,8 +408,16 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
                 className="spacecraft-panel__row-effect"
                 data-testid="component-effect"
               >
-                {/* What stops it, whatever the Materials, takes the place of what it does. */}
-                {row.unavailable ?? row.effect}
+                {/* What stops it, whatever the Materials, takes the place of what it does: a locked
+                    blueprint shows its Science progress bar, its words for assistive technology. */}
+                {row.locked !== undefined ? (
+                  <>
+                    <BlueprintProgress {...row.locked} />
+                    <span className="sr-only">{row.unavailable}</span>
+                  </>
+                ) : (
+                  (row.unavailable ?? row.effect)
+                )}
               </p>
               <RadarRing id={row.id} />
               <KitButton

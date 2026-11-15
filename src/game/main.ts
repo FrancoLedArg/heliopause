@@ -12,6 +12,7 @@ import { startRun } from './sim/index.ts';
 import { NavChart } from './scenes/NavChart.ts';
 import { Preloader } from './scenes/Preloader.ts';
 import { Title } from './scenes/Title.ts';
+import { scienceToCarryIn } from './lib/scienceProgress.ts';
 
 /** Native resolution of the pixel art (UI kit and sprites); the canvas is scaled up from it. */
 export const GAME_WIDTH = 640;
@@ -46,7 +47,8 @@ export function startGame(parent: string | HTMLElement): Game {
  */
 function startNewRuns(game: Game): void {
   const off = EventBus.on('new-run-requested', (seed, chassisId) => {
-    const run = startRun(seed, chassisId);
+    // The device's lifetime Science comes in with the Run, for its blueprints (#319).
+    const run = startRun(seed, chassisId, scienceToCarryIn());
     // Marooned on the Starting Moon: its yield flows in as the view comes up (#189).
     const gathering = describeGathering(run, run.startingYield);
     const data: LandedData = gathering ? { run, gathering } : { run };

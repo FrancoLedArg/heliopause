@@ -31,10 +31,11 @@ export const COMPONENT_IDS = [
   'camera',
   'chemistry-scanner',
   'sample-lab',
+  'drill-3',
 ] as const;
 export type ComponentId = (typeof COMPONENT_IDS)[number];
 
-export type ComponentLevel = 1 | 2;
+export type ComponentLevel = 1 | 2 | 3;
 
 /**
  * Where a Component's figures come from. A sourced Component's real-world-flavoured figure (its Isp
@@ -227,6 +228,19 @@ export const COMPONENTS = {
     cost: materials(50),
     yieldMultiplier: 2,
     explanation: 'Makes every Body yield twice as much, but weighs more.',
+    provenance: { kind: 'gameplay-tuning' },
+  },
+  // A blueprint (#319): locked until lifetime Science reaches its threshold (see blueprints.ts).
+  // Half as much again over level 2 for half as much mass again: worth it only on a Chassis that
+  // can carry it.
+  'drill-3': {
+    id: 'drill-3',
+    kind: 'drill',
+    level: 3,
+    mass: kilograms(2_600),
+    cost: materials(75),
+    yieldMultiplier: 2.5,
+    explanation: 'Makes every Body yield two and a half times as much, but is heavy.',
     provenance: { kind: 'gameplay-tuning' },
   },
   'jump-drive': {

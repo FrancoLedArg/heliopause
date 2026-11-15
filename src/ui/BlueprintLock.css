@@ -1,0 +1,61 @@
+.lock-icon {
+  flex: none;
+}
+
+.blueprint-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--am3);
+}
+
+.blueprint-progress__bar {
+  position: relative;
+  display: inline-block;
+  width: 80px;
+  height: 4px;
+  background: var(--gm1);
+  outline: 1px solid var(--gm5);
+}
+
+.blueprint-progress__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--wh3);
+}
+
+.blueprint-progress__remaining {
+  color: var(--wh3);
+}
+
+.blueprint-unlocked {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 3px 6px;
+  font: 12px/12px var(--font-pixel-body);
+  color: var(--am3);
+  background: var(--gm0);
+  outline: 1px solid var(--am3);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: blueprint-unlocked-in 300ms ease-out;
+}
+
+@keyframes blueprint-unlocked-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blueprint-unlocked {
+    animation: none;
+  }
+}

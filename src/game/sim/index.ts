@@ -32,6 +32,16 @@ export type {
   InstrumentId,
   MadeDiscovery,
 } from './discoveries.ts';
+export {
+  BLUEPRINT_IDS,
+  BLUEPRINT_THRESHOLDS,
+  EVERY_BLUEPRINT,
+  isBlueprint,
+  lifetimeScience,
+  newlyUnlocked,
+  scienceStillNeeded,
+} from './blueprints.ts';
+export type { BlueprintId } from './blueprints.ts';
 export { install, standingRefusal } from './install.ts';
 export type { InstallRefusal, InstallResult, StandingRefusal } from './install.ts';
 export { preview } from './preview.ts';

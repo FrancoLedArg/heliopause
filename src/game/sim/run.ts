@@ -1,3 +1,4 @@
+import { EVERY_BLUEPRINT } from './blueprints.ts';
 import type { ChoiceLog } from './choiceLog.ts';
 import type { Cruise } from './cruise.ts';
 import type { MadeDiscovery } from './discoveries.ts';
@@ -77,14 +78,25 @@ export interface Run {
   readonly science: number;
   /** The Discoveries the Run has made, in order, with the Body and Star System of each. */
   readonly discoveries: readonly MadeDiscovery[];
+  /**
+   * The device's lifetime Science when the Run began (#319): with `science` it unlocks blueprints.
+   * Never spent, and nothing but blueprints reads it.
+   */
+  readonly scienceCarriedIn: number;
 }
 
 /**
  * A New Run: the Star System its seed generates, and a Spacecraft on the chosen Chassis marooned on
- * its Starting Moon, the Moon's yield collected (see `startingRun`).
+ * its Starting Moon, the Moon's yield collected (see `startingRun`). `scienceCarriedIn` is the
+ * device's lifetime Science; left out (a replay, a test), every blueprint is unlocked
+ * (`EVERY_BLUEPRINT`).
  */
-export function startRun(seed: Seed, chassisId: ChassisId): Run {
-  return deepFreeze(startingRun(generateSystem(seed, 1), chassisId, 1, seed));
+export function startRun(
+  seed: Seed,
+  chassisId: ChassisId,
+  scienceCarriedIn: number = EVERY_BLUEPRINT,
+): Run {
+  return deepFreeze(startingRun(generateSystem(seed, 1), chassisId, 1, seed, scienceCarriedIn));
 }
 
 /** The Body the Spacecraft is landed on. Throws for a Run that is cruising or has ended: it is on no Body. */
