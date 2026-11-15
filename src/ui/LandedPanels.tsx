@@ -9,6 +9,7 @@ import { useEffect, useRef } from 'react';
 import { EventBus } from '../game/EventBus.ts';
 import { bodyFullLabel, formatDistanceAu, formatGravity } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
+import { FuelGauge } from './FuelGauge.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import { ResourceIcon } from './ResourceIcon.tsx';
 import { yieldIcon } from './yieldIcon.ts';
@@ -76,6 +77,7 @@ export function LandedPanels({
         systemNumber={starSystemNumber(run)}
         systemName={run.starSystem.name}
         fuel={run.spacecraft.fuelMass}
+        fuelCapacity={run.spacecraft.fuelCapacity}
         deltaV={availableDeltaV(run.spacecraft)}
         materials={run.materials}
         dailyDay={dailyDay}
@@ -126,6 +128,13 @@ export function LandedPanels({
               {formatDistanceAu(body.distanceFromStar)} from the star
             </p>
           </section>
+          <FuelGauge
+            fuel={run.spacecraft.fuelMass}
+            capacity={run.spacecraft.fuelCapacity}
+            shape="tank"
+            testId="spacecraft-fuel-gauge"
+            className="landed-fuel-gauge"
+          />
           <div ref={spacecraftSlot} className="landed-spacecraft-button">
             <KitButton width={116} onClick={onOpenSpacecraft}>
               Spacecraft

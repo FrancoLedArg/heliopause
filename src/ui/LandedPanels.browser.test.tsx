@@ -1,7 +1,8 @@
 import { afterEach, expect, it } from 'vitest';
-import { listBodies, startRun, type Run } from '../game/sim/index.ts';
+import { kilograms, listBodies, startRun, type Run } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { landing, SAVE_BY_REMOVING, saveByRefitting } from './landingFixtures.ts';
+import { SHIP_SWEEP } from '../game/scenes/landedView.ts';
 import { LandedPanels } from './LandedPanels.tsx';
 
 afterEach(cleanUp);
@@ -174,4 +175,41 @@ it('the Landed plate shows the yield icon next to Icy or Rocky, struck through a
     expect(box.bottom).toBeLessThanOrEqual(plate.bottom);
     cleanUp();
   }
+});
+
+it('shows the Fuel gauge beside the Spacecraft, matching the Fuel, clear of its sweep and buttons', async () => {
+  const start = startRun(123, 'scout');
+  const run: Run = {
+    ...start,
+    spacecraft: { ...start.spacecraft, fuelMass: kilograms(start.spacecraft.fuelCapacity / 4) },
+  };
+  const host = await renderUi(
+    <LandedPanels
+      run={run}
+      chartOpen={false}
+      spacecraftOpen={false}
+      onOpenSpacecraft={() => undefined}
+    />,
+  );
+  const gauge = byTestId(host, 'spacecraft-fuel-gauge');
+  const fill = byTestId(host, 'spacecraft-fuel-gauge-fill');
+  expect(gauge.getAttribute('aria-valuenow')).toBe(String(Math.round(run.spacecraft.fuelMass)));
+  expect(fill.getBoundingClientRect().height / gauge.clientHeight).toBeCloseTo(0.25, 2);
+  // The top bar's bar agrees with it.
+  const bar = byTestId(host, 'fuel-bar-fill');
+  expect(Number(bar.dataset['share'])).toBe(Number(fill.dataset['share']));
+  const box = gauge.getBoundingClientRect();
+  expect(box.right).toBeLessThanOrEqual(SHIP_SWEEP.left);
+  expect(box.top).toBeGreaterThanOrEqual(40);
+  for (const selector of ['.landed-spacecraft-button', '.landed-nav-button', '.landed-plate']) {
+    const other = host.querySelector<HTMLElement>(selector)?.getBoundingClientRect();
+    if (!other) throw new Error(selector);
+    const apart =
+      box.right <= other.left ||
+      other.right <= box.left ||
+      box.bottom <= other.top ||
+      other.bottom <= box.top;
+    expect(apart, selector).toBe(true);
+  }
+  expect(box.bottom).toBeLessThanOrEqual(360);
 });
