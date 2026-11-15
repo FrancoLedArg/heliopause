@@ -649,6 +649,9 @@ it('draws the Spacecraft with one callout per Slot, and names it in words', asyn
     'Slot 2, Fuel Tank, level 1',
     'Slot 3, Drill, level 1',
     'Slot 4, empty',
+    // The Hauler's six Slots (#231).
+    'Slot 5, empty',
+    'Slot 6, empty',
   ]);
   // A fitted Slot shows its Component's icon; an empty one is an outline with no icon.
   expect(
@@ -656,11 +659,13 @@ it('draws the Spacecraft with one callout per Slot, and names it in words', asyn
       (slot) =>
         slot.querySelector('[data-component-icon]')?.getAttribute('data-component-icon') ?? null,
     ),
-  ).toEqual(['engine', 'fuel-tank', 'drill', null]);
+  ).toEqual(['engine', 'fuel-tank', 'drill', null, null, null]);
   expect(slots.map((slot) => slot.dataset['state'])).toEqual([
     'fitted',
     'fitted',
     'fitted',
+    'empty',
+    'empty',
     'empty',
   ]);
   // Each fitted callout has its line to the Component art; the empty one has none.
