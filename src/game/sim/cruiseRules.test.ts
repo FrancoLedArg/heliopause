@@ -29,7 +29,7 @@ import {
   type ScheduledEvent,
 } from './index.ts';
 import { withDetected } from './generation.ts';
-import { onInnerPlanet, withDeltaV, withJumpDrive } from './testing.ts';
+import { heliopauseInRange, onInnerPlanet, withDeltaV, withJumpDrive } from './testing.ts';
 
 const SEEDS = Array.from({ length: 500 }, (_, i) => i * 104_729 + 7);
 const ENGINE = 0;
@@ -311,7 +311,7 @@ describe('Repair and Rush', () => {
   });
 
   it('Damage survives a Jump', () => {
-    const ready = withDeltaV(withJumpDrive(onInnerPlanet(opening)), 200_000);
+    const ready = withDeltaV(withJumpDrive(heliopauseInRange(onInnerPlanet(opening))), 200_000);
     const result = flown(cruising(ready, HELIOPAUSE, [leakAt(1_100)]));
     expect(result.run.starSystemNumber).toBe(2);
     expect(damaged(result.run, FUEL_TANK)).toBe(true);

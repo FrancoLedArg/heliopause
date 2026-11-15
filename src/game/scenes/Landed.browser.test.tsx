@@ -27,6 +27,7 @@ import {
   startRun,
   type ChassisId,
   type ComponentId,
+  type BodyId,
   type RockyPlanet,
   type Run,
 } from '../sim/index.ts';
@@ -78,11 +79,27 @@ function homeOf(run: Run): RockyPlanet {
   return planet;
 }
 
+/**
+ * The same Run landed on `bodyId` of the innermost planet, knowing that planet and its Moons: a
+ * known Body within the Hop range (#283), so the Run is not Stranded there.
+ */
+function standOn(run: Run, bodyId: BodyId): Run {
+  const home = homeOf(run);
+  const near = [home.id, ...home.moons.map((moon) => moon.id)];
+  const detected = [...new Set([...run.knowledge.detected, ...near])];
+  return {
+    ...run,
+    status: { kind: 'landed', bodyId },
+    knowledge: { ...run.knowledge, detected },
+  };
+}
+
 /** Mounts the whole app, then lands the given Run, resolving once the Landed scene is on screen. */
 async function landOn(
   run: Run,
   beforeLanding?: (game: Phaser.Game) => void,
   report?: LandedData['report'],
+  afterJump = false,
 ): Promise<Landed> {
   host = document.createElement('div');
   document.body.append(host);
@@ -103,7 +120,11 @@ async function landOn(
   await titleReady;
   const landedReady = nextSceneReady(SceneKey.Landed);
   beforeLanding?.(game);
-  const data: LandedData = report ? { run, report } : { run };
+  const data: LandedData = {
+    run,
+    ...(report ? { report } : {}),
+    ...(afterJump ? { afterJump } : {}),
+  };
   game.scene.start(SceneKey.Landed, data);
   await landedReady;
   await act(() => Promise.resolve());
@@ -160,7 +181,7 @@ for (const chassis of CHASSIS) {
       const home = homeOf(fresh);
       const bodyId = where === 'Moon' ? home.moons[0]?.id : home.id;
       if (!bodyId) throw new Error('no body to land on');
-      const run: Run = { ...fresh, status: { kind: 'landed', bodyId } };
+      const run: Run = standOn(fresh, bodyId);
       const scene = await landOn(run);
 
       for (const ms of DRIFT_SAMPLES) {
@@ -196,10 +217,7 @@ for (const chassis of CHASSIS) {
 for (const chassis of CHASSIS) {
   it(`the ${chassis}'s engines idle with a glow at every nozzle exit, not under the base`, async () => {
     const fresh = startRun(2026, chassis);
-    const scene = await landOn({
-      ...fresh,
-      status: { kind: 'landed', bodyId: homeOf(fresh).id },
-    });
+    const scene = await landOn(standOn(fresh, homeOf(fresh).id));
     const glows = scene.layers.ship.list.filter(
       (child): child is GameObjects.Ellipse =>
         child instanceof GameObjects.Ellipse && child.blendMode === BlendModes.ADD,
@@ -219,7 +237,7 @@ for (const chassis of CHASSIS) {
 
 function landedRun(): Run {
   const fresh = startRun(2026, 'scout');
-  return { ...fresh, status: { kind: 'landed', bodyId: homeOf(fresh).id } };
+  return standOn(fresh, homeOf(fresh).id);
 }
 
 it('drifts the ground further than the sky, the Spacecraft with the ground, and never shows a layer edge', async () => {
@@ -264,7 +282,7 @@ for (const where of ['Planet', 'Moon'] as const) {
     const home = homeOf(fresh);
     const bodyId = where === 'Moon' ? home.moons[0]?.id : home.id;
     if (!bodyId) throw new Error('no body to land on');
-    const scene = await landOn({ ...fresh, status: { kind: 'landed', bodyId } });
+    const scene = await landOn(standOn(fresh, bodyId));
     const { ground, ship } = scene.layers;
     // One strip: a single image, as wide as the layer, level, running to the bottom of the screen.
     const images = ground.list.filter(
@@ -508,9 +526,8 @@ function drawnShip(): DrawnShip {
 function runWith(chassis: ChassisId, extra: readonly ComponentId[]): Run {
   const fresh = startRun(2026, chassis);
   let run: Run = {
-    ...fresh,
+    ...standOn(fresh, homeOf(fresh).id),
     materials: materials(1000),
-    status: { kind: 'landed', bodyId: homeOf(fresh).id },
   };
   for (const id of extra) {
     const done = install(run, run.spacecraft.slots.indexOf(null), id);
@@ -715,6 +732,28 @@ it('sweeps a Radar ring out from the Spacecraft when one is installed, and says 
     .poll(() => document.querySelector('[data-testid="comms-announcement"]')?.textContent)
     .toMatch(/^Radar Detected \d+ Bod(y|ies)\.$/);
   await expect.poll(() => scene.radarSweep, { timeout: 3000 }).toBeUndefined();
+});
+
+it('sweeps the carried Radar and says what it found on arrival after a Jump', async () => {
+  const scene = await landOn(runWith('scout', ['radar-1']), undefined, undefined, true);
+  await expect
+    .poll(() => document.querySelector('[data-testid="comms-announcement"]')?.textContent, {
+      timeout: 5000,
+    })
+    .toMatch(/^Radar Detected \d+ Bod(y|ies)\.$/);
+  expect(scene.radarSweep?.parentContainer).toBe(scene.layers.ship);
+});
+
+it('plays the install sweep again when the Spacecraft panel closes', async () => {
+  const scene = await landOn(runWith('scout', []));
+  act(() => {
+    EventBus.emit('component-install-requested', 2, 'radar-1');
+  });
+  await expect.poll(() => scene.radarSweep, { timeout: 3000 }).toBeUndefined();
+  act(() => {
+    EventBus.emit('spacecraft-panel-closed');
+  });
+  expect(scene.radarSweep?.parentContainer).toBe(scene.layers.ship);
 });
 
 it('skips the Radar sweep when the player prefers reduced motion', async () => {

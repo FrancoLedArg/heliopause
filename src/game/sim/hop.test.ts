@@ -16,6 +16,7 @@ import {
   kilograms,
   assessStranding,
   HELIOPAUSE,
+  isInHopRange,
   startRun,
   generateSystem,
   type BodyId,
@@ -92,7 +93,12 @@ describe('Burn estimates', () => {
       const target = innerPlanet(start).moons[0];
       if (!target) throw new Error('The innermost planet has a Moon');
       const origins = listBodies(start.starSystem)
-        .filter((body) => body.landable && body.id !== target.id)
+        .filter(
+          (body) =>
+            body.landable &&
+            body.id !== target.id &&
+            isInHopRange(landedOn(start, body.id), target.id),
+        )
         .sort((a, b) => a.surfaceGravity - b.surfaceGravity);
       const takeoffs = origins.map(
         (body) => plan(landedOn(start, body.id), target.id).estimates.takeoff,
