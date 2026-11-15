@@ -446,7 +446,8 @@ it('after a landing, Comms pings from the Spacecraft and says what it Detected i
   expect(report.flight.reveal?.detected).toHaveLength(1);
   const scene = await landOn(run, undefined, report);
   expect(scene.commsPing).toEqual([]);
-  await until(() => scene.commsPing.length > 0);
+  // The ping follows the whole gathering moment (about 3.5 s), so give a loaded CI runner room.
+  await until(() => scene.commsPing.length > 0, 8_000);
   // Rings out of the top of the Spacecraft, riding its container.
   expect(scene.commsPing.length).toBeGreaterThan(0);
   for (const ring of scene.commsPing) expect(ring.parentContainer).toBe(scene.layers.ship);
