@@ -249,6 +249,42 @@ describe('the Engine fire', () => {
       }
     }
   });
+
+  it(
+    'Destroyed stays rare across seeds: never for a player who Repairs, some Cruises for one who never does (#251)',
+    { timeout: 90_000 },
+    () => {
+      const chassis = ['scout', 'hauler', 'lancer'] as const;
+      let cruises = 0;
+      let neglected = 0;
+      let attentiveLost = 0;
+      for (const [i, seed] of SEEDS.entries()) {
+        for (const hop of [4, 7, 10]) {
+          const start: Run = { ...startRun(seed, chassis[i % 3] ?? 'scout'), hopsFlown: hop - 1 };
+          const begun = beginHop(start, firstDetectedBody(start.starSystem).id);
+          if (begun.kind !== 'cruising' || begun.run.status.kind !== 'cruising') continue;
+          cruises++;
+          // The neglectful bot never Repairs anything.
+          if (finish(begun.run).kind === 'destroyed') neglected++;
+          // The attentive bot starts each Repair 5 s after its event strikes, and never Rushes.
+          let run = begun.run;
+          for (const event of begun.run.status.cruise.schedule) {
+            if (event.slot === null) continue;
+            run = at(run, event.tick + 50);
+            const started = startRepair(run, event.slot);
+            if (started.kind === 'repairing') run = started.run;
+          }
+          if (finish(run).kind === 'destroyed') attentiveLost++;
+        }
+      }
+      // Balance figure (#251): about 16% of Cruises past the mild Hops end Destroyed for a player who
+      // never Repairs; none do for one who Repairs within 5 s.
+      expect(cruises).toBeGreaterThan(1_400);
+      expect(attentiveLost).toBe(0);
+      expect(neglected).toBeGreaterThan(0);
+      expect(neglected / cruises).toBeLessThan(0.25);
+    },
+  );
 });
 
 describe('Repair and Rush', () => {

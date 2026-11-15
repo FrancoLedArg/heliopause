@@ -104,23 +104,33 @@ function latestStart(kind: CruiseEventKind): number {
 
 const HARSH_KINDS: readonly CruiseEventKind[] = ['engine-fire', 'solar-flare'];
 
-/** A kind among `allowed`: harsh with chance `harshness`, falling back to the other class when it has none. */
+/**
+ * A kind among `allowed`: harsh with chance `harshness`, split between the Engine fire and the solar
+ * flare by `engineFireShareOfHarsh`. A harsh kind not switched on leaves its share to the mild kinds,
+ * so the Engine fire (and with it Destroyed) keeps its own rate whichever others are on (#251).
+ * Falls back to the harsh kinds only when no mild kind is allowed.
+ */
 function drawKind(
   rng: Rng,
   allowed: readonly CruiseEventKind[],
   harshness: number,
 ): CruiseEventKind {
+  const share = CRUISE_TUNING.engineFireShareOfHarsh;
   const harshAllowed = allowed.filter((kind) => HARSH_KINDS.includes(kind));
   const mildAllowed = allowed.filter((kind) => !HARSH_KINDS.includes(kind));
   const wantsHarsh = rng.next() < harshness;
-  const pick = rng.next();
-  if ((wantsHarsh && harshAllowed.length > 0) || mildAllowed.length === 0) {
+  let pick = rng.next();
+  if (mildAllowed.length === 0) {
     const fire = harshAllowed.includes('engine-fire');
     const flare = harshAllowed.includes('solar-flare');
-    if (fire && flare) {
-      return pick < CRUISE_TUNING.engineFireShareOfHarsh ? 'engine-fire' : 'solar-flare';
-    }
+    if (fire && flare) return pick < share ? 'engine-fire' : 'solar-flare';
     return fire ? 'engine-fire' : 'solar-flare';
+  }
+  if (wantsHarsh) {
+    const harsh = pick < share ? 'engine-fire' : 'solar-flare';
+    if (allowed.includes(harsh)) return harsh;
+    // Spread what is left of the draw over the mild kinds evenly.
+    pick = pick < share ? pick / share : (pick - share) / (1 - share);
   }
   return mildAllowed[Math.floor(pick * mildAllowed.length)] ?? 'fuel-leak';
 }
