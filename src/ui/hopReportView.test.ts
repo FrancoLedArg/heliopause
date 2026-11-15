@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  advanceCruise,
+  beginHop,
+  firstDetectedBody,
+  startRepair,
   kilograms,
   collectYield,
   install,
@@ -349,5 +353,52 @@ describe('the Hop report', () => {
       const { run: failedRun, flight } = hopThatEnds('fell-short', 123, 'hauler', 0.5);
       expect(describeReport(failedRun, flight).gains).toEqual([]);
     });
+  });
+});
+
+describe('the Cruise in the icon row (#250)', () => {
+  const run = startRun(2026, 'scout');
+  const target = firstDetectedBody(run.starSystem).id;
+  const leakAt100 = { schedule: [{ kind: 'fuel-leak', tick: 100, slot: 1 }] } as const;
+
+  function cruiseOf(repairAt: number | undefined) {
+    const begun = beginHop(run, target, leakAt100);
+    if (begun.kind !== 'cruising') throw new Error('Expected a Cruise');
+    let cruising = begun.run;
+    if (repairAt !== undefined) {
+      const on = advanceCruise(cruising, repairAt);
+      if (on.kind !== 'cruising') throw new Error('Expected to be cruising');
+      const started = startRepair(on.run, 1);
+      if (started.kind !== 'repairing') throw new Error('Expected a Repair');
+      cruising = started.run;
+    }
+    const flown = advanceCruise(cruising, 1_200);
+    if (flown.kind !== 'flown') throw new Error('Expected the Hop to be flown');
+    return describeReport(run, flown.flight).cruise;
+  }
+
+  it('shows each event, a tick when it was Repaired, and the Fuel lost, with the words in names', () => {
+    const repaired = cruiseOf(150);
+    expect(repaired.map((mark) => mark.kind)).toEqual(['event', 'fuel-lost']);
+    expect(repaired[0]).toMatchObject({
+      event: 'fuel-leak',
+      component: 'fuel-tank',
+      repaired: true,
+    });
+    expect(repaired[0]?.name).toBe('Fuel leak in the Fuel Tank: Repaired.');
+    expect(repaired[1]?.name).toMatch(/^Lost .+ of Fuel to the leak\.$/);
+    expect(repaired[1]).toMatchObject({ amount: expect.stringMatching(/^−/) as unknown });
+
+    const leftAlone = cruiseOf(undefined);
+    expect(leftAlone[0]).toMatchObject({
+      repaired: false,
+      name: 'Fuel leak in the Fuel Tank: still Damaged.',
+    });
+  });
+
+  it('a Cruise with nothing happening adds nothing to the row', () => {
+    const calm = launchHop(run, target, { schedule: [] });
+    if (calm.kind !== 'flown') throw new Error('Expected a flight');
+    expect(describeReport(run, calm.flight).cruise).toEqual([]);
   });
 });

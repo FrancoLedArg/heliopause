@@ -281,6 +281,7 @@ describe('the playback of a Hop to the Heliopause', () => {
   const launched = launchHop(built.run, HELIOPAUSE);
   if (launched.kind !== 'flown') throw new Error('Expected a flight');
   const { flight } = launched;
+  if (flight.fuelLost === 0) throw new Error('Expected a leak: real Runs have one in every Cruise');
 
   it('plays Takeoff then Transfer, never a Landing, and reaches the end of the route', () => {
     const playback = flightPlayback(built.run.spacecraft, flight, 'full');
@@ -377,15 +378,15 @@ describe('the shots of a Hop’s playback', () => {
     }
   });
 
-  it('the Cruise lasts about 50 s at normal speed, at either pace, and about 12.5 s on fast-forward', () => {
+  it('the Cruise lasts about 2 minutes at normal speed, at either pace, and about 30 s on fast-forward', () => {
     for (const pace of ['full', 'reduced'] as const) {
       const playback = flightPlayback(run.spacecraft, arrived, pace);
       const normal = realTimeThrough(playback, 'cruise', () => 1);
-      expect(normal).toBeGreaterThanOrEqual(45_000);
-      expect(normal).toBeLessThanOrEqual(55_000);
+      expect(normal).toBeGreaterThanOrEqual(110_000);
+      expect(normal).toBeLessThanOrEqual(130_000);
       const fast = realTimeThrough(playback, 'cruise', () => FAST_FORWARD);
-      expect(fast).toBeGreaterThanOrEqual(11_000);
-      expect(fast).toBeLessThanOrEqual(14_000);
+      expect(fast).toBeGreaterThanOrEqual(27_000);
+      expect(fast).toBeLessThanOrEqual(33_000);
     }
   });
 
@@ -472,7 +473,7 @@ describe('the shots of a Hop’s playback', () => {
 
   it('the systems lights come on one after another early in the Cruise, then all hold steady', () => {
     expect(systemsLit(undefined, 3)).toBe(0);
-    const lit = (elapsed: number): number => systemsLit({ elapsed, total: 50_000 }, 3);
+    const lit = (elapsed: number): number => systemsLit({ elapsed, total: 120_000 }, 3);
     expect(lit(0)).toBe(0);
     const steps = Array.from({ length: 100 }, (_, i) => lit(i * 100));
     // Each light comes on by itself, in turn, and none goes out again.
@@ -481,7 +482,7 @@ describe('the shots of a Hop’s playback', () => {
       expect(n).toBeGreaterThanOrEqual(steps[i - 1] ?? 0);
     });
     expect(lit(10_000)).toBe(3);
-    expect(lit(49_000)).toBe(3);
+    expect(lit(119_000)).toBe(3);
   });
 });
 
@@ -500,15 +501,31 @@ describe('Cruise events in the playback', () => {
     const flown = advanceCruise(repaired.run, 1_200);
     if (flown.kind !== 'flown') throw new Error('Expected the Hop to be flown');
     const playback = flightPlayback(run.spacecraft, flown.flight, 'full');
-    // The Cruise shot is 50 s for 1,200 ticks: tick 600 is 25 s in; the 30 s Repair ends on tick 900.
+    // The Cruise shot is 120 s for 1,200 ticks: tick 600 is 60 s in; the 30 s Repair ends on tick 900.
     expect(playback.events).toEqual([
-      { kind: 'fuel-leak', slot: fuelTank, startsAt: 25_000, endsAt: 37_500 },
-      { kind: 'debris-field', slot: null, startsAt: 37_500, endsAt: 50_000 },
+      { kind: 'fuel-leak', slot: fuelTank, startsAt: 60_000, endsAt: 90_000 },
+      { kind: 'debris-field', slot: null, startsAt: 90_000, endsAt: 120_000 },
     ]);
   });
 
+  it('the Fuel shown drains by what the leaks lost, and the Landing starts from what the Cruise left', () => {
+    const begun = beginHop(run, moonId, { schedule: [{ kind: 'fuel-leak', tick: 100, slot: 1 }] });
+    if (begun.kind !== 'cruising') throw new Error('Expected a Cruise');
+    const flown = advanceCruise(begun.run, 1_200);
+    if (flown.kind !== 'flown') throw new Error('Expected the Hop to be flown');
+    const { flight } = flown;
+    expect(flight.fuelLost).toBeGreaterThan(0);
+    const playback = flightPlayback(run.spacecraft, flight, 'full');
+    const landing = playback.shots.find((shot) => shot.shot === 'landing');
+    if (!landing) throw new Error('Expected a Landing');
+    const transfer = flight.burns.find((burn) => burn.burn === 'transfer');
+    if (transfer?.status !== 'completed') throw new Error('Expected a Transfer');
+    expect(playback.at(landing.start).fuel).toBeCloseTo(transfer.fuelAfter - flight.fuelLost, 3);
+    expect(playback.at(playback.duration).fuel).toBeCloseTo(flight.fuelRemaining, 3);
+  });
+
   it('a Hop with no Cruise events has none to play', () => {
-    const launched = launchHop(run, moonId);
+    const launched = launchHop(run, moonId, { schedule: [] });
     if (launched.kind !== 'flown') throw new Error('Expected a flight');
     expect(flightPlayback(run.spacecraft, launched.flight, 'full').events).toEqual([]);
   });

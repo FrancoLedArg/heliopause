@@ -26,6 +26,8 @@ interface SpacecraftPictureProps {
   onKeyDown?: ((event: KeyboardEvent<HTMLElement>) => void) | undefined;
   /** The id of the text that says how the keyboard moves between Slots. */
   describedBy?: string | undefined;
+  /** Which Slots hold a Damaged Component (#250): their callouts show smoke. */
+  damaged?: readonly boolean[] | undefined;
 }
 
 /**
@@ -41,6 +43,7 @@ export function SpacecraftPicture({
   slotRef,
   onKeyDown,
   describedBy,
+  damaged,
 }: SpacecraftPictureProps) {
   const placed = placeSpacecraft(chassisId, slots);
   const places = slotCallouts(chassisId, slots, placed);
@@ -96,6 +99,7 @@ export function SpacecraftPicture({
             key={place.slot}
             place={place}
             held={slots[place.slot] ?? null}
+            damaged={damaged?.[place.slot] === true}
             selected={place.slot === selected}
             buttonRef={(el) => {
               slotRef(place.slot, el);
@@ -130,23 +134,21 @@ function CalloutLine({ place, lit }: { place: CalloutPlace; lit: boolean }) {
   );
 }
 
-/**
- * What a callout shows: an empty outline, or a fitted Component. #210 adds a damaged state here, so
- * the Damaged mark lands on the same callout.
- */
-export type CalloutState = 'empty' | 'fitted';
+/** What a callout shows: an empty outline, a fitted Component, or a Damaged one, with smoke (#250). */
+export type CalloutState = 'empty' | 'fitted' | 'damaged';
 
 interface SlotCalloutProps {
   place: CalloutPlace;
   held: ComponentId | null;
+  damaged: boolean;
   selected: boolean;
   buttonRef: (el: HTMLButtonElement | null) => void;
   onSelect: () => void;
 }
 
 /** One Slot's callout: its number, then the Component's icon and level. Its name says what it holds. */
-function SlotCallout({ place, held, selected, buttonRef, onSelect }: SlotCalloutProps) {
-  const state: CalloutState = held === null ? 'empty' : 'fitted';
+function SlotCallout({ place, held, damaged, selected, buttonRef, onSelect }: SlotCalloutProps) {
+  const state: CalloutState = held === null ? 'empty' : damaged ? 'damaged' : 'fitted';
   const component = held === null ? undefined : COMPONENTS[held];
   const number = String(place.slot + 1);
   const classes = [
@@ -163,7 +165,7 @@ function SlotCallout({ place, held, selected, buttonRef, onSelect }: SlotCallout
       type="button"
       role="radio"
       aria-checked={selected}
-      aria-label={`Slot ${number}, ${held === null ? 'empty' : componentLabel(held)}`}
+      aria-label={`Slot ${number}, ${held === null ? 'empty' : componentLabel(held)}${state === 'damaged' ? ', Damaged' : ''}`}
       tabIndex={selected ? 0 : -1}
       className={classes}
       data-state={state}
@@ -181,6 +183,9 @@ function SlotCallout({ place, held, selected, buttonRef, onSelect }: SlotCallout
             <span className="slot-callout__level">{component.level}</span>
           )}
         </span>
+      )}
+      {state === 'damaged' && (
+        <span className="slot-callout__smoke" aria-hidden="true" data-testid="callout-smoke" />
       )}
     </button>
   );
