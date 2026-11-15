@@ -130,9 +130,10 @@ test('a far Body has a lower Success Chance, flagged in words when low; Cancel c
   });
 
   await page.getByRole('button', { name: 'Cancel' }).click();
-  await expect(page.getByTestId('target')).toContainText('None chosen');
+  // #193: with no target the plan closes and leaves the map alone.
+  await expect(page.getByTestId('target')).toHaveCount(0);
   await expect(page.getByRole('listbox', { name: 'Bodies in the Star System' })).toBeFocused();
-  await expect(page.getByTestId('hop-plan')).toContainText('Pick a target');
+  await expect(page.getByTestId('hop-plan')).toHaveCount(0);
   await expect(page.getByRole('dialog', { name: 'Nav Chart' })).toBeVisible();
 });
 

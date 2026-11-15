@@ -1,22 +1,18 @@
-import { Geom, Scene, Scenes, type GameObjects } from 'phaser';
+import { Scene, Scenes, type GameObjects, type Input } from 'phaser';
 import { paletteNumber } from '../../ui/kit/palette.ts';
 import { EventBus } from '../EventBus.ts';
-import { currentBody, HELIOPAUSE, isDepleted, type HopTarget, type Run } from '../sim/index.ts';
+import { prefersReducedMotion } from '../lib/motion.ts';
+import { bodyKnowledge, currentBody, isDepleted, type HopTarget, type Run } from '../sim/index.ts';
 import { bodySprite } from './landedView.ts';
 import {
   BRACKET_ARM,
   BRACKET_GAP,
-  CHART,
   chartReducer,
   crossSegments,
   dashedSegments,
   initialChartState,
-  labelContextOf,
   layoutChart,
   MARK_GAP,
-  placeLabels,
-  placeYieldMarks,
-  YIELD_MARK_SIZE,
   ringSegments,
   routeEnds,
   type ChartCommand,
@@ -25,6 +21,7 @@ import {
   type ChartSpot,
   type ChartState,
 } from './navChartView.ts';
+import { hitTest, spotOf, ZOOM } from './navChartMap.ts';
 import { SceneKey } from './keys.ts';
 import { KIT_ATLAS_KEY } from '../../ui/kit/kit.ts';
 import { yieldIcon } from '../../ui/yieldIcon.ts';
@@ -34,22 +31,34 @@ export interface NavChartData {
   readonly run: Run;
 }
 
-/** Smallest hit circle (px): a 12 px Moon would be fiddly to click otherwise. */
-const MIN_HIT_RADIUS = 9;
+/** Screen pixels a press may move and still count as a click, not a drag (touch wobbles). */
+const DRAG_THRESHOLD = 5;
+
+/** The side (px) of a Body's yield icon on the map: the kit's 32 px icon at five sixteenths. */
+const YIELD_MARK_SIZE = 10;
+
+/** Gameplay tuning: a Detected Body's blip, and its pulse (ms). */
+const BLIP = { radius: 3, pulseMs: 1_600, pulseScale: 3 } as const;
 
 /**
- * The Nav Chart: the whole Star System in miniature, drawn over the dimmed Landed scene. Phaser draws the
- * chart's contents (rings, real `body_*` sprites, focus, target, route) and takes mouse input; React owns
- * the panel frame, labels and the keyboard, and the two talk only through the `EventBus`.
+ * The Nav Chart (#193): the whole known Star System as a map several screens big, over the dimmed
+ * Landed scene. Phaser draws the map (rings, the star, Surveyed Bodies' real sprites, Detected Bodies'
+ * blips, the "you" ring, the route and the target) and takes the pointer: drag to pan, wheel or pinch to
+ * zoom, a click to open a Body's card. React owns the card, the labels, the Hop plan and the keyboard;
+ * the two talk only through the `EventBus`, and both read the camera from the chart state.
  */
 export class NavChart extends Scene {
   private run!: Run;
   private layout!: ChartLayout;
   private chartState!: ChartState;
   private marks!: GameObjects.Graphics;
-  /** The yield icons beside the Bodies, rebuilt when a label moves (labels give way to focus and the target). */
-  private yieldMarks!: GameObjects.Container;
-  private yieldStrikes!: GameObjects.Graphics;
+  private sprites = new Map<HopTarget, GameObjects.Image | GameObjects.Graphics>();
+  private hovered: HopTarget | undefined;
+  /** The press under way: where it started and was last seen, and whether it became a drag. */
+  private press:
+    { x: number; y: number; lastX: number; lastY: number; dragged: boolean } | undefined;
+  /** The two-finger distance at the last pinch step. */
+  private pinch: number | undefined;
 
   constructor() {
     super(SceneKey.NavChart);
@@ -58,28 +67,25 @@ export class NavChart extends Scene {
   init(data: NavChartData): void {
     this.run = data.run;
     this.layout = layoutChart(data.run);
-    this.chartState = initialChartState(data.run);
+    this.chartState = initialChartState(data.run, this.layout);
+    this.sprites = new Map();
+    this.hovered = undefined;
+    this.press = undefined;
+    this.pinch = undefined;
   }
 
   create(): void {
-    this.add.rectangle(0, 0, 640, 360, paletteNumber('void'), 0.65).setOrigin(0);
-    const chart = this.add.container(CHART.x, CHART.y);
-    chart.add(
-      this.add.rectangle(0, 0, CHART.width, CHART.height, paletteNumber('scr0'), 0.95).setOrigin(0),
-    );
-    chart.add(this.drawRings());
-    chart.add(
-      this.add.image(this.layout.star.x, this.layout.star.y, 'body_star').setOrigin(0.5, 0.5),
-    );
-    for (const node of this.layout.nodes) chart.add(this.addBody(node));
-    chart.add(this.addHeliopauseMark());
-    this.yieldMarks = this.add.container(0, 0);
-    this.yieldStrikes = this.add.graphics();
-    chart.add([this.yieldMarks, this.yieldStrikes]);
-    this.marks = this.add.graphics();
-    chart.add(this.marks);
-    this.drawMarks();
+    // Full screen and opaque: while it is open, the map is the whole view.
+    this.cameras.main.setBackgroundColor(paletteNumber('scr0'));
+    this.drawRings();
+    this.add.image(this.layout.star.x, this.layout.star.y, 'body_star');
+    for (const node of this.layout.nodes) this.addBody(node);
+    this.addHeliopauseMark();
     this.drawYieldMarks();
+    this.marks = this.add.graphics();
+    this.drawMarks();
+    this.applyView();
+    this.listenToPointer();
 
     const offs = [
       EventBus.on('nav-chart-command', (command) => {
@@ -99,6 +105,10 @@ export class NavChart extends Scene {
       if (this.chartState.selectedId !== undefined) EventBus.emit('nav-target-selected', undefined);
       EventBus.emit('nav-chart-state', undefined);
     };
+    // The grab hand is the map's: the Landed view gets its own pointer back.
+    this.events.once(Scenes.Events.SHUTDOWN, () => {
+      this.input.setDefaultCursor('default');
+    });
     this.events.once(Scenes.Events.SHUTDOWN, unsubscribe);
     this.events.once(Scenes.Events.DESTROY, unsubscribe);
 
@@ -108,22 +118,110 @@ export class NavChart extends Scene {
   private apply(command: ChartCommand): void {
     const before = this.chartState;
     this.chartState = chartReducer(this.run, this.layout, before, command);
+    if (this.chartState === before) return;
+    if (this.chartState.view !== before.view) this.applyView();
     if (
-      this.chartState.focusedId === before.focusedId &&
-      this.chartState.selectedId === before.selectedId
+      this.chartState.focusedId !== before.focusedId ||
+      this.chartState.card !== before.card ||
+      this.chartState.selectedId !== before.selectedId
     ) {
-      return;
+      this.drawMarks();
     }
-    this.drawMarks();
-    this.drawYieldMarks();
     EventBus.emit('nav-chart-state', this.chartState);
     if (this.chartState.selectedId !== before.selectedId) {
       EventBus.emit('nav-target-selected', this.chartState.selectedId);
     }
   }
 
-  /** The orbit rings of known planets, and the Heliopause (dashed violet), clipped to the chart. */
-  private drawRings(): GameObjects.Graphics {
+  /** Points the camera where the chart state says: the world point at the screen's centre, and zoom. */
+  private applyView(): void {
+    const { x, y, zoom } = this.chartState.view;
+    this.cameras.main.setZoom(zoom).centerOn(x, y);
+  }
+
+  /**
+   * Drag to pan (a press that moves past a few pixels is a drag, never a click), two fingers to pinch,
+   * the wheel to zoom round the pointer, and a click to open a Body's card or, on empty space, close it.
+   */
+  private listenToPointer(): void {
+    const input = this.input;
+    input.addPointer(1);
+    input.setDefaultCursor('grab');
+    input.on('pointerdown', (pointer: Input.Pointer) => {
+      this.press = {
+        x: pointer.x,
+        y: pointer.y,
+        lastX: pointer.x,
+        lastY: pointer.y,
+        dragged: false,
+      };
+    });
+    input.on('pointermove', (pointer: Input.Pointer) => {
+      const [first, second] = [input.pointer1, input.pointer2];
+      if (first.isDown && second.isDown) {
+        this.pinchStep(first, second);
+        return;
+      }
+      const press = this.press;
+      if (!press || !pointer.isDown) {
+        this.hover(hitTest(this.chartState.view, this.layout, pointer));
+        return;
+      }
+      if (!press.dragged && Math.hypot(pointer.x - press.x, pointer.y - press.y) < DRAG_THRESHOLD) {
+        return;
+      }
+      press.dragged = true;
+      input.setDefaultCursor('grabbing');
+      this.apply({ kind: 'pan', dx: pointer.x - press.lastX, dy: pointer.y - press.lastY });
+      press.lastX = pointer.x;
+      press.lastY = pointer.y;
+    });
+    const release = (pointer: Input.Pointer): void => {
+      const press = this.press;
+      this.press = undefined;
+      this.pinch = undefined;
+      input.setDefaultCursor('grab');
+      if (!press || press.dragged) return;
+      const id = hitTest(this.chartState.view, this.layout, pointer);
+      this.apply(id === undefined ? { kind: 'dismiss' } : { kind: 'click', id });
+    };
+    input.on('pointerup', release);
+    input.on('pointerupoutside', () => {
+      this.press = undefined;
+      this.pinch = undefined;
+    });
+    input.on('wheel', (pointer: Input.Pointer, _over: unknown, _dx: number, dy: number): void => {
+      if (dy === 0) return;
+      const factor = dy > 0 ? 1 / ZOOM.step : ZOOM.step;
+      this.apply({ kind: 'zoom', factor, at: { x: pointer.x, y: pointer.y } });
+    });
+  }
+
+  /** One step of a two-finger pinch: zoom by how much the fingers spread, round the point between them. */
+  private pinchStep(a: Input.Pointer, b: Input.Pointer): void {
+    if (this.press) this.press.dragged = true;
+    const distance = Math.hypot(a.x - b.x, a.y - b.y);
+    const before = this.pinch;
+    this.pinch = distance;
+    if (before === undefined || before === 0) return;
+    this.apply({
+      kind: 'zoom',
+      factor: distance / before,
+      at: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+    });
+  }
+
+  /** Hover only brightens the Body itself: no card, no panel. */
+  private hover(id: HopTarget | undefined): void {
+    if (id === this.hovered) return;
+    if (this.hovered !== undefined) this.sprites.get(this.hovered)?.setAlpha(REST_ALPHA);
+    this.hovered = id;
+    if (id !== undefined) this.sprites.get(id)?.setAlpha(1);
+    this.input.setDefaultCursor(id === undefined ? 'grab' : 'pointer');
+  }
+
+  /** The orbit rings of known planets, and the Heliopause's dashed violet ring once it is found. */
+  private drawRings(): void {
     const graphics = this.add.graphics();
     graphics.lineStyle(1, paletteNumber('cy0'));
     for (const { body: planet } of this.layout.nodes) {
@@ -131,43 +229,55 @@ export class NavChart extends Scene {
       for (const { from, to } of ringSegments(
         this.layout.star,
         this.layout.orbitRadius(planet.id),
+        this.layout.world,
       )) {
         graphics.lineBetween(...from, ...to);
       }
     }
+    if (!this.layout.heliopause) return;
     graphics.lineStyle(1, paletteNumber('vi2'));
-    const segments = ringSegments(this.layout.star, this.layout.heliopauseRadius);
+    const segments = ringSegments(
+      this.layout.star,
+      this.layout.heliopauseRadius,
+      this.layout.world,
+    );
     // Every other short segment: a dashed ring.
     for (const [index, { from, to }] of segments.entries()) {
       if (index % 4 < 2) graphics.lineBetween(...from, ...to);
     }
-    return graphics;
-  }
-
-  /** A Body's real sprite at 1x, with a hit circle for the mouse. */
-  private addBody(node: ChartNode): GameObjects.Image {
-    const image = this.add.image(node.x, node.y, bodySprite(this.run, node.body));
-    const radius = Math.max(node.radius, MIN_HIT_RADIUS);
-    const hitArea = new Geom.Circle(image.width / 2, image.height / 2, radius);
-    image.setInteractive({
-      hitArea,
-      hitAreaCallback: (area: Geom.Circle, x: number, y: number) => area.contains(x, y),
-    });
-    if (image.input) image.input.cursor = 'pointer';
-    image.on('pointerover', () => {
-      this.apply({ kind: 'focus', id: node.body.id });
-    });
-    image.on('pointerdown', () => {
-      this.apply({ kind: 'click', id: node.body.id });
-    });
-    return image;
   }
 
   /**
-   * The Heliopause's mark: a violet diamond on its ring (a shape, not just a colour), with a hit
-   * circle for the mouse like a Body's.
+   * A Surveyed Body's real sprite at 1x; a Detected one is only a pulsing blip (its "?" is React's),
+   * since all the player knows of it is where it is.
    */
-  private addHeliopauseMark(): GameObjects.Graphics {
+  private addBody(node: ChartNode): void {
+    if (bodyKnowledge(this.run, node.body.id) === 'surveyed') {
+      const image = this.add.image(node.x, node.y, bodySprite(this.run, node.body));
+      this.sprites.set(node.body.id, image.setAlpha(REST_ALPHA));
+      return;
+    }
+    const blip = this.add.graphics({ x: node.x, y: node.y });
+    blip.fillStyle(paletteNumber('cy3'));
+    blip.fillCircle(0, 0, BLIP.radius);
+    this.sprites.set(node.body.id, blip.setAlpha(REST_ALPHA));
+    const pulse = this.add.graphics({ x: node.x, y: node.y });
+    pulse.lineStyle(1, paletteNumber('cy3'));
+    pulse.strokeCircle(0, 0, BLIP.radius + 1);
+    if (prefersReducedMotion()) return;
+    this.tweens.add({
+      targets: pulse,
+      scale: { from: 1, to: BLIP.pulseScale },
+      alpha: { from: 1, to: 0 },
+      duration: BLIP.pulseMs,
+      repeat: -1,
+      ease: 'Sine.easeOut',
+    });
+  }
+
+  /** The Heliopause's mark: a violet diamond on its ring (a shape, not just a colour), once found. */
+  private addHeliopauseMark(): void {
+    if (!this.layout.heliopause) return;
     const { x, y, radius } = this.layout.heliopause;
     const mark = this.add.graphics({ x, y });
     mark.fillStyle(paletteNumber('vi4'));
@@ -180,65 +290,50 @@ export class NavChart extends Scene {
     mark.closePath();
     mark.fillPath();
     mark.strokePath();
-    mark.setInteractive({
-      hitArea: new Geom.Circle(0, 0, MIN_HIT_RADIUS),
-      hitAreaCallback: (area: Geom.Circle, hx: number, hy: number) => area.contains(hx, hy),
-    });
-    if (mark.input) mark.input.cursor = 'pointer';
-    mark.on('pointerover', () => {
-      this.apply({ kind: 'focus', id: HELIOPAUSE });
-    });
-    mark.on('pointerdown', () => {
-      this.apply({ kind: 'click', id: HELIOPAUSE });
-    });
-    return mark;
   }
 
   /**
-   * The Fuel or Materials icon beside each landable Body, dimmed and struck through once it is Depleted.
-   * Which corner an icon takes depends on where the labels sit, so they are placed again with the marks.
+   * The Fuel or Materials icon at the upper right of each Surveyed landable Body, dimmed and struck
+   * through once it is Depleted. An Unsurveyed Body's resources are unknown, so it has none.
    */
   private drawYieldMarks(): void {
-    this.yieldMarks.removeAll(true);
-    const g = this.yieldStrikes;
-    g.clear();
-    const labels = placeLabels(this.layout, labelContextOf(this.run, this.chartState));
-    const boxes = placeYieldMarks(this.layout, labels);
+    const strikes = this.add.graphics();
     for (const node of this.layout.nodes) {
-      const box = boxes.get(node.body.id);
-      const icon = yieldIcon(this.run, node.body);
-      if (!box || !icon) continue;
-      const cx = box.x + box.w / 2;
-      const cy = box.y + box.h / 2;
+      const icon =
+        bodyKnowledge(this.run, node.body.id) === 'surveyed'
+          ? yieldIcon(this.run, node.body)
+          : undefined;
+      if (!icon) continue;
+      const [cx, cy] = [node.x + node.radius + 3, node.y - node.radius - 3];
       const image =
         icon.resource === 'fuel'
           ? this.add.image(cx, cy, KIT_ATLAS_KEY, 'res_fuel')
           : this.add.image(cx, cy, 'res_materials');
       image.setScale(YIELD_MARK_SIZE / image.width).setAlpha(icon.depleted ? 0.4 : 1);
-      this.yieldMarks.add(image);
       if (!icon.depleted) continue;
+      const half = YIELD_MARK_SIZE / 2;
       // The same strike as the DOM icon: a dark stroke under a bright one, so it shows over any sprite.
       for (const [width, colour] of [
         [3, paletteNumber('void')],
         [1, paletteNumber('am3')],
       ] as const) {
-        g.lineStyle(width, colour);
-        g.lineBetween(box.x, box.y + box.h, box.x + box.w, box.y);
+        strikes.lineStyle(width, colour);
+        strikes.lineBetween(cx - half, cy + half, cx + half, cy - half);
       }
     }
   }
 
-  /** Where the Spacecraft is, what has focus, and the chosen target with its route. */
+  /** Where the Spacecraft is, the open card's Body, and the chosen target with its route. */
   private drawMarks(): void {
     const g = this.marks;
     g.clear();
-    // The Heliopause's mark stands in for a Body: focus and the target square ring it the same way.
-    const at = (id: HopTarget): ChartSpot | undefined =>
-      id === HELIOPAUSE ? this.layout.heliopause : this.layout.nodes.find((n) => n.body.id === id);
+    const at = (id: HopTarget): ChartSpot | undefined => spotOf(this.layout, id);
 
-    // Gas Giants carry a dotted ring: no surface to land on (shape, not just colour).
+    // Surveyed Gas Giants carry a dotted ring: no surface to land on (shape, not just colour).
     for (const node of this.layout.nodes) {
-      if (node.body.kind === 'gas-giant') this.dottedRing(node, node.radius + MARK_GAP);
+      if (node.body.kind !== 'gas-giant') continue;
+      if (bodyKnowledge(this.run, node.body.id) !== 'surveyed') continue;
+      this.dottedRing(node, node.radius + MARK_GAP);
     }
 
     // A Depleted Body is crossed out: an X over it, which is a shape, not just a colour.
@@ -264,7 +359,7 @@ export class NavChart extends Scene {
       this.chartState.selectedId === undefined ? undefined : at(this.chartState.selectedId);
     if (here && target) {
       g.lineStyle(1, paletteNumber('cy3'));
-      for (const { from, to } of dashedSegments(...routeEnds(here, target), 2, 2)) {
+      for (const { from, to } of dashedSegments(...routeEnds(here, target), 3, 3)) {
         g.lineBetween(...from, ...to);
       }
       g.strokeRect(
@@ -275,7 +370,8 @@ export class NavChart extends Scene {
       );
     }
 
-    const focus = at(this.chartState.focusedId);
+    // Brackets only round the Body whose card is open: nothing is highlighted until the player asks.
+    const focus = this.chartState.card ? at(this.chartState.focusedId) : undefined;
     if (focus) this.cornerBrackets(focus, focus.radius + BRACKET_GAP);
   }
 
@@ -312,3 +408,6 @@ export class NavChart extends Scene {
     }
   }
 }
+
+/** A Body at rest is a touch dim, so hover can brighten it. */
+const REST_ALPHA = 0.85;

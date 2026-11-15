@@ -1,6 +1,7 @@
 import { afterEach, expect, it } from 'vitest';
 import { userEvent } from 'vitest/browser';
 import {
+  currentBody,
   HELIOPAUSE,
   firstDetectedBody,
   install,
@@ -18,8 +19,49 @@ import {
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
 import { expectTextBudget } from './textBudget.ts';
+import {
+  chartReducer,
+  initialChartState,
+  layoutChart,
+  type ChartCommand,
+  type ChartState,
+} from '../game/scenes/navChartView.ts';
+import { toScreen } from '../game/scenes/navChartMap.ts';
+import { EventBus } from '../game/EventBus.ts';
 
 afterEach(cleanUp);
+
+/**
+ * The chart as the player would see it with `focusedId` picked (#193): with no target its card is open,
+ * and with a target the Hop plan shows instead, one layer at a time. `card` overrides that.
+ */
+function stateOf(
+  run: Run,
+  focusedId: HopTarget,
+  selectedId: HopTarget | undefined,
+  card = selectedId === undefined,
+): ChartState {
+  const layout = layoutChart(run);
+  const opened = chartReducer(run, layout, initialChartState(run, layout), {
+    kind: 'click',
+    id: focusedId,
+  });
+  return { ...opened, selectedId, card };
+}
+
+function Panel({
+  run,
+  focusedId,
+  selectedId,
+  card,
+}: {
+  run: Run;
+  focusedId: HopTarget;
+  selectedId: HopTarget | undefined;
+  card?: boolean;
+}) {
+  return <NavChartPanel run={run} state={stateOf(run, focusedId, selectedId, card)} />;
+}
 
 /**
  * A New Run stood on its innermost planet, knowing every Body: the panel's layout is tested on a full
@@ -69,7 +111,7 @@ async function press(el: HTMLElement, key: string): Promise<void> {
 async function showFocused(seed: number, focusedId: string): Promise<HTMLElement> {
   const run = newRun(seed, 'scout');
   const host = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: focusedId as BodyId, selectedId: undefined }} />,
+    <Panel run={run} focusedId={focusedId as BodyId} selectedId={undefined} />,
   );
   return byTestId(host, 'inspect');
 }
@@ -108,12 +150,10 @@ it.each(['scout', 'hauler'] as const)(
     const run = { ...full, spacecraft: { ...full.spacecraft, fuelMass } };
     const far = listBodies(run.starSystem).find((b) => b.name === 'Rexsio');
     if (!far) throw new Error('seed 123 has no Rexsio');
-    const host = await renderUi(
-      <NavChartPanel run={run} state={{ focusedId: far.id, selectedId: far.id }} />,
-    );
+    const host = await renderUi(<Panel run={run} focusedId={far.id} selectedId={far.id} />);
     const plan = byTestId(host, 'hop-plan');
     const warning = byTestId(host, 'plan-warning');
-    const frame = host.querySelector<HTMLElement>('.nav-chart__panel');
+    const frame = host.querySelector<HTMLElement>('.nav-chart__side');
     const buttons = host.querySelector<HTMLElement>('.nav-chart__actions');
     if (!frame || !buttons) throw new Error('missing plan parts');
     const buttonsTop = buttons.getBoundingClientRect().top;
@@ -169,9 +209,7 @@ it('shows the whole target subtitle for a Moon of the longest-named planet, insi
   const longRun = { ...run, starSystem: { ...run.starSystem, planets } };
   const moon = listBodies(longRun.starSystem).find((b) => b.kind === 'moon');
   if (!moon) throw new Error('no moon');
-  const host = await renderUi(
-    <NavChartPanel run={longRun} state={{ focusedId: moon.id, selectedId: moon.id }} />,
-  );
+  const host = await renderUi(<Panel run={longRun} focusedId={moon.id} selectedId={moon.id} />);
   const target = host.querySelector<HTMLElement>('[data-testid="target"]');
   const kind = host.querySelector<HTMLElement>('[data-testid="target-kind"]');
   const gravity = host.querySelector<HTMLElement>('[data-testid="target-gravity"]');
@@ -221,9 +259,7 @@ it('keeps the tallest plan, with a 21-character target and a Margin warning, cle
     starSystem: { ...base.starSystem, planets },
     spacecraft: { ...base.spacecraft, fuelMass: kilograms(1) },
   };
-  const host = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
-  );
+  const host = await renderUi(<Panel run={run} focusedId={moon.id} selectedId={moon.id} />);
   expect(byTestId(host, 'plan-warning').textContent).not.toBe('');
   const targetName = host.querySelector<HTMLElement>('.nav-chart__target-name');
   const plan = byTestId(host, 'hop-plan');
@@ -277,9 +313,7 @@ function longBody() {
 
 it('shows the whole name and subtitle of the longest-named Body in the tooltip, inside its frame', async () => {
   const { run, body } = longBody();
-  const host = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: body.id, selectedId: undefined }} />,
-  );
+  const host = await renderUi(<Panel run={run} focusedId={body.id} selectedId={undefined} />);
   const frame = byTestId(host, 'inspect').getBoundingClientRect();
   const name = host.querySelector<HTMLElement>('.nav-chart__tip-name');
   const kind = host.querySelector<HTMLElement>('.nav-chart__tip-kind');
@@ -308,9 +342,7 @@ it('shows the whole name and subtitle of the longest-named Body in the tooltip, 
 
 it('shows the whole name and subtitle of the longest-named Body in the Hop plan, above the divider', async () => {
   const { run, body } = longBody();
-  const host = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: body.id, selectedId: body.id }} />,
-  );
+  const host = await renderUi(<Panel run={run} focusedId={body.id} selectedId={body.id} />);
   const target = byTestId(host, 'target');
   const name = host.querySelector<HTMLElement>('.nav-chart__target-name');
   const kind = byTestId(host, 'target-kind');
@@ -349,8 +381,12 @@ it('shows the composition in the tooltip and the target head for the longest-nam
   const longRun = { ...run, starSystem: { ...run.starSystem, planets } };
   const moon = listBodies(longRun.starSystem).find((b) => b.kind === 'moon');
   if (!moon) throw new Error('no moon');
+  // The card and the plan never show together (#193): one chart with the card, one with the plan.
   const host = await renderUi(
-    <NavChartPanel run={longRun} state={{ focusedId: moon.id, selectedId: moon.id }} />,
+    <>
+      <Panel run={longRun} focusedId={moon.id} selectedId={undefined} />
+      <Panel run={longRun} focusedId={moon.id} selectedId={moon.id} />
+    </>,
   );
   const tooltip = host.querySelector<HTMLElement>('[data-testid="inspect"]');
   const tipBadge = host.querySelector<HTMLElement>('[data-testid="landable"]');
@@ -380,10 +416,7 @@ it('shows the composition in the tooltip and the target head for the longest-nam
 it('shows Depleted in the tooltip of the longest-named Body, inside its frame', async () => {
   const { run, body } = longBody();
   const host = await renderUi(
-    <NavChartPanel
-      run={{ ...run, depleted: [body.id] }}
-      state={{ focusedId: body.id, selectedId: undefined }}
-    />,
+    <Panel run={{ ...run, depleted: [body.id] }} focusedId={body.id} selectedId={undefined} />,
   );
   const frame = byTestId(host, 'inspect').getBoundingClientRect();
   const badge = byTestId(host, 'landable');
@@ -413,9 +446,7 @@ it('keeps the tallest plan, 21-character target, Margin warning and Depleted, cl
     spacecraft: { ...base.spacecraft, fuelMass: kilograms(1) },
     depleted: [moon.id],
   };
-  const host = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
-  );
+  const host = await renderUi(<Panel run={run} focusedId={moon.id} selectedId={moon.id} />);
   expect(byTestId(host, 'plan-warning').textContent).not.toBe('');
   // The live summary still says the Hop will yield nothing; the head badge shows it.
   expect(byTestId(host, 'plan-summary').textContent).toContain('will yield nothing');
@@ -450,10 +481,7 @@ it('names Depleted in the screen-reader entry for the Body', async () => {
   const run = newRun(123, 'scout');
   const { home, moon } = opening(run);
   const host = await renderUi(
-    <NavChartPanel
-      run={{ ...run, depleted: [moon.id] }}
-      state={{ focusedId: moon.id, selectedId: undefined }}
-    />,
+    <Panel run={{ ...run, depleted: [moon.id] }} focusedId={moon.id} selectedId={undefined} />,
   );
   const option = host.querySelector<HTMLElement>(`#nav-option-${moon.id}`);
   expect(option?.textContent).toContain('Depleted, yields nothing');
@@ -470,10 +498,7 @@ function withJumpDrive(): Run {
 
 it('says on the chart why the focused Heliopause cannot be the target without a Jump Drive', async () => {
   const host = await renderUi(
-    <NavChartPanel
-      run={newRun(1, 'lancer')}
-      state={{ focusedId: HELIOPAUSE, selectedId: undefined }}
-    />,
+    <Panel run={newRun(1, 'lancer')} focusedId={HELIOPAUSE} selectedId={undefined} />,
   );
   const tooltip = byTestId(host, 'inspect');
   expect(tooltip.querySelector('h2')?.textContent).toBe('Heliopause');
@@ -489,18 +514,17 @@ it('says on the chart why the focused Heliopause cannot be the target without a 
   expect(option?.textContent).toMatch(/Heliopause.*Jump Drive/);
   const chart = host.querySelector<HTMLElement>('[role="listbox"]');
   expect(chart?.getAttribute('aria-activedescendant')).toBe(`nav-option-${HELIOPAUSE}`);
-  expect(host.querySelector('[data-testid="hop-plan"]')?.textContent).not.toMatch(/Takeoff/);
+  // One layer at a time (#193): with the card open, no Hop plan.
+  expect(host.querySelector('[data-testid="hop-plan"]')).toBeNull();
 });
 
 it('plans a Hop to the targeted Heliopause with a Jump Drive: Takeoff and Transfer, no Landing', async () => {
   const host = await renderUi(
-    <NavChartPanel
-      run={withJumpDrive()}
-      state={{ focusedId: HELIOPAUSE, selectedId: HELIOPAUSE }}
-    />,
+    <Panel run={withJumpDrive()} focusedId={HELIOPAUSE} selectedId={HELIOPAUSE} />,
   );
   expect(byTestId(host, 'target').textContent).toContain('Heliopause');
-  expect(byTestId(host, 'inspect').querySelector('[data-testid="verdict"]')).toBeNull();
+  // One layer at a time (#193): the plan shows, not the card.
+  expect(host.querySelector('[data-testid="inspect"]')).toBeNull();
   // The bar has a segment for each Burn, and its name reads them; the details list them too.
   const bar = byTestId(host, 'dv-bar');
   expect(bar.querySelectorAll('[data-burn]')).toHaveLength(2);
@@ -530,9 +554,7 @@ it('leads the Hop plan with Success Chance, then the Δv bar, then the Fuel gaug
   const run = newRun(123, 'scout');
   const moon = run.starSystem.planets[0]?.moons[0];
   if (!moon) throw new Error('no moon');
-  const host = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
-  );
+  const host = await renderUi(<Panel run={run} focusedId={moon.id} selectedId={moon.id} />);
   const top = (id: string): number => byTestId(host, id).getBoundingClientRect().top;
   expect(top('plan-success')).toBeLessThan(top('dv-bar'));
   expect(top('dv-bar')).toBeLessThan(top('plan-fuel'));
@@ -567,9 +589,7 @@ it('opens the Hop plan details by keyboard: each Burn with its reason, and the m
   const run = newRun(123, 'scout');
   const moon = run.starSystem.planets[0]?.moons[0];
   if (!moon) throw new Error('no moon');
-  const host = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: moon.id, selectedId: moon.id }} />,
-  );
+  const host = await renderUi(<Panel run={run} focusedId={moon.id} selectedId={moon.id} />);
   const toggle = tellMeMore(host);
   expect(toggle.getAttribute('aria-expanded')).toBe('false');
   expect(byTestId(host, 'plan-basis').checkVisibility()).toBe(false);
@@ -611,27 +631,30 @@ it('the text-budget helper passes on the Hop plan, in every state, and on the ch
   ];
   for (const [run, selectedId] of states) {
     const host = await renderUi(
-      <NavChartPanel run={run} state={{ focusedId: selectedId ?? moon.id, selectedId }} />,
+      <Panel run={run} focusedId={selectedId ?? moon.id} selectedId={selectedId} />,
     );
-    expectTextBudget([byTestId(host, 'target'), byTestId(host, 'hop-plan')]);
-    // Nothing is written under the chart until the player asks with "?".
-    expect(byTestId(host, 'plan-explain').checkVisibility()).toBe(false);
+    if (selectedId === undefined) {
+      // No target: the picked Body's card holds to the budget too (#193).
+      expectTextBudget(byTestId(host, 'inspect'));
+    } else {
+      expectTextBudget([byTestId(host, 'target'), byTestId(host, 'hop-plan')]);
+      // Nothing is written over the plan until the player asks with "?".
+      expect(byTestId(host, 'plan-explain').checkVisibility()).toBe(false);
+    }
     cleanUp();
   }
 });
 
-it('opens the Δv help under the chart with the "?" in its header, by keyboard', async () => {
+// Re-pinned for #193: the Δv help lives with the Hop plan, so it needs a target.
+it('opens the Δv help over the plan with the "?" in its header, by keyboard', async () => {
   const run = newRun(123, 'scout');
-  const host = await renderUi(
-    <NavChartPanel
-      run={run}
-      state={{ focusedId: run.starSystem.planets[0]?.id ?? HELIOPAUSE, selectedId: undefined }}
-    />,
-  );
+  const moon = run.starSystem.planets[0]?.moons[0];
+  if (!moon) throw new Error('seed 123 has a Home Moon');
+  const host = await renderUi(<Panel run={run} focusedId={moon.id} selectedId={moon.id} />);
   const toggle = helpToggle(host);
   const titlebar = host.querySelector<HTMLElement>('.nav-chart__titlebar');
   if (!titlebar) throw new Error('no titlebar');
-  // The "?" sits in the chart's title bar.
+  // The "?" sits in the Hop plan's title bar.
   const [t, bar] = [toggle.getBoundingClientRect(), titlebar.getBoundingClientRect()];
   expect(t.left).toBeGreaterThanOrEqual(bar.left);
   expect(t.right).toBeLessThanOrEqual(bar.right);
@@ -661,10 +684,14 @@ it('every yield icon on the card and the Hop plan target has its accessible name
     );
 
   const expected = landable.composition === 'icy' ? 'yields Fuel' : 'yields Materials';
+  // The card and the plan never show together (#193): one chart with each.
   const withTarget = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: landable.id, selectedId: landable.id }} />,
+    <>
+      <Panel run={run} focusedId={landable.id} selectedId={undefined} />
+      <Panel run={run} focusedId={landable.id} selectedId={landable.id} />
+    </>,
   );
-  // One on the card (tooltip), one on the target.
+  // One on the card, one on the target.
   expect(names(withTarget)).toEqual([expected, expected]);
   expect(byTestId(byTestId(withTarget, 'inspect'), 'resource-icon').getAttribute('role')).toBe(
     'img',
@@ -673,17 +700,23 @@ it('every yield icon on the card and the Hop plan target has its accessible name
   cleanUp();
 
   const depleted = await renderUi(
-    <NavChartPanel
-      run={{ ...run, depleted: [landable.id] }}
-      state={{ focusedId: landable.id, selectedId: landable.id }}
-    />,
+    <>
+      <Panel
+        run={{ ...run, depleted: [landable.id] }}
+        focusedId={landable.id}
+        selectedId={undefined}
+      />
+      <Panel
+        run={{ ...run, depleted: [landable.id] }}
+        focusedId={landable.id}
+        selectedId={landable.id}
+      />
+    </>,
   );
   expect(names(depleted)).toEqual(['Depleted, yields nothing', 'Depleted, yields nothing']);
   cleanUp();
 
-  const giant = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: gas.id, selectedId: undefined }} />,
-  );
+  const giant = await renderUi(<Panel run={run} focusedId={gas.id} selectedId={undefined} />);
   expect(names(giant)).toEqual([]);
 });
 
@@ -698,7 +731,10 @@ it('the yield icon fits inside the card and the target block', async () => {
     );
   if (!body) throw new Error('seed 4171 has no landable Body');
   const host = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: body.id, selectedId: body.id }} />,
+    <>
+      <Panel run={run} focusedId={body.id} selectedId={undefined} />
+      <Panel run={run} focusedId={body.id} selectedId={body.id} />
+    </>,
   );
   const within = (inner: HTMLElement, outer: HTMLElement): void => {
     const [i, o] = [inner.getBoundingClientRect(), outer.getBoundingClientRect()];
@@ -727,9 +763,7 @@ function surveyedRun(surveyed: boolean): { run: Run; target: Body } {
 
 it('flags an Unsurveyed target with a badge and shows the reach verdict, both with accessible names (#190)', async () => {
   const { run, target } = surveyedRun(false);
-  const host = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: target.id, selectedId: target.id }} />,
-  );
+  const host = await renderUi(<Panel run={run} focusedId={target.id} selectedId={target.id} />);
   expect(byTestId(host, 'plan-unsurveyed').getAttribute('aria-label')).toBe('Unsurveyed');
   expect(byTestId(host, 'plan-warning').getAttribute('aria-label')).toMatch(/^Reach: /);
   expect(byTestId(host, 'target-reach').getAttribute('aria-label')).toMatch(/^Reach: /);
@@ -738,20 +772,16 @@ it('flags an Unsurveyed target with a badge and shows the reach verdict, both wi
 
 it('shows no Unsurveyed badge for a Surveyed target (#190)', async () => {
   const { run, target } = surveyedRun(true);
-  const host = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: target.id, selectedId: target.id }} />,
-  );
+  const host = await renderUi(<Panel run={run} focusedId={target.id} selectedId={target.id} />);
   expect(host.querySelector('[data-testid="plan-unsurveyed"]')).toBeNull();
   expect(byTestId(host, 'target-reach').getAttribute('aria-label')).toMatch(/^Reach: /);
 });
 
 it('fits the badge and the verdict inside the plan at 640x360 (#190)', async () => {
   const { run, target } = surveyedRun(false);
-  const host = await renderUi(
-    <NavChartPanel run={run} state={{ focusedId: target.id, selectedId: target.id }} />,
-  );
+  const host = await renderUi(<Panel run={run} focusedId={target.id} selectedId={target.id} />);
   const plan = byTestId(host, 'hop-plan').getBoundingClientRect();
-  const frame = host.querySelector<HTMLElement>('.nav-chart__panel')?.getBoundingClientRect();
+  const frame = host.querySelector<HTMLElement>('.nav-chart__side')?.getBoundingClientRect();
   for (const id of ['plan-unsurveyed', 'plan-warning', 'plan-success']) {
     const box = byTestId(host, id).getBoundingClientRect();
     expect(box.right).toBeLessThanOrEqual(plan.right);
@@ -762,4 +792,190 @@ it('fits the badge and the verdict inside the plan at 640x360 (#190)', async () 
   const card = byTestId(host, 'target').getBoundingClientRect();
   expect(reach.right).toBeLessThanOrEqual(card.right);
   expect(reach.left).toBeGreaterThanOrEqual(card.left);
+});
+
+// ---- #193: the full-screen chart, a card only on demand, then the plan ----
+
+/** Records every command the panel sends the chart, and each request to close it. */
+function recordCommands(): { commands: ChartCommand[]; closes: number; stop: () => void } {
+  const record = { commands: [] as ChartCommand[], closes: 0, stop: (): void => undefined };
+  const offs = [
+    EventBus.on('nav-chart-command', (command) => {
+      record.commands.push(command);
+    }),
+    EventBus.on('nav-chart-close-requested', () => {
+      record.closes += 1;
+    }),
+  ];
+  record.stop = () => {
+    for (const off of offs) off();
+  };
+  return record;
+}
+
+/** A box in the stage's own 640x360 pixels. */
+const stageRect = (host: HTMLElement, el: Element) => {
+  const origin = host.getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  return {
+    left: r.left - origin.left,
+    top: r.top - origin.top,
+    right: r.right - origin.left,
+    bottom: r.bottom - origin.top,
+  };
+};
+
+it('opens with nothing but the map: no card, no plan and no highlight', async () => {
+  const run = startRun(123, 'scout');
+  const layout = layoutChart(run);
+  const host = await renderUi(<NavChartPanel run={run} state={initialChartState(run, layout)} />);
+  expect(host.querySelector('[data-testid="inspect"]')).toBeNull();
+  expect(host.querySelector('[data-testid="hop-plan"]')).toBeNull();
+  expect(host.querySelector('.nav-chart__label--focused')).toBeNull();
+  // Only known Bodies are on it (and the Heliopause, found from the start until the Radar).
+  expect(host.querySelectorAll('[role="option"]').length).toBe(layout.nodes.length + 1);
+  // The Detected Body wears a "?", named for screen readers.
+  const marks = [...host.querySelectorAll('[data-testid="unsurveyed-mark"]')];
+  expect(marks.map((m) => m.getAttribute('aria-label'))).toEqual([
+    `${firstDetectedBody(run.starSystem).name}: Unsurveyed`,
+  ]);
+});
+
+it('Escape closes the open card, and only then the chart', async () => {
+  const run = newRun(123, 'scout');
+  const moon = run.starSystem.planets[0]?.moons[0];
+  if (!moon) throw new Error('seed 123 has a Home Moon');
+  const record = recordCommands();
+  const host = await renderUi(<Panel run={run} focusedId={moon.id} selectedId={undefined} />);
+  await press(host.querySelector<HTMLElement>('[role="listbox"]') ?? host, '{Escape}');
+  expect(record.commands).toEqual([{ kind: 'dismiss' }]);
+  expect(record.closes).toBe(0);
+  cleanUp();
+  const closed = await renderUi(
+    <Panel run={run} focusedId={moon.id} selectedId={undefined} card={false} />,
+  );
+  await press(closed.querySelector<HTMLElement>('[role="listbox"]') ?? closed, '{Escape}');
+  expect(record.closes).toBe(1);
+  record.stop();
+});
+
+it('the re-centre button brings the camera back to the Spacecraft; zoom buttons zoom', async () => {
+  const run = newRun(123, 'scout');
+  const layout = layoutChart(run);
+  const opened = initialChartState(run, layout);
+  const away = chartReducer(run, layout, opened, { kind: 'pan', dx: -500, dy: -200 });
+  expect(away.view).not.toEqual(opened.view);
+  const record = recordCommands();
+  const host = await renderUi(<NavChartPanel run={run} state={away} />);
+  await press(byTestId(host, 'recentre'), '{Enter}');
+  const [command] = record.commands;
+  if (!command) throw new Error('no command sent');
+  expect(chartReducer(run, layout, away, command).view).toEqual(opened.view);
+  for (const name of ['Zoom in', 'Zoom out']) {
+    const button = host.querySelector<HTMLElement>(`button[aria-label="${name}"]`);
+    if (!button) throw new Error(`no ${name}`);
+    await press(button, '{Enter}');
+  }
+  expect(record.commands.slice(1).map((c) => c.kind)).toEqual(['zoom', 'zoom']);
+  record.stop();
+});
+
+it('marks known Bodies off screen at the edge, named, and a click on one sends it', async () => {
+  const run = newRun(123, 'scout');
+  const layout = layoutChart(run);
+  const record = recordCommands();
+  const host = await renderUi(<NavChartPanel run={run} state={initialChartState(run, layout)} />);
+  const markers = [...host.querySelectorAll<HTMLElement>('[data-testid="edge-marker"]')];
+  expect(markers.length).toBeGreaterThan(0);
+  for (const marker of markers) {
+    expect(marker.getAttribute('aria-label')).toMatch(/, off screen$/);
+    const box = stageRect(host, marker);
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(640);
+    expect(box.top).toBeGreaterThanOrEqual(48);
+    expect(box.bottom).toBeLessThanOrEqual(334);
+  }
+  markers[0]?.click();
+  expect(record.commands[0]?.kind).toBe('click');
+  record.stop();
+});
+
+// The #188 fold-in: seeds 346 and 267 were where the old tooltip hid the "you" marker.
+it('the card never covers its Body, where the Spacecraft is, or the target', async () => {
+  for (const seed of [123, 267, 346]) {
+    const run = newRun(seed, 'scout');
+    const layout = layoutChart(run);
+    const here = currentBody(run).id;
+    const target = layout.nodes.at(-1)?.body.id;
+    if (!target) throw new Error('an empty chart');
+    for (const node of layout.nodes.filter((n) => n.body.id !== target)) {
+      let state = initialChartState(run, layout);
+      state = chartReducer(run, layout, state, { kind: 'click', id: target });
+      state = chartReducer(run, layout, state, { kind: 'plan' });
+      state = chartReducer(run, layout, state, { kind: 'click', id: node.body.id });
+      const host = await renderUi(<NavChartPanel run={run} state={state} />);
+      const card = stageRect(host, byTestId(host, 'inspect'));
+      for (const id of [node.body.id, here, target]) {
+        const spot = layout.nodes.find((n) => n.body.id === id);
+        if (!spot) continue;
+        const at = toScreen(state.view, spot);
+        const r = spot.radius * state.view.zoom;
+        const covered =
+          at.x + r > card.left &&
+          at.x - r < card.right &&
+          at.y + r > card.top &&
+          at.y - r < card.bottom;
+        expect(covered, `seed ${String(seed)}: card on ${node.body.name} covers ${id}`).toBe(false);
+      }
+      cleanUp();
+    }
+  }
+});
+
+it('fits at 640x360: nothing of the chart, its card or its plan spills off the screen', async () => {
+  const run = newRun(123, 'scout');
+  const layout = layoutChart(run);
+  const far = layout.nodes.at(-1)?.body.id;
+  if (!far) throw new Error('an empty chart');
+  const opened = initialChartState(run, layout);
+  const carded = chartReducer(run, layout, opened, { kind: 'click', id: far });
+  const planned = chartReducer(run, layout, carded, { kind: 'plan' });
+  expect(planned.selectedId).toBe(far);
+  for (const state of [opened, carded, planned]) {
+    const host = await renderUi(<NavChartPanel run={run} state={state} />);
+    const section = host.querySelector('section');
+    if (!section) throw new Error('no chart');
+    for (const el of section.querySelectorAll<HTMLElement>('*')) {
+      if (!el.checkVisibility() || el.closest('.sr-only')) continue;
+      const box = stageRect(host, el);
+      if (box.right - box.left === 0) continue;
+      expect(box.left, el.className).toBeGreaterThanOrEqual(0);
+      expect(box.top, el.className).toBeGreaterThanOrEqual(0);
+      expect(box.right, el.className).toBeLessThanOrEqual(640);
+      expect(box.bottom, el.className).toBeLessThanOrEqual(360);
+    }
+    cleanUp();
+  }
+});
+
+// Spec #96 story 12: only an Unsurveyed Body's place is known.
+it('an Unsurveyed Body’s card hides its type, gravity and resources; its plan hatches the Landing', async () => {
+  const run = startRun(123, 'scout');
+  const blip = firstDetectedBody(run.starSystem);
+  const host = await renderUi(<Panel run={run} focusedId={blip.id} selectedId={undefined} />);
+  const card = byTestId(host, 'inspect');
+  expect(card.querySelector('.nav-chart__tip-kind')?.textContent).toBe('Unsurveyed');
+  expect(card.textContent).not.toMatch(/m\/s²|Icy|Rocky|Moon of|Gas Giant|yields/);
+  expect(byTestId(card, 'card-distance').textContent).toMatch(/AU away$/);
+  expect(byTestId(card, 'card-reach').getAttribute('aria-label')).toMatch(/^Reach: /);
+  expect(card.querySelector('button')?.textContent).toBe('Plan Hop');
+  cleanUp();
+
+  const plan = await renderUi(<Panel run={run} focusedId={blip.id} selectedId={blip.id} />);
+  expect(byTestId(plan, 'target-composition').textContent).toBe('Unsurveyed');
+  expect(plan.querySelector('[data-testid="target-gravity"]')).toBeNull();
+  expect(plan.querySelector('[data-burn="landing"]')?.className).toContain(
+    'dv-bar__segment--unsure',
+  );
+  expect(byTestId(plan, 'dv-bar').getAttribute('aria-label')).toMatch(/Landing is a guess/);
 });
