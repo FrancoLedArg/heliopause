@@ -83,6 +83,7 @@ async function landOn(
   run: Run,
   beforeLanding?: (game: Phaser.Game) => void,
   report?: LandedData['report'],
+  afterJump = false,
 ): Promise<Landed> {
   host = document.createElement('div');
   document.body.append(host);
@@ -103,7 +104,11 @@ async function landOn(
   await titleReady;
   const landedReady = nextSceneReady(SceneKey.Landed);
   beforeLanding?.(game);
-  const data: LandedData = report ? { run, report } : { run };
+  const data: LandedData = {
+    run,
+    ...(report ? { report } : {}),
+    ...(afterJump ? { afterJump } : {}),
+  };
   game.scene.start(SceneKey.Landed, data);
   await landedReady;
   await act(() => Promise.resolve());
@@ -715,6 +720,28 @@ it('sweeps a Radar ring out from the Spacecraft when one is installed, and says 
     .poll(() => document.querySelector('[data-testid="comms-announcement"]')?.textContent)
     .toMatch(/^Radar Detected \d+ Bod(y|ies)\.$/);
   await expect.poll(() => scene.radarSweep, { timeout: 3000 }).toBeUndefined();
+});
+
+it('sweeps the carried Radar and says what it found on arrival after a Jump', async () => {
+  const scene = await landOn(runWith('scout', ['radar-1']), undefined, undefined, true);
+  await expect
+    .poll(() => document.querySelector('[data-testid="comms-announcement"]')?.textContent, {
+      timeout: 5000,
+    })
+    .toMatch(/^Radar Detected \d+ Bod(y|ies)\.$/);
+  expect(scene.radarSweep?.parentContainer).toBe(scene.layers.ship);
+});
+
+it('plays the install sweep again when the Spacecraft panel closes', async () => {
+  const scene = await landOn(runWith('scout', []));
+  act(() => {
+    EventBus.emit('component-install-requested', 2, 'radar-1');
+  });
+  await expect.poll(() => scene.radarSweep, { timeout: 3000 }).toBeUndefined();
+  act(() => {
+    EventBus.emit('spacecraft-panel-closed');
+  });
+  expect(scene.radarSweep?.parentContainer).toBe(scene.layers.ship);
 });
 
 it('skips the Radar sweep when the player prefers reduced motion', async () => {
