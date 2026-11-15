@@ -9,12 +9,16 @@ import { GAME_HEIGHT, GAME_WIDTH, startGame } from '../main.ts';
 import {
   CHASSIS_IDS,
   findBody,
+  HELIOPAUSE,
   homePlanet,
+  install,
   launchHop,
   listBodies,
+  materials,
   startRun,
   type BodyId,
   type ChassisId,
+  type HopFlight,
   type HopTarget,
   type Run,
 } from '../sim/index.ts';
@@ -169,6 +173,56 @@ it('seeking to the end of an Arrived Hop hands off to the Landed view of the tar
   expect(runs).toEqual([data.after]);
   // The Flight scene let go of its listeners when it shut down.
   expect(EventBus.listenerCount('leave-run-requested')).toBe(1); // the Landed view's own
+});
+
+/** A lancer on seed 1 with a Jump Drive: it reaches the Heliopause from its Home Planet. */
+function readyForTheHeliopause(): Run {
+  const result = install({ ...startRun(1, 'lancer'), materials: materials(100) }, 2, 'jump-drive');
+  if (result.kind !== 'installed') throw new Error('Expected an install');
+  return result.run;
+}
+
+it('a Hop to the Heliopause plays Takeoff and Transfer with the Spacecraft in view, then hands over to its report', async () => {
+  const reached: HopFlight[] = [];
+  const off = EventBus.on('hop-reached-heliopause', (flight) => reached.push(flight));
+  const { scene, data } = await fly('lancer', () => HELIOPAUSE, readyForTheHeliopause);
+  expect(data.flight.outcome.kind).toBe('reached-heliopause');
+  expect(scene.layers.arrival).toBeUndefined();
+  // Takeoff then Transfer, and never a Landing.
+  const burns = new Set<string>();
+  for (let t = 0; t <= scene.playback.duration; t += 50) burns.add(scene.playback.at(t).burn);
+  expect([...burns]).toEqual(['takeoff', 'transfer']);
+  const phases = document.querySelector('[data-testid="phase-strip"]')?.textContent ?? '';
+  expect(phases).toContain('Transfer');
+  expect(phases).not.toContain('Landing');
+
+  // The camera keeps the Spacecraft on screen through the Transfer, up to its last moment.
+  const { start } = transferSpan(scene);
+  for (const ms of [start + 100, scene.playback.duration - 1]) {
+    scene.seek(ms);
+    const cam = scene.cameras.main;
+    const x = scene.ship.x - cam.scrollX;
+    const y = scene.ship.y - cam.scrollY;
+    expect(x).toBeGreaterThan(0);
+    expect(x).toBeLessThan(GAME_WIDTH);
+    expect(y).toBeGreaterThan(0);
+    expect(y).toBeLessThan(GAME_HEIGHT);
+    expect(scene.toBody.visible).toBe(true);
+  }
+
+  scene.seek(scene.playback.duration);
+  await act(frame);
+  off();
+  expect(reached).toEqual([data.flight]);
+  // The Flight stays on screen behind the placeholder report: no Landed view follows.
+  expect(game?.scene.isActive(SceneKey.Flight)).toBe(true);
+  expect(game?.scene.isActive(SceneKey.Landed)).toBe(false);
+  const report = document.querySelector<HTMLElement>('[data-testid="hop-report"]');
+  expect(report?.getAttribute('aria-labelledby')).toBe('hop-report-title');
+  expect(document.getElementById('hop-report-title')?.textContent).toBe('Reached the Heliopause');
+  expect(report?.textContent).not.toContain('Landing');
+  // Its one way on takes focus, ready for the keyboard.
+  expect(document.activeElement?.textContent).toBe('Back to title');
 });
 
 const wait = (ms: number): Promise<void> =>

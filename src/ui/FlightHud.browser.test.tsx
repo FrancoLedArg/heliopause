@@ -33,6 +33,7 @@ it('gives the clipped route names of the longest-named Bodies their full name', 
       flight={flight}
       moment={undefined}
       failed={false}
+      reachedHeliopause={false}
       onNewRun={() => undefined}
       onLeave={() => undefined}
     />,

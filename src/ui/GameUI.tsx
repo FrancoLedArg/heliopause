@@ -32,7 +32,15 @@ export function GameUI() {
   const [menuOpen, setMenuOpen] = useState(false);
   // The Hop being played back: the Run at Launch, the flight, where the playback is, and whether it failed.
   const [flight, setFlight] = useState<
-    { before: Run; flight: HopFlight; moment?: FlightMoment; failed: boolean } | undefined
+    | {
+        before: Run;
+        flight: HopFlight;
+        moment?: FlightMoment;
+        failed: boolean;
+        /** The playback of a Hop to the Heliopause is over (its placeholder report shows). */
+        reachedHeliopause: boolean;
+      }
+    | undefined
   >(undefined);
 
   // The report of the Hop that just Arrived, shown beside the Landed view of its target until dismissed.
@@ -104,13 +112,16 @@ export function GameUI() {
   useEffect(() => {
     const offs = [
       EventBus.on('hop-flight-started', (before, hop) => {
-        setFlight({ before, flight: hop, failed: false });
+        setFlight({ before, flight: hop, failed: false, reachedHeliopause: false });
       }),
       EventBus.on('hop-flight-moment', (moment) => {
         setFlight((now) => now && { ...now, moment });
       }),
       EventBus.on('hop-failed', () => {
         setFlight((now) => now && { ...now, failed: true });
+      }),
+      EventBus.on('hop-reached-heliopause', () => {
+        setFlight((now) => now && { ...now, reachedHeliopause: true });
       }),
     ];
     return () => {
@@ -257,6 +268,7 @@ export function GameUI() {
           flight={flight.flight}
           moment={flight.moment}
           failed={flight.failed}
+          reachedHeliopause={flight.reachedHeliopause}
           onNewRun={startNewRun}
           onLeave={leaveRun}
         />

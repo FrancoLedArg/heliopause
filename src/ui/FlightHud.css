@@ -211,6 +211,14 @@
   right: 8px;
 }
 
+/* Stand-in for the Heliopause's sprite until `body_heliopause` is in the manifest: its dashed ring. */
+.route-inset__edge {
+  box-sizing: border-box;
+  border: 1px dashed var(--vi3);
+  border-radius: 50%;
+  background: var(--vi0);
+}
+
 .route-inset__track {
   position: absolute;
   top: 13px;

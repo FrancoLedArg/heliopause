@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { imageUrl } from '../game/assets/manifest.ts';
+import { hasAsset, imageUrl } from '../game/assets/manifest.ts';
 import { EventBus } from '../game/EventBus.ts';
 import { FAST_FORWARD, type FlightMoment } from '../game/scenes/flightPlayback.ts';
 import { availableDeltaV, kilograms, type HopFlight, type Run } from '../game/sim/index.ts';
@@ -30,6 +30,11 @@ interface FlightHudProps {
   moment: FlightMoment | undefined;
   /** The playback of a failed Hop is over: show what happened and the way out. */
   failed: boolean;
+  /**
+   * The playback of a Hop to the Heliopause is over: show its report. A placeholder until the Jump
+   * (#157) takes over from here.
+   */
+  reachedHeliopause: boolean;
   /** New Run after a failure: asks for a Chassis, then a new Star System. */
   onNewRun: () => void;
   onLeave: () => void;
@@ -40,13 +45,21 @@ interface FlightHudProps {
  * Transfer → Landing), the Fuel bar and the flight log. Panels keep to the left and the top, clear of
  * the Spacecraft. The in-Run Menu is not offered here: the playback runs to its end.
  */
-export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }: FlightHudProps) {
+export function FlightHud({
+  before,
+  flight,
+  moment,
+  failed,
+  reachedHeliopause,
+  onNewRun,
+  onLeave,
+}: FlightHudProps) {
   const view = describeFlight(before, flight, moment);
   const fuel = moment?.fuel ?? flight.fuelAtLaunch;
   const deltaV = availableDeltaV({ ...before.spacecraft, fuelMass: kilograms(fuel) });
   const current = view.phases.find((phase) => phase.state === 'current');
   const [fast, setFast] = useState(false);
-  const over = failed || moment?.ended === true;
+  const over = failed || reachedHeliopause || moment?.ended === true;
   const setSpeed = (next: boolean): void => {
     setFast(next);
     EventBus.emit('hop-fast-forward-requested', next);
@@ -86,6 +99,25 @@ export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }:
             { label: 'Back to title', onClick: onLeave },
             { label: 'New Run', onClick: onNewRun, primary: true },
           ]}
+        />
+      </>
+    );
+  }
+
+  if (reachedHeliopause && flight.outcome.kind === 'reached-heliopause') {
+    // The Spacecraft holds at the edge of the Star System; the Jump (#157) will take over here.
+    return (
+      <>
+        <TopBar
+          systemName={before.starSystem.name}
+          fuel={fuel}
+          deltaV={deltaV}
+          materials={before.materials}
+        />
+        <HopReport
+          before={before}
+          flight={flight}
+          actions={[{ label: 'Back to title', onClick: onLeave, primary: true }]}
         />
       </>
     );
@@ -132,11 +164,15 @@ export function FlightHud({ before, flight, moment, failed, onNewRun, onLeave }:
           src={imageUrl(view.route.fromSprite)}
           alt=""
         />
-        <img
-          className="route-inset__body route-inset__body--to"
-          src={imageUrl(view.route.toSprite)}
-          alt=""
-        />
+        {hasAsset(view.route.toSprite) ? (
+          <img
+            className="route-inset__body route-inset__body--to"
+            src={imageUrl(view.route.toSprite)}
+            alt=""
+          />
+        ) : (
+          <span className="route-inset__body route-inset__body--to route-inset__edge" />
+        )}
         <div
           className="route-inset__track"
           role="progressbar"
