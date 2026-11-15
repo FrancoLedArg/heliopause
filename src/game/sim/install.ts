@@ -1,7 +1,7 @@
 import { COMPONENTS, componentCost, type ComponentId } from './catalogue.ts';
 import { recordChoice } from './choiceLog.ts';
 import type { Run } from './run.ts';
-import { carriesJumpDrive, refit, SLOT_COUNT } from './spacecraft.ts';
+import { carriesJumpDrive, isSlotOf, refit } from './spacecraft.ts';
 import { assertNotEnded, endIfStranded } from './stranded.ts';
 import { materials, type Materials } from './units.ts';
 
@@ -57,8 +57,9 @@ export function standingRefusal(
  * a Slot that does not exist, or a Run that has ended: programmer errors.
  */
 export function install(run: Run, slotIndex: number, componentId: ComponentId): InstallResult {
-  if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= SLOT_COUNT) {
-    throw new RangeError(`A Spacecraft has Slots 0 to ${String(SLOT_COUNT - 1)}, not ${slotIndex}`);
+  if (!isSlotOf(run.spacecraft, slotIndex)) {
+    const last = run.spacecraft.slots.length - 1;
+    throw new RangeError(`This Spacecraft has Slots 0 to ${String(last)}, not ${slotIndex}`);
   }
   assertNotEnded(run);
   const refusal = installRefusal(run, slotIndex, componentId);

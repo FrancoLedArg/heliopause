@@ -1,3 +1,4 @@
+import type { ComponentId } from './catalogue.ts';
 import {
   astronomicalUnits,
   kilograms,
@@ -216,18 +217,41 @@ export const CHASSIS_IDS = ['scout', 'hauler', 'lancer'] as const;
 export type ChassisId = (typeof CHASSIS_IDS)[number];
 
 /**
- * What a new Spacecraft on a Chassis starts with: everything that sets its Δv. Each Chassis's own
- * mass and its factors on Engine Isp and Fuel Tank capacity are calibrated from these, so the
- * starting Components give exactly these figures (ADR 0005).
+ * What a Spacecraft on a Chassis has with the calibration loadout (a level-1 Engine and a level-1
+ * Fuel Tank): everything that sets its Δv. Each Chassis's own mass and its factors on Engine Isp and
+ * Fuel Tank capacity are calibrated from these, so that loadout gives exactly these figures (ADR
+ * 0005). The Scout and the Lancer start with that loadout; the Hauler starts with more.
  */
 export interface ChassisTuning {
-  /** Everything but Fuel: the Chassis plus its starting Components. */
+  /** Everything but Fuel: the Chassis plus the calibration loadout. */
   readonly dryMass: Kilograms;
-  /** What its starting Fuel Tank holds; a new Spacecraft starts full. */
+  /** What the calibration loadout's Fuel Tank holds on this Chassis. */
   readonly fuelCapacity: Kilograms;
-  /** Its starting Engine's Isp on this Chassis. */
+  /** The calibration loadout's Engine's Isp on this Chassis. */
   readonly engineIsp: Seconds;
 }
+
+/** How much room a Chassis has, and what a New Run's Spacecraft on it carries. */
+export interface ChassisLayout {
+  /** How many Slots the Spacecraft has. */
+  readonly slotCount: number;
+  /** What fills its first Slots at New Run, in order; the rest start empty. */
+  readonly startingComponents: readonly ComponentId[];
+}
+
+/**
+ * Gameplay tuning: each Chassis's identity is its room and its starting parts (spec #230). The
+ * Hauler is heavy, so it gets the most Slots and a second Fuel Tank. With only the calibration
+ * loadout a cautious Hauler player was Stranded by Hop 5 in half of 500 Star Systems; now it is no
+ * worse off than a Scout or Lancer player (`tuning.test.ts`). Spec #230 also gave it a level-2 Drill,
+ * left out since the Isp rise (#247) made it unneeded: any starting Drill, stripped for its refund,
+ * pays for a Jump Drive before the first Hop, which no opening may do (#189).
+ */
+export const CHASSIS_LAYOUT = {
+  scout: { slotCount: 4, startingComponents: ['engine-1', 'fuel-tank-1'] },
+  hauler: { slotCount: 6, startingComponents: ['engine-1', 'fuel-tank-1', 'fuel-tank-1'] },
+  lancer: { slotCount: 5, startingComponents: ['engine-1', 'fuel-tank-1'] },
+} as const satisfies Record<ChassisId, ChassisLayout>;
 
 /**
  * Gameplay tuning for the Chassis. Not real-world figures: the engines are sci-fi, past any flown

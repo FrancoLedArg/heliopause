@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   availableDeltaV,
+  CHASSIS_IDS,
   COMPONENTS,
   install,
   materials,
@@ -71,5 +72,15 @@ describe('installing a Component', () => {
 
   it('throws for a Slot that does not exist', () => {
     expect(() => install(run, 4, 'drill-1')).toThrow(RangeError);
+  });
+
+  it('accepts every Slot of the Chassis and refuses one past it', () => {
+    const slotCounts = { scout: 4, lancer: 5, hauler: 6 };
+    for (const id of CHASSIS_IDS) {
+      const rich = { ...startRun(2026, id), materials: materials(500) };
+      const last = slotCounts[id] - 1;
+      expect(installed(install(rich, last, 'drill-1')).spacecraft.slots[last]).toBe('drill-1');
+      expect(() => install(rich, last + 1, 'drill-1')).toThrow(RangeError);
+    }
   });
 });

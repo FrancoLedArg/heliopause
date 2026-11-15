@@ -55,9 +55,13 @@ function removeSlots(from: Run, slots: readonly number[]): Run {
   }, from);
 }
 
-/** The same Run with these Components in its Slots and no Materials, its Fuel kept up to capacity. */
+/**
+ * The same Run with these Components in its first Slots, the rest empty, and no Materials, its Fuel
+ * kept up to capacity.
+ */
 function fittedWith(from: Run, slots: readonly Slot[]): Run {
-  return { ...from, spacecraft: refit(from.spacecraft, slots), materials: materials(0) };
+  const all = from.spacecraft.slots.map((_, i) => slots[i] ?? null);
+  return { ...from, spacecraft: refit(from.spacecraft, all), materials: materials(0) };
 }
 
 /**
@@ -265,6 +269,38 @@ describe('what could still save a Run', () => {
       kind: 'ended',
       end: { kind: 'stranded' },
     });
+  });
+
+  it("the Stranded check considers installing into the Hauler's fifth and sixth Slots", () => {
+    // Bodies 10 times as hard to leave, and a Hauler with three full Fuel Tanks, Slots 1 to 4
+    // full: only a level-2 Engine in an empty Slot past the fourth can lift it. Removing a Tank to
+    // make room spills Fuel it cannot spare.
+    const start = onSmallPlanet(startRun(1, 'hauler'));
+    const heavy = Object.fromEntries(
+      listBodies(start.starSystem).map((body) => [
+        body.id,
+        { escapeVelocity: metersPerSecond(body.escapeVelocity * 10) },
+      ]),
+    );
+    const tanks = fittedWith(withBodies(start, heavy), [
+      'engine-1',
+      'fuel-tank-1',
+      'fuel-tank-1',
+      'fuel-tank-1',
+    ]);
+    const full = {
+      ...tanks,
+      spacecraft: { ...tanks.spacecraft, fuelMass: tanks.spacecraft.fuelCapacity },
+      materials: componentCost('engine-2', 1),
+    };
+    expect(anyBodyHop(full)).toBe(false);
+    for (const slot of [4, 5]) {
+      const installed = install(full, slot, 'engine-2');
+      if (installed.kind !== 'installed') throw new Error('expected an install');
+      expect(anyBodyHop(installed.run)).toBe(true);
+    }
+    expect(anyBodyHop(removeSlots({ ...full, materials: materials(0) }, [3]))).toBe(false);
+    expect(assessStranding(full)).toMatchObject({ kind: 'warning' });
   });
 
   it('never ends a Run that removing Components could save', () => {

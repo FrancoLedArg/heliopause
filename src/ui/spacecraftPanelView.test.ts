@@ -330,12 +330,20 @@ describe('the drawn Spacecraft’s text alternative', () => {
       'fuel-tank-1',
       'fuel-tank-1',
       'drill-2',
+      null,
+      null,
     ]);
     expect(describeSpacecraft(hauler)).toBe('Hauler: Engine 1, Fuel Tank 1 ×2, Drill 2');
   });
 
   it('skips empty Slots and names the Jump Drive without a level', () => {
-    const lancer = refit(newSpacecraft('lancer'), ['engine-2', null, 'fuel-tank-1', 'jump-drive']);
+    const lancer = refit(newSpacecraft('lancer'), [
+      'engine-2',
+      null,
+      'fuel-tank-1',
+      'jump-drive',
+      null,
+    ]);
     expect(describeSpacecraft(lancer)).toBe('Lancer: Engine 2, Fuel Tank 1, Jump Drive');
   });
 });

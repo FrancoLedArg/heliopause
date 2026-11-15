@@ -226,15 +226,15 @@ describe('the Hop plan as the player reads it', () => {
 
   it('gives the same percentage as the why text for a hauler Hop on seed 123 that is short', () => {
     // Re-pinned for #189: from the innermost planet, a half-fuelled hauler's Hop to Rexsio is short.
-    // #247's Isp leaves it less short.
+    // #247's Isp leaves it less short. A quarter, not half, since #231 gave the Hauler two Tanks.
     const full = onInnerPlanet(startRun(123, 'hauler'));
     const hauler: Run = {
       ...full,
-      spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 2) },
+      spacecraft: { ...full.spacecraft, fuelMass: kilograms(full.spacecraft.fuelMass / 4) },
     };
     const rexsio = listBodies(hauler.starSystem).find((body) => body.name === 'Rexsio');
     if (!rexsio) throw new Error('seed 123 has no Rexsio');
-    expect(describeHopPlan(hauler, planFor(rexsio.id, hauler)).margin).toBe('−2.9 km/s (14%)');
+    expect(describeHopPlan(hauler, planFor(rexsio.id, hauler)).margin).toBe('−3.9 km/s (19%)');
   });
 
   it('drops the percentage once the Margin is as big as the estimate', () => {

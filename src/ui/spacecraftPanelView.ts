@@ -9,7 +9,6 @@ import {
   kilograms,
   metersPerSecond,
   preview,
-  SLOT_COUNT,
   standingRefusal,
   starSystemNumber,
   type Preview,
@@ -298,7 +297,7 @@ export function massBar(spacecraft: Spacecraft): { fraction: number; label: stri
     0,
   );
   const chassisMass = spacecraft.dryMass - installed;
-  const heaviest = chassisMass + SLOT_COUNT * HEAVIEST_COMPONENT;
+  const heaviest = chassisMass + spacecraft.slots.length * HEAVIEST_COMPONENT;
   return {
     fraction: Math.min(1, spacecraft.dryMass / heaviest),
     label: `Dry mass ${formatMass(spacecraft.dryMass)}`,

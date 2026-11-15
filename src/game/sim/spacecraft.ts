@@ -1,5 +1,11 @@
 import { COMPONENTS, type ComponentId } from './catalogue.ts';
-import { CHASSIS_TUNING, SOURCED_CONSTANTS, type ChassisId, type ChassisTuning } from './data.ts';
+import {
+  CHASSIS_LAYOUT,
+  CHASSIS_TUNING,
+  SOURCED_CONSTANTS,
+  type ChassisId,
+  type ChassisTuning,
+} from './data.ts';
 import {
   kilograms,
   metersPerSecond,
@@ -12,20 +18,36 @@ import {
 /** A place on the Spacecraft that holds one Component, or `null` while it is empty. */
 export type Slot = ComponentId | null;
 
-/** How many Slots every Spacecraft has. */
-export const SLOT_COUNT = 4;
+/** How many Slots a Spacecraft on this Chassis has: the Scout 4, the Lancer 5, the Hauler 6. */
+export function slotCount(chassisId: ChassisId): number {
+  return CHASSIS_LAYOUT[chassisId].slotCount;
+}
+
+/** Whether `slotIndex` names one of this Spacecraft's own Slots. */
+export function isSlotOf(spacecraft: Pick<Spacecraft, 'slots'>, slotIndex: number): boolean {
+  return Number.isInteger(slotIndex) && slotIndex >= 0 && slotIndex < spacecraft.slots.length;
+}
 
 declare const loadout: unique symbol;
 
 /**
- * The Slots installed on a Spacecraft, `SLOT_COUNT` long. Only `newSpacecraft` and `refit` make
+ * The Slots installed on a Spacecraft, as many as its Chassis has (`slotCount`). Only `newSpacecraft` and `refit` make
  * one, because they also derive the figures that go with it: Slots changed any other way (a spread
  * with `slots.with(...)`) do not typecheck as a Spacecraft's, so its figures cannot go stale.
  */
 export type Loadout = readonly Slot[] & { readonly [loadout]: true };
 
-/** What a New Run's Spacecraft carries: a level-1 Engine and a level-1 Fuel Tank, 2 Slots empty. */
-export const STARTING_SLOTS: readonly Slot[] = ['engine-1', 'fuel-tank-1', null, null];
+/**
+ * What each Chassis is calibrated with (ADR 0005): a level-1 Engine and a level-1 Fuel Tank give
+ * every Chassis its `CHASSIS_TUNING` figures. The Scout and the Lancer also start with it.
+ */
+export const CALIBRATION_LOADOUT: readonly ComponentId[] = ['engine-1', 'fuel-tank-1'];
+
+/** The Slots a New Run's Spacecraft on this Chassis has: its starting Components, the rest empty. */
+export function startingSlots(chassisId: ChassisId): readonly Slot[] {
+  const { startingComponents } = CHASSIS_LAYOUT[chassisId];
+  return Array.from({ length: slotCount(chassisId) }, (_, i) => startingComponents[i] ?? null);
+}
 
 /**
  * The player's one vehicle: a Chassis with Components in its Slots, and the Fuel it carries.
@@ -48,10 +70,11 @@ export interface Spacecraft {
 
 /** The Spacecraft a New Run starts with on this Chassis: its starting Components, Fuel full. */
 export function newSpacecraft(chassisId: ChassisId): Spacecraft {
-  const derived = figures(chassisId, STARTING_SLOTS);
+  const slots = startingSlots(chassisId);
+  const derived = figures(chassisId, slots);
   return {
     chassisId,
-    slots: asLoadout(STARTING_SLOTS),
+    slots: asLoadout(slots),
     ...derived,
     fuelMass: derived.fuelCapacity,
   };
@@ -63,8 +86,11 @@ export function newSpacecraft(chassisId: ChassisId): Spacecraft {
  * which changes the player may make (Materials, the last Engine) belongs to the caller.
  */
 export function refit(spacecraft: Spacecraft, slots: readonly Slot[]): Spacecraft {
-  if (slots.length !== SLOT_COUNT) {
-    throw new Error(`A Spacecraft has ${String(SLOT_COUNT)} Slots, not ${String(slots.length)}`);
+  const count = slotCount(spacecraft.chassisId);
+  if (slots.length !== count) {
+    throw new Error(
+      `A ${spacecraft.chassisId} has ${String(count)} Slots, not ${String(slots.length)}`,
+    );
   }
   const derived = figures(spacecraft.chassisId, slots);
   return {
@@ -170,8 +196,8 @@ type Figures = Pick<Spacecraft, 'dryMass' | 'fuelCapacity' | 'engineIsp'>;
 
 /**
  * A Chassis: its own mass, and factors on the Isp of its Engines and the capacity of its Fuel
- * Tanks (ADR 0005). Gameplay tuning, calibrated from Spec A's starting figures so a new Spacecraft
- * on each Chassis starts exactly as `CHASSIS_TUNING` says.
+ * Tanks (ADR 0005). Gameplay tuning, calibrated from Spec A's figures so the calibration loadout on
+ * each Chassis gives exactly what `CHASSIS_TUNING` says.
  */
 interface Chassis {
   readonly mass: Kilograms;
@@ -206,7 +232,7 @@ function figures(chassisId: ChassisId, slots: readonly Slot[]): Figures {
   };
 }
 
-/** The starting Components' mass, base Fuel capacity and best base Isp, before any Chassis. */
+/** The Components' mass, base Fuel capacity and best base Isp, before any Chassis. */
 function loadoutTotals(slots: readonly Slot[]) {
   let mass = 0;
   let baseFuelCapacity = 0;
@@ -230,11 +256,11 @@ function loadoutTotals(slots: readonly Slot[]) {
   return { mass, baseFuelCapacity, bestBaseIsp };
 }
 
-/** Each Chassis, calibrated so its starting Components give its Spec A starting figures. */
+/** Each Chassis, calibrated so the calibration loadout gives its Spec A figures. */
 function calibrate(start: ChassisTuning): Chassis {
-  const loadout = loadoutTotals(STARTING_SLOTS);
+  const loadout = loadoutTotals(CALIBRATION_LOADOUT);
   const mass = start.dryMass - loadout.mass;
-  if (mass <= 0) throw new Error('The starting Components outweigh a Chassis');
+  if (mass <= 0) throw new Error('The calibration loadout outweighs a Chassis');
   return {
     mass: kilograms(mass),
     engineIspFactor: start.engineIsp / loadout.bestBaseIsp,

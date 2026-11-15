@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { manifest } from '../game/assets/manifest.ts';
 import { COMPONENTS } from '../game/sim/catalogue.ts';
 import { FUEL_NOTE, ICE_LINE, SOURCED_CONSTANTS, SOURCED_RANGES } from '../game/sim/data.ts';
-import { SLOT_COUNT } from '../game/sim/spacecraft.ts';
+
 import { ABOUT, CREDITS, HOW_TO_PLAY, KIND_NAMES, type ContentLink } from './aboutContent.ts';
 
 /** Every URL the simulation data cites in a `source` field or a Component's sourced provenance. */
@@ -145,8 +145,8 @@ describe('How to play', () => {
     for (const kind of kinds) expect(text()).toContain(KIND_NAMES[kind]);
   });
 
-  it("states the Spacecraft's Slot count from the data", () => {
-    expect(text()).toContain(`${String(SLOT_COUNT)} Slots`);
+  it("states each Chassis's Slot count, not one fixed number", () => {
+    expect(text()).toContain('Scout 4, Hauler 6, Lancer 5');
   });
 
   it('has the eight steps in order, each a heading and one or two sentences', () => {

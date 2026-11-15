@@ -1,5 +1,12 @@
 import { COMPONENTS, type ComponentKind } from '../game/sim/catalogue.ts';
-import { SLOT_COUNT } from '../game/sim/spacecraft.ts';
+import { CHASSIS_IDS } from '../game/sim/data.ts';
+import { slotCount } from '../game/sim/spacecraft.ts';
+import { chassisName } from './format.ts';
+
+/** How many Slots each Chassis has, as How to play names them: "Scout 4, Hauler 6, Lancer 5". */
+const SLOTS_PER_CHASSIS = CHASSIS_IDS.map(
+  (id) => `${chassisName(id)} ${String(slotCount(id))}`,
+).join(', ');
 
 /**
  * Everything the About and Credits screens say, in one place so the team can edit text, links and
@@ -334,7 +341,7 @@ export const HOW_TO_PLAY: { heading: string; steps: readonly HowToPlayStep[]; ba
     {
       heading: 'Build',
       body: [
-        `Install Components (${KIND_LIST}) in your ${String(SLOT_COUNT)} Slots; each costs Materials.`,
+        `Install Components (${KIND_LIST}) in your Slots (${SLOTS_PER_CHASSIS}); each costs Materials.`,
         'Every Component has mass, and mass costs Δv.',
       ],
     },

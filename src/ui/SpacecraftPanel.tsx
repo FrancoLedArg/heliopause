@@ -5,7 +5,6 @@ import {
   COMPONENTS,
   install,
   remove,
-  SLOT_COUNT,
   type Run,
   type Slot,
 } from '../game/sim/index.ts';
@@ -50,7 +49,7 @@ interface SpacecraftPanelProps {
 }
 
 /**
- * The Spacecraft panel: the 4 Slots, the Mass bar and figures, and the catalogue, where each
+ * The Spacecraft panel: its Chassis's Slots (the Scout 4, the Lancer 5, the Hauler 6), the Mass bar and figures, and the catalogue, where each
  * Component can be installed by paying its Materials and the one in the chosen Slot removed for
  * half its cost back (after a yes or no). Before the player pays or confirms, a preview shows the
  * dry mass, Fuel capacity and Δv the change would give, for the catalogue entry they focus or hover
@@ -136,7 +135,8 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
     if (step === undefined) return;
     event.preventDefault();
-    selectSlot((selected + step + SLOT_COUNT) % SLOT_COUNT);
+    const count = spacecraft.slots.length;
+    selectSlot((selected + step + count) % count);
   };
 
   const tryInstall = (row: PanelRow): void => {

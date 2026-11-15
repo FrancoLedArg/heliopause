@@ -2,7 +2,7 @@ import { COMPONENTS, componentCost, type ComponentId } from './catalogue.ts';
 import { recordChoice } from './choiceLog.ts';
 import type { Outfit } from './install.ts';
 import type { Run } from './run.ts';
-import { refit, SLOT_COUNT, type Slot } from './spacecraft.ts';
+import { isSlotOf, refit, type Slot } from './spacecraft.ts';
 import { assertNotEnded, endIfStranded } from './stranded.ts';
 import { kilograms, materials, type Kilograms, type Materials } from './units.ts';
 
@@ -34,8 +34,9 @@ export type RemoveResult =
  * exist, or a Run that has ended: programmer errors.
  */
 export function remove(run: Run, slotIndex: number): RemoveResult {
-  if (!Number.isInteger(slotIndex) || slotIndex < 0 || slotIndex >= SLOT_COUNT) {
-    throw new RangeError(`A Spacecraft has Slots 0 to ${String(SLOT_COUNT - 1)}, not ${slotIndex}`);
+  if (!isSlotOf(run.spacecraft, slotIndex)) {
+    const last = run.spacecraft.slots.length - 1;
+    throw new RangeError(`This Spacecraft has Slots 0 to ${String(last)}, not ${slotIndex}`);
   }
   assertNotEnded(run);
   const refusal = removalRefusal(run.spacecraft.slots, slotIndex);

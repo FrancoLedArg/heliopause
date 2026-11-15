@@ -62,9 +62,9 @@ describe('the Jump Drive', () => {
   });
 
   it('removing the Jump Drive refunds half its Materials', () => {
-    const after = installed(install(rich('hauler'), 2, 'jump-drive'));
+    const after = installed(install(rich('hauler'), 3, 'jump-drive'));
     const cost = componentCost('jump-drive', 1);
-    const result = remove(after, 2);
+    const result = remove(after, 3);
     if (result.kind !== 'removed') throw new Error('Expected a removal');
     expect(result.refund).toBe(Math.floor(cost / 2));
     expect(result.run.materials).toBe(500 - cost + Math.floor(cost / 2));
@@ -80,9 +80,9 @@ describe('the Jump Drive', () => {
 
   it('a Run in System 3 is charged 51 for the Jump Drive and refunded 25', () => {
     const inSystem3 = { ...rich('hauler'), starSystemNumber: 3 };
-    const after = installed(install(inSystem3, 2, 'jump-drive'));
+    const after = installed(install(inSystem3, 3, 'jump-drive'));
     expect(after.materials).toBe(500 - 51);
-    const result = remove(after, 2);
+    const result = remove(after, 3);
     if (result.kind !== 'removed') throw new Error('Expected a removal');
     expect(result.refund).toBe(25);
   });
@@ -111,8 +111,9 @@ describe('the Jump Drive', () => {
       const { spacecraft } = startRun(2026, id);
       const after = preview(spacecraft, { kind: 'install', component: 'jump-drive' });
       if (after === undefined) throw new Error('Expected a preview');
-      // Heavy: at least a tenth of the Δv gone on every Chassis.
-      expect(after.deltaV).toBeLessThan(availableDeltaV(spacecraft) * 0.9);
+      // Heavy: at least a twelfth of the Δv gone on every Chassis (a tenth before #231 gave the
+      // Hauler a second Fuel Tank: it costs the Hauler 8.7%).
+      expect(after.deltaV).toBeLessThan(availableDeltaV(spacecraft) * (11 / 12));
     }
   });
 

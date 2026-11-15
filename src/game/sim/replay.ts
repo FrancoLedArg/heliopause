@@ -6,7 +6,7 @@ import { install, type InstallRefusal } from './install.ts';
 import { remove, type RemoveRefusal } from './remove.ts';
 import { startRun, type Run, type RunEnd } from './run.ts';
 import { runEnd, score, type Score } from './score.ts';
-import { SLOT_COUNT } from './spacecraft.ts';
+import { isSlotOf } from './spacecraft.ts';
 import { findBody, type Seed } from './starSystem.ts';
 
 /**
@@ -74,7 +74,7 @@ function take(run: Run, choice: Choice): Taken {
   if (run.status.kind !== 'landed') return impossible('The Spacecraft was not landed on a Body.');
   switch (choice.kind) {
     case 'install': {
-      if (!isSlot(choice.slot))
+      if (!isSlotOf(run.spacecraft, choice.slot))
         return impossible(`The Spacecraft has no Slot ${String(choice.slot)}.`);
       if (!Object.hasOwn(COMPONENTS, choice.componentId)) {
         return impossible(`There is no Component ${choice.componentId}.`);
@@ -85,7 +85,7 @@ function take(run: Run, choice: Choice): Taken {
         : impossible(installRefused(result.reason));
     }
     case 'remove': {
-      if (!isSlot(choice.slot))
+      if (!isSlotOf(run.spacecraft, choice.slot))
         return impossible(`The Spacecraft has no Slot ${String(choice.slot)}.`);
       const result = remove(run, choice.slot);
       return result.kind === 'removed'
@@ -100,10 +100,6 @@ function take(run: Run, choice: Choice): Taken {
       return result.kind === 'flown' ? { kind: 'taken', run: result.run } : impossible(result.why);
     }
   }
-}
-
-function isSlot(slot: number): boolean {
-  return Number.isInteger(slot) && slot >= 0 && slot < SLOT_COUNT;
 }
 
 /** Why the Run refused an install, in plain language. */

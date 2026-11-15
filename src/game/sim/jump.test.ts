@@ -80,12 +80,14 @@ describe('the Jump', () => {
   });
 
   it('the Jump keeps Components except the Jump Drive', () => {
-    // A Drill in Slot 3 and the Jump Drive in Slot 4: the Jump burns out only the Jump Drive.
-    const drilled = install({ ...start, materials: materials(1_000) }, 2, 'drill-1');
+    // The Hauler's two Fuel Tanks, a Drill in Slot 4 and the Jump Drive in Slot 5: the Jump burns
+    // out only the Jump Drive.
+    const drilled = install({ ...start, materials: materials(1_000) }, 3, 'drill-1');
     if (drilled.kind !== 'installed') throw new Error('Expected an install');
     const { before, run: jumped } = escape(drilled.run);
-    expect(before.spacecraft.slots).toEqual(['engine-1', 'fuel-tank-1', 'drill-1', 'jump-drive']);
-    expect(jumped.spacecraft.slots).toEqual(['engine-1', 'fuel-tank-1', 'drill-1', null]);
+    const kept = ['engine-1', 'fuel-tank-1', 'fuel-tank-1', 'drill-1'];
+    expect(before.spacecraft.slots).toEqual([...kept, 'jump-drive', null]);
+    expect(jumped.spacecraft.slots).toEqual([...kept, null, null]);
     expect(carriesJumpDrive(jumped.spacecraft)).toBe(false);
     // Burnt out, not removed: no Materials come back for it.
     expect(jumped.materials).toBe(before.materials + gathered(jumped).materials);
@@ -162,14 +164,15 @@ describe('the Jump', () => {
   });
 
   it('a Jump that lands where no Hop could ever have a chance ends the Run as Stranded', () => {
-    // Test fixture: deep into a Run, at difficulty level 47, with no Materials left to change the
-    // Spacecraft. Level 48's gravity puts every Hop out of reach even with a full Tank. Re-pinned
+    // Test fixture: deep into a Run, at difficulty level 55, with no Materials left to change the
+    // Spacecraft. Level 56's gravity puts every Hop out of reach even with a full Tank. Re-pinned
     // for #189 (was level 40): a Starting Moon is easier to leave than the Home Planet was.
     // Re-pinned for #247 (was level 41): the Chassis Isp rose 30%, so the Spacecraft lasts deeper.
+    // Re-pinned for #231 (was level 47): the Hauler's second Fuel Tank carries it deeper still.
     const deep = (() => {
-      const starSystem = generateSystem(2026, 47);
+      const starSystem = generateSystem(2026, 55);
       const at = landedOn(
-        { ...start, starSystemNumber: 47, starSystem },
+        { ...start, starSystemNumber: 55, starSystem },
         starSystem.startingMoonId,
       );
       return { ...escape(at).before, materials: materials(0) };
@@ -178,11 +181,11 @@ describe('the Jump', () => {
     if (launched.kind !== 'flown') throw new Error('Expected the Hop to the Heliopause');
     expect(launched.flight.outcome.kind).toBe('reached-heliopause');
     const { run } = launched;
-    expect(run.starSystemNumber).toBe(48);
+    expect(run.starSystemNumber).toBe(56);
     expect(run.status).toMatchObject({
       kind: 'ended',
       end: { kind: 'stranded', bodyId: run.starSystem.startingMoonId },
     });
-    expect(score(run).starSystemsEscaped).toBe(47);
+    expect(score(run).starSystemsEscaped).toBe(55);
   });
 });

@@ -661,16 +661,17 @@ describe('Body labels on the Nav Chart', () => {
     expect(reviewCases().flatMap(labelClashes).join('\n')).toBe('');
   });
 
-  // Re-pinned for #189 (was seed 292's Zarla-2) and #247 (was seed 155's Vutho): generation changed.
-  // Seed 86 is the fullest 7-planet chart of the first 400 (29 Bodies), its far Moon Prota the target.
-  it('keep off every Body even on a chart too full to label well (seed 86, Prota as the target)', () => {
-    const run = newRun(86);
-    const layout = layoutFor(86);
-    const target = layout.nodes.find((n) => n.body.id === 'planet-7-moon-3');
-    if (!target) throw new Error('seed 86 has no planet-7-moon-3');
+  // Re-pinned for #189 (was seed 292's Zarla-2), #247 (was seed 155's Vutho) and #231 (was seed 86's
+  // Prota): generation changed. Seed 256 is the fullest 7-planet chart of the first 400 (29 Bodies),
+  // its far Moon Liolio the target.
+  it('keep off every Body even on a chart too full to label well (seed 256, Liolio as the target)', () => {
+    const run = newRun(256);
+    const layout = layoutFor(256);
+    const target = layout.nodes.find((n) => n.body.id === 'planet-7-moon-4');
+    if (!target) throw new Error('seed 256 has no planet-7-moon-4');
     const problems = layout.nodes.flatMap((n) =>
       labelClashes(
-        chartCase(86, {
+        chartCase(256, {
           hereId: currentBody(run).id,
           targetId: target.body.id,
           focusedId: n.body.id,

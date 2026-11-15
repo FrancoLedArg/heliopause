@@ -14,7 +14,6 @@ import {
   replay,
   runEnd,
   score,
-  SLOT_COUNT,
   startRun,
   storedChoiceLog,
   type BodyId,
@@ -41,10 +40,10 @@ function playRandomly(start: Run, rng: Rng): Run {
     const roll = rng.next();
     if (roll < 0.35) {
       const componentId = COMPONENT_IDS[rng.int(0, COMPONENT_IDS.length - 1)] ?? 'engine-1';
-      const result = install(run, rng.int(0, SLOT_COUNT - 1), componentId);
+      const result = install(run, rng.int(0, run.spacecraft.slots.length - 1), componentId);
       if (result.kind === 'installed') run = result.run;
     } else if (roll < 0.45) {
-      const result = remove(run, rng.int(0, SLOT_COUNT - 1));
+      const result = remove(run, rng.int(0, run.spacecraft.slots.length - 1));
       if (result.kind === 'removed') run = result.run;
     } else {
       const targets: HopTarget[] = [
@@ -194,6 +193,19 @@ describe('replay', () => {
     );
     if (!unknown) throw new Error('Seed 2026 has an undetected Body');
     expect(rejectedAt([{ kind: 'hop', target: unknown.id }])).toBe(0);
+  });
+
+  it('replay accepts every Slot of the Chassis and rejects one past it', () => {
+    const why = (chassisId: ChassisId, slot: number): unknown => {
+      const result = replay(2026, chassisId, [{ kind: 'install', slot, componentId: 'drill-1' }]);
+      return result.kind === 'replayed' ? result.run.spacecraft.slots[slot] : result.why;
+    };
+    expect(why('scout', 3)).toBe('drill-1');
+    expect(why('scout', 4)).toMatch(/no Slot/);
+    expect(why('lancer', 4)).toBe('drill-1');
+    expect(why('lancer', 5)).toMatch(/no Slot/);
+    expect(why('hauler', 5)).toBe('drill-1');
+    expect(why('hauler', 6)).toMatch(/no Slot/);
   });
 
   it('a seed that is not a safe integer, or an unknown Chassis, cannot be replayed', () => {

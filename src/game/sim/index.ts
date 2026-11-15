@@ -46,8 +46,10 @@ export {
   fuelAfterBurning,
   newSpacecraft,
   refit,
-  SLOT_COUNT,
-  STARTING_SLOTS,
+  slotCount,
+  startingSlots,
+  isSlotOf,
+  CALIBRATION_LOADOUT,
 } from './spacecraft.ts';
 export type { ComponentEffect, Loadout, Slot, Spacecraft } from './spacecraft.ts';
 export { COMPONENT_IDS, COMPONENTS, componentCost, JUMP_DRIVE_TUNING } from './catalogue.ts';

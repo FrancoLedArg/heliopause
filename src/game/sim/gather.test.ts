@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   BODY_TUNING,
   CHASSIS_IDS,
+  componentEffect,
   COMPONENTS,
   COMPONENT_IDS,
   kilograms,
@@ -121,7 +122,11 @@ describe('a New Run', () => {
 
 describe('an Icy yield against Tank capacity', () => {
   it('is less than the smallest Tank holds, and a real refill for the largest', () => {
-    const capacities = CHASSIS_IDS.map((id) => startRun(1, id).spacecraft.fuelCapacity);
+    // One level-1 Fuel Tank on each Chassis; the Hauler starts with two (#231).
+    const capacities = CHASSIS_IDS.map((id) => {
+      const effect = componentEffect(id, 'fuel-tank-1');
+      return effect.kind === 'fuel-tank' ? effect.fuelCapacity : 0;
+    });
     expect(BODY_TUNING.baseYield.icy.max).toBeLessThan(Math.min(...capacities));
     expect(BODY_TUNING.baseYield.icy.min).toBeGreaterThan(Math.max(...capacities) * 0.04);
   });

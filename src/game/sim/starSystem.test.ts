@@ -13,6 +13,7 @@ import {
   marginShare,
   OPENING_TUNING,
   planHop,
+  remove,
   startingMoon,
   startRun,
   type StarSystem,
@@ -245,7 +246,12 @@ describe('a fair opening (#96), with no early dead ends (#188)', () => {
     for (let i = 0; i < 500; i++) {
       const seed = i * 7919 + 1;
       for (const chassis of CHASSIS_IDS) {
-        const run = startRun(seed, chassis);
+        // Nor by removing its starting Components for their refunds first (#231's Hauler).
+        let run = startRun(seed, chassis);
+        for (let slot = run.spacecraft.slots.length - 1; slot >= 0; slot--) {
+          const result = remove(run, slot);
+          if (result.kind === 'removed' && result.run.status.kind === 'landed') run = result.run;
+        }
         const slot = run.spacecraft.slots.indexOf(null);
         if (install(run, slot, 'jump-drive').kind === 'installed')
           affords.push(`${seed} ${chassis}`);
@@ -307,7 +313,9 @@ describe('Star System difficulty levels', { timeout: 60_000 }, () => {
     );
     // Re-pinned for #189: the Starting Moon replaces the Home Planet, and generation checks its opening.
     // Re-pinned for #247: the Chassis Isp rose, so more draws open fairly and some seeds settle sooner.
-    expect(stringSeed(json)).toBe(2438872959);
+    // Re-pinned for #231: generation checks the Hauler's new start (two Fuel Tanks), which opens
+    // more draws fairly, so some seeds settle sooner.
+    expect(stringSeed(json)).toBe(4063714179);
   });
 
   it('a higher difficulty level raises gravity', () => {

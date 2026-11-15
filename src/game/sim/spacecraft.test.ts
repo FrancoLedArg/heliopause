@@ -4,9 +4,20 @@ import {
   CHASSIS_IDS,
   kilograms,
   newSpacecraft,
+  refit,
   seconds,
+  type ChassisId,
   type Spacecraft,
 } from './index.ts';
+
+/** The Chassis with only the calibration loadout, a level-1 Engine and Fuel Tank (ADR 0005). */
+function calibrated(id: ChassisId): Spacecraft {
+  const start = newSpacecraft(id);
+  return refit(
+    start,
+    start.slots.map((_, i) => (['engine-1', 'fuel-tank-1'] as const)[i] ?? null),
+  );
+}
 
 describe('Δv from Fuel', () => {
   it('follows the rocket equation: Isp × g0 × ln(wet mass / dry mass)', () => {
@@ -49,28 +60,26 @@ describe('Chassis', () => {
     }
   });
 
-  it('the Chassis differ in dry mass, Fuel capacity and engine', () => {
-    const chassis = CHASSIS_IDS.map((id) => newSpacecraft(id));
+  it('on the calibration loadout, the Chassis differ in dry mass, Fuel capacity and engine', () => {
+    const chassis = CHASSIS_IDS.map((id) => calibrated(id));
     for (const key of ['dryMass', 'fuelCapacity', 'engineIsp'] as const) {
       expect(new Set(chassis.map((spacecraft) => spacecraft[key])).size).toBe(3);
     }
   });
 
-  it("the Chassis' starting Δv differs noticeably: each at least 10% apart", () => {
-    const deltaVs = CHASSIS_IDS.map((id) => availableDeltaV(newSpacecraft(id))).sort(
-      (a, b) => a - b,
-    );
+  it("on the calibration loadout, the Chassis' Δv differs noticeably: each at least 10% apart", () => {
+    const deltaVs = CHASSIS_IDS.map((id) => availableDeltaV(calibrated(id))).sort((a, b) => a - b);
     for (let i = 1; i < deltaVs.length; i++) {
       expect(deltaVs[i]).toBeGreaterThanOrEqual((deltaVs[i - 1] ?? Infinity) * 1.1);
     }
   });
 
-  it('the Chassis with the most Fuel is not the one with the most Δv: mass matters', () => {
+  it('on the calibration loadout, the Chassis with the most Fuel is not the one with the most Δv: mass matters', () => {
     const byFuel = [...CHASSIS_IDS].sort(
-      (a, b) => newSpacecraft(b).fuelCapacity - newSpacecraft(a).fuelCapacity,
+      (a, b) => calibrated(b).fuelCapacity - calibrated(a).fuelCapacity,
     );
     const byDeltaV = [...CHASSIS_IDS].sort(
-      (a, b) => availableDeltaV(newSpacecraft(b)) - availableDeltaV(newSpacecraft(a)),
+      (a, b) => availableDeltaV(calibrated(b)) - availableDeltaV(calibrated(a)),
     );
     expect(byFuel[0]).not.toBe(byDeltaV[0]);
   });

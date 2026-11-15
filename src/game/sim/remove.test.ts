@@ -102,4 +102,24 @@ describe('removing a Component', () => {
   it('throws for a Slot that does not exist', () => {
     expect(() => remove(run, 4)).toThrow(RangeError);
   });
+
+  it('accepts every Slot of the Chassis and refuses one past it', () => {
+    const lancer = startRun(2026, 'lancer');
+    expect(remove(lancer, 4)).toEqual({ kind: 'refused', reason: { kind: 'empty-slot', slot: 4 } });
+    expect(() => remove(lancer, 5)).toThrow(RangeError);
+    const hauler = startRun(2026, 'hauler');
+    expect(remove(hauler, 5)).toEqual({ kind: 'refused', reason: { kind: 'empty-slot', slot: 5 } });
+    expect(() => remove(hauler, 6)).toThrow(RangeError);
+  });
+
+  it('the Hauler can remove its second starting Fuel Tank for half its cost', () => {
+    const hauler = startRun(2026, 'hauler');
+    expect(hauler.spacecraft.slots[2]).toBe('fuel-tank-1');
+    const tank = removed(remove(hauler, 2));
+    // A level-1 Fuel Tank costs 20.
+    expect(tank.refund).toBe(10);
+    expect(tank.run.materials).toBe(hauler.materials + 10);
+    expect(tank.run.spacecraft.slots).toEqual(['engine-1', 'fuel-tank-1', null, null, null, null]);
+    expect(tank.run.spacecraft.fuelMass).toBe(tank.run.spacecraft.fuelCapacity);
+  });
 });
