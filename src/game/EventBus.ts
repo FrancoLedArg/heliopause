@@ -111,6 +111,8 @@ export interface GameEvents {
    * the explosion has played: the Run ended Destroyed, with no Hop report (the Hop never arrived).
    */
   'hop-destroyed': [ended: Run];
+  /** Phaser -> React: the Engine fire reached the Fuel and the Spacecraft blew up, this moment (#251): its sound plays. */
+  'spacecraft-exploded': [];
   /**
    * Phaser -> React: the playback of a Hop that reached the Heliopause is over and the Jump moment
    * plays, one stage at a time (sent once as each stage begins). Once `dark`, the HUD gives way to

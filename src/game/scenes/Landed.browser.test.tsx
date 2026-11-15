@@ -717,8 +717,22 @@ it('under reduced motion a Damaged part shows a steady glow and its badge, and n
   );
   const scene = await landOn(leakingOnTheMoon());
   expect(scene.reducedMotion).toBe(true);
-  expect(scene.marks.shown(1)).toEqual({ glow: true, badge: true, vent: false, ring: false });
-  expect(scene.marks.shown(0)).toEqual({ glow: false, badge: false, vent: false, ring: false });
+  expect(scene.marks.shown(1)).toEqual({
+    glow: true,
+    badge: true,
+    vent: false,
+    flame: false,
+    danger: false,
+    ring: false,
+  });
+  expect(scene.marks.shown(0)).toEqual({
+    glow: false,
+    badge: false,
+    vent: false,
+    flame: false,
+    danger: false,
+    ring: false,
+  });
 });
 
 it('sweeps a Radar ring out from the Spacecraft when one is installed, and says what it found', async () => {

@@ -23,6 +23,12 @@ describe('cruiseCues', () => {
     expect(cruiseCues(leaking, leaking)).toEqual([]);
   });
 
+  it('plays the fire when an Engine fire strikes (#251)', () => {
+    expect(
+      cruiseCues(sound, run([{ repair: null, burning: 0 }, null], [{ kind: 'engine-fire' }])),
+    ).toEqual(['sfx_fire']);
+  });
+
   it('plays nothing for a kind with no cue yet', () => {
     expect(cruiseCues(sound, run([null], [{ kind: 'solar-flare' }]))).toEqual([]);
   });
@@ -41,7 +47,14 @@ describe('cruiseCues', () => {
   });
 
   it('has a recipe for every cue', () => {
-    for (const key of ['sfx_leak', 'sfx_repair_start', 'sfx_repair_done', 'sfx_rush']) {
+    for (const key of [
+      'sfx_leak',
+      'sfx_fire',
+      'sfx_explosion',
+      'sfx_repair_start',
+      'sfx_repair_done',
+      'sfx_rush',
+    ]) {
       expect(RECIPES).toHaveProperty(key);
     }
   });

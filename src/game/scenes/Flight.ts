@@ -649,6 +649,7 @@ export class Flight extends Scene {
         this.marks.hide();
         this.game.canvas.parentElement?.removeAttribute(DAMAGE_ATTRIBUTE);
         this.boom = { atMs: this.playbackMs, spot, ended: result.run };
+        EventBus.emit('spacecraft-exploded');
         return;
       }
     }
