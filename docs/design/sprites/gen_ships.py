@@ -19,6 +19,7 @@ Drive); the n-th installed Component of a kind, in Slot order, takes its kind's 
     Fuel Tank   capsule pods stacking up the core, alternating sides; level 2 is longer
     Drill       the mockup's drill arm; level 2 has a longer bit, level 3 a long, wide bit on a thicker shaft
     Radar       the mockup's dish on a boom; level 2 has a bigger dish (ids `radar-1`, `radar-2`)
+    Instruments a camera lens, a chemistry sniffer box and a sample lab pod set into the core's skin
     Jump Drive  the mockup's violet ring: a back layer behind the Chassis art, a front layer before it
 
 Every piece is drawn on the 104x126 standing grid with the centre of the base at (52, 126) (the
@@ -559,6 +560,50 @@ def radar_art(s, x, mount, level):
     lamp(s, bx + sd * 2 * k, y - 5 * k, "cy4", "cy2")
 
 
+# ------------------------------------------------------------------ Component art: Instruments (#323)
+INSTRUMENT_ROWS = [26, 40, 54, 68, 12]  # rows below the core's top, per mount; alternate sides
+
+
+def instrument_pod(x, mount):
+    """Where an Instrument sits: its side (the first is on the right, opposite the Radar's first), its
+    centre column on the core's skin and its row."""
+    sd = 1 if mount % 2 == 0 else -1
+    y = x.c["top"] + INSTRUMENT_ROWS[mount]
+    return sd, CX + sd * (x.c["prof"](y) - 1), y
+
+
+def camera_art(s, x, mount, level):
+    """A camera: a gunmetal housing with a big cyan lens in a white shade ring."""
+    sd, cx, y = instrument_pod(x, mount)
+    plate(s, [[cx - 4, y - 4], [cx + 4, y - 4], [cx + 4, y + 4], [cx - 4, y + 4]], R["gun"], 3)
+    disc(s, cx, y, 3.4, "wh1")
+    disc(s, cx, y, 2.6, "gm1")
+    disc(s, cx, y, 1.8, "cy3" if s.lit else "cy1")
+    s.px(cx - 1, y - 1, "cy4" if s.lit else "cy2")
+    lamp(s, cx + sd * 3, y - 3, "rd3", "rd1")
+    if s.lit:
+        s.halo.append((cx, y, 4, "cy2"))
+
+
+def chemistry_scanner_art(s, x, mount, level):
+    """A chemistry scanner: a white sniffer box with three vent slats and an intake nozzle."""
+    sd, cx, y = instrument_pod(x, mount)
+    plate(s, [[cx - 5, y - 4], [cx + 5, y - 4], [cx + 5, y + 4], [cx - 5, y + 4]], R["white"], 3)
+    for k in (-2, 0, 2):
+        line(s, cx - 3, y + k, cx + 1, y + k, "gm1")
+    plate(s, [[cx + sd * 5, y - 2], [cx + sd * 8, y - 3], [cx + sd * 8, y + 3], [cx + sd * 5, y + 2]], R["gun"], 2)
+    lamp(s, cx + 3, y - 3, "gr3", "gr1")
+
+
+def sample_lab_art(s, x, mount, level):
+    """A sample lab: a white pod with an amber hatch and a cyan viewing port."""
+    sd, cx, y = instrument_pod(x, mount)
+    hull(s, cx, y - 5, y + 5, lambda yy: 4.5 if abs(yy - y) < 4 else 3, R["white"], "cy2")
+    plate(s, [[cx - 3, y + 1], [cx + 3, y + 1], [cx + 3, y + 4], [cx - 3, y + 4]], R["amber"], 2)
+    disc(s, cx, y - 2, 1.6, "cy3" if s.lit else "cy1")
+    lamp(s, cx + sd * 3, y + 5, "am4", "am2")
+
+
 # ------------------------------------------------------------------ Component art: Jump Drive
 def ring(s, x, back):
     """The mockup's violet ring round the core: its far half behind the Chassis art, its near half in front."""
@@ -592,6 +637,9 @@ KINDS = {
     "fuel-tank": (MOUNTS, {"front": fuel_tank_art}),
     "drill": (MOUNTS, {"front": drill_art}),
     "radar": (MOUNTS, {"front": radar_art}),
+    "camera": (MOUNTS, {"front": camera_art}),
+    "chemistry-scanner": (MOUNTS, {"front": chemistry_scanner_art}),
+    "sample-lab": (MOUNTS, {"front": sample_lab_art}),
     "jump-drive": (1, {"back": ring_back, "front": ring_front}),
 }
 
@@ -607,6 +655,9 @@ ART = {
     "drill-3": ("drill", 3),
     "radar-1": ("radar", 1),
     "radar-2": ("radar", 2),
+    "camera": ("camera", 1),
+    "chemistry-scanner": ("chemistry-scanner", 1),
+    "sample-lab": ("sample-lab", 1),
     "jump-drive": ("jump-drive", 1),
 }
 STANDING = ("landed", "landed_lit")

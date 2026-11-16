@@ -31,7 +31,8 @@
 
 .blueprint-unlocked {
   position: absolute;
-  top: 40px;
+  /* Below the top bar's bottom edge at 640×360. */
+  top: 56px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;

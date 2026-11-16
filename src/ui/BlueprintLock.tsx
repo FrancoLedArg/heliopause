@@ -1,6 +1,6 @@
 // Blueprints locked and unlocked (#319): a primitive lock icon, the Science progress bar a locked
 // catalogue row shows, and the short unlock moment. Icons and a bar first ("Show, don't tell").
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { imageUrl } from '../game/assets/manifest.ts';
 import type { BlueprintId } from '../game/sim/index.ts';
 import { componentLabel } from './spacecraftPanelView.ts';
@@ -61,11 +61,20 @@ export function BlueprintUnlocked({
       clearTimeout(timer);
     };
   }, [onDone]);
-  const names = blueprints.map(componentLabel).join(', ');
+  // The live region mounts empty and its words follow, so screen readers announce them.
+  const [said, setSaid] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSaid(`${blueprints.map(componentLabel).join(', ')} unlocked`);
+    }, 0);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [blueprints]);
   return (
     <p className="blueprint-unlocked" role="status" data-testid="blueprint-unlocked">
       <LockIcon open size={12} />
-      <span>{`${names} unlocked`}</span>
+      <span>{said}</span>
     </p>
   );
 }

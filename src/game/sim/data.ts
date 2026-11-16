@@ -124,6 +124,12 @@ export const GENERATION_TUNING = {
 } as const satisfies Record<string, TuningRange | Record<string, TuningRange>>;
 
 /**
+ * Gameplay tuning (#311): the most Gas Giants a Star System has. More made the map dull; the outer
+ * orbits past them hold landable planets instead.
+ */
+export const MAX_GAS_GIANTS = 2;
+
+/**
  * Gameplay tuning for a fair opening (#96): the first Body Comms Detects is In reach with room to
  * spare for every Chassis's new Spacecraft. Comfortable is a 100% Success Chance with a Margin of at
  * least a fifth of the Hop's estimate. Not real-world figures.

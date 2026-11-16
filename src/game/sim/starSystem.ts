@@ -5,6 +5,7 @@ import {
   BODY_TUNING,
   DIFFICULTY_TUNING,
   GENERATION_TUNING,
+  MAX_GAS_GIANTS,
   ICE_LINE,
   ROCKY_PLANET_SIZE,
   SOURCED_RANGES,
@@ -146,18 +147,35 @@ export function drawStarSystem(seed: Seed, level = 1): StarSystem {
     distanceFromStar: astronomicalUnits(distance),
     ...sampleBodySize(rng, SOURCED_RANGES.rockyPlanet, gravityFactor, ROCKY_PLANET_LARGEST_SIZE),
   }));
-  const gasGiants = spreadOrbits(
+  // The outer orbits roll Gas Giants, but at most `MAX_GAS_GIANTS` of them (#311): with more orbits
+  // than that, only the innermost and the outermost stay Gas Giants and the ones between are landable
+  // planets, Rocky or Icy by their distance. So the outermost planet is still a Gas Giant, and a
+  // Starting Moon may still orbit one. One size is drawn per orbit, in orbit order.
+  const outerOrbits = spreadOrbits(
     rng,
     planetCount - rockyCount,
     SOURCED_RANGES.gasGiant.distanceFromStar,
-  ).map((distance) => ({
-    kind: 'gas-giant' as const,
-    landable: false as const,
-    distanceFromStar: astronomicalUnits(distance),
-    ...sampleBodySize(rng, SOURCED_RANGES.gasGiant, gravityFactor),
-  }));
+  );
+  const outerPlanets = outerOrbits.map((distance, i) => {
+    const keepsGiant =
+      outerOrbits.length <= MAX_GAS_GIANTS || i === 0 || i === outerOrbits.length - 1;
+    if (keepsGiant) {
+      return {
+        kind: 'gas-giant' as const,
+        landable: false as const,
+        distanceFromStar: astronomicalUnits(distance),
+        ...sampleBodySize(rng, SOURCED_RANGES.gasGiant, gravityFactor),
+      };
+    }
+    return {
+      kind: 'rocky-planet' as const,
+      landable: true as const,
+      distanceFromStar: astronomicalUnits(distance),
+      ...sampleBodySize(rng, SOURCED_RANGES.rockyPlanet, gravityFactor, ROCKY_PLANET_LARGEST_SIZE),
+    };
+  });
 
-  const planets: Planet[] = [...rockyPlanets, ...gasGiants].map((planet, index) => {
+  const planets: Planet[] = [...rockyPlanets, ...outerPlanets].map((planet, index) => {
     const id = bodyId(`planet-${index + 1}`);
     const moonCount = sampleInt(rng, GENERATION_TUNING.moonCount[planet.kind]);
     const shared = {
@@ -187,7 +205,7 @@ export function drawStarSystem(seed: Seed, level = 1): StarSystem {
   // The Heliopause is anchored on the outermost planet, always a Gas Giant, a little less than a
   // level-1 Radar's range past it. Deeper Star Systems push it out, but never past what a level-2
   // Radar reaches from there: every Heliopause can be found.
-  const outermostGasGiant = gasGiants.at(-1);
+  const outermostGasGiant = outerPlanets.at(-1);
   if (!outermostGasGiant) throw new Error(`Star System ${name} generated no Gas Giant`);
   // One draw places both the Heliopause and the edge of the Star System's map.
   const draw = rng.next();
