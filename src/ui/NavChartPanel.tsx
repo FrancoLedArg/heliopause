@@ -38,7 +38,7 @@ import {
   type Run,
 } from '../game/sim/index.ts';
 import {
-  bodyStatusLabel,
+  bodyCompositionLabel,
   bodyFullLabel,
   bodyTypeLabel,
   formatDistanceAu,
@@ -46,6 +46,7 @@ import {
 } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
+import { DepositGauge } from './DepositGauge.tsx';
 import { ResourceIcon } from './ResourceIcon.tsx';
 import { yieldIcon, type YieldIcon } from './yieldIcon.ts';
 import { DELTA_V_EXPLANATION, describeHopPlan, type HopPlanView } from './hopPlanView.ts';
@@ -527,11 +528,7 @@ function BodyCard({
         data-testid="landable"
       >
         {inspect.yield ? (
-          <ResourceIcon
-            resource={inspect.yield.resource}
-            depleted={inspect.yield.depleted}
-            className="resource-icon--inline"
-          />
+          <YieldMark icon={inspect.yield} />
         ) : (
           <KitFrame frame={inspect.badge.frame} />
         )}
@@ -589,7 +586,7 @@ function BodyCard({
         frame: !body.landable ? 'badge_lock' : depleted ? 'badge_warning' : 'badge_ok',
         ok: body.landable && !depleted,
         text: body.landable ? 'Landable' : 'No surface',
-        note: bodyStatusLabel(r, body),
+        note: bodyCompositionLabel(body),
       },
     };
   }
@@ -681,18 +678,12 @@ function PlanPanel({
             <p
               className={`nav-chart__badge ${isDepleted(run, target.id) ? 'nav-chart__badge--warn' : 'nav-chart__badge--ok'}`}
             >
-              {isDepleted(run, target.id) ? (
-                <>
-                  <TargetYield icon={targetYield} fallback="badge_warning" />
-                  <span data-testid="target-composition">Depleted · no yield</span>
-                </>
-              ) : (
-                <>
-                  <TargetYield icon={targetYield} fallback="badge_ok" />
-                  Landable
-                  <span data-testid="target-composition">{` · ${bodyStatusLabel(run, target) ?? ''}`}</span>
-                </>
-              )}
+              <TargetYield
+                icon={targetYield}
+                fallback={isDepleted(run, target.id) ? 'badge_warning' : 'badge_ok'}
+              />
+              Landable
+              <span data-testid="target-composition">{` · ${bodyCompositionLabel(target) ?? ''}`}</span>
             </p>
           )}
         </div>
@@ -742,6 +733,19 @@ function PlanPanel({
   );
 }
 
+/** A Body's deposit gauge (#339), or its plain resource icon when it has no level to show. */
+function YieldMark({ icon }: { icon: YieldIcon }) {
+  return icon.level ? (
+    <DepositGauge resource={icon.resource} level={icon.level} />
+  ) : (
+    <ResourceIcon
+      resource={icon.resource}
+      depleted={icon.depleted}
+      className="resource-icon--inline"
+    />
+  );
+}
+
 /** The Hop plan target's yield icon in place of the badge's check mark; the kit badge if it has none. */
 function TargetYield({
   icon,
@@ -750,15 +754,7 @@ function TargetYield({
   icon: YieldIcon | undefined;
   fallback: 'badge_ok' | 'badge_warning';
 }) {
-  return icon ? (
-    <ResourceIcon
-      resource={icon.resource}
-      depleted={icon.depleted}
-      className="resource-icon--inline"
-    />
-  ) : (
-    <KitFrame frame={fallback} />
-  );
+  return icon ? <YieldMark icon={icon} /> : <KitFrame frame={fallback} />;
 }
 
 /** What the card says about the picked Body or the Heliopause. */

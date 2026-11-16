@@ -18,7 +18,7 @@ describe('the yield icon of a Body', () => {
           continue;
         }
         const resource = body.composition === 'icy' ? 'fuel' : 'materials';
-        expect(icon).toEqual({
+        expect(icon).toMatchObject({
           resource,
           depleted: false,
           name: resource === 'fuel' ? 'yields Fuel' : 'yields Materials',
@@ -26,7 +26,11 @@ describe('the yield icon of a Body', () => {
         seen[body.composition] = true;
 
         const emptied = yieldIcon({ ...run, depleted: [body.id] }, body);
-        expect(emptied).toEqual({ resource, depleted: true, name: 'Depleted, yields nothing' });
+        expect(emptied).toMatchObject({
+          resource,
+          depleted: true,
+          name: 'Depleted, yields nothing',
+        });
       }
     }
     expect(seen).toEqual({ icy: true, rocky: true, gas: true });

@@ -1,4 +1,10 @@
-import { isDepleted, type Body, type Run } from '../game/sim/index.ts';
+import {
+  depositLevel,
+  isDepleted,
+  type Body,
+  type DepositLevel,
+  type Run,
+} from '../game/sim/index.ts';
 
 /** Which resource a Body yields: an Icy Body gives Fuel, a Rocky Body gives Materials. */
 export type YieldResource = 'fuel' | 'materials';
@@ -8,6 +14,8 @@ export interface YieldIcon {
   readonly resource: YieldResource;
   /** Its yield is taken: drawn dimmed and struck through. */
   readonly depleted: boolean;
+  /** How much is left to give, for the deposit gauge; `undefined` until the Body is Surveyed. */
+  readonly level: DepositLevel | undefined;
   /** "yields Fuel", "yields Materials" or "Depleted, yields nothing": the icon's accessible name. */
   readonly name: string;
 }
@@ -24,5 +32,6 @@ export function yieldIcon(run: Run, body: Body): YieldIcon | undefined {
   if (!body.landable) return undefined;
   const resource: YieldResource = body.composition === 'icy' ? 'fuel' : 'materials';
   const depleted = isDepleted(run, body.id);
-  return { resource, depleted, name: yieldIconName(resource, depleted) };
+  const level = depositLevel(run, body.id);
+  return { resource, depleted, level, name: yieldIconName(resource, depleted) };
 }
