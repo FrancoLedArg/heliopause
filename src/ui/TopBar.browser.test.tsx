@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { afterEach, expect, it } from 'vitest';
 import { kilograms, materials, metersPerSecond } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
@@ -129,6 +130,91 @@ it('fits the mission tracker inside the bar, clear of the speaker controls and t
   expect(tracker.right).toBeLessThanOrEqual(frame.right);
   expect(tracker.top).toBeGreaterThanOrEqual(frame.top);
   expect(tracker.bottom).toBeLessThanOrEqual(frame.bottom);
+});
+
+// Scrap (#344): an icon and a number in a chip beside Science's, its words in the accessible name.
+it.each([0, 3, 999])(
+  'shows %i Scrap as an icon and a number, clear of the Science chip and the mission tracker',
+  async (scrap) => {
+    const host = await renderUi(
+      <TopBar
+        systemNumber={12}
+        systemName="Quydril Prime Longname"
+        fuel={kilograms(1234)}
+        fuelCapacity={kilograms(5000)}
+        deltaV={metersPerSecond(9876)}
+        materials={materials(100)}
+        science={999}
+        scrap={scrap}
+        goals={[
+          { id: 'heliopause', done: false, label: 'Heliopause: not found yet' },
+          { id: 'jump-drive', done: false, label: 'Jump Drive: not built yet' },
+          { id: 'escape', done: false, label: 'Escape: not made yet' },
+        ]}
+      />,
+    );
+    const chip = byTestId(host, 'scrap');
+    expect(chip.getAttribute('role')).toBe('img');
+    expect(chip.getAttribute('aria-label')).toBe(`Scrap ${String(scrap)}`);
+    expect(chip.querySelector('[data-testid="scrap-icon"]')).not.toBeNull();
+    expect(chip.textContent).toBe(String(scrap));
+    const box = chip.getBoundingClientRect();
+    const frame = host.querySelector<HTMLElement>('.top-bar')?.getBoundingClientRect();
+    if (!frame) throw new Error('no bar');
+    // Inside the 640-px stage, right of the Science chip (999 of it) and below the tracker's row.
+    expect(box.left).toBeGreaterThanOrEqual(
+      byTestId(host, 'science').getBoundingClientRect().right,
+    );
+    expect(box.right).toBeLessThanOrEqual(frame.left + 632);
+    expect(box.top).toBeGreaterThanOrEqual(
+      byTestId(host, 'mission-tracker').getBoundingClientRect().bottom,
+    );
+    expect(box.bottom).toBeLessThanOrEqual(frame.bottom + 20);
+  },
+);
+
+it('pulses the Scrap icon as Scrap arrives, and not when it is spent (#344)', async () => {
+  function Harness() {
+    const [scrap, setScrap] = useState(0);
+    return (
+      <>
+        <TopBar
+          systemNumber={1}
+          systemName="Cinder"
+          fuel={kilograms(3140)}
+          fuelCapacity={kilograms(5000)}
+          deltaV={metersPerSecond(9000)}
+          materials={materials(10)}
+          scrap={scrap}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            setScrap(3);
+          }}
+        >
+          gain
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setScrap(0);
+          }}
+        >
+          spend
+        </button>
+      </>
+    );
+  }
+  const host = await renderUi(<Harness />);
+  const icon = () => byTestId(host, 'scrap-icon');
+  const press = (name: string) =>
+    [...host.querySelectorAll('button')].find((b) => b.textContent === name)?.click();
+  expect(icon().classList.contains('top-bar__icon--filling')).toBe(false);
+  press('gain');
+  await expect.poll(() => icon().classList.contains('top-bar__icon--filling')).toBe(true);
+  press('spend');
+  await expect.poll(() => icon().classList.contains('top-bar__icon--filling')).toBe(false);
 });
 
 it('lights each goal per state and names it, state included', async () => {

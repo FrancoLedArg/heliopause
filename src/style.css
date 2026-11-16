@@ -323,6 +323,23 @@ body {
   color: var(--wh3);
 }
 
+/*
+ * The Scrap aboard (#344): a chip like Science's, right of it (room for three digits of Science), so
+ * it stays clear of the Flight's phase strip, which hangs under the bar's middle.
+ */
+.top-bar__scrap {
+  top: 42px;
+  left: 498px;
+  padding: 1px 6px;
+  border: 1px solid var(--gm3);
+  background: var(--gm1);
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  margin: 0;
+  color: var(--wh3);
+}
+
 /* The Daily Star System's day, on the label row beside "System N" (clear of the Fuel icon at 210). */
 .top-bar__daily {
   position: absolute;

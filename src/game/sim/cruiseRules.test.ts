@@ -379,6 +379,46 @@ describe('Repair and Rush', () => {
     expect(available(run) / available(rushed.run)).toBeCloseTo(0.85, 9);
   });
 
+  it('a Debris field adds its Scrap to the Run the tick it strikes, hit or miss (#344)', () => {
+    const debris = (slot: number | null): ScheduledEvent => ({
+      kind: 'debris-field',
+      tick: 300,
+      slot,
+      scrap: 3,
+    });
+    expect(opening.scrap).toBe(0);
+    for (const slot of [ENGINE, null]) {
+      const run = cruising(opening, firstHop, [debris(slot)]);
+      expect(at(run, 299).scrap).toBe(0);
+      expect(at(run, 300).scrap).toBe(3);
+      expect(flown(run).run.scrap).toBe(3);
+    }
+  });
+
+  it('a Rush spends Scrap first, and Materials when the Scrap is short (#344)', () => {
+    // 30 s of Repair left: a Rush costs 6.
+    const rich = rushRepair({ ...leak(), scrap: 7 }, FUEL_TANK);
+    if (rich.kind !== 'rushed') throw new Error('Expected a Rush');
+    expect(rich).toMatchObject({ cost: 6, paidIn: 'scrap' });
+    expect(rich.run.scrap).toBe(1);
+    expect(rich.run.materials).toBe(opening.materials);
+
+    const short = rushRepair({ ...leak(), scrap: 5 }, FUEL_TANK);
+    if (short.kind !== 'rushed') throw new Error('Expected a Rush');
+    expect(short).toMatchObject({ cost: 6, paidIn: 'materials' });
+    expect(short.run.scrap).toBe(5);
+    expect(short.run.materials).toBe(opening.materials - 6);
+  });
+
+  it('Scrap survives a Jump (#344)', () => {
+    const ready = withDeltaV(withJumpDrive(heliopauseInRange(onInnerPlanet(opening))), 200_000);
+    const result = flown(
+      cruising(ready, HELIOPAUSE, [{ kind: 'debris-field', tick: 500, slot: null, scrap: 4 }]),
+    );
+    expect(result.run.starSystemNumber).toBe(2);
+    expect(result.run.scrap).toBe(4);
+  });
+
   it('Stranded counts a Repair the Materials can Rush as a way out', () => {
     const hit = flown(cruising(opening, firstHop, [engineHitAt(1_100)])).run;
     const needs = knownBodies(hit).flatMap((body) => {
@@ -429,13 +469,17 @@ describe('the choice log in the Cruise', () => {
 
   it('a replayed choice log with Repairs and Rushes at their ticks rebuilds the same Run', () => {
     let cruiseChoices = 0;
+    let scrap = 0;
     for (const seed of SEEDS.slice(0, 40)) {
       const played = play(seed, 4);
       cruiseChoices += played.choices.filter(isCruiseChoice).length;
+      scrap += played.scrap;
       const replayed = replay(seed, 'lancer', played.choices, { events: CRUISE_EVENT_KINDS });
       expect(replayed.kind === 'replayed' && replayed.run).toEqual(played);
     }
     expect(cruiseChoices).toBeGreaterThan(10);
+    // Debris fields gave Scrap along the way (#344), and the replays matched it too.
+    expect(scrap).toBeGreaterThan(0);
   });
 
   it('replay rejects a Cruise choice whose tick goes back in time', () => {

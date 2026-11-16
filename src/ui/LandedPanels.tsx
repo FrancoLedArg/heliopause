@@ -114,6 +114,7 @@ export function LandedPanels({
         deltaV={availableDeltaV(spacecraft)}
         materials={materials}
         science={run.science}
+        scrap={run.scrap}
         onOpenLog={() => {
           setLogOpen(true);
         }}

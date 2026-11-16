@@ -52,6 +52,22 @@ describe('the Repair as the player sees it', () => {
     expect(repairAction(repairState(half, FUEL_TANK))).toBe('rush');
   });
 
+  it('a Rush is priced in Scrap when the Run has enough, else in Materials (#344)', () => {
+    const scrappy = repairing({ ...leaking(), scrap: 6, materials: materials(0) }, 101);
+    // 29.9 s left: still 6.
+    expect(repairState(scrappy, FUEL_TANK)).toMatchObject({
+      rush: 6,
+      paidIn: 'scrap',
+      affordable: true,
+    });
+    expect(repairName('fuel-tank-1', repairState(scrappy, FUEL_TANK))).toMatch(/Rush for 6 Scrap$/);
+    const short = repairing({ ...leaking(), scrap: 5 }, 101);
+    expect(repairState(short, FUEL_TANK)).toMatchObject({ paidIn: 'materials', affordable: true });
+    expect(repairName('fuel-tank-1', repairState(short, FUEL_TANK))).toMatch(
+      /Rush for 6 Materials$/,
+    );
+  });
+
   it('a Rush the Materials cannot pay for is not offered', () => {
     const broke = repairing({ ...leaking(), materials: materials(2) }, 101);
     expect(repairState(broke, FUEL_TANK)).toMatchObject({ affordable: false });

@@ -7,8 +7,9 @@ import { Disclosure, DisclosurePanel, TellMeMoreToggle } from './Disclosure.tsx'
 import { chassisName } from './format.ts';
 import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
-import { repairState } from './repairView.ts';
+import { RESOURCE_WORD, repairState } from './repairView.ts';
 import { ResourceIcon } from './ResourceIcon.tsx';
+import { ScrapIcon } from './ScrapIcon.tsx';
 import { SpacecraftPicture } from './SpacecraftPicture.tsx';
 import {
   componentLabel,
@@ -462,7 +463,7 @@ export function SpacecraftPanel({ run, onClose }: SpacecraftPanelProps) {
 
 /**
  * A Damaged Slot's Repair and Rush, beside Remove (#250): Repair starts it (it runs in the next
- * Cruise), Rush finishes it now for the Materials shown. Nothing for a sound Slot.
+ * Cruise), Rush finishes it now for the Scrap or Materials shown (#344). Nothing for a sound Slot.
  */
 function RepairControls({ run, slot, onDone }: { run: Run; slot: number; onDone: () => void }) {
   const state = repairState(run, slot);
@@ -486,13 +487,17 @@ function RepairControls({ run, slot, onDone }: { run: Run; slot: number; onDone:
       <KitButton
         width={56}
         disabled={!state.affordable}
-        aria-label={`Rush the Repair of ${title} for ${String(state.rush)} Materials`}
+        aria-label={`Rush the Repair of ${title} for ${String(state.rush)} ${RESOURCE_WORD[state.paidIn]}`}
         onClick={() => {
           EventBus.emit('rush-requested', slot);
           onDone();
         }}
       >
-        <ResourceIcon resource="materials" size={12} />
+        {state.paidIn === 'scrap' ? (
+          <ScrapIcon size={12} />
+        ) : (
+          <ResourceIcon resource="materials" size={12} />
+        )}
         {String(state.rush)}
       </KitButton>
     </div>

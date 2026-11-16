@@ -266,3 +266,41 @@ describe('the Cruise event schedule', () => {
     }
   });
 });
+
+describe('Scrap from a Debris field (#344)', () => {
+  it('a Debris field on the first Hops always gives 2 to 4 Scrap, and only a Debris field gives any', () => {
+    for (const seed of SEEDS) {
+      for (let hop = 1; hop <= CRUISE_TUNING.mildHops; hop++) {
+        for (const event of cruiseSchedule(seed, hop, 1, anyPart, ALL)) {
+          if (event.kind !== 'debris-field') {
+            expect(event.scrap ?? 0).toBe(0);
+            continue;
+          }
+          expect(event.scrap).toBeGreaterThanOrEqual(2);
+          expect(event.scrap).toBeLessThanOrEqual(4);
+        }
+      }
+    }
+  });
+
+  it('a later Debris field sometimes gives Scrap and sometimes none, whether it hits or misses', () => {
+    const later = SEEDS.flatMap((seed) => cruiseSchedule(seed, 8, 2, anyPart, ['debris-field']));
+    const giving = later.filter((event) => (event.scrap ?? 0) > 0);
+    expect(giving.length).toBeGreaterThan(later.length * 0.4);
+    expect(giving.length).toBeLessThan(later.length * 0.8);
+    expect(giving.some((event) => event.slot === null)).toBe(true);
+    expect(giving.some((event) => event.slot !== null)).toBe(true);
+  });
+
+  it('the seed decides the Scrap, and Scrap leaves every event where it was', () => {
+    for (const seed of SEEDS.slice(0, 100)) {
+      expect(cruiseSchedule(seed, 8, 2, anyPart, ALL)).toEqual(
+        cruiseSchedule(seed, 8, 2, anyPart, ALL),
+      );
+    }
+    // Seed 42's sixth Hop as it was before Scrap (#252): same kind, tick and Slot, now with Scrap.
+    const [event] = cruiseSchedule(42, 6, 2, fullSpacecraft, ALL);
+    expect(event).toMatchObject({ kind: 'debris-field', tick: 281, slot: 2 });
+    expect(event?.scrap).toBeTypeOf('number');
+  });
+});

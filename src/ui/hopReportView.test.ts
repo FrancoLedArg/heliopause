@@ -406,6 +406,24 @@ describe('the Cruise in the icon row (#250)', () => {
     });
   });
 
+  it('shows the Scrap the Debris fields gave as one "+N" entry, hit or miss (#344)', () => {
+    const debris = launchHop(run, target, {
+      schedule: [
+        { kind: 'debris-field', tick: 200, slot: null, scrap: 3 },
+        { kind: 'debris-field', tick: 600, slot: null, scrap: 2 },
+      ],
+    });
+    if (debris.kind !== 'flown') throw new Error('Expected a flight');
+    expect(describeReport(run, debris.flight).cruise).toEqual([
+      { kind: 'scrap', amount: '+5', name: '+5 Scrap from the Debris field.' },
+    ]);
+    const empty = launchHop(run, target, {
+      schedule: [{ kind: 'debris-field', tick: 200, slot: null, scrap: 0 }],
+    });
+    if (empty.kind !== 'flown') throw new Error('Expected a flight');
+    expect(describeReport(run, empty.flight).cruise).toEqual([]);
+  });
+
   it('a Cruise with nothing happening adds nothing to the row', () => {
     const calm = launchHop(run, target, { schedule: [] });
     if (calm.kind !== 'flown') throw new Error('Expected a flight');

@@ -111,6 +111,8 @@ export function GameUI() {
         moment?: FlightMoment;
         /** The Run in its Cruise while the Cruise runs (#250). */
         live?: Run | undefined;
+        /** The Run as its Cruise ended (#344), kept for the Landing and the report. */
+        cruised?: Run | undefined;
         /** What follows the playback once it is over. */
         after?: FlightAfter;
       }
@@ -341,7 +343,10 @@ export function GameUI() {
         setFlight((now) => now && { ...now, live });
       }),
       EventBus.on('hop-flight-settled', (settled) => {
-        setFlight((now) => now && { ...now, flight: settled, live: undefined });
+        setFlight(
+          (now) =>
+            now && { ...now, flight: settled, live: undefined, cruised: now.live ?? now.cruised },
+        );
       }),
       // A Cruise event drops the fast-forward, so the player always has the time to react (#210).
       EventBus.on('cruise-event-struck', () => {
@@ -655,6 +660,7 @@ export function GameUI() {
           fast={fastForward}
           onFastChange={changeFastForward}
           live={flight.live}
+          cruised={flight.cruised}
         />
       )}
       <FirstRunHint

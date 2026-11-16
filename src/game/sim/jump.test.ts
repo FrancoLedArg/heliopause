@@ -5,6 +5,8 @@ import {
   CHASSIS_IDS,
   componentCost,
   COMPONENTS,
+  CRUISE_TUNING,
+  cruiseSchedule,
   currentBody,
   generateSystem,
   HELIOPAUSE,
@@ -204,7 +206,15 @@ describe('the Jump', () => {
       );
       return { ...escape(at).before, materials: materials(0) };
     })();
-    const launched = launchHop(deep, HELIOPAUSE);
+    // Re-pinned for #344: its own Cruise events with no Scrap, since Scrap could pay for a Rush.
+    const schedule = cruiseSchedule(
+      deep.seed,
+      deep.hopsFlown + 1,
+      deep.starSystemNumber,
+      deep.spacecraft,
+      CRUISE_TUNING.enabledKinds,
+    ).map((event) => ({ ...event, scrap: 0 }));
+    const launched = launchHop(deep, HELIOPAUSE, { schedule });
     if (launched.kind !== 'flown') throw new Error('Expected the Hop to the Heliopause');
     expect(launched.flight.outcome.kind).toBe('reached-heliopause');
     const { run } = launched;

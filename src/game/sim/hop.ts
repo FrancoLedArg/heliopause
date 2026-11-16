@@ -577,17 +577,22 @@ export function advanceCruise(run: Run, tick: number): CruiseResult {
     );
   }
   const stepped = stepCruise(cruise, run.spacecraft, Math.min(tick, CRUISE_TUNING.ticks));
+  // The Debris fields that struck in these ticks give their Scrap (#344).
+  const scrap = stepped.cruise.struck
+    .slice(cruise.struck.length)
+    .reduce((sum, event) => sum + (event.scrap ?? 0), run.scrap);
   if (stepped.kind === 'destroyed') {
     const end = { kind: 'destroyed', reason: DESTROYED_REASON } as const;
     return deepFreeze({
       kind: 'destroyed',
       cruise: stepped.cruise,
       departure,
-      run: { ...run, spacecraft: stepped.spacecraft, status: { kind: 'ended', end } },
+      run: { ...run, scrap, spacecraft: stepped.spacecraft, status: { kind: 'ended', end } },
     });
   }
   const cruising: Run = {
     ...run,
+    scrap,
     spacecraft: stepped.spacecraft,
     status: { kind: 'cruising', cruise: stepped.cruise, departure },
   };

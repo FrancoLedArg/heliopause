@@ -8,6 +8,7 @@ import { KitButton } from './kit/KitButton.tsx';
 import { KitFrame } from './kit/KitFrame.tsx';
 import { ComponentIcon } from './componentIcons/ComponentIcon.tsx';
 import { ResourceIcon } from './ResourceIcon.tsx';
+import { ScrapIcon } from './ScrapIcon.tsx';
 import './HopReport.css';
 
 const PANEL = { width: 392, height: 226 } as const;
@@ -103,7 +104,7 @@ export function HopReport({ before, flight, actions, onEscape }: HopReportProps)
                 </span>
               </li>
             ))}
-            {/* What the Cruise did (#250): each event's part, a tick once Repaired, and the Fuel lost. */}
+            {/* What the Cruise did (#250): each event's part, a tick once Repaired, the Fuel lost, and the Scrap gained (#344). */}
             {view.cruise.map((mark, i) => (
               <li key={`cruise-${String(i)}`} className="hop-report__gain">
                 <span
@@ -112,14 +113,21 @@ export function HopReport({ before, flight, actions, onEscape }: HopReportProps)
                   className={`hop-report__gain-figure hop-report__cruise hop-report__cruise--${mark.kind}`}
                   data-testid="hop-report-cruise"
                 >
-                  {mark.kind === 'event' ? (
+                  {mark.kind === 'event' && (
                     <>
                       <ComponentIcon kind={mark.component} size={16} />
                       <KitFrame frame={mark.repaired ? 'badge_ok' : 'badge_alert'} />
                     </>
-                  ) : (
+                  )}
+                  {mark.kind === 'fuel-lost' && (
                     <>
                       <ResourceIcon resource="fuel" />
+                      <span className="hop-report__gain-amount">{mark.amount}</span>
+                    </>
+                  )}
+                  {mark.kind === 'scrap' && (
+                    <>
+                      <ScrapIcon />
                       <span className="hop-report__gain-amount">{mark.amount}</span>
                     </>
                   )}
