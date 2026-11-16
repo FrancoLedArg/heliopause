@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   arrivalDayFraction,
   flightHours,
+  isHarshArrival,
+  temperatureBand,
   localDayFraction,
   ROTATION_RANGES_HOURS,
   rotationPeriodHours,
@@ -132,5 +134,27 @@ describe('the local time on arrival (#334)', () => {
       seen.add(timeOfDayWords(arrivalDayFraction(system, body, 0, au)) === 'night');
     }
     expect(seen.size).toBe(2);
+  });
+});
+
+describe('temperature bands and the Harsh Arrival (#335)', () => {
+  const at = (distanceFromStar: number) =>
+    temperatureBand({ distanceFromStar } as unknown as Parameters<typeof temperatureBand>[0]);
+
+  it('is Scorching inside 0.7 AU, Freezing beyond the 2.7 AU ice line, Mild between', () => {
+    expect(at(0.4)).toBe('scorching');
+    expect(at(0.7)).toBe('mild');
+    expect(at(1)).toBe('mild');
+    expect(at(2.7)).toBe('mild');
+    expect(at(3.5)).toBe('freezing');
+  });
+
+  it('is harsh only for a Freezing night or a Scorching day', () => {
+    expect(isHarshArrival('freezing', false)).toBe(true);
+    expect(isHarshArrival('scorching', true)).toBe(true);
+    expect(isHarshArrival('freezing', true)).toBe(false);
+    expect(isHarshArrival('scorching', false)).toBe(false);
+    expect(isHarshArrival('mild', true)).toBe(false);
+    expect(isHarshArrival('mild', false)).toBe(false);
   });
 });

@@ -6,6 +6,9 @@ import {
   distanceBetween,
   findBody,
   timeOfDayWords,
+  temperatureBand,
+  isHarshArrival,
+  type TemperatureBand,
   fuelAfterBurning,
   isDepleted,
   marginShare,
@@ -108,6 +111,11 @@ export interface HopPlanView {
 /** The local day fraction at the target when the Spacecraft arrives, with its accessible name. */
 export interface ArrivalView {
   readonly fraction: number;
+  /** Whether the target is in daylight on arrival (the sun, not the moon). */
+  readonly day: boolean;
+  readonly band: TemperatureBand;
+  /** A Freezing night or a Scorching day (#335). */
+  readonly harsh: boolean;
   readonly label: string;
 }
 
@@ -115,7 +123,20 @@ function arrivalView(run: Run, from: Body, to: Body | undefined): ArrivalView | 
   if (!to) return undefined;
   const distance = distanceBetween(run.starSystem, from, to);
   const fraction = arrivalDayFraction(run.starSystem, to, run.gameHours, distance);
-  return { fraction, label: `Arrives at ${timeOfDayWords(fraction)}` };
+  const words = timeOfDayWords(fraction);
+  const day = words !== 'night';
+  const band = temperatureBand(to);
+  const harsh = isHarshArrival(band, day);
+  const bandWords = band.charAt(0).toUpperCase() + band.slice(1);
+  return {
+    fraction,
+    day,
+    band,
+    harsh,
+    label: harsh
+      ? `Harsh arrival: ${band} ${day ? 'day' : 'night'}`
+      : `Arrives at ${words}, ${bandWords}`,
+  };
 }
 
 /** Why each Burn costs what it does: gravity of the Body you leave, the Transfer's distance, gravity of the target. */

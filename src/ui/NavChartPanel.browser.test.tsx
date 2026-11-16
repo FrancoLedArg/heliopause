@@ -3,6 +3,7 @@ import { userEvent } from 'vitest/browser';
 import {
   currentBody,
   HELIOPAUSE,
+  isHarshArrival,
   isInHopRange,
   firstDetectedBody,
   install,
@@ -19,6 +20,8 @@ import {
 } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
+import { HopPlan } from './HopPlan.tsx';
+import { describeHopPlan } from './hopPlanView.ts';
 import { expectTextBudget } from './textBudget.ts';
 import { heliopauseFound } from '../game/sim/testing.ts';
 import {
@@ -848,8 +851,10 @@ it('shows the arrival time as a sun or moon chip named for the time, for a day a
     );
     const chip = byTestId(host, 'plan-arrival');
     const name = chip.getAttribute('aria-label');
-    expect(name).toMatch(/^Arrives at (morning|midday|evening|night)$/);
-    names.add(name === 'Arrives at night' ? 'night' : 'day');
+    expect(name).toMatch(
+      /^(Arrives at (morning|midday|evening|night), (Scorching|Mild|Freezing)|Harsh arrival: (scorching day|freezing night))$/,
+    );
+    names.add(name?.includes('night') ? 'night' : 'day');
     const plan = byTestId(host, 'hop-plan').getBoundingClientRect();
     const box = chip.getBoundingClientRect();
     expect(box.right).toBeLessThanOrEqual(plan.right);
@@ -857,6 +862,45 @@ it('shows the arrival time as a sun or moon chip named for the time, for a day a
     cleanUp();
   }
   expect(names.size).toBe(2);
+});
+
+it('shows a band glyph, and a hazard mark only for a Freezing night or a Scorching day (#335)', async () => {
+  const { run, target } = surveyedRun(true);
+  const planned = planHop(run, target.id);
+  if (planned.kind !== 'planned') throw new Error('expected a plan');
+  const base = describeHopPlan(run, planned.plan);
+  const seen = new Set<string>();
+  for (const band of ['scorching', 'mild', 'freezing'] as const) {
+    for (const day of [true, false]) {
+      const harsh = isHarshArrival(band, day);
+      const word = band.charAt(0).toUpperCase() + band.slice(1);
+      const label = harsh
+        ? `Harsh arrival: ${band} ${day ? 'day' : 'night'}`
+        : `Arrives at ${day ? 'midday' : 'night'}, ${word}`;
+      const view = { ...base, arrival: { fraction: day ? 0.5 : 0, day, band, harsh, label } };
+      const host = await renderUi(<HopPlan view={view} />);
+      const chip = byTestId(host, 'plan-arrival');
+      expect(chip.getAttribute('aria-label')).toBe(label);
+      expect(chip.getAttribute('data-band')).toBe(band);
+      expect(host.querySelector('[data-testid="plan-harsh"]') !== null).toBe(harsh);
+      const box = chip.getBoundingClientRect();
+      const plan = byTestId(host, 'hop-plan').getBoundingClientRect();
+      expect(box.right).toBeLessThanOrEqual(plan.right);
+      const chance = host.querySelector<HTMLElement>('.hop-plan__chance');
+      if (!chance) throw new Error('no chance');
+      expect(chance.getBoundingClientRect().right).toBeLessThanOrEqual(plan.right);
+      expect(chance.scrollWidth).toBeLessThanOrEqual(chance.clientWidth);
+      expect(chip.getBoundingClientRect().right).toBeLessThanOrEqual(
+        chance.getBoundingClientRect().left,
+      );
+      seen.add(`${band}-${day ? 'day' : 'night'}-${harsh ? 'harsh' : 'ok'}`);
+      cleanUp();
+    }
+  }
+  expect([...seen].filter((k) => k.endsWith('harsh')).sort()).toEqual([
+    'freezing-night-harsh',
+    'scorching-day-harsh',
+  ]);
 });
 
 it('hides the arrival chip with no target (#334)', async () => {
