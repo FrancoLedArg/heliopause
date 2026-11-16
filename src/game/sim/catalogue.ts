@@ -15,7 +15,7 @@ import {
 
 /**
  * Every Component the Spacecraft can carry: Engine, Fuel Tank, Drill and Radar at levels 1 and 2,
- * and the Jump Drive. These ids are stored in choice logs (see `choiceLog.ts`): never rename or reuse one,
+ * a level-3 Drill, the Jump Drive and the Instruments, in catalogue order. These ids are stored in choice logs (see `choiceLog.ts`): never rename or reuse one,
  * or stored logs stop parsing or replay a different Component. Add new ids instead.
  */
 export const COMPONENT_IDS = [
@@ -25,6 +25,7 @@ export const COMPONENT_IDS = [
   'fuel-tank-2',
   'drill-1',
   'drill-2',
+  'drill-3',
   'radar-1',
   'radar-2',
   'jump-drive',

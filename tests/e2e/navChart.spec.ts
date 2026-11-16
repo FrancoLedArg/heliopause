@@ -13,7 +13,8 @@ import {
 
 // Re-pinned for #189: seed 123 opens on a Moon of a Gas Giant, so the chart shows the Starting
 // Moon, its Gas Giant (Surveyed, shown as one) and the sibling Moon Comms Detected.
-const SEED = 123;
+// Re-pinned for #311 (was seed 123): its Star System changed, and seed 114 also opens on a Gas Giant's Moon.
+const SEED = 114;
 const run = startRun(SEED, 'scout');
 const home = startingMoon(run.starSystem);
 const homeMoon = firstDetectedBody(run.starSystem);

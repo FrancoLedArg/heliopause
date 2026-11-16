@@ -36,7 +36,7 @@ export function CheckBadge({ size = 10 }: { size?: number }) {
 export function DiscoveryBadge({ state }: { state: DiscoveryState }) {
   if (state === 'new') return <StarBadge />;
   if (state === 'found') return <CheckBadge />;
-  return <LockIcon size={10} />;
+  return <LockIcon size={16} />;
 }
 
 interface DiscoveryLogProps {

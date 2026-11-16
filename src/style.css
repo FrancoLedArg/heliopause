@@ -1109,11 +1109,13 @@ body {
 }
 
 /* A Surveyed Body's Discoveries (#318): pips on the name row's right end; filled = found (shape, not just colour). */
-.nav-chart__pips {
+.nav-chart__tooltip > .nav-chart__pips {
   position: absolute;
   top: 6px;
+  left: auto;
   right: 8px;
   display: flex;
+  justify-content: flex-end;
   gap: 2px;
   margin: 0;
 }
@@ -1136,6 +1138,11 @@ body {
   text-transform: uppercase;
   color: var(--cy3);
   overflow-wrap: anywhere;
+}
+
+/* The name keeps clear of the Discovery pips beside it (#318). */
+.nav-chart__tooltip:has(> .nav-chart__pips) > .nav-chart__tip-name {
+  right: 26px;
 }
 
 /* The Body type wraps onto a second line rather than clip (the tooltip grows a line; the lines under it move down 9 px). */

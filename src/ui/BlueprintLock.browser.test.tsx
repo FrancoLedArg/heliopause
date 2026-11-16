@@ -39,6 +39,7 @@ it('the unlock moment shows an open lock and the blueprint, as a status', async 
   );
   const moment = byTestId(host, 'blueprint-unlocked');
   expect(moment.getAttribute('role')).toBe('status');
-  expect(moment.textContent).toBe('Sample lab unlocked');
+  // The live region mounts empty and its words follow, so screen readers announce them.
+  await expect.poll(() => moment.textContent).toBe('Sample lab unlocked');
   expect(moment.querySelector('.lock-icon')).not.toBeNull();
 });
