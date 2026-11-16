@@ -160,9 +160,11 @@ it.each([0, 3, 999])(
     const box = chip.getBoundingClientRect();
     const frame = host.querySelector<HTMLElement>('.top-bar')?.getBoundingClientRect();
     if (!frame) throw new Error('no bar');
-    // Inside the 640-px stage, left of the Science chip and below the tracker's row.
-    expect(box.left).toBeGreaterThanOrEqual(0);
-    expect(box.right).toBeLessThanOrEqual(byTestId(host, 'science').getBoundingClientRect().left);
+    // Inside the 640-px stage, right of the Science chip (999 of it) and below the tracker's row.
+    expect(box.left).toBeGreaterThanOrEqual(
+      byTestId(host, 'science').getBoundingClientRect().right,
+    );
+    expect(box.right).toBeLessThanOrEqual(frame.left + 632);
     expect(box.top).toBeGreaterThanOrEqual(
       byTestId(host, 'mission-tracker').getBoundingClientRect().bottom,
     );

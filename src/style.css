@@ -306,10 +306,13 @@ body {
   color: var(--wh3);
 }
 
-/* The Scrap aboard (#344): a chip like Science's, just left of it, under the Δv and Materials columns. */
+/*
+ * The Scrap aboard (#344): a chip like Science's, right of it (room for three digits of Science), so
+ * it stays clear of the Flight's phase strip, which hangs under the bar's middle.
+ */
 .top-bar__scrap {
   top: 42px;
-  right: calc(624px - 436px + 4px);
+  left: 498px;
   padding: 1px 6px;
   border: 1px solid var(--gm3);
   background: var(--gm1);
