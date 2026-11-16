@@ -1321,6 +1321,36 @@ body {
   transform: rotate(-45deg);
 }
 
+/* The deposit gauge: the resource icon and a small bar in the resource colour, outlined when empty. */
+.deposit-gauge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  vertical-align: middle;
+}
+
+.deposit-gauge--fuel {
+  --deposit: var(--am3);
+}
+
+.deposit-gauge--materials {
+  --deposit: var(--cy3);
+}
+
+.deposit-gauge__bar {
+  display: block;
+  width: 24px;
+  height: 8px;
+  border: 2px solid var(--deposit);
+  box-sizing: border-box;
+}
+
+.deposit-gauge__fill {
+  display: block;
+  height: 100%;
+  background: var(--deposit);
+}
+
 /* In a one-line badge or a plate row the 16 px icon is taller than the text, so it hangs out evenly. */
 .resource-icon--inline {
   margin: -4px 0;

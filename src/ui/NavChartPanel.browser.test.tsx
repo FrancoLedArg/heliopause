@@ -449,8 +449,9 @@ it('shows Depleted in the tooltip of the longest-named Body, inside its frame', 
   const frame = byTestId(host, 'inspect').getBoundingClientRect();
   const badge = byTestId(host, 'landable');
   const words = byTestId(host, 'tip-composition');
-  expect(words.textContent).toContain('Depleted');
-  expect(words.textContent).not.toMatch(/Icy|Rocky/);
+  // The deposit gauge says empty; the word Depleted is not on the card (Show, don't tell).
+  expect(words.textContent).not.toContain('Depleted');
+  expect(byTestId(host, 'deposit-gauge').getAttribute('data-level')).toBe('empty');
   // The same amber warning style as the plan head and the plate, not the green Landable one.
   expect(badge.className).toContain('nav-chart__badge--warn');
   expect(badge.className).not.toContain('nav-chart__badge--ok');
@@ -495,7 +496,8 @@ it('keeps the tallest plan, 21-character target, Margin warning and Depleted, cl
   // The head badge reads "Depleted · no yield" on one row beside the label, inside the block.
   const head = byTestId(host, 'target');
   const words = byTestId(host, 'target-composition');
-  expect(words.textContent).toBe('Depleted · no yield');
+  expect(words.textContent).toMatch(/^ · (Icy|Rocky)$/);
+  expect(byTestId(host, 'deposit-gauge').getAttribute('data-level')).toBe('empty');
   const label = head.querySelector<HTMLElement>('.nav-chart__target-label');
   const badge = words.closest<HTMLElement>('.nav-chart__badge');
   if (!label || !badge) throw new Error('missing head parts');
@@ -724,11 +726,11 @@ it('every yield icon on the card and the Hop plan target has its accessible name
   if (!landable?.landable || !gas)
     throw new Error('seed 123 needs a landable Body and a Gas Giant');
   const names = (host: HTMLElement): (string | null)[] =>
-    [...host.querySelectorAll('[data-testid="resource-icon"]')].map((el) =>
+    [...host.querySelectorAll('[data-testid="deposit-gauge"]')].map((el) =>
       el.getAttribute('aria-label'),
     );
 
-  const expected = landable.composition === 'icy' ? 'yields Fuel' : 'yields Materials';
+  const expected = landable.composition === 'icy' ? 'Fuel, full' : 'Materials, full';
   // The card and the plan never show together (#193): one chart with each.
   const withTarget = await renderUi(
     <>
@@ -738,7 +740,7 @@ it('every yield icon on the card and the Hop plan target has its accessible name
   );
   // One on the card, one on the target.
   expect(names(withTarget)).toEqual([expected, expected]);
-  expect(byTestId(byTestId(withTarget, 'inspect'), 'resource-icon').getAttribute('role')).toBe(
+  expect(byTestId(byTestId(withTarget, 'inspect'), 'deposit-gauge').getAttribute('role')).toBe(
     'img',
   );
   expect(names(byTestId(withTarget, 'target'))).toEqual([expected]);
@@ -758,7 +760,8 @@ it('every yield icon on the card and the Hop plan target has its accessible name
       />
     </>,
   );
-  expect(names(depleted)).toEqual(['Depleted, yields nothing', 'Depleted, yields nothing']);
+  const emptied = landable.composition === 'icy' ? 'Fuel, empty' : 'Materials, empty';
+  expect(names(depleted)).toEqual([emptied, emptied]);
   cleanUp();
 
   const giant = await renderUi(<Panel run={run} focusedId={gas.id} selectedId={undefined} />);
@@ -787,8 +790,8 @@ it('the yield icon fits inside the card and the target block', async () => {
     expect(i.right).toBeLessThanOrEqual(o.right);
     expect(i.bottom).toBeLessThanOrEqual(o.bottom);
   };
-  within(byTestId(byTestId(host, 'inspect'), 'resource-icon'), byTestId(host, 'inspect'));
-  within(byTestId(byTestId(host, 'target'), 'resource-icon'), byTestId(host, 'target'));
+  within(byTestId(byTestId(host, 'inspect'), 'deposit-gauge'), byTestId(host, 'inspect'));
+  within(byTestId(byTestId(host, 'target'), 'deposit-gauge'), byTestId(host, 'target'));
 });
 
 /** A New Run's first Hop target, with that target Surveyed or not. */
