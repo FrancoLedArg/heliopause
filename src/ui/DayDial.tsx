@@ -20,6 +20,7 @@ export function DayDial({
   size = VIEW,
   className,
   testId,
+  decorative = false,
 }: {
   fraction: number;
   /** Whether the marker is the sun (true) or the moon (false). */
@@ -28,6 +29,8 @@ export function DayDial({
   size?: number;
   className?: string;
   testId?: string;
+  /** Hidden from assistive tech: an owner names the whole. */
+  decorative?: boolean;
 }) {
   const { x, y } = markerPosition(fraction);
   return (
@@ -36,8 +39,9 @@ export function DayDial({
       width={size}
       height={size}
       viewBox={`0 0 ${String(VIEW)} ${String(VIEW)}`}
-      role="img"
-      aria-label={label}
+      role={decorative ? undefined : 'img'}
+      aria-hidden={decorative ? true : undefined}
+      aria-label={decorative ? undefined : label}
       data-testid={testId}
       data-fraction={fraction.toFixed(3)}
     >
