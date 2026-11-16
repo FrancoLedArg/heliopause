@@ -1,5 +1,5 @@
 // Repair and Rush (#210): clearing a Damaged Component's Damage, over Cruise time for free, or at
-// once for Materials. Both work while cruising and while landed, alongside install and remove.
+// once for Scrap or Materials (#344). Both work while cruising and while landed, alongside install and remove.
 import { recordChoice } from './choiceLog.ts';
 import { endStruck, rushCost } from './cruise.ts';
 import type { Run } from './run.ts';
@@ -21,8 +21,16 @@ export type RepairResult =
   | { readonly kind: 'repairing'; readonly run: Run }
   | { readonly kind: 'refused'; readonly reason: RepairRefusal };
 
+/** What a Rush is paid in (#344): Scrap when the Run has enough, else Materials. */
+export type RushResource = 'scrap' | 'materials';
+
 export type RushResult =
-  | { readonly kind: 'rushed'; readonly run: Run; readonly cost: Materials }
+  | {
+      readonly kind: 'rushed';
+      readonly run: Run;
+      readonly cost: Materials;
+      readonly paidIn: RushResource;
+    }
   | { readonly kind: 'refused'; readonly reason: RepairRefusal };
 
 /**
@@ -44,23 +52,41 @@ export function startRepair(run: Run, slot: number): RepairResult {
 }
 
 /**
+ * What a Rush of `cost` is paid in (#344): Scrap when the Run has that much, else Materials when it
+ * has those; `undefined` when it has neither.
+ */
+export function rushResource(
+  run: Pick<Run, 'scrap' | 'materials'>,
+  cost: number,
+): RushResource | undefined {
+  if (cost <= run.scrap) return 'scrap';
+  if (cost <= run.materials) return 'materials';
+  return undefined;
+}
+
+/**
  * Rushes the Repair of the Damaged Component in `slot`, started or not: it is done at once, for
- * `rushCost` Materials. Refused when the Run has fewer. Logged like a Repair.
+ * `rushCost` Scrap when the Run has that much (#344), else as many Materials. Refused when it has
+ * neither. Logged like a Repair.
  */
 export function rushRepair(run: Run, slot: number): RushResult {
   const refusal = damagedRefusal(run, slot);
   if (refusal) return { kind: 'refused', reason: refusal };
   const cost = rushCost(run.spacecraft, slot) ?? materials(0);
-  if (cost > run.materials) {
+  const paidIn = rushResource(run, cost);
+  if (paidIn === undefined) {
     return { kind: 'refused', reason: { kind: 'not-enough-materials', cost, have: run.materials } };
   }
   const changed: Run = {
     ...run,
     spacecraft: rushed(run.spacecraft, slot),
-    materials: materials(run.materials - cost),
+    ...(paidIn === 'scrap'
+      ? { scrap: run.scrap - cost }
+      : { materials: materials(run.materials - cost) }),
     status: run.status.kind === 'cruising' ? endedInCruise(run.status, slot) : run.status,
   };
-  return { kind: 'rushed', cost, run: settle(changed, { kind: 'rush', slot, ...tickOf(run) }) };
+  const recorded = settle(changed, { kind: 'rush', slot, ...tickOf(run) });
+  return { kind: 'rushed', cost, paidIn, run: recorded };
 }
 
 /** The Spacecraft with `slot`'s Damage cleared: what a Rush makes of it. */

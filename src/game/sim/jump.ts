@@ -34,6 +34,7 @@ export function jump(run: Run): Run {
       science: run.science,
       discoveries: run.discoveries,
       scienceCarriedIn: run.scienceCarriedIn,
+      scrap: run.scrap,
     },
     generateSystem(run.seed, starSystemNumber),
   );

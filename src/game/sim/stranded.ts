@@ -6,7 +6,7 @@ import { isInHopRange } from './hopRange.ts';
 import { installRefusal, withInstalled, type Outfit } from './install.ts';
 import { rushCost } from './cruise.ts';
 import { removalRefusal, withRemoved } from './remove.ts';
-import { rushed } from './repair.ts';
+import { rushed, rushResource } from './repair.ts';
 import { currentBody, type Run } from './run.ts';
 import { availableDeltaV, carriesJumpDrive, type Spacecraft } from './spacecraft.ts';
 import { knownBodies } from './knowledge.ts';
@@ -204,7 +204,8 @@ const RESCUERS: readonly ComponentId[] = [
  * Materials left can do all the other can, so only it goes on. Builds that need an install are kept
  * apart from those reached by removals alone, which the warning names.
  *
- * A Rush of a Damaged Component, paid from the Materials on hand, is one more step (#210). A Repair
+ * A Rush of a Damaged Component, paid from the Scrap (#344) or the Materials on hand, is one more
+ * step (#210). A Repair
  * that only the next Cruise would finish is not: reaching a Cruise takes a Hop.
  */
 function buildable(run: Run): Design[] {
@@ -221,34 +222,46 @@ function buildable(run: Run): Design[] {
     readonly outfit: Outfit;
     readonly installs: boolean;
     readonly rushes: boolean;
-  }[] = [{ outfit: start, installs: false, rushes: false }];
+    readonly scrap: number;
+  }[] = [{ outfit: start, installs: false, rushes: false, scrap: run.scrap }];
   for (let next = pending.pop(); next; next = pending.pop()) {
-    const { outfit, installs, rushes } = next;
+    const { outfit, installs, rushes, scrap } = next;
     const { slots, fuelMass, damage } = outfit.spacecraft;
     // Damage is rare: only a Damaged Spacecraft pays for marking it in the key and trying Rushes.
     const anyDamage = damage.some((slotDamage) => slotDamage !== null);
     const held = slots
       .map((slot, i) => (anyDamage && damage[i] ? `${slot ?? ''}!` : (slot ?? '')))
       .sort((a, b) => a.localeCompare(b));
-    const key = `${held.join()}|${String(fuelMass)}|${String(installs)}|${String(rushes)}`;
+    const key = `${held.join()}|${String(fuelMass)}|${String(installs)}|${String(rushes)}|${String(scrap)}`;
     if ((richest.get(key) ?? -1) >= outfit.materials) continue;
     richest.set(key, outfit.materials);
     designs.push({ spacecraft: outfit.spacecraft, installs, rushes });
 
     slots.forEach((_, slot) => {
       if (removalRefusal(slots, slot)) return;
-      pending.push({ outfit: { ...outfit, ...withRemoved(outfit, slot) }, installs, rushes });
+      pending.push({
+        outfit: { ...outfit, ...withRemoved(outfit, slot) },
+        installs,
+        rushes,
+        scrap,
+      });
     });
     if (anyDamage)
       damage.forEach((_, slot) => {
         const cost = rushCost(outfit.spacecraft, slot);
-        if (cost === null || cost > outfit.materials) return;
+        const paidIn = cost === null ? undefined : rushResource({ ...outfit, scrap }, cost);
+        if (cost === null || paidIn === undefined) return;
         const spacecraft = rushed(outfit.spacecraft, slot);
-        const left = materials(outfit.materials - cost);
+        const byScrap = paidIn === 'scrap';
         pending.push({
-          outfit: { ...outfit, spacecraft, materials: left },
+          outfit: {
+            ...outfit,
+            spacecraft,
+            materials: byScrap ? outfit.materials : materials(outfit.materials - cost),
+          },
           installs,
           rushes: true,
+          scrap: byScrap ? scrap - cost : scrap,
         });
       });
     const empty = slots.indexOf(null);
@@ -259,6 +272,7 @@ function buildable(run: Run): Design[] {
         outfit: { ...outfit, ...withInstalled(outfit, empty, id) },
         installs: true,
         rushes,
+        scrap,
       });
     }
   }

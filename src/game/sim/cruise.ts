@@ -18,6 +18,11 @@ export interface ScheduledEvent {
   readonly kind: CruiseEventKind;
   readonly tick: number;
   readonly slot: number | null;
+  /**
+   * The Scrap a Debris field gives as it strikes, hit or miss (#344); absent or 0 for none, and for
+   * every other kind.
+   */
+  readonly scrap?: number;
 }
 
 /**
@@ -88,13 +93,24 @@ export function cruiseSchedule(
   while (ticks.length === 2 && Math.abs((ticks[0] ?? 0) - (ticks[1] ?? 0)) < startTicks.apart) {
     ticks[1] = rng.int(startTicks.min, latestStart(drawn[1] ?? 'fuel-leak'));
   }
+  // The Scrap comes from a stream of its own, so every event is where it was before Scrap (#344).
+  const scrapRng = createRng(seed ^ stringSeed(`debris-scrap:${String(hop)}`));
   return drawn
     .map((kind, i) => ({
       kind,
       tick: ticks[i] ?? startTicks.min,
       slot: drawTarget(rng, kind, spacecraft, mild ? spreadIndex(seed, hop, i) : null),
+      ...(kind === 'debris-field' ? { scrap: drawScrap(scrapRng, mild) } : {}),
     }))
     .sort((a, b) => a.tick - b.tick);
+}
+
+/** The Scrap a Debris field gives: always some on a mild Hop, often some on a later one. */
+function drawScrap(rng: Rng, mild: boolean): number {
+  const { mildChance, chance, min, max } = CRUISE_TUNING.debrisScrap;
+  const gives = rng.next() < (mild ? mildChance : chance);
+  const amount = rng.int(min, max);
+  return gives ? amount : 0;
 }
 
 function latestStart(kind: CruiseEventKind): number {
