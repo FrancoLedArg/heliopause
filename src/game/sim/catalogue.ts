@@ -32,7 +32,6 @@ export const COMPONENT_IDS = [
   'camera',
   'chemistry-scanner',
   'sample-lab',
-  'drill-3',
 ] as const;
 export type ComponentId = (typeof COMPONENT_IDS)[number];
 
