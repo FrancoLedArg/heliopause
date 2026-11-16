@@ -168,7 +168,10 @@ test('build a Drill with the starting Materials, Hop to the Icy Moon, collect it
   ).toBeAttached();
   await focusBody(page, moon.name);
   await expect(page.getByTestId('landable')).toHaveClass(/nav-chart__badge--warn/);
-  await expect(page.getByTestId('tip-composition')).toHaveText('· Depleted');
+  await expect(page.getByTestId('landable').getByTestId('deposit-gauge')).toHaveAttribute(
+    'data-level',
+    'empty',
+  );
   await testInfo.attach('depleted-chart', {
     body: await page.screenshot(),
     contentType: 'image/png',
