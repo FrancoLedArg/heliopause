@@ -43,7 +43,7 @@ import { TitleMenu, type TitleButton } from './TitleMenu.tsx';
 import { missionGoals } from './missionTrackerView.ts';
 import { TopBar } from './TopBar.tsx';
 import { BlueprintUnlocked } from './BlueprintLock.tsx';
-import { recordDiscoveries } from '../game/lib/scienceProgress.ts';
+import { markRunStart, recordDiscoveries } from '../game/lib/scienceProgress.ts';
 
 /** The device clock, read each time so a test's fake clock applies. */
 const deviceClock = (): number => Date.now();
@@ -208,6 +208,7 @@ export function GameUI() {
   useEffect(
     () =>
       EventBus.on('run-started', (started) => {
+        markRunStart();
         setRun(started);
         setComms('');
         setDiscoveryQueue([]);

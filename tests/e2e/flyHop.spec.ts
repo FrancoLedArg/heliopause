@@ -327,13 +327,18 @@ test('the End-of-Run screen keeps focus inside it, and New Run from the keyboard
   const newRun = outcome.getByRole('button', { name: 'New Run' });
   const back = outcome.getByRole('button', { name: 'Back to title' });
   await expect(newRun).toBeFocused();
-  // Tab and Shift+Tab cycle through the two buttons and never leave the screen.
+  // Tab and Shift+Tab cycle through the three buttons (Back to title, Log, New Run) and never leave the screen.
+  const log = outcome.getByRole('button', { name: 'Log' });
   await page.keyboard.press('Tab');
   await expect(back).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(newRun).toBeFocused();
   await page.keyboard.press('Shift+Tab');
+  await expect(log).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
   await expect(back).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(log).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(newRun).toBeFocused();
   // Enter starts a New Run on the Chassis in the URL, in a different Star System.

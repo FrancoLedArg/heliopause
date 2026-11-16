@@ -5,7 +5,8 @@ import {
   starSystemNumber,
   type Run,
 } from '../game/sim/index.ts';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { DiscoveryLog } from './DiscoveryLog.tsx';
 import { EventBus } from '../game/EventBus.ts';
 import { SHIP_PLACEMENT, shipLeftEdge } from '../game/scenes/landedView.ts';
 import type { GatheringReadout } from '../game/scenes/gathering.ts';
@@ -63,6 +64,7 @@ export function LandedPanels({
   gathering,
   gathered = '',
 }: LandedPanelsProps) {
+  const [logOpen, setLogOpen] = useState(false);
   const body = currentBody(run);
   const type = bodyFullLabel(run, body);
   const icon = yieldIcon(run, body);
@@ -113,10 +115,20 @@ export function LandedPanels({
         materials={materials}
         science={run.science}
         scrap={run.scrap}
+        onOpenLog={() => {
+          setLogOpen(true);
+        }}
         dailyDay={dailyDay}
         filling={gathering?.resource}
         announcement={gathered}
       />
+      {logOpen && (
+        <DiscoveryLog
+          onClose={() => {
+            setLogOpen(false);
+          }}
+        />
+      )}
       {/* The drawn Spacecraft's text alternative: the canvas shows it, this names its parts. */}
       <p className="sr-only landed-spacecraft-alt" data-testid="spacecraft-alt">
         {describeSpacecraft(run.spacecraft)}
