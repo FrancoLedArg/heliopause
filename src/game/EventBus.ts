@@ -5,6 +5,7 @@ import type { FlightMoment, Pace } from './scenes/flightPlayback.ts';
 import type { Gathering, GatheringReadout } from './scenes/gathering.ts';
 import type { JumpStage } from './scenes/jumpPlayback.ts';
 import type {
+  BlueprintId,
   ChassisId,
   ComponentId,
   DiscoveryReveal,
@@ -38,6 +39,11 @@ export interface GameEvents {
    * A landing's reveals come with its Hop report, in `HopFlight.discoveries`.
    */
   'discoveries-revealed': [run: Run, revealed: readonly DiscoveryReveal[]];
+  /**
+   * React -> anyone: Discoveries just took the device's lifetime Science past these blueprints'
+   * thresholds (#319), so they are installable from now on. React shows the unlock moment.
+   */
+  'blueprints-unlocked': [blueprints: readonly BlueprintId[]];
   /**
    * React -> Phaser: the player installed `componentId` in Slot `slotIndex` (0-based) from the Spacecraft
    * panel, which has already checked the install is allowed. The Landed scene applies it to its Run and

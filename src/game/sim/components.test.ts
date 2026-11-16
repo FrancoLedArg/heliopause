@@ -14,11 +14,12 @@ import {
 } from './index.ts';
 
 describe('the Component catalogue', () => {
-  it('holds an Engine, a Fuel Tank, a Drill and a Radar, each at levels 1 and 2, the Jump Drive and three Instruments', () => {
+  it('holds an Engine, a Fuel Tank, a Drill and a Radar, each at levels 1 and 2, a level-3 Drill blueprint, the Jump Drive and three Instruments', () => {
     const kindsAndLevels = Object.values(COMPONENTS).map((c) => `${c.kind} ${String(c.level)}`);
     expect(kindsAndLevels.sort()).toEqual([
       'drill 1',
       'drill 2',
+      'drill 3',
       'engine 1',
       'engine 2',
       'fuel-tank 1',
