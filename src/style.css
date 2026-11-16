@@ -293,6 +293,23 @@ body {
 }
 
 /* The Run's Science (#318): a chip hanging under the bar's Materials column, so the bar's own row stays as it was. */
+.top-bar__science-button {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.top-bar__science-button:focus-visible {
+  outline: 2px solid var(--am3);
+}
+
 .top-bar__science {
   top: 42px;
   left: 436px;

@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { discoveriesAtRunStart } from '../game/lib/scienceProgress.ts';
+import { DiscoveryLog, StarBadge } from './DiscoveryLog.tsx';
+import { ScienceIcon } from './ScienceIcon.tsx';
 import { runEnd, score, type Run, type Score } from '../game/sim/index.ts';
 import { describeEndOfRun, type ScoreFigures } from './endOfRunView.ts';
 import { Disclosure, DisclosurePanel, TellMeMoreToggle } from './Disclosure.tsx';
@@ -81,6 +84,13 @@ export function EndOfRun({ run, recorded, onNewRun, onLeave }: EndOfRunProps) {
   const end = runEnd(run);
   const buttons = useRef<HTMLDivElement>(null);
   const finalScore = useMemo(() => score(run), [run]);
+  const [logOpen, setLogOpen] = useState(false);
+  const logButton = useRef<HTMLButtonElement>(null);
+  const madeIds = new Set(run.discoveries.map((made) => made.discoveryId));
+  const known = discoveriesAtRunStart();
+  const fresh = [...madeIds].filter((id) => !known.includes(id)).length;
+  const scienceName = `${String(run.science)} Science earned`;
+  const discoveriesName = `${String(madeIds.size)} ${madeIds.size === 1 ? 'Discovery' : 'Discoveries'} made${fresh > 0 ? `, ${String(fresh)} New` : ''}`;
   useEffect(() => {
     buttons.current?.querySelector<HTMLButtonElement>('button[data-primary]')?.focus();
   }, []);
@@ -132,6 +142,31 @@ export function EndOfRun({ run, recorded, onNewRun, onLeave }: EndOfRunProps) {
             marker={view.newBest ? view.newBestMarker : undefined}
             testId="end-of-run-best"
           />
+          <div
+            role="group"
+            className="end-of-run__score"
+            aria-label={`${scienceName}, ${discoveriesName}`}
+            data-testid="end-of-run-science"
+          >
+            <span className="end-of-run__label" aria-hidden="true">
+              Science
+            </span>
+            <span className="end-of-run__figures" aria-hidden="true">
+              <span className="end-of-run__figure">
+                <ScienceIcon size={14} />
+                <span>{run.science}</span>
+              </span>
+              <span className="end-of-run__figure">
+                <StarBadge />
+                <span>{madeIds.size}</span>
+              </span>
+            </span>
+            {fresh > 0 && (
+              <span className="end-of-run__new" aria-hidden="true">
+                {fresh} New
+              </span>
+            )}
+          </div>
         </div>
         <Disclosure>
           <TellMeMoreToggle className="end-of-run__more" />
@@ -146,11 +181,28 @@ export function EndOfRun({ run, recorded, onNewRun, onLeave }: EndOfRunProps) {
           <KitButton width={100} onClick={onLeave}>
             Back to title
           </KitButton>
+          <KitButton
+            width={70}
+            ref={logButton}
+            onClick={() => {
+              setLogOpen(true);
+            }}
+          >
+            Log
+          </KitButton>
           <KitButton variant="primary" width={110} data-primary="" onClick={onNewRun}>
             New Run
           </KitButton>
         </div>
       </div>
+      {logOpen && (
+        <DiscoveryLog
+          onClose={() => {
+            setLogOpen(false);
+            logButton.current?.focus();
+          }}
+        />
+      )}
     </section>
   );
 }

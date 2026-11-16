@@ -87,3 +87,18 @@ export function recordDiscoveries(
 export function scienceToCarryIn(storage: ScoreStorage | null = browserStorage()): number {
   return carried(readScienceProgress(storage)).lifetimeScience;
 }
+
+/** The Discoveries this device had when the current Run began (#317): New is what the Run adds to it. */
+let knownAtRunStart: readonly DiscoveryId[] = [];
+
+/** Notes what the device knows now; called as a Run starts. */
+export function markRunStart(storage: ScoreStorage | null = browserStorage()): void {
+  knownAtRunStart = Object.keys(carried(readScienceProgress(storage)).discoveries).filter(
+    isDiscoveryId,
+  );
+}
+
+/** The Discoveries the device had at the current Run's start. */
+export function discoveriesAtRunStart(): readonly DiscoveryId[] {
+  return knownAtRunStart;
+}

@@ -100,13 +100,13 @@ it('shows the Score as a Star System icon and a Hop icon with their numbers, and
   expect(best.left).toBeGreaterThanOrEqual(score.right);
   expect(Math.abs(best.top - score.top)).toBeLessThan(8);
   const labels = [...screen.querySelectorAll('button')].map((b) => b.textContent);
-  expect(labels).toEqual(['Tell me more', 'Back to title', 'New Run']);
+  expect(labels).toEqual(['Tell me more', 'Back to title', 'Log', 'New Run']);
   expect(document.activeElement?.textContent).toBe('New Run');
 });
 
 it('every icon has an accessible name that carries its number', async () => {
   const host = await show(ended({ kind: 'crashed', reason: 'x' }, 2, 1));
-  const icons = [...host.querySelectorAll('svg')];
+  const icons = [...host.querySelectorAll('svg[role="img"]')];
   expect(icons.map((icon) => icon.getAttribute('aria-label'))).toEqual([
     '1 Star System escaped',
     '1 Hop flown',
@@ -168,7 +168,7 @@ it('the buttons call their actions, and Tab wraps between them', async () => {
   const onNewRun = vi.fn();
   const onLeave = vi.fn();
   const host = await show(ended({ kind: 'crashed', reason: 'z' }), { onNewRun, onLeave });
-  const [, back, newRun] = [...host.querySelectorAll('button')];
+  const [, back, , newRun] = [...host.querySelectorAll('button')];
   if (!back || !newRun) throw new Error('no buttons');
   act(() => {
     newRun.dispatchEvent(
@@ -223,4 +223,37 @@ it('a Daily Run that did not beat today’s Daily Best shows it without a new ma
   expect(byTestId(host, 'end-of-run-best').getAttribute('aria-label')).toBe(
     'Today’s Daily Best: 4 Star Systems escaped, 20 Hops flown',
   );
+});
+
+it('shows Science earned and Discoveries made as an icon row, with New counted in the accessible name', async () => {
+  const base = ended({ kind: 'crashed', reason: 'x' });
+  const bodyId = base.starSystem.startingMoonId;
+  const run: Run = {
+    ...base,
+    science: 35,
+    discoveries: [
+      { discoveryId: 'river-delta', bodyId, starSystemNumber: 1, science: 10 },
+      { discoveryId: 'giant-storm', bodyId, starSystemNumber: 1, science: 25 },
+    ],
+  };
+  const host = await show(run);
+  const row = byTestId(host, 'end-of-run-science');
+  expect(row.getAttribute('aria-label')).toBe('35 Science earned, 2 Discoveries made, 2 New');
+  expect(row.textContent).toContain('35');
+  expectFits(host);
+});
+
+it('opens the Discovery log from the End-of-Run screen and closes it with Escape', async () => {
+  const host = await show(ended({ kind: 'crashed', reason: 'x' }));
+  const log = [...host.querySelectorAll('button')].find((b) => b.textContent === 'Log');
+  act(() => {
+    log?.click();
+  });
+  expect(byTestId(host, 'discovery-log')).toBeTruthy();
+  act(() => {
+    byTestId(host, 'discovery-log').dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    );
+  });
+  expect(host.querySelector('[data-testid="discovery-log"]')).toBeNull();
 });

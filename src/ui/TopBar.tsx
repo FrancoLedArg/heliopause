@@ -22,6 +22,8 @@ interface TopBarProps {
   materials: Materials;
   /** The Science this Run has earned (#318); omitted where no Run is in play. */
   science?: number | undefined;
+  /** Opens the Discovery log (#317); the Science chip is a button when given. */
+  onOpenLog?: (() => void) | undefined;
   /** The UTC day of the Daily Star System being played, `YYYY-MM-DD`; `undefined` for any other Run. */
   dailyDay?: string | undefined;
   /** The readout a gathering moment is filling: its icon pulses as the resource arrives. */
@@ -41,6 +43,7 @@ export function TopBar({
   deltaV,
   materials,
   science,
+  onOpenLog,
   dailyDay,
   filling,
   goals,
@@ -61,14 +64,25 @@ export function TopBar({
       )}
       <p className="top-bar__value top-bar__system">{systemName}</p>
       {science !== undefined && (
-        <p
-          className="top-bar__value top-bar__science"
-          role="img"
-          aria-label={`Science ${String(science)}`}
-          data-testid="science"
-        >
-          <ScienceIcon size={14} />
-          <span>{science}</span>
+        <p className="top-bar__value top-bar__science" data-testid="science-chip">
+          {onOpenLog ? (
+            <button
+              type="button"
+              className="top-bar__science-button"
+              aria-label={`Science ${String(science)}`}
+              title="Discovery log"
+              data-testid="science"
+              onClick={onOpenLog}
+            >
+              <ScienceIcon size={14} />
+              <span aria-hidden="true">{science}</span>
+            </button>
+          ) : (
+            <span role="img" aria-label={`Science ${String(science)}`} data-testid="science">
+              <ScienceIcon size={14} />
+              <span>{science}</span>
+            </span>
+          )}
         </p>
       )}
       <KitFrame frame="res_fuel" className={`top-bar__icon top-bar__fuel-icon${pulse('fuel')}`} />
