@@ -7,6 +7,7 @@ export const HINT_IDS = [
   'first-gathering',
   'first-build',
   'heliopause-found',
+  'first-science',
 ] as const;
 
 export type HintId = (typeof HINT_IDS)[number];
@@ -21,6 +22,7 @@ export const HINT_TEXT: Readonly<Record<HintId, string>> = {
   'first-gathering': 'Fuel and Materials land here',
   'first-build': 'Spend Materials on parts',
   'heliopause-found': 'The way out. You need a Jump Drive',
+  'first-science': 'Instruments earn Science to unlock parts',
 };
 
 const KEY = 'heliopause:first-run-hints';
