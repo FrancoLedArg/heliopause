@@ -28,10 +28,13 @@
 
 .hop-plan__success .hop-plan__label {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .hop-plan__chance {
   font: 16px/16px var(--font-pixel);
+  flex-shrink: 0;
 }
 
 .hop-plan__success--ok .hop-plan__chance {
@@ -208,4 +211,16 @@
   gap: 6px;
   margin-top: 4px;
   color: var(--gm6);
+}
+
+.hop-plan__arrival {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.hop-plan__harsh {
+  display: inline-flex;
+  transform: scale(0.75);
+  margin: 0 -2px;
 }

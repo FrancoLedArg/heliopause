@@ -1,8 +1,7 @@
 import { DayDial } from './DayDial.tsx';
 import { DeltaVBar } from './DeltaVBar.tsx';
 import { Disclosure, DisclosurePanel, TellMeMoreToggle } from './Disclosure.tsx';
-import { timeOfDayWords } from '../game/sim/index.ts';
-import type { HopPlanFuel, HopPlanView } from './hopPlanView.ts';
+import type { ArrivalView, HopPlanFuel, HopPlanView } from './hopPlanView.ts';
 import { KitFrame } from './kit/KitFrame.tsx';
 import './HopPlan.css';
 
@@ -38,6 +37,57 @@ function UnsurveyedBadge() {
   );
 }
 
+/** Flame, neutral dot or snowflake: how hot or cold the target is (#335). */
+function BandGlyph({ band }: { band: ArrivalView['band'] }) {
+  return (
+    <svg className="hop-plan__band" width="10" height="10" viewBox="0 0 12 12" aria-hidden="true">
+      {band === 'scorching' && (
+        <path
+          d="M6 1 C7 4 10 5 9 8 C8.5 10 7 11 6 11 C4.5 11 3 10 3 8 C3 6.5 4 6 4.5 4.5 C5 5 5.5 5 6 4 Z"
+          fill="var(--am3)"
+          stroke="var(--rd3)"
+        />
+      )}
+      {band === 'mild' && <circle cx="6" cy="6" r="2.5" fill="var(--gr3)" />}
+      {band === 'freezing' && (
+        <path
+          d="M6 1 V11 M1.5 3.5 L10.5 8.5 M1.5 8.5 L10.5 3.5"
+          stroke="var(--cy0)"
+          strokeWidth="1.4"
+          fill="none"
+        />
+      )}
+    </svg>
+  );
+}
+
+/** The arrival chip: local time on arrival, the target's band, and a hazard mark on a Harsh Arrival. */
+function ArrivalChip({ arrival }: { arrival: ArrivalView }) {
+  return (
+    <span
+      className="hop-plan__arrival"
+      role="img"
+      aria-label={arrival.label}
+      data-testid="plan-arrival"
+      data-band={arrival.band}
+    >
+      <DayDial
+        fraction={arrival.fraction}
+        day={arrival.day}
+        label={arrival.label}
+        size={14}
+        decorative
+      />
+      <BandGlyph band={arrival.band} />
+      {arrival.harsh && (
+        <span className="hop-plan__harsh" data-testid="plan-harsh">
+          <KitFrame frame="badge_warning" />
+        </span>
+      )}
+    </span>
+  );
+}
+
 function PickATarget() {
   return (
     <p className="hop-plan__empty">
@@ -55,16 +105,7 @@ function Plan({ view }: { view: HopPlanView }) {
         data-testid="plan-success"
       >
         <span className="hop-plan__label">Success</span>
-        {view.arrival && (
-          <DayDial
-            className="hop-plan__arrival"
-            fraction={view.arrival.fraction}
-            day={timeOfDayWords(view.arrival.fraction) !== 'night'}
-            label={view.arrival.label}
-            size={18}
-            testId="plan-arrival"
-          />
-        )}
+        {view.arrival && <ArrivalChip arrival={view.arrival} />}
         {view.unsurveyed && <UnsurveyedBadge />}
         <KitFrame frame={view.low ? 'badge_warning' : 'badge_ok'} />
         <span className="hop-plan__chance">{view.successChance}</span>

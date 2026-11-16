@@ -151,6 +151,16 @@ export const ICE_LINE = {
   } satisfies SourcedValue<AstronomicalUnits>,
 } as const;
 
+/**
+ * Where a Body's surface counts as Scorching or Freezing (#335), by distance from the star. The
+ * Freezing edge is the sourced ice line; the Scorching edge is gameplay tuning, near where Mercury
+ * and Venus sit (see docs/research/day-night-and-temperature.md).
+ */
+export const TEMPERATURE_BANDS = {
+  scorchingBelow: astronomicalUnits(0.7),
+  freezingBeyond: ICE_LINE.distance.value,
+} as const;
+
 /** Gameplay tuning for what a landable Body is made of. Not real-world figures. */
 export const BODY_TUNING = {
   /**
