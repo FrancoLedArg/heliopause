@@ -156,6 +156,7 @@ export function FlightHud({
       fuelCapacity={before.spacecraft.fuelCapacity}
       deltaV={deltaV}
       materials={(live ?? before).materials}
+      scrap={(live ?? before).scrap}
       dailyDay={dailyDay}
     />
   );

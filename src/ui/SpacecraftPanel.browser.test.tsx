@@ -821,6 +821,30 @@ it('dims the Rush when the Materials cannot pay for it (#250)', async () => {
   ).toBe(false);
 });
 
+it('prices the Rush in Scrap with its icon when the Scrap covers it, else in Materials (#344)', async () => {
+  const host = await renderUi(
+    <SpacecraftPanel run={{ ...leaking(0), scrap: 6 }} onClose={() => undefined} />,
+  );
+  const callout = host.querySelector<HTMLButtonElement>('[data-state="damaged"]');
+  if (!callout) throw new Error('Expected a Damaged callout');
+  await userEvent.click(callout);
+  const rush = host.querySelector<HTMLButtonElement>('button[aria-label^="Rush the Repair"]');
+  expect(rush?.disabled).toBe(false);
+  expect(rush?.getAttribute('aria-label')).toBe('Rush the Repair of Fuel Tank 1 for 6 Scrap');
+  expect(rush?.querySelector('[data-testid="scrap-icon"]')).not.toBeNull();
+  expect(rush?.textContent).toBe('6');
+  cleanUp();
+  const short = await renderUi(
+    <SpacecraftPanel run={{ ...leaking(25), scrap: 5 }} onClose={() => undefined} />,
+  );
+  const shortCallout = short.querySelector<HTMLButtonElement>('[data-state="damaged"]');
+  if (!shortCallout) throw new Error('Expected a Damaged callout');
+  await userEvent.click(shortCallout);
+  const paid = short.querySelector<HTMLButtonElement>('button[aria-label^="Rush the Repair"]');
+  expect(paid?.getAttribute('aria-label')).toBe('Rush the Repair of Fuel Tank 1 for 6 Materials');
+  expect(paid?.querySelector('[data-testid="scrap-icon"]')).toBeNull();
+});
+
 it("lists the Radar at both levels with its icon and a range ring scaled to its level, and its preview's Δv", async () => {
   const host = await renderUi(<Harness initial={runWith('scout', 25)} />);
   const rows = [...host.querySelectorAll<HTMLElement>('[data-testid="component-row"]')];

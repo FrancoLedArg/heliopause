@@ -131,6 +131,45 @@ it('fits the mission tracker inside the bar, clear of the speaker controls and t
   expect(tracker.bottom).toBeLessThanOrEqual(frame.bottom);
 });
 
+// Scrap (#344): an icon and a number in a chip beside Science's, its words in the accessible name.
+it.each([0, 3, 999])(
+  'shows %i Scrap as an icon and a number, clear of the Science chip and the mission tracker',
+  async (scrap) => {
+    const host = await renderUi(
+      <TopBar
+        systemNumber={12}
+        systemName="Quydril Prime Longname"
+        fuel={kilograms(1234)}
+        fuelCapacity={kilograms(5000)}
+        deltaV={metersPerSecond(9876)}
+        materials={materials(100)}
+        science={999}
+        scrap={scrap}
+        goals={[
+          { id: 'heliopause', done: false, label: 'Heliopause: not found yet' },
+          { id: 'jump-drive', done: false, label: 'Jump Drive: not built yet' },
+          { id: 'escape', done: false, label: 'Escape: not made yet' },
+        ]}
+      />,
+    );
+    const chip = byTestId(host, 'scrap');
+    expect(chip.getAttribute('role')).toBe('img');
+    expect(chip.getAttribute('aria-label')).toBe(`Scrap ${String(scrap)}`);
+    expect(chip.querySelector('[data-testid="scrap-icon"]')).not.toBeNull();
+    expect(chip.textContent).toBe(String(scrap));
+    const box = chip.getBoundingClientRect();
+    const frame = host.querySelector<HTMLElement>('.top-bar')?.getBoundingClientRect();
+    if (!frame) throw new Error('no bar');
+    // Inside the 640-px stage, left of the Science chip and below the tracker's row.
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(byTestId(host, 'science').getBoundingClientRect().left);
+    expect(box.top).toBeGreaterThanOrEqual(
+      byTestId(host, 'mission-tracker').getBoundingClientRect().bottom,
+    );
+    expect(box.bottom).toBeLessThanOrEqual(frame.bottom + 20);
+  },
+);
+
 it('lights each goal per state and names it, state included', async () => {
   const host = await renderUi(withGoals(true, false));
   const heliopause = byTestId(host, 'goal-heliopause');

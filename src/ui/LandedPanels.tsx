@@ -112,6 +112,7 @@ export function LandedPanels({
         deltaV={availableDeltaV(spacecraft)}
         materials={materials}
         science={run.science}
+        scrap={run.scrap}
         dailyDay={dailyDay}
         filling={gathering?.resource}
         announcement={gathered}

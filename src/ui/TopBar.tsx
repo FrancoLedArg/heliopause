@@ -7,6 +7,7 @@ import { MissionTracker } from './MissionTracker.tsx';
 import type { MissionGoal } from './missionTrackerView.ts';
 import { MusicControls } from './MusicControls.tsx';
 import { ScienceIcon } from './ScienceIcon.tsx';
+import { ScrapIcon } from './ScrapIcon.tsx';
 
 const BAR_WIDTH = 624;
 const BAR_HEIGHT = 40;
@@ -22,6 +23,8 @@ interface TopBarProps {
   materials: Materials;
   /** The Science this Run has earned (#318); omitted where no Run is in play. */
   science?: number | undefined;
+  /** The Scrap aboard (#344); omitted where no Run is in play. */
+  scrap?: number | undefined;
   /** The UTC day of the Daily Star System being played, `YYYY-MM-DD`; `undefined` for any other Run. */
   dailyDay?: string | undefined;
   /** The readout a gathering moment is filling: its icon pulses as the resource arrives. */
@@ -32,7 +35,7 @@ interface TopBarProps {
   announcement?: string;
 }
 
-/** The top bar over every in-Run screen: the Star System (and, in a Daily Run, its day), the Fuel on board, the Δv it provides and the Materials in stock. */
+/** The top bar over every in-Run screen: the Star System (and, in a Daily Run, its day), the Fuel on board, the Δv it provides and the Materials in stock, with chips for the Scrap and the Science under it. */
 export function TopBar({
   systemNumber,
   systemName,
@@ -41,6 +44,7 @@ export function TopBar({
   deltaV,
   materials,
   science,
+  scrap,
   dailyDay,
   filling,
   goals,
@@ -69,6 +73,17 @@ export function TopBar({
         >
           <ScienceIcon size={14} />
           <span>{science}</span>
+        </p>
+      )}
+      {scrap !== undefined && (
+        <p
+          className="top-bar__value top-bar__scrap"
+          role="img"
+          aria-label={`Scrap ${String(scrap)}`}
+          data-testid="scrap"
+        >
+          <ScrapIcon size={14} />
+          <span>{scrap}</span>
         </p>
       )}
       <KitFrame frame="res_fuel" className={`top-bar__icon top-bar__fuel-icon${pulse('fuel')}`} />
