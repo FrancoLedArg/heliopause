@@ -1,5 +1,5 @@
 import type { HintId } from '../game/lib/firstRunHints.ts';
-import type { Run } from '../game/sim/index.ts';
+import { COMPONENTS, type Run } from '../game/sim/index.ts';
 import { panelRows } from './spacecraftPanelView.ts';
 
 /** What the Landed view is showing, as far as the First-Run hints care. */
@@ -29,6 +29,7 @@ export function wantedHints(moment: HintMoment): HintId[] {
     if (!moment.reportOpen && panelRows(run).some((r) => r.affordable && !r.unavailable)) {
       wanted.push('first-build');
     }
+    if (!moment.reportOpen && scienceMoment(run)) wanted.push('first-science');
   }
   // On the open chart the Heliopause hint points at its mark; a chosen target's plan hint comes first.
   if (moment.chartOpen && !moment.targetChosen && !moment.spacecraftOpen && !moment.reportOpen) {
@@ -36,4 +37,15 @@ export function wantedHints(moment: HintMoment): HintId[] {
   }
   if (moment.chartOpen && moment.targetChosen) wanted.push('first-hop-plan');
   return wanted;
+}
+
+/** An Instrument is affordable or installed, or the Run has earned Science: the Science chip matters now. */
+function scienceMoment(run: Run): boolean {
+  if (run.science > 0) return true;
+  if (run.spacecraft.slots.some((id) => id !== null && COMPONENTS[id].kind === 'instrument')) {
+    return true;
+  }
+  return panelRows(run).some(
+    (r) => COMPONENTS[r.id].kind === 'instrument' && r.affordable && !r.unavailable,
+  );
 }

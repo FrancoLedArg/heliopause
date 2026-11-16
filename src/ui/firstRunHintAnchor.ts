@@ -27,6 +27,8 @@ export function anchorFor(id: HintId, heliopauseSpot?: { x: number; y: number })
       return { selector: '[data-testid="hop-launch"]', side: 'above' };
     case 'first-gathering':
       return { selector: '.top-bar', side: 'below' };
+    case 'first-science':
+      return { selector: '[data-testid="science"]', side: 'below' };
     case 'first-build':
       return { selector: '.landed-spacecraft-button button', side: 'above' };
   }
