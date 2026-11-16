@@ -6,6 +6,7 @@ import {
   COMPONENT_IDS,
   kilograms,
   collectYield,
+  depositLevel,
   launchHop,
   listBodies,
   materials,
@@ -17,7 +18,7 @@ import {
   type Run,
   type Slot,
 } from './index.ts';
-import { landedOn, onInnerPlanet } from './testing.ts';
+import { knowingEverything, landedOn, onInnerPlanet } from './testing.ts';
 
 /**
  * A Run standing on the innermost planet, knowing every Body and with none Depleted: for the rules
@@ -298,5 +299,35 @@ describe('a Drill multiplies yields', () => {
   it('a Drill does not change the Depleted rule', () => {
     const once = collectYield(drill1, moon.id).run;
     expect(collectYield(once, moon.id).collection).toEqual({ kind: 'depleted' });
+  });
+});
+
+describe('the deposit level of a Body', () => {
+  const run = fresh(SEED);
+  const moon = sureTarget(run, 'icy');
+  const known = knowingEverything(run);
+
+  it('is full for an untouched Surveyed landable Body and empty after landing on it', () => {
+    expect(depositLevel(known, moon.id)).toBe('full');
+    expect(depositLevel(known, moon.id)).toBe('full');
+    expect(depositLevel({ ...known, depleted: [moon.id] }, moon.id)).toBe('empty');
+  });
+
+  it('is undefined for a Detected Body', () => {
+    const detected: Run = {
+      ...known,
+      knowledge: {
+        ...known.knowledge,
+        surveyed: known.knowledge.surveyed.filter((id) => id !== moon.id),
+        detected: [...known.knowledge.detected, moon.id],
+      },
+    };
+    expect(depositLevel(detected, moon.id)).toBeUndefined();
+  });
+
+  it('is undefined for a Gas Giant', () => {
+    const giant = listBodies(known.starSystem).find((b) => !b.landable);
+    if (!giant) throw new Error('No Gas Giant in this Star System');
+    expect(depositLevel(known, giant.id)).toBeUndefined();
   });
 });

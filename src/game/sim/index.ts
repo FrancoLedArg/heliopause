@@ -16,7 +16,7 @@ export { bodyKnowledge, distanceBetween, knownBodies } from './knowledge.ts';
 export type { BodyKnowledge, Knowledge, Reveal } from './knowledge.ts';
 export { CHOICE_LOG_VERSION, parseChoiceLog, storedChoiceLog } from './choiceLog.ts';
 export type { Choice, ChoiceLog, StoredChoiceLog } from './choiceLog.ts';
-export { collectYield, isDepleted } from './gather.ts';
+export { collectYield, depositLevel, isDepleted, type DepositLevel } from './gather.ts';
 export type { Collection, Landing } from './gather.ts';
 export {
   bodyDiscoveryCount,
