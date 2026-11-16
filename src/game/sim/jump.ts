@@ -33,6 +33,7 @@ export function jump(run: Run): Run {
       choices: run.choices,
       science: run.science,
       discoveries: run.discoveries,
+      scienceCarriedIn: run.scienceCarriedIn,
     },
     generateSystem(run.seed, starSystemNumber),
   );
