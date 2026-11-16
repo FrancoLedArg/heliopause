@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { afterEach, expect, it } from 'vitest';
 import { kilograms, materials, metersPerSecond } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
@@ -171,6 +172,50 @@ it.each([0, 3, 999])(
     expect(box.bottom).toBeLessThanOrEqual(frame.bottom + 20);
   },
 );
+
+it('pulses the Scrap icon as Scrap arrives, and not when it is spent (#344)', async () => {
+  function Harness() {
+    const [scrap, setScrap] = useState(0);
+    return (
+      <>
+        <TopBar
+          systemNumber={1}
+          systemName="Cinder"
+          fuel={kilograms(3140)}
+          fuelCapacity={kilograms(5000)}
+          deltaV={metersPerSecond(9000)}
+          materials={materials(10)}
+          scrap={scrap}
+        />
+        <button
+          type="button"
+          onClick={() => {
+            setScrap(3);
+          }}
+        >
+          gain
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setScrap(0);
+          }}
+        >
+          spend
+        </button>
+      </>
+    );
+  }
+  const host = await renderUi(<Harness />);
+  const icon = () => byTestId(host, 'scrap-icon');
+  const press = (name: string) =>
+    [...host.querySelectorAll('button')].find((b) => b.textContent === name)?.click();
+  expect(icon().classList.contains('top-bar__icon--filling')).toBe(false);
+  press('gain');
+  await expect.poll(() => icon().classList.contains('top-bar__icon--filling')).toBe(true);
+  press('spend');
+  await expect.poll(() => icon().classList.contains('top-bar__icon--filling')).toBe(false);
+});
 
 it('lights each goal per state and names it, state included', async () => {
   const host = await renderUi(withGoals(true, false));

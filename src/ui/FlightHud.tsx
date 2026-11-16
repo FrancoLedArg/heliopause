@@ -74,6 +74,11 @@ interface FlightHudProps {
   onFastChange: (fast: boolean) => void;
   /** The Run in its Cruise while the Cruise runs (#250): its Damage, Fuel and Materials. */
   live?: Run | undefined;
+  /**
+   * The Run as its Cruise ended, kept once the Cruise is over (#344): the Landing and the report still
+   * show the Scrap and Materials it earned or spent.
+   */
+  cruised?: Run | undefined;
 }
 
 /**
@@ -93,6 +98,7 @@ export function FlightHud({
   fast,
   onFastChange,
   live,
+  cruised,
 }: FlightHudProps) {
   const view = describeFlight(before, flight, moment);
   const fuel = moment?.fuel ?? flight.fuelAtLaunch;
@@ -155,8 +161,8 @@ export function FlightHud({
       fuel={fuel}
       fuelCapacity={before.spacecraft.fuelCapacity}
       deltaV={deltaV}
-      materials={(live ?? before).materials}
-      scrap={(live ?? before).scrap}
+      materials={(live ?? cruised ?? before).materials}
+      scrap={(live ?? cruised ?? before).scrap}
       dailyDay={dailyDay}
     />
   );

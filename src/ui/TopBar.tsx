@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import type { Kilograms, Materials, MetersPerSecond } from '../game/sim/index.ts';
 import { imageUrl } from '../game/assets/manifest.ts';
 import { formatDeltaVKmS, formatFuel } from './format.ts';
@@ -52,6 +53,7 @@ export function TopBar({
 }: TopBarProps) {
   const pulse = (resource: 'fuel' | 'materials'): string =>
     filling === resource ? ' top-bar__icon--filling' : '';
+  const scrapArriving = useArrival(scrap);
   return (
     <header className="top-bar" style={{ width: BAR_WIDTH, height: BAR_HEIGHT }}>
       <KitFrame frame="panel_holo" width={BAR_WIDTH} height={BAR_HEIGHT} />
@@ -82,7 +84,12 @@ export function TopBar({
           aria-label={`Scrap ${String(scrap)}`}
           data-testid="scrap"
         >
-          <ScrapIcon size={14} />
+          <ScrapIcon
+            size={14}
+            className={
+              scrapArriving ? 'top-bar__scrap-icon top-bar__icon--filling' : 'top-bar__scrap-icon'
+            }
+          />
           <span>{scrap}</span>
         </p>
       )}
@@ -121,4 +128,26 @@ export function TopBar({
       </p>
     </header>
   );
+}
+
+/** How long the Scrap icon pulses when Scrap arrives, in ms. */
+const ARRIVAL_MS = 1_200;
+
+/** Whether `amount` has just gone up (#344): true for a moment after each rise, so its icon pulses. */
+function useArrival(amount: number | undefined): boolean {
+  const last = useRef(amount);
+  const [arriving, setArriving] = useState(false);
+  useEffect(() => {
+    const rose = amount !== undefined && last.current !== undefined && amount > last.current;
+    last.current = amount;
+    setArriving(rose);
+    if (!rose) return undefined;
+    const timer = window.setTimeout(() => {
+      setArriving(false);
+    }, ARRIVAL_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [amount]);
+  return arriving;
 }
