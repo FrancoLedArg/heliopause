@@ -15,7 +15,7 @@ import {
 
 /**
  * Every Component the Spacecraft can carry: Engine, Fuel Tank, Drill and Radar at levels 1 and 2,
- * and the Jump Drive. These ids are stored in choice logs (see `choiceLog.ts`): never rename or reuse one,
+ * a level-3 Drill, the Jump Drive and the Instruments, in catalogue order. These ids are stored in choice logs (see `choiceLog.ts`): never rename or reuse one,
  * or stored logs stop parsing or replay a different Component. Add new ids instead.
  */
 export const COMPONENT_IDS = [
@@ -25,6 +25,7 @@ export const COMPONENT_IDS = [
   'fuel-tank-2',
   'drill-1',
   'drill-2',
+  'drill-3',
   'radar-1',
   'radar-2',
   'jump-drive',
@@ -34,7 +35,7 @@ export const COMPONENT_IDS = [
 ] as const;
 export type ComponentId = (typeof COMPONENT_IDS)[number];
 
-export type ComponentLevel = 1 | 2;
+export type ComponentLevel = 1 | 2 | 3;
 
 /**
  * Where a Component's figures come from. A sourced Component's real-world-flavoured figure (its Isp
@@ -227,6 +228,19 @@ export const COMPONENTS = {
     cost: materials(50),
     yieldMultiplier: 2,
     explanation: 'Makes every Body yield twice as much, but weighs more.',
+    provenance: { kind: 'gameplay-tuning' },
+  },
+  // A blueprint (#319): locked until lifetime Science reaches its threshold (see blueprints.ts).
+  // Half as much again over level 2 for half as much mass again: worth it only on a Chassis that
+  // can carry it.
+  'drill-3': {
+    id: 'drill-3',
+    kind: 'drill',
+    level: 3,
+    mass: kilograms(2_600),
+    cost: materials(75),
+    yieldMultiplier: 2.5,
+    explanation: 'Makes every Body yield two and a half times as much, but is heavy.',
     provenance: { kind: 'gameplay-tuning' },
   },
   'jump-drive': {

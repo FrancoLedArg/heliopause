@@ -99,6 +99,14 @@ interface Placed {
 }
 
 /**
+ * Components drawn with another's art until their own lands: Drill 3 (#319) wears Drill 2's
+ * (asset request in the #319 PR).
+ */
+export const ART_STAND_IN: Readonly<Partial<Record<ComponentId, ComponentId>>> = {
+  'drill-3': 'drill-2',
+};
+
+/**
  * The drawn Spacecraft: the Chassis `chassisId` with the Components in `slots`, in `frame`. The n-th
  * installed Component of a kind, in Slot order, takes that kind's n-th mount point, so the drawing
  * depends only on the Chassis, the Slots and the frame.
@@ -117,7 +125,7 @@ export function composeSpacecraft(
     const { kind } = COMPONENTS[componentId];
     const mount = used.get(kind) ?? 0;
     used.set(kind, mount + 1);
-    const art = data.components[componentId]?.[mount];
+    const art = data.components[ART_STAND_IN[componentId] ?? componentId]?.[mount];
     if (!art) {
       throw new Error(
         `The ${chassisId} art has no mount point ${String(mount)} for ${componentId}: ${String(slots.length)} Slots is more than the art was drawn for`,
@@ -137,7 +145,7 @@ export function composeSpacecraft(
           componentId,
           mount,
           depth,
-          frame: `${componentId}.${String(mount)}.${depth}.${frame}`,
+          frame: `${ART_STAND_IN[componentId] ?? componentId}.${String(mount)}.${depth}.${frame}`,
           rect: rectOf(piece[pose]),
         },
       ];

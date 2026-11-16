@@ -2,6 +2,9 @@
 // sentence, the stat bars and the reasons an install is refused. No React here, so it is unit tested.
 import {
   availableDeltaV,
+  BLUEPRINT_THRESHOLDS,
+  isBlueprint,
+  lifetimeScience,
   COMPONENT_IDS,
   COMPONENTS,
   componentCost,
@@ -118,6 +121,8 @@ export function describeRefusal(reason: InstallRefusal): string {
     }
     case 'jump-drive-installed':
       return 'You already carry a Jump Drive.';
+    case 'blueprint-locked':
+      return `Locked: ${String(reason.scienceNeeded)} more Science unlocks it.`;
     case 'not-enough-materials':
       return `Not enough Materials: it costs ${String(reason.cost)} and you have ${String(reason.have)}, ${String(reason.short)} short.`;
   }
@@ -179,6 +184,11 @@ export interface PanelRow {
    * The panel greys the entry out and shows this.
    */
   readonly unavailable: string | undefined;
+  /**
+   * A blueprint still locked (#319): the lifetime Science still needed, and how far along to its
+   * threshold the device is (0 to 1), for the progress bar that takes the effect line's place.
+   */
+  readonly locked: { readonly remaining: number; readonly progress: number } | undefined;
 }
 
 /** Every Component in the catalogue, in catalogue order, as it reads on this Run's Chassis. */
@@ -201,6 +211,13 @@ export function panelRows(run: Run): readonly PanelRow[] {
       affordable: run.materials >= cost,
       short: Math.max(0, cost - run.materials),
       unavailable: standing ? describeRefusal(standing) : undefined,
+      locked:
+        standing?.kind === 'blueprint-locked' && isBlueprint(id)
+          ? {
+              remaining: standing.scienceNeeded,
+              progress: Math.min(1, lifetimeScience(run) / BLUEPRINT_THRESHOLDS[id]),
+            }
+          : undefined,
     };
   });
 }

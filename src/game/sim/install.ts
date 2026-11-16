@@ -1,3 +1,4 @@
+import { scienceStillNeeded } from './blueprints.ts';
 import { COMPONENTS, componentCost, type ComponentId } from './catalogue.ts';
 import { recordChoice } from './choiceLog.ts';
 import { revealDiscoveries, type DiscoveryReveal } from './discoveries.ts';
@@ -15,6 +16,8 @@ export type InstallRefusal =
   | { readonly kind: 'slot-taken'; readonly slot: number; readonly holds: ComponentId }
   /** A Jump Drive is already installed: one is all the Jump needs, and it burns out only one. */
   | { readonly kind: 'jump-drive-installed' }
+  /** A blueprint the device's lifetime Science has not unlocked yet (#319). */
+  | { readonly kind: 'blueprint-locked'; readonly scienceNeeded: number }
   /** The Run's Materials do not cover the cost. */
   | {
       readonly kind: 'not-enough-materials';
@@ -35,24 +38,32 @@ export type InstallResult =
   | { readonly kind: 'refused'; readonly reason: InstallRefusal };
 
 /** A refusal that no free Slot or Materials can lift. */
-export type StandingRefusal = Extract<InstallRefusal, { kind: 'jump-drive-installed' }>;
+export type StandingRefusal = Extract<
+  InstallRefusal,
+  { kind: 'jump-drive-installed' | 'blueprint-locked' }
+>;
 
 /**
  * What a refit reads and changes of a Run: the Spacecraft, the Materials, and the Star System
  * number that prices the Jump Drive. The rules of installing and removing work on this alone, so
  * the Stranded rule can try changes without building whole Runs.
  */
-export type Outfit = Pick<Run, 'spacecraft' | 'materials' | 'starSystemNumber'>;
+export type Outfit = Pick<
+  Run,
+  'spacecraft' | 'materials' | 'starSystemNumber' | 'science' | 'scienceCarriedIn'
+>;
 
 /**
  * Why `componentId` cannot be installed on this Spacecraft whatever its Slots and Materials, or
- * `undefined` when nothing stands in the way: today only a second Jump Drive. `install` refuses
- * with it first, and the Spacecraft panel greys the entry out with it.
+ * `undefined` when nothing stands in the way: a blueprint still locked, or a second Jump Drive.
+ * `install` refuses with it first, and the Spacecraft panel greys the entry out with it.
  */
 export function standingRefusal(
-  run: Pick<Run, 'spacecraft'>,
+  run: Pick<Run, 'spacecraft' | 'science' | 'scienceCarriedIn'>,
   componentId: ComponentId,
 ): StandingRefusal | undefined {
+  const scienceNeeded = scienceStillNeeded(run, componentId);
+  if (scienceNeeded > 0) return { kind: 'blueprint-locked', scienceNeeded };
   return COMPONENTS[componentId].kind === 'jump-drive' && carriesJumpDrive(run.spacecraft)
     ? { kind: 'jump-drive-installed' }
     : undefined;

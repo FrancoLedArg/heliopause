@@ -10,8 +10,10 @@ import { dailySeed, utcDay } from '../game/lib/dailyStarSystem.ts';
 import {
   availableDeltaV,
   kilograms,
+  newlyUnlocked,
   score,
   starSystemNumber,
+  type BlueprintId,
   type ChassisId,
   type DiscoveryReveal,
   type HopFlight,
@@ -40,9 +42,31 @@ import { RunMenu } from './RunMenu.tsx';
 import { TitleMenu, type TitleButton } from './TitleMenu.tsx';
 import { missionGoals } from './missionTrackerView.ts';
 import { TopBar } from './TopBar.tsx';
+import { BlueprintUnlocked } from './BlueprintLock.tsx';
+import { recordDiscoveries } from '../game/lib/scienceProgress.ts';
 
 /** The device clock, read each time so a test's fake clock applies. */
 const deviceClock = (): number => Date.now();
+
+/**
+ * Discoveries just made on `after` (#319): their Science and the new ones go to the device at once,
+ * and any blueprint the Science unlocked is announced.
+ */
+function recordFinds(
+  after: Pick<Run, 'science' | 'scienceCarriedIn'>,
+  revealed: readonly DiscoveryReveal[],
+): void {
+  const fresh = revealed.filter((reveal) => reveal.kind === 'new');
+  if (fresh.length === 0) return;
+  const gained = fresh.reduce((sum, reveal) => sum + reveal.science, 0);
+  recordDiscoveries(
+    gained,
+    fresh.map((reveal) => reveal.discoveryId),
+    deviceClock(),
+  );
+  const unlocked = newlyUnlocked({ ...after, science: after.science - gained }, after);
+  if (unlocked.length > 0) EventBus.emit('blueprints-unlocked', unlocked);
+}
 
 /** A Run ended: its Score is recorded, once. A Daily Run (`day` is its day) also counts toward the Best Score. */
 function recordEnd(ended: Run, day: string | undefined): RecordedScore {
@@ -104,6 +128,8 @@ export function GameUI() {
   const [comms, setComms] = useState('');
   /** The Discovery cards still to show (#318), the first on screen. */
   const [discoveryQueue, setDiscoveryQueue] = useState<readonly DiscoveryReveal[]>([]);
+  /** Blueprints just unlocked (#319), shown for a moment. */
+  const [unlocked, setUnlocked] = useState<readonly BlueprintId[] | undefined>(undefined);
   // The gathering moment playing in the Landed view, and where its readout has counted to; the
   // Hop report waits until it ends.
   const [gathering, setGathering] = useState<
@@ -227,16 +253,32 @@ export function GameUI() {
         setArrival({ before, flight: hop });
         // What the Instruments revealed on landing: shown after the Hop report, one card at a time.
         setDiscoveryQueue(hop.discoveries);
+        const gained = hop.discoveries.reduce(
+          (sum, reveal) => sum + (reveal.kind === 'new' ? reveal.science : 0),
+          0,
+        );
+        recordFinds({ ...before, science: before.science + gained }, hop.discoveries);
       }),
     [],
   );
   useEffect(
     () =>
-      EventBus.on('discoveries-revealed', (_run, revealed) => {
+      EventBus.on('discoveries-revealed', (revealedOn, revealed) => {
         setDiscoveryQueue((queue) => [...queue, ...revealed]);
+        recordFinds(revealedOn, revealed);
       }),
     [],
   );
+  useEffect(
+    () =>
+      EventBus.on('blueprints-unlocked', (blueprints) => {
+        setUnlocked(blueprints);
+      }),
+    [],
+  );
+  const clearUnlocked = useCallback(() => {
+    setUnlocked(undefined);
+  }, []);
   useEffect(
     () =>
       EventBus.on('comms-revealed', (revealedIn, reveal) => {
@@ -566,6 +608,7 @@ export function GameUI() {
             }}
           />
         )}
+      {unlocked !== undefined && <BlueprintUnlocked blueprints={unlocked} onDone={clearUnlocked} />}
       {scene === SceneKey.Landed &&
         run !== undefined &&
         stranded === undefined &&

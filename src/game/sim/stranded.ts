@@ -214,6 +214,8 @@ function buildable(run: Run): Design[] {
     spacecraft: run.spacecraft,
     materials: run.materials,
     starSystemNumber: run.starSystemNumber,
+    science: run.science,
+    scienceCarriedIn: run.scienceCarriedIn,
   };
   const pending: {
     readonly outfit: Outfit;
