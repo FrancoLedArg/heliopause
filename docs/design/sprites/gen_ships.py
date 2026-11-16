@@ -17,7 +17,7 @@ Drive); the n-th installed Component of a kind, in Slot order, takes its kind's 
     Engine      level 1 the preset's cluster or twin at the tail, level 2 the mockup's single bell;
                 extra Engines are booster pods low on the core
     Fuel Tank   capsule pods stacking up the core, alternating sides; level 2 is longer
-    Drill       the mockup's drill arm; level 2 has a longer bit
+    Drill       the mockup's drill arm; level 2 has a longer bit, level 3 a long, wide bit on a thicker shaft
     Radar       the mockup's dish on a boom; level 2 has a bigger dish (ids `radar-1`, `radar-2`)
     Instruments a camera lens, a chemistry sniffer box and a sample lab pod set into the core's skin
     Jump Drive  the mockup's violet ring: a back layer behind the Chassis art, a front layer before it
@@ -525,7 +525,7 @@ def fuel_tank_art(s, x, mount, level):
 # ------------------------------------------------------------------ Component art: Drill
 def drill_art(s, x, mount, level):
     """The mockup's drill arm: a strut out from the core, an amber shaft down (it reads on every paint),
-    a banded steel bit. Level 2 has a longer bit."""
+    a banded steel bit. Level 2 has a longer bit; level 3 a longer, wider bit on a thicker shaft."""
     sd = 1 if mount % 2 == 0 else -1
     tier = mount // 2
     ya = 82 - 22 * tier
@@ -533,12 +533,13 @@ def drill_art(s, x, mount, level):
     shaft = w + 5 + 6 * tier
     plate(s, side_pts(sd, [[CX + w - 2, ya], [CX + shaft + 1, ya], [CX + shaft + 1, ya + 3], [CX + w - 2, ya + 3]]),
           R["gun"], 3)
-    plate(s, side_pts(sd, [[CX + shaft - 1, ya + 3], [CX + shaft + 2, ya + 3], [CX + shaft + 2, ya + 24],
-                           [CX + shaft - 1, ya + 24]]), R["amber"], 2)
-    bit = 8 if level == 1 else 12
+    ex = 1 if level == 3 else 0  # level 3: a thicker shaft and a wider, longer bit
+    plate(s, side_pts(sd, [[CX + shaft - 1 - ex, ya + 3], [CX + shaft + 2 + ex, ya + 3],
+                           [CX + shaft + 2 + ex, ya + 24], [CX + shaft - 1 - ex, ya + 24]]), R["amber"], 2)
+    bit = {1: 8, 2: 12, 3: 18}[level]
     mid = side_x(sd, shaft + 0.5)
     for k in range(bit):
-        hw = max(0, 2.5 - k * 2.8 / bit)
+        hw = max(0, 2.5 + 2 * ex - k * (2.8 + 2 * ex) / bit)
         line(s, mid - hw, ya + 25 + k, mid + hw, ya + 25 + k, "wh2" if k % 2 else "gm4")
 
 
@@ -651,6 +652,7 @@ ART = {
     "fuel-tank-2": ("fuel-tank", 2),
     "drill-1": ("drill", 1),
     "drill-2": ("drill", 2),
+    "drill-3": ("drill", 3),
     "radar-1": ("radar", 1),
     "radar-2": ("radar", 2),
     "camera": ("camera", 1),
