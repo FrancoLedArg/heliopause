@@ -1340,8 +1340,8 @@ body {
 .deposit-gauge__bar {
   display: block;
   width: 24px;
-  height: 6px;
-  border: 1px solid var(--deposit);
+  height: 8px;
+  border: 2px solid var(--deposit);
   box-sizing: border-box;
 }
 
