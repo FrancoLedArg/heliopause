@@ -602,6 +602,88 @@
             }
           }
         ],
+        "drill-3": [
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": 10, "y": -45, "w": 14, "h": 45 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": 7, "y": -8, "w": 41, "h": 25 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          },
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": -23, "y": -45, "w": 13, "h": 45 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": -7, "y": -35, "w": 43, "h": 21 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          },
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": 10, "y": -67, "w": 19, "h": 45 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": 30, "y": -17, "w": 40, "h": 30 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          },
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": -28, "y": -67, "w": 18, "h": 45 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": 11, "y": -49, "w": 45, "h": 19 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          },
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": 9, "y": -89, "w": 26, "h": 44 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": 53, "y": -27, "w": 40, "h": 36 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          }
+        ],
         "radar-1": [
           {
             "front": {
@@ -1637,6 +1719,88 @@
             }
           }
         ],
+        "drill-3": [
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": 10, "y": -44, "w": 15, "h": 44 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": 7, "y": -8, "w": 40, "h": 26 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          },
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": -22, "y": -44, "w": 11, "h": 44 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": -7, "y": -36, "w": 42, "h": 21 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          },
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": 7, "y": -67, "w": 19, "h": 44 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": 30, "y": -20, "w": 39, "h": 31 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          },
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": -25, "y": -67, "w": 18, "h": 44 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": 13, "y": -47, "w": 44, "h": 20 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          },
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": 4, "y": -89, "w": 26, "h": 44 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": 51, "y": -32, "w": 40, "h": 37 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          }
+        ],
         "radar-1": [
           {
             "front": {
@@ -2659,6 +2823,88 @@
               },
               "flight": {
                 "rect": { "x": 55, "y": -34, "w": 35, "h": 33 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          }
+        ],
+        "drill-3": [
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": 8, "y": -45, "w": 15, "h": 45 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": 7, "y": -10, "w": 40, "h": 26 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          },
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": -21, "y": -45, "w": 12, "h": 45 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": -6, "y": -34, "w": 42, "h": 21 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          },
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": 5, "y": -67, "w": 19, "h": 45 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": 28, "y": -22, "w": 40, "h": 31 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          },
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": -23, "y": -67, "w": 18, "h": 45 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": 13, "y": -45, "w": 45, "h": 21 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              }
+            }
+          },
+          {
+            "front": {
+              "standing": {
+                "rect": { "x": 2, "y": -89, "w": 26, "h": 44 },
+                "nozzles": [],
+                "lamps": [],
+                "anchors": {}
+              },
+              "flight": {
+                "rect": { "x": 50, "y": -34, "w": 40, "h": 36 },
                 "nozzles": [],
                 "lamps": [],
                 "anchors": {}
