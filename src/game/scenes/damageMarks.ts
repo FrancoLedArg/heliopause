@@ -1,11 +1,12 @@
 // The Damage drawn on the Spacecraft (#210, #250), shown, not told: a red glow and the kit's alert
 // badge on a Damaged Component, Fuel venting from a leaking Tank, flames and a closing danger arc on
 // a burning Engine (#251), and while it is Repaired a ring
-// filling round it with the Rush price beside it (a Materials icon and a number). Pooled per Slot,
+// filling round it with the Rush price beside it (a Scrap or Materials icon and a number, #344). Pooled per Slot,
 // built once per scene run: posing them allocates nothing per frame.
 import { BlendModes, type GameObjects, type Scene } from 'phaser';
 import { paletteCss, paletteNumber } from '../../ui/kit/palette.ts';
 import { repairState } from '../../ui/repairView.ts';
+import { SCRAP_PIXELS_SIZE, scrapPixels } from '../../ui/scrapPixels.ts';
 import { hasAsset } from '../assets/manifest.ts';
 import { COMPONENTS, CRUISE_TUNING, SLOT_COUNT, type Run } from '../sim/index.ts';
 import { glowTexture } from './flightEffects.ts';
@@ -252,6 +253,10 @@ export function createDamageMarks(scene: Scene, calm: boolean): DamageMarks {
           .arc(cx, cy, radius, start, start + 2 * Math.PI * state.progress)
           .strokePath();
         const dim = state.affordable ? 1 : 0.4;
+        const iconKey = state.paidIn === 'scrap' ? scrapTexture(scene) : 'res_materials';
+        if (slot.icon.texture.key !== iconKey) {
+          slot.icon.setTexture(iconKey).setDisplaySize(MARK.icon, MARK.icon);
+        }
         slot.icon.setPosition(price.x + MARK.icon / 2, cy).setAlpha(dim);
         slot.price
           .setText(String(state.rush))
@@ -260,6 +265,21 @@ export function createDamageMarks(scene: Scene, calm: boolean): DamageMarks {
       });
     },
   };
+}
+
+const SCRAP_TEXTURE = 'scrap-icon';
+
+/** Scrap's icon as a texture (#344), drawn once from the same pixels as the React icon. */
+function scrapTexture(scene: Scene): string {
+  if (scene.textures.exists(SCRAP_TEXTURE)) return SCRAP_TEXTURE;
+  const canvas = scene.textures.createCanvas(SCRAP_TEXTURE, SCRAP_PIXELS_SIZE, SCRAP_PIXELS_SIZE);
+  if (!canvas) throw new Error('Could not create the Scrap icon texture');
+  for (const { x, y, color } of scrapPixels()) {
+    canvas.context.fillStyle = paletteCss(color);
+    canvas.context.fillRect(x, y, 1, 1);
+  }
+  canvas.refresh();
+  return SCRAP_TEXTURE;
 }
 
 /**

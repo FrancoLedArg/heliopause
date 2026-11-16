@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import type { Kilograms, Materials, MetersPerSecond } from '../game/sim/index.ts';
 import { imageUrl } from '../game/assets/manifest.ts';
 import { formatDeltaVKmS, formatFuel } from './format.ts';
@@ -7,6 +8,7 @@ import { MissionTracker } from './MissionTracker.tsx';
 import type { MissionGoal } from './missionTrackerView.ts';
 import { MusicControls } from './MusicControls.tsx';
 import { ScienceIcon } from './ScienceIcon.tsx';
+import { ScrapIcon } from './ScrapIcon.tsx';
 
 const BAR_WIDTH = 624;
 const BAR_HEIGHT = 40;
@@ -22,6 +24,10 @@ interface TopBarProps {
   materials: Materials;
   /** The Science this Run has earned (#318); omitted where no Run is in play. */
   science?: number | undefined;
+  /** The Scrap aboard (#344); omitted where no Run is in play. */
+  scrap?: number | undefined;
+  /** Opens the Discovery log (#317); the Science chip is a button when given. */
+  onOpenLog?: (() => void) | undefined;
   /** The UTC day of the Daily Star System being played, `YYYY-MM-DD`; `undefined` for any other Run. */
   dailyDay?: string | undefined;
   /** The readout a gathering moment is filling: its icon pulses as the resource arrives. */
@@ -32,7 +38,7 @@ interface TopBarProps {
   announcement?: string;
 }
 
-/** The top bar over every in-Run screen: the Star System (and, in a Daily Run, its day), the Fuel on board, the Δv it provides and the Materials in stock. */
+/** The top bar over every in-Run screen: the Star System (and, in a Daily Run, its day), the Fuel on board, the Δv it provides and the Materials in stock, with chips for the Scrap and the Science under it. */
 export function TopBar({
   systemNumber,
   systemName,
@@ -41,6 +47,8 @@ export function TopBar({
   deltaV,
   materials,
   science,
+  scrap,
+  onOpenLog,
   dailyDay,
   filling,
   goals,
@@ -48,6 +56,7 @@ export function TopBar({
 }: TopBarProps) {
   const pulse = (resource: 'fuel' | 'materials'): string =>
     filling === resource ? ' top-bar__icon--filling' : '';
+  const scrapArriving = useArrival(scrap);
   return (
     <header className="top-bar" style={{ width: BAR_WIDTH, height: BAR_HEIGHT }}>
       <KitFrame frame="panel_holo" width={BAR_WIDTH} height={BAR_HEIGHT} />
@@ -61,14 +70,41 @@ export function TopBar({
       )}
       <p className="top-bar__value top-bar__system">{systemName}</p>
       {science !== undefined && (
+        <p className="top-bar__value top-bar__science" data-testid="science-chip">
+          {onOpenLog ? (
+            <button
+              type="button"
+              className="top-bar__science-button"
+              aria-label={`Science ${String(science)}`}
+              title="Discovery log"
+              data-testid="science"
+              onClick={onOpenLog}
+            >
+              <ScienceIcon size={14} />
+              <span aria-hidden="true">{science}</span>
+            </button>
+          ) : (
+            <span role="img" aria-label={`Science ${String(science)}`} data-testid="science">
+              <ScienceIcon size={14} />
+              <span>{science}</span>
+            </span>
+          )}
+        </p>
+      )}
+      {scrap !== undefined && (
         <p
-          className="top-bar__value top-bar__science"
+          className="top-bar__value top-bar__scrap"
           role="img"
-          aria-label={`Science ${String(science)}`}
-          data-testid="science"
+          aria-label={`Scrap ${String(scrap)}`}
+          data-testid="scrap"
         >
-          <ScienceIcon size={14} />
-          <span>{science}</span>
+          <ScrapIcon
+            size={14}
+            className={
+              scrapArriving ? 'top-bar__scrap-icon top-bar__icon--filling' : 'top-bar__scrap-icon'
+            }
+          />
+          <span>{scrap}</span>
         </p>
       )}
       <KitFrame frame="res_fuel" className={`top-bar__icon top-bar__fuel-icon${pulse('fuel')}`} />
@@ -106,4 +142,26 @@ export function TopBar({
       </p>
     </header>
   );
+}
+
+/** How long the Scrap icon pulses when Scrap arrives, in ms. */
+const ARRIVAL_MS = 1_200;
+
+/** Whether `amount` has just gone up (#344): true for a moment after each rise, so its icon pulses. */
+function useArrival(amount: number | undefined): boolean {
+  const last = useRef(amount);
+  const [arriving, setArriving] = useState(false);
+  useEffect(() => {
+    const rose = amount !== undefined && last.current !== undefined && amount > last.current;
+    last.current = amount;
+    setArriving(rose);
+    if (!rose) return undefined;
+    const timer = window.setTimeout(() => {
+      setArriving(false);
+    }, ARRIVAL_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [amount]);
+  return arriving;
 }

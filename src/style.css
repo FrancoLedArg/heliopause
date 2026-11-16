@@ -293,9 +293,43 @@ body {
 }
 
 /* The Run's Science (#318): a chip hanging under the bar's Materials column, so the bar's own row stays as it was. */
+.top-bar__science-button {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.top-bar__science-button:focus-visible {
+  outline: 2px solid var(--am3);
+}
+
 .top-bar__science {
   top: 42px;
   left: 436px;
+  padding: 1px 6px;
+  border: 1px solid var(--gm3);
+  background: var(--gm1);
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  margin: 0;
+  color: var(--wh3);
+}
+
+/*
+ * The Scrap aboard (#344): a chip like Science's, right of it (room for three digits of Science), so
+ * it stays clear of the Flight's phase strip, which hangs under the bar's middle.
+ */
+.top-bar__scrap {
+  top: 42px;
+  left: 498px;
   padding: 1px 6px;
   border: 1px solid var(--gm3);
   background: var(--gm1);
@@ -1319,6 +1353,36 @@ body {
     0 -1px 0 var(--void),
     0 1px 0 var(--void);
   transform: rotate(-45deg);
+}
+
+/* The deposit gauge: the resource icon and a small bar in the resource colour, outlined when empty. */
+.deposit-gauge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  vertical-align: middle;
+}
+
+.deposit-gauge--fuel {
+  --deposit: var(--am3);
+}
+
+.deposit-gauge--materials {
+  --deposit: var(--cy3);
+}
+
+.deposit-gauge__bar {
+  display: block;
+  width: 24px;
+  height: 8px;
+  border: 2px solid var(--deposit);
+  box-sizing: border-box;
+}
+
+.deposit-gauge__fill {
+  display: block;
+  height: 100%;
+  background: var(--deposit);
 }
 
 /* In a one-line badge or a plate row the 16 px icon is taller than the text, so it hangs out evenly. */

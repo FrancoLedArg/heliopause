@@ -112,6 +112,7 @@ export function startingRun(
       science: 0,
       discoveries: [],
       scienceCarriedIn,
+      scrap: 0,
     },
     system,
   );

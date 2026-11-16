@@ -52,7 +52,7 @@ export interface ReportGain {
 
 /**
  * One Cruise entry of the report's icon row (#250): an event, with a tick when its Damage was
- * Repaired in the Cruise, or the Fuel the leaks lost. Its words are its accessible name.
+ * Repaired in the Cruise, the Fuel the leaks lost, or the Scrap the Debris fields gave. Its words are its accessible name.
  */
 export type CruiseMark =
   | {
@@ -63,7 +63,9 @@ export type CruiseMark =
       readonly repaired: boolean;
       readonly name: string;
     }
-  | { readonly kind: 'fuel-lost'; readonly amount: string; readonly name: string };
+  | { readonly kind: 'fuel-lost'; readonly amount: string; readonly name: string }
+  /** The Scrap the Debris fields gave (#344). */
+  | { readonly kind: 'scrap'; readonly amount: string; readonly name: string };
 
 export interface ReportView {
   readonly title: 'Arrived' | 'Reached the Heliopause' | 'Fell Short' | 'Crashed';
@@ -283,7 +285,10 @@ const PART_NAMES: Readonly<Record<ComponentKind, string>> = {
   instrument: 'Instrument',
 };
 
-/** What the Cruise did, as icon-row entries: each event that Damaged a part, then the Fuel lost. */
+/**
+ * What the Cruise did, as icon-row entries: each event that Damaged a part, then the Fuel lost, then
+ * the Scrap gained.
+ */
 function cruiseMarks(before: Run, flight: HopFlight): CruiseMark[] {
   const marks: CruiseMark[] = flight.cruiseEvents.flatMap((event): CruiseMark[] => {
     const id = event.slot === null ? null : before.spacecraft.slots[event.slot];
@@ -308,6 +313,11 @@ function cruiseMarks(before: Run, flight: HopFlight): CruiseMark[] {
       amount: `−${lost}`,
       name: `Lost ${lost} of Fuel to the leak.`,
     });
+  }
+  const scrap = flight.cruiseEvents.reduce((sum, event) => sum + (event.scrap ?? 0), 0);
+  if (scrap > 0) {
+    const amount = `+${String(scrap)}`;
+    marks.push({ kind: 'scrap', amount, name: `${amount} Scrap from the Debris field.` });
   }
   return marks;
 }

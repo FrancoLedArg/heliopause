@@ -1,3 +1,4 @@
+import { bodyKnowledge } from './knowledge.ts';
 import type { Run } from './run.ts';
 import { drillMultiplier } from './spacecraft.ts';
 import { deepFreeze, findBody, type Body, type BodyId } from './starSystem.ts';
@@ -62,4 +63,18 @@ export function collectYield(run: Run, bodyId: BodyId): Landing {
     },
     collection: { kind: 'fuel', collected, leftBehind: kilograms(offered - collected) },
   });
+}
+
+/** How much a Body has left to give, in words (never a number). */
+export type DepositLevel = 'full' | 'half' | 'low' | 'empty';
+
+/**
+ * The level of `bodyId`'s deposit: full until it is landed on, then empty. `undefined` when there is
+ * nothing to show: a Body not yet Surveyed, or a Gas Giant, which has no surface to take from.
+ */
+export function depositLevel(run: Run, bodyId: BodyId): DepositLevel | undefined {
+  if (bodyKnowledge(run, bodyId) !== 'surveyed') return undefined;
+  const body = findBody(run.starSystem, bodyId);
+  if (!body?.landable) return undefined;
+  return isDepleted(run, bodyId) ? 'empty' : 'full';
 }

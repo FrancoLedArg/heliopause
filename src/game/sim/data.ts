@@ -151,6 +151,16 @@ export const ICE_LINE = {
   } satisfies SourcedValue<AstronomicalUnits>,
 } as const;
 
+/**
+ * Where a Body's surface counts as Scorching or Freezing (#335), by distance from the star. The
+ * Freezing edge is the sourced ice line; the Scorching edge is gameplay tuning, near where Mercury
+ * and Venus sit (see docs/research/day-night-and-temperature.md).
+ */
+export const TEMPERATURE_BANDS = {
+  scorchingBelow: astronomicalUnits(0.7),
+  freezingBeyond: ICE_LINE.distance.value,
+} as const;
+
 /** Gameplay tuning for what a landable Body is made of. Not real-world figures. */
 export const BODY_TUNING = {
   /**
@@ -374,6 +384,12 @@ export const CRUISE_TUNING = {
   startTicks: { min: 100, max: 1_000, engineFireMax: 800, apart: 200 },
   /** A Debris field hits one Component this often, and misses otherwise. */
   debrisHitChance: 0.6,
+  /**
+   * A Debris field also gives Scrap (#344), whether it hits or not: always on the mild first Hops, so
+   * the loop shows early, and with chance `chance` after them; `min` to `max` of it. A Rush is paid in
+   * Scrap first, one Scrap for one Material.
+   */
+  debrisScrap: { mildChance: 1, chance: 0.6, min: 2, max: 4 },
   /**
    * A leak loses this share of the Spacecraft's Fuel capacity per second: slower in a mild Cruise,
    * yet fast enough that one left alone visibly drains the Fuel gauge (#250).

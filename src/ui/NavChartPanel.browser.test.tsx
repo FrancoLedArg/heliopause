@@ -3,6 +3,7 @@ import { userEvent } from 'vitest/browser';
 import {
   currentBody,
   HELIOPAUSE,
+  isHarshArrival,
   isInHopRange,
   firstDetectedBody,
   install,
@@ -19,6 +20,8 @@ import {
 } from '../game/sim/index.ts';
 import { byTestId, cleanUp, renderUi } from './browserTestKit.tsx';
 import { NavChartPanel } from './NavChartPanel.tsx';
+import { HopPlan } from './HopPlan.tsx';
+import { describeHopPlan } from './hopPlanView.ts';
 import { expectTextBudget } from './textBudget.ts';
 import { heliopauseFound } from '../game/sim/testing.ts';
 import {
@@ -446,8 +449,9 @@ it('shows Depleted in the tooltip of the longest-named Body, inside its frame', 
   const frame = byTestId(host, 'inspect').getBoundingClientRect();
   const badge = byTestId(host, 'landable');
   const words = byTestId(host, 'tip-composition');
-  expect(words.textContent).toContain('Depleted');
-  expect(words.textContent).not.toMatch(/Icy|Rocky/);
+  // The deposit gauge says empty; the word Depleted is not on the card (Show, don't tell).
+  expect(words.textContent).not.toContain('Depleted');
+  expect(byTestId(host, 'deposit-gauge').getAttribute('data-level')).toBe('empty');
   // The same amber warning style as the plan head and the plate, not the green Landable one.
   expect(badge.className).toContain('nav-chart__badge--warn');
   expect(badge.className).not.toContain('nav-chart__badge--ok');
@@ -492,7 +496,8 @@ it('keeps the tallest plan, 21-character target, Margin warning and Depleted, cl
   // The head badge reads "Depleted · no yield" on one row beside the label, inside the block.
   const head = byTestId(host, 'target');
   const words = byTestId(host, 'target-composition');
-  expect(words.textContent).toBe('Depleted · no yield');
+  expect(words.textContent).toMatch(/^ · (Icy|Rocky)$/);
+  expect(byTestId(host, 'deposit-gauge').getAttribute('data-level')).toBe('empty');
   const label = head.querySelector<HTMLElement>('.nav-chart__target-label');
   const badge = words.closest<HTMLElement>('.nav-chart__badge');
   if (!label || !badge) throw new Error('missing head parts');
@@ -721,11 +726,11 @@ it('every yield icon on the card and the Hop plan target has its accessible name
   if (!landable?.landable || !gas)
     throw new Error('seed 123 needs a landable Body and a Gas Giant');
   const names = (host: HTMLElement): (string | null)[] =>
-    [...host.querySelectorAll('[data-testid="resource-icon"]')].map((el) =>
+    [...host.querySelectorAll('[data-testid="deposit-gauge"]')].map((el) =>
       el.getAttribute('aria-label'),
     );
 
-  const expected = landable.composition === 'icy' ? 'yields Fuel' : 'yields Materials';
+  const expected = landable.composition === 'icy' ? 'Fuel, full' : 'Materials, full';
   // The card and the plan never show together (#193): one chart with each.
   const withTarget = await renderUi(
     <>
@@ -735,7 +740,7 @@ it('every yield icon on the card and the Hop plan target has its accessible name
   );
   // One on the card, one on the target.
   expect(names(withTarget)).toEqual([expected, expected]);
-  expect(byTestId(byTestId(withTarget, 'inspect'), 'resource-icon').getAttribute('role')).toBe(
+  expect(byTestId(byTestId(withTarget, 'inspect'), 'deposit-gauge').getAttribute('role')).toBe(
     'img',
   );
   expect(names(byTestId(withTarget, 'target'))).toEqual([expected]);
@@ -755,7 +760,8 @@ it('every yield icon on the card and the Hop plan target has its accessible name
       />
     </>,
   );
-  expect(names(depleted)).toEqual(['Depleted, yields nothing', 'Depleted, yields nothing']);
+  const emptied = landable.composition === 'icy' ? 'Fuel, empty' : 'Materials, empty';
+  expect(names(depleted)).toEqual([emptied, emptied]);
   cleanUp();
 
   const giant = await renderUi(<Panel run={run} focusedId={gas.id} selectedId={undefined} />);
@@ -784,8 +790,8 @@ it('the yield icon fits inside the card and the target block', async () => {
     expect(i.right).toBeLessThanOrEqual(o.right);
     expect(i.bottom).toBeLessThanOrEqual(o.bottom);
   };
-  within(byTestId(byTestId(host, 'inspect'), 'resource-icon'), byTestId(host, 'inspect'));
-  within(byTestId(byTestId(host, 'target'), 'resource-icon'), byTestId(host, 'target'));
+  within(byTestId(byTestId(host, 'inspect'), 'deposit-gauge'), byTestId(host, 'inspect'));
+  within(byTestId(byTestId(host, 'target'), 'deposit-gauge'), byTestId(host, 'target'));
 });
 
 /** A New Run's first Hop target, with that target Surveyed or not. */
@@ -845,8 +851,10 @@ it('shows the arrival time as a sun or moon chip named for the time, for a day a
     );
     const chip = byTestId(host, 'plan-arrival');
     const name = chip.getAttribute('aria-label');
-    expect(name).toMatch(/^Arrives at (morning|midday|evening|night)$/);
-    names.add(name === 'Arrives at night' ? 'night' : 'day');
+    expect(name).toMatch(
+      /^(Arrives at (morning|midday|evening|night), (Scorching|Mild|Freezing)|Harsh arrival: (scorching day|freezing night))$/,
+    );
+    names.add(name?.includes('night') ? 'night' : 'day');
     const plan = byTestId(host, 'hop-plan').getBoundingClientRect();
     const box = chip.getBoundingClientRect();
     expect(box.right).toBeLessThanOrEqual(plan.right);
@@ -854,6 +862,45 @@ it('shows the arrival time as a sun or moon chip named for the time, for a day a
     cleanUp();
   }
   expect(names.size).toBe(2);
+});
+
+it('shows a band glyph, and a hazard mark only for a Freezing night or a Scorching day (#335)', async () => {
+  const { run, target } = surveyedRun(true);
+  const planned = planHop(run, target.id);
+  if (planned.kind !== 'planned') throw new Error('expected a plan');
+  const base = describeHopPlan(run, planned.plan);
+  const seen = new Set<string>();
+  for (const band of ['scorching', 'mild', 'freezing'] as const) {
+    for (const day of [true, false]) {
+      const harsh = isHarshArrival(band, day);
+      const word = band.charAt(0).toUpperCase() + band.slice(1);
+      const label = harsh
+        ? `Harsh arrival: ${band} ${day ? 'day' : 'night'}`
+        : `Arrives at ${day ? 'midday' : 'night'}, ${word}`;
+      const view = { ...base, arrival: { fraction: day ? 0.5 : 0, day, band, harsh, label } };
+      const host = await renderUi(<HopPlan view={view} />);
+      const chip = byTestId(host, 'plan-arrival');
+      expect(chip.getAttribute('aria-label')).toBe(label);
+      expect(chip.getAttribute('data-band')).toBe(band);
+      expect(host.querySelector('[data-testid="plan-harsh"]') !== null).toBe(harsh);
+      const box = chip.getBoundingClientRect();
+      const plan = byTestId(host, 'hop-plan').getBoundingClientRect();
+      expect(box.right).toBeLessThanOrEqual(plan.right);
+      const chance = host.querySelector<HTMLElement>('.hop-plan__chance');
+      if (!chance) throw new Error('no chance');
+      expect(chance.getBoundingClientRect().right).toBeLessThanOrEqual(plan.right);
+      expect(chance.scrollWidth).toBeLessThanOrEqual(chance.clientWidth);
+      expect(chip.getBoundingClientRect().right).toBeLessThanOrEqual(
+        chance.getBoundingClientRect().left,
+      );
+      seen.add(`${band}-${day ? 'day' : 'night'}-${harsh ? 'harsh' : 'ok'}`);
+      cleanUp();
+    }
+  }
+  expect([...seen].filter((k) => k.endsWith('harsh')).sort()).toEqual([
+    'freezing-night-harsh',
+    'scorching-day-harsh',
+  ]);
 });
 
 it('hides the arrival chip with no target (#334)', async () => {

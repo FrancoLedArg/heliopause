@@ -1,0 +1,99 @@
+.discovery-log {
+  position: absolute;
+  top: 48px;
+  left: 8px;
+  pointer-events: auto;
+  z-index: 5;
+}
+
+.discovery-log > .kit-frame:first-child {
+  position: absolute;
+  inset: 0;
+}
+
+.discovery-log__body {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 12px;
+  overflow: hidden;
+}
+
+.discovery-log__progress {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  margin: 0;
+  font: 14px/14px var(--font-pixel-body);
+  color: var(--wh3);
+}
+
+.discovery-log__bar {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  background: var(--gm1);
+  outline: 1px solid var(--gm5);
+}
+
+.discovery-log__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--wh3);
+}
+
+.discovery-log__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.discovery-log__entry {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  height: 16px;
+  font: 14px/14px var(--font-pixel-body);
+  color: var(--gm6);
+}
+
+.discovery-log__entry--locked {
+  color: var(--gm5);
+}
+
+.discovery-log__entry--new .discovery-log__badge {
+  color: var(--am3);
+}
+
+.discovery-log__entry--found .discovery-log__badge {
+  color: var(--gr3);
+}
+
+.discovery-log__badge {
+  display: inline-flex;
+  width: 12px;
+  flex: none;
+}
+
+.discovery-log__name {
+  flex: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.discovery-log__source {
+  font: 8px/10px var(--font-pixel);
+  color: var(--cy3);
+}
+
+.discovery-log__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+}

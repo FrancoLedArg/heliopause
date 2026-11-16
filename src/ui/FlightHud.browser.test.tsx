@@ -297,3 +297,25 @@ it('a Damaged Component lights red, says so in its name, and Enter starts its Re
   expect(asked).toEqual(['repair 1', 'rush 1']);
   for (const off of offs) off();
 });
+
+// #344: past the Cruise (the Landing, the report), the bar keeps the Scrap the Debris field gave.
+it('keeps the Scrap the Cruise earned on the top bar once the Cruise is over', async () => {
+  const { run, flight, playback } = moonHop();
+  expect(run.scrap).toBe(0);
+  const host = await renderUi(
+    <FlightHud
+      before={run}
+      flight={flight}
+      moment={playback.at(playback.duration - 100)}
+      after={undefined}
+      onContinue={() => undefined}
+      onNewRun={() => undefined}
+      onLeave={() => undefined}
+      fast={false}
+      onFastChange={() => undefined}
+      live={undefined}
+      cruised={{ ...run, scrap: 3 }}
+    />,
+  );
+  expect(byTestId(host, 'scrap').getAttribute('aria-label')).toBe('Scrap 3');
+});

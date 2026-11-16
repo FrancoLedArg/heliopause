@@ -199,3 +199,29 @@ it('"Tell me more" opens the Burn table, the Margin and the fact by keyboard, an
   const actions = host.querySelector<HTMLElement>('.hop-report__actions');
   expect(actions?.getBoundingClientRect().bottom).toBeLessThanOrEqual(panel.bottom);
 });
+
+// Scrap (#344): a Debris field's Scrap shows in the icon row as its icon and "+N", named in words.
+it('shows the Scrap a Debris field gave as its icon and "+N", and the report still fits', async () => {
+  const before = startRun(892, 'hauler');
+  const body = listBodies(before.starSystem).find((b) => b.name === 'Praerionrio Prime');
+  if (!body) throw new Error('no Body');
+  const launched = launchHop(before, body.id, {
+    schedule: [{ kind: 'debris-field', tick: 300, slot: 0, scrap: 3 }],
+  });
+  if (launched.kind !== 'flown') throw new Error('no flight');
+  const host = await renderUi(
+    <HopReport
+      before={before}
+      flight={launched.flight}
+      actions={[{ label: 'Continue', onClick: () => undefined, primary: true }]}
+    />,
+  );
+  const scrap = [...host.querySelectorAll('[data-testid="hop-report-cruise"]')].find(
+    (mark) => mark.getAttribute('aria-label') === '+3 Scrap from the Debris field.',
+  );
+  if (!scrap) throw new Error('no Scrap in the icon row');
+  expect(scrap.querySelector('[data-testid="scrap-icon"]')).not.toBeNull();
+  expect(scrap.textContent).toBe('+3');
+  cleanUp();
+  expect(await spareBelowContinue(before, launched.flight)).toBeGreaterThanOrEqual(0);
+});

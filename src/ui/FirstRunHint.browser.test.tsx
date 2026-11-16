@@ -95,3 +95,23 @@ it('does not come back after a reload once dismissed', async () => {
   await new Promise((resolve) => setTimeout(resolve, 300));
   expect(hint(host)).toBeNull();
 });
+
+it('points the Science hint at the Science chip, below it, inside the 640x360 stage (#342)', async () => {
+  const host = await renderUi(
+    <div className="game-ui" style={{ width: 640, height: 360, position: 'relative' }}>
+      <div className="top-bar">
+        <span data-testid="science" style={{ position: 'absolute', left: 600, top: 4 }}>
+          3
+        </span>
+      </div>
+      <FirstRunHint wanted={['first-science']} seen={new Set()} onDismiss={() => undefined} />
+    </div>,
+  );
+  const callout = await shown(host);
+  const frame = host.querySelector('.game-ui')?.getBoundingClientRect();
+  const chip = byTestId(host, 'science').getBoundingClientRect();
+  const box = callout.getBoundingClientRect();
+  expect(box.top).toBeGreaterThanOrEqual(chip.bottom);
+  expect(box.left).toBeGreaterThanOrEqual(frame?.left ?? 0);
+  expect(box.right).toBeLessThanOrEqual(frame?.right ?? 640);
+});

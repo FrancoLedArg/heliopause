@@ -83,6 +83,11 @@ export interface Run {
    * Never spent, and nothing but blueprints reads it.
    */
   readonly scienceCarriedIn: number;
+  /**
+   * The Scrap aboard (#344): Debris fields give it in the Cruise, a Rush spends it before Materials,
+   * and it carries over the Jump.
+   */
+  readonly scrap: number;
 }
 
 /**
