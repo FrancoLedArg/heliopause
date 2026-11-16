@@ -56,3 +56,23 @@ describe('which First-Run hints apply', () => {
     ]);
   });
 });
+
+describe('the first Science hint (#342)', () => {
+  const rich: Run = { ...broke, materials: materials(500) };
+  const withScience: Run = { ...broke, science: 3 };
+
+  it('is offered when an Instrument is affordable', () => {
+    expect(wantedHints(moment({ run: rich }))).toContain('first-science');
+    expect(wantedHints(moment({ run: broke }))).not.toContain('first-science');
+  });
+
+  it('is offered once the Run has earned Science', () => {
+    expect(wantedHints(moment({ run: withScience }))).toContain('first-science');
+  });
+
+  it('is never offered during a Hop, or over a panel or the Hop report', () => {
+    expect(wantedHints(moment({ run: rich, quiet: false }))).toEqual([]);
+    expect(wantedHints(moment({ run: rich, spacecraftOpen: true }))).not.toContain('first-science');
+    expect(wantedHints(moment({ run: rich, reportOpen: true }))).not.toContain('first-science');
+  });
+});
